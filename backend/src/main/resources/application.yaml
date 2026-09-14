@@ -1,0 +1,33 @@
+# Runtime configuration. Every secret comes from the environment (see deploy/env.example);
+# nothing sensitive is baked into the JAR. Syntax: "$VAR" is required, "$VAR:default" is optional.
+ktor:
+  deployment:
+    port: "$PORT:8080"
+  application:
+    modules:
+      - de.sluit.mediatracker.ApplicationKt.module
+
+database:
+  url: "$DB_URL"
+  user: "$DB_USER"
+  password: "$DB_PASSWORD"
+  # HikariCP. Web hosts kill idle MySQL connections after a few minutes; keepalive avoids
+  # reconnect latency on the first request after a quiet period.
+  pool:
+    maximumPoolSize: 3
+    minimumIdle: 1
+    keepaliveTime: 300000
+    maxLifetime: 1500000
+  migration:
+    # Value of the ${timestamp_type} placeholder in db/migration/*.sql. Exposed maps timestamp columns to
+    # DATETIME(6) on MySQL but to TIMESTAMP(9) on H2, so the type is not hard-coded in the scripts.
+    timestampType: "DATETIME(6)"
+
+session:
+  cookieName: MT_SESSION
+  # 14 days. Sessions live in the `sessions` table; the cookie carries only the signed session id.
+  maxAgeSeconds: 1209600
+  # Set SESSION_SECURE=false only for plain-http local testing.
+  secureCookie: "$SESSION_SECURE:true"
+  # HMAC key used to sign the session id cookie. Any long random string (>= 32 chars).
+  secret: "$SESSION_SECRET"

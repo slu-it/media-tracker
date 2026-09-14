@@ -1,0 +1,39 @@
+# systemd unit for the Raspberry Pi.
+#
+# Install:
+#   sudo useradd --system --home /opt/media-tracker --shell /usr/sbin/nologin media-tracker
+#   sudo mkdir -p /opt/media-tracker /etc/media-tracker
+#   sudo cp media-tracker.jar jvm.options /opt/media-tracker/
+#   sudo cp env.example /etc/media-tracker/env && sudo chmod 600 /etc/media-tracker/env   # then edit it
+#   sudo chown -R media-tracker:media-tracker /opt/media-tracker
+#   sudo cp media-tracker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now media-tracker
+#
+# Deploy a new version: scp the JAR to /opt/media-tracker/ and `sudo systemctl restart media-tracker`.
+
+[Unit]
+Description=Media Tracker (Ktor)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=media-tracker
+Group=media-tracker
+WorkingDirectory=/opt/media-tracker
+EnvironmentFile=/etc/media-tracker/env
+ExecStart=/usr/bin/java @/opt/media-tracker/jvm.options -jar /opt/media-tracker/media-tracker.jar
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=143
+TimeoutStopSec=20
+
+# Hardening (the app only needs its own directory for the CDS archive).
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/media-tracker
+
+[Install]
+WantedBy=multi-user.target

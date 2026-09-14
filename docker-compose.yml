@@ -1,0 +1,29 @@
+# Local development database. Used by build-and-start-locally.sh; not part of the Pi deployment.
+#
+#   docker compose up -d --wait      start (idempotent) and wait until MySQL accepts connections
+#   docker compose down              stop, keep data
+#   docker compose down -v           stop and delete the data volume
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: media-tracker-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: mediatracker
+      MYSQL_USER: mediatracker
+      MYSQL_PASSWORD: mediatracker
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-proot", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  mysql-data:

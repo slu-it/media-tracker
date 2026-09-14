@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Sign in - Media Tracker</title>
+    <link rel="stylesheet" href="/login/static/login.css" />
+  </head>
+  <body>
+    <main class="card">
+      <h1>Media Tracker</h1>
+      <p class="lead">Sign in to continue.</p>
+      <!--ERROR-->
+      <form method="post" action="/login" autocomplete="on">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" required autofocus autocomplete="username" />
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required autocomplete="current-password" />
+        <button type="submit">Sign in</button>
+      </form>
+    </main>
+  </body>
+</html>

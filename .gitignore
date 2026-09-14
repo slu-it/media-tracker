@@ -1,0 +1,25 @@
+# Scratch
+tmp/
+
+# Gradle / Kotlin
+.gradle/
+.kotlin/
+build/
+!**/src/**/build/
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/.pnpm-store/
+
+# Frontend build output copied into the backend at processResources time (never committed)
+backend/src/main/resources/app/
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Local secrets
+.env
