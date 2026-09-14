@@ -29,9 +29,10 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Frontend type-check only | `cd frontend && pnpm typecheck` (`pnpm build` runs `tsc -b` first) |
 | Kotlin lint / auto-format | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
 | Frontend lint / format | `cd frontend && pnpm lint` / `pnpm format:check`; fix with `pnpm lint:fix` / `pnpm format` (Gradle: `:frontend:pnpmLint`, `pnpmFormatCheck`, `pnpmLintFix`, `pnpmFormat`) |
+| Dev loop with live reload (backend auto-reload + Vite HMR) | `./start-dev.sh` (Docker MySQL, `:backend:run -Pmt.dev=true`, `:backend:classes -t -Pmt.dev=true`, `pnpm dev`; open :5173) |
 | Backend dev run (serves last built frontend) | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`) |
 | Frontend hot reload | `cd frontend && pnpm dev` (port 5173, proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
-| Full local end-to-end | `./build-and-start-locally.sh` (starts Docker MySQL, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR |
+| Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MySQL, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
 | Release JAR | `./gradlew :backend:buildFatJar` then `backend/build/libs/media-tracker.jar` |
 | Create/reset a user (no self-registration) | `java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <name> [--reset-password]` |
 
@@ -58,6 +59,10 @@ Gradle runs with configuration cache, build cache and parallel on. `frontend/bui
 Gradle configuration `frontendDist`; `:backend` resolves it as a dependency and copies it into
 `build/resources/main/app/` during `processResources`. Never reference `:frontend` tasks from `:backend`,
 and never write into `backend/src/main/resources/app/` (gitignored, must stay empty).
+`-Pmt.dev=true` drops that copy and puts `run` into Ktor development mode (dev loop only, Vite serves the SPA);
+never pass it to `build`/`buildFatJar`.
+Shutdown hooks in `module()` must hang off the application's coroutine job, not `monitor.subscribe(ApplicationStopped)`:
+with Ktor auto-reload the new instance starts before the old one stops and would close the new instance's resources.
 
 **Backend wiring** (`Application.kt`, `module()`): config → `DatabaseFactory.connect` → services →
 plugins (Serialization, Monitoring, StatusPages, Sessions, Security) → routes (`loginRoutes`,

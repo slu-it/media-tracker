@@ -65,6 +65,10 @@ backend processResources ──▶ build/resources/main/app/** ──▶ shadowJ
   the `app/` resource folder. No project reaches into another project's task graph, so the build works
   with the configuration cache and stays compatible with Gradle's isolated projects.
 - `backend/src/main/resources/app/` is therefore never written to and is ignored by git.
+- `-Pmt.dev=true` (used only by `start-dev.sh`) removes the `frontendDist` copy from
+  `:backend:processResources`, so the backend dev loop neither builds the SPA nor watches `frontend/src`
+  (the Vite dev server serves it), and adds `-Dio.ktor.development=true` to `:backend:run` for Ktor
+  auto-reload. Never use it for `build` or `buildFatJar`.
 - Node 24 and pnpm 10 are downloaded by the `com.github.node-gradle.node` plugin into `frontend/.gradle/`;
   nothing has to be installed by hand except a JDK 25.
 
@@ -103,8 +107,9 @@ Rules:
 | Goal | Command |
 |---|---|
 | Everything (lint, format check, tests, fat JAR) | `./gradlew build` |
-| Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment) |
-| Frontend hot reload | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
+| Dev loop with live reload (backend + frontend) | `./start-dev.sh`: Docker MySQL, `:backend:run` in Ktor development mode, `:backend:classes -t`, `pnpm dev`; see decision record 0006 |
+| Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment; add `-Pmt.dev=true` for auto-reload without the SPA) |
+| Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
 | Backend tests (H2 in MySQL mode, includes the schema drift test) | `./gradlew :backend:test` |
 | Frontend tests (Vitest) | `./gradlew :frontend:pnpmTest` |
 | Kotlin style (ktlint, `intellij_idea` style from `.editorconfig`) | `./gradlew :backend:ktlintCheck` / `:backend:ktlintFormat` |

@@ -16,21 +16,26 @@ import de.sluit.mediatracker.plugins.configureSessions
 import de.sluit.mediatracker.plugins.configureStatusPages
 import de.sluit.mediatracker.web.webRoutes
 import io.ktor.server.application.Application
-import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.log
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.job
 
 /**
  * Application module referenced from application.yaml (`ktor.application.modules`).
  * The process entry point is `io.ktor.server.cio.EngineMain`, configured in backend/build.gradle.kts.
  *
  * Wiring order: config -> database -> services -> plugins -> routes.
+ *
+ * Shutdown hooks hang off this instance's coroutine job, not the shared `monitor`: with Ktor auto-reload
+ * (`./gradlew :backend:run -Pmt.dev=true`) the new module instance is started before the old one is stopped,
+ * and a `monitor.subscribe(ApplicationStopped)` handler registered by the new instance would fire for the
+ * old instance's stop and close the new pool.
  */
 fun Application.module() {
     val config = AppConfig.from(environment.config)
 
     val database = DatabaseFactory.connect(config.database)
-    monitor.subscribe(ApplicationStopped) { database.close() }
+    coroutineContext.job.invokeOnCompletion { database.close() }
 
     val passwordHasher = PasswordHasher()
     val userRepository = UserRepository()

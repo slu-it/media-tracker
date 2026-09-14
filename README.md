@@ -22,8 +22,9 @@ touch.
 | Goal | Command |
 |---|---|
 | Full build, all tests, lint and format checks, fat JAR | `./gradlew build` |
+| Dev loop: backend auto-reload + frontend hot reload | `./start-dev.sh` (see "Local dev loop" below) |
 | Backend only (serves last built frontend) | `./gradlew :backend:run` |
-| Frontend hot reload | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout` to `localhost:8080`; see note below) |
+| Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `localhost:8080`; see note below) |
 | Backend tests (H2 in MySQL mode, no server needed) | `./gradlew :backend:test` |
 | Frontend tests | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test` |
 | Kotlin style check / auto-format (ktlint) | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
@@ -84,6 +85,35 @@ java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateU
 java -jar backend/build/libs/media-tracker.jar      # http://localhost:8080
 ```
 
+## Local dev loop
+
+```
+./start-dev.sh
+```
+
+Starts the MySQL container, then three processes: the backend from compiled classes with Ktor development mode
+(`./gradlew :backend:run -Pmt.dev=true`), a Gradle continuous build that recompiles the backend on
+every Kotlin or resource change (`./gradlew :backend:classes -t`), and the Vite dev server (`pnpm dev`). Open
+http://localhost:5173: Vite serves the React app with hot module replacement and proxies `/api`, `/login`,
+`/logout` and `/health` to `:8080`, so the login gate and the session cookie behave as in production. The
+backend swaps in recompiled classes on the first request after a change (the log says "Changes in application
+detected"). `application.yaml` and build-script edits still need a restart. Ctrl+C stops everything except the
+database. `pnpm` does not have to be installed; the script falls back to the copy Gradle downloaded.
+
+Both Gradle invocations pass `-Pmt.dev=true` (defined in `backend/build.gradle.kts`). It makes
+`:backend:processResources` skip building and copying the SPA (Vite serves it), so a frontend edit never triggers
+a Vite production build, and it gives the `run` task the `-Dio.ktor.development=true` JVM flag that turns on Ktor
+auto-reload. Never pass that property to `build` or `buildFatJar`. The local user `slu` is created via the last built fat JAR if there is one;
+otherwise run `./build-and-start-locally.sh` once, the database volume keeps the user afterwards.
+
+The same loop by hand, in three terminals (environment as in `local-env.sh`):
+
+```
+./gradlew :backend:run -Pmt.dev=true
+./gradlew :backend:classes -t -Pmt.dev=true
+cd frontend && pnpm dev
+```
+
 ## Continuous integration
 
 Two GitHub Actions workflows in `.github/workflows/`, both running `./gradlew build` on JDK 25:
@@ -108,7 +138,7 @@ First-time setup of the unit, user, and environment file is described at the top
 
 ```
 backend/    Ktor application (see docs/architecture.md for the module map)
-frontend/   Vite + React app, wrapped by Gradle; `pnpm dev` for the hot-reload loop
+frontend/   Vite + React app, wrapped by Gradle; `pnpm dev` for the hot-reload loop (or `./start-dev.sh` for both)
 deploy/     systemd unit, environment template, JVM options for the Pi
 docs/       architecture overview and decision records
 gradle/     wrapper and libs.versions.toml (single source of truth for JVM versions)
