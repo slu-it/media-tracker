@@ -7,13 +7,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.migration.jdbc.MigrationUtils
 import org.slf4j.LoggerFactory
 
 /** Connected database plus the pool that owns its connections. */
 class ConnectedDatabase(val database: Database, private val dataSource: HikariDataSource) : AutoCloseable {
-    override fun close() = dataSource.close()
+    /** Unregisters from Exposed first so a reloaded module (dev auto-reload) does not accumulate dead databases. */
+    override fun close() {
+        TransactionManager.closeAndUnregister(database)
+        dataSource.close()
+    }
 }
 
 object DatabaseFactory {
