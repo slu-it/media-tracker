@@ -13,6 +13,7 @@ Browser ──GET /────────────▶ Ktor ── no valid 
         ──POST /login──────▶ AuthService.login ─▶ Argon2id verify ─▶ sessions row ─▶ Set-Cookie MT_SESSION=<signed id>
         ──GET / (+cookie)──▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
+        ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MySQL
         ──POST /logout─────▶ sessions row deleted, cookie cleared ─▶ 302 /login
 ```
 
@@ -48,10 +49,60 @@ de.sluit.mediatracker
 ├── auth/               PasswordHasher, UserSession, repositories, DbSessionStorage, AuthService,
 │                       LoginRoutes (/login, /logout), CreateUser (bootstrap CLI)
 ├── plugins/            Serialization, Monitoring, StatusPages, Sessions, Security
-├── api/                /api routes + @Serializable DTOs (mirrored in frontend/src/types/api.ts)
-├── web/                /health and the session-gated SPA (classpath /app)
-└── media/              empty; phase 2 domain (MediaList, MediaItem, statuses)
+├── api/                ApiRoutes (mounts the feature routes under the authenticated /api prefix), shared DTOs
+│                       (ErrorResponse, PageResponse<T>; mirrored in frontend/src/types/api.ts), PatchField, Paging
+├── common/             cross-feature domain primitives: InvalidValueException/NotFoundException, PageNumber/PageSize/
+│                       PageRequest/Page<T>, Patch<T>
+├── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
+│   ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/game-platforms)
+│   ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl, GamePlatformId,
+│   │                   PlatformLabel, HexColor), Game/NewGame/GamePatch, GamePlatform, GameRepository and
+│   │                   GamePlatformRepository (interfaces), GameService
+│   └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository,
+│                       ExposedGamePlatformRepository
+└── web/                /health and the session-gated SPA (classpath /app)
 ```
+
+Layer rule inside a feature: `api -> domain <- persistence`; the domain imports neither Ktor nor Exposed. Only
+domain objects and value classes cross a layer boundary; constructing a value class is the validation.
+
+## API
+
+All `/api/**` routes need a session cookie; without one they answer `401 {"error":"unauthorized"}`.
+
+| Method and path | Success | Notes |
+|---|---|---|
+| `GET /api/me` | 200 `{"username"}` | |
+| `GET /api/games?page=1&pageSize=50` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title, id; `totalPages` 0 when empty |
+| `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `platformIds` (at least one seeded platform id), `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional |
+| `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating` or `coverImageUrl`, `platformIds` replaces the whole set; 404 for unknown ids |
+| `DELETE /api/games/{id}` | 204 | also for unknown ids (idempotent); junction rows go with the game (`ON DELETE CASCADE`) |
+| `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
+
+Errors are `ErrorResponse {error, message?}` with codes `validation_error` (400, a value class rejected a field:
+`"title: must not be blank"`), `invalid_body` (400, malformed or ill-typed JSON, missing body), `not_found` (404),
+`unauthorized` (401), `internal_error` (500). The mapping lives in `plugins/StatusPages.kt`.
+
+## Module map (frontend)
+
+```
+frontend/src
+├── main.tsx / App.tsx / AppProviders.tsx   i18n init, theme + CssBaseline, shell (AppHeader, MediaTabs, active view)
+├── theme/theme.ts        MUI theme: login-page palette, light/dark by OS preference, system font stack
+├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
+├── api/client.ts         apiFetch (401 -> /login, 204 -> undefined, ApiError with the parsed ErrorResponse)
+├── types/api.ts          hand-written mirrors of the backend DTOs
+├── hooks/                useLocalStorageState, useStoredTab (selected media tab)
+├── components/           shared UI: layout/ (AppHeader, LanguageMenu, LogoutButton, MediaTabs, mediaKinds),
+│                         dialog/ (BaseDialog, ConfirmDialog, DialogActionButton), CoverImage, ComingSoon
+├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
+└── features/games/       GamesView + api/ (gamesApi), hooks/ (useGamesPage), domain/ (gameValues validators,
+                          gameDraft), components/ (grid, cards, pagination, detail/add dialogs, fields/)
+```
+
+Browser state: `localStorage["mt.language"]` (`en`/`de`) and `localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/
+`series`). The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,
+and any later 401 redirects to the login page. Decision record 0008 covers the UI stack.
 
 ## Build pipeline
 
@@ -99,8 +150,14 @@ Rules:
 - Timestamp columns use the placeholder `${timestamp_type}` (`DATETIME(6)` on MySQL, `TIMESTAMP(9)` on H2, from
   `database.migration.timestampType`).
 - Give foreign-key columns an explicit index in SQL and `.index()` in Kotlin.
-- Mirror every change in `db/Tables.kt` in the same commit. `SchemaDriftTest` fails when scripts and Kotlin
-  tables disagree, and prints the statements Exposed would need.
+- Mirror every change in the Exposed table object in the same commit (`db/Tables.kt` for users/sessions,
+  `<feature>/persistence/*Table.kt` for feature tables; every table object is listed in `allTables` in
+  `db/Tables.kt`). `SchemaDriftTest` fails when scripts and Kotlin tables disagree, and prints the statements
+  Exposed would need.
+- UUID primary keys are `CHAR(36)` (hex-dash text), not Exposed's `uuid()`; see decision record 0007.
+- Reference data that the app needs from day one (the game platforms) is seeded by the migration that creates
+  its table, with fixed ids; see decision record 0009. `V2__games.sql` was amended in place once, before the
+  first release, under that record; the rule above holds from now on.
 
 ## Developer loop
 

@@ -1,5 +1,8 @@
 package de.sluit.mediatracker.db
 
+import de.sluit.mediatracker.games.persistence.GamePlatformsTable
+import de.sluit.mediatracker.games.persistence.GameToPlatformTable
+import de.sluit.mediatracker.games.persistence.GamesTable
 import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.datetime.timestamp
@@ -8,6 +11,9 @@ import org.jetbrains.exposed.v1.datetime.timestamp
  * These objects are Exposed's view of the schema for queries. The schema itself is defined by the Flyway
  * scripts in src/main/resources/db/migration; every change there must be mirrored here (and vice versa).
  * SchemaDriftTest fails when the two disagree, and DatabaseFactory logs a warning at startup.
+ *
+ * Feature packages keep their own table objects next to their repositories (e.g.
+ * games/persistence/GamesTable.kt); they only have to be registered in [allTables] below.
  */
 
 object Users : Table("users") {
@@ -35,4 +41,4 @@ object Sessions : Table("sessions") {
 }
 
 /** All tables the application maps; used for the schema drift check. */
-val allTables = arrayOf(Users, Sessions)
+val allTables = arrayOf(Users, Sessions, GamesTable, GamePlatformsTable, GameToPlatformTable)

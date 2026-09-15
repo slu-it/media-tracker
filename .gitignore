@@ -23,3 +23,6 @@ backend/src/main/resources/app/
 
 # Local secrets
 .env
+
+# Python
+.claude/hooks/__pycache__/

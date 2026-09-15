@@ -1,44 +1,18 @@
 package de.sluit.mediatracker
 
-import de.sluit.mediatracker.auth.PasswordHasher
-import de.sluit.mediatracker.auth.UserRepository
-import io.ktor.client.HttpClient
-import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.parameters
-import io.ktor.server.config.ApplicationConfig
-import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class LoginFlowTest {
-
-    /** Boots the real module against H2 and seeds one user. */
-    private fun ApplicationTestBuilder.appWithUser(username: String, password: String): HttpClient {
-        environment { config = ApplicationConfig("application-test.yaml") }
-        application {
-            module()
-            transaction {
-                val users = UserRepository()
-                if (users.findByUsernameBlocking(username) == null) {
-                    users.createBlocking(username, PasswordHasher(memoryKb = 1024, iterations = 1).hash(password))
-                }
-            }
-        }
-        return createClient {
-            followRedirects = false
-            install(HttpCookies)
-        }
-    }
-
     @Test
     fun `anonymous browser navigation is redirected to login`() = testApplication {
         val client = appWithUser("alice", "wonderland-1")

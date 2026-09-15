@@ -1,51 +1,36 @@
-import { useEffect, useState } from "react";
-import { ApiError, fetchMe } from "./api/client";
-import type { MeResponse } from "./types/api";
+import { Box, Container } from "@mui/material";
+import { AppHeader } from "./components/layout/AppHeader";
+import { MediaTabs } from "./components/layout/MediaTabs";
+import type { MediaKind } from "./components/layout/mediaKinds";
+import { useStoredTab } from "./hooks/useStoredTab";
+import { BooksView } from "./features/books/BooksView";
+import { GamesView } from "./features/games/GamesView";
+import { MoviesView } from "./features/movies/MoviesView";
+import { SeriesView } from "./features/series/SeriesView";
 
-type State = { status: "loading" } | { status: "ready"; me: MeResponse } | { status: "error"; message: string };
+function MediaView({ kind }: { kind: MediaKind }) {
+  switch (kind) {
+    case "books":
+      return <BooksView />;
+    case "games":
+      return <GamesView />;
+    case "movies":
+      return <MoviesView />;
+    case "series":
+      return <SeriesView />;
+  }
+}
 
+/** Application shell: header, media-kind tabs, and the view of the selected kind. */
 export function App() {
-  const [state, setState] = useState<State>({ status: "loading" });
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchMe()
-      .then((me) => {
-        if (!cancelled) setState({ status: "ready", me });
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        const message = error instanceof ApiError ? `${error.status} ${error.message}` : String(error);
-        setState({ status: "error", message });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  const [tab, setTab] = useStoredTab();
   return (
-    <div className="mt-shell">
-      <header className="mt-header">
-        <h1>Media Tracker</h1>
-        {state.status === "ready" && (
-          <div className="mt-user">
-            <span>
-              Signed in as <strong>{state.me.username}</strong>
-            </span>
-            {/* Plain form POST: the backend clears the session cookie and redirects to /login. */}
-            <form method="post" action="/logout">
-              <button type="submit">Log out</button>
-            </form>
-          </div>
-        )}
-      </header>
-      <main>
-        {state.status === "loading" && <p className="mt-empty">Loading…</p>}
-        {state.status === "error" && <p className="mt-empty">Could not load your profile: {state.message}</p>}
-        {state.status === "ready" && (
-          <p className="mt-empty">No media lists yet. The lists and items features arrive in the next phase.</p>
-        )}
-      </main>
-    </div>
+    <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      <AppHeader />
+      <MediaTabs value={tab} onChange={setTab} />
+      <Container component="main" maxWidth="xl" sx={{ flex: 1, display: "flex", flexDirection: "column", py: 2 }}>
+        <MediaView kind={tab} />
+      </Container>
+    </Box>
   );
 }

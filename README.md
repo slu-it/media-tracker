@@ -8,7 +8,7 @@ touch.
 |---|---|
 | Build | Gradle 9.7 wrapper, JDK 25 toolchain, Gradle-managed Node 24 + pnpm 10 |
 | Backend | Kotlin 2.4, Ktor 3.5 (CIO), Exposed 1.5, HikariCP 7, MySQL Connector/J, Argon2id (Bouncy Castle) |
-| Frontend | React 19, TypeScript 6, Vite 8, Vitest 5 |
+| Frontend | React 19, TypeScript 6, Vite 8, MUI 9 (Material Design), i18next (EN/DE), Vitest 5 |
 | Runtime | systemd on the Pi, environment-file configuration, sessions in MySQL |
 
 ## Prerequisites
@@ -72,7 +72,9 @@ password only the first time, or set `MT_LOCAL_PASSWORD`), and starts the app on
 The schema is managed by Flyway (`backend/src/main/resources/db/migration`) and applied automatically when the
 application or `CreateUser` connects. A database that was created before Flyway was introduced has tables but no
 `flyway_schema_history` table; Flyway refuses to touch it ("Found non-empty schema(s) ... but no schema history
-table"). Reset such a local database once with `docker compose down -v`.
+table"). Reset such a local database once with `docker compose down -v`. The same reset is needed once for a local
+database created before `V2__games.sql` was amended on the MT-001 branch (Flyway reports a checksum mismatch for
+version 2, see `docs/decisions/0009-*.md`); `build-and-start-locally.sh` recreates the `slu` user afterwards.
 
 The same steps by hand:
 
@@ -144,5 +146,8 @@ docs/       architecture overview and decision records
 gradle/     wrapper and libs.versions.toml (single source of truth for JVM versions)
 ```
 
-Phase 1 ships the build, the login gate and the user session. The media domain (lists, items, statuses)
-is the next phase; its packages exist and are empty.
+Phase 1 shipped the build, the login gate and the user session. Phase 2 adds the media kinds one by one:
+Games are implemented (grid, add/edit/delete dialogs with description, star rating and multi-platform chips,
+`/api/games` and the read-only `/api/game-platforms`; see `docs/architecture.md` for the API and
+`docs/decisions/0007-*.md` / `0008-*.md` / `0009-*.md` for the backend, frontend and reference-data patterns);
+Books, Movies and Series are "coming soon" tabs.

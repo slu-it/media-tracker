@@ -1,31 +1,71 @@
 package de.sluit.mediatracker.plugins
 
 import de.sluit.mediatracker.api.ErrorResponse
+import de.sluit.mediatracker.common.InvalidValueException
+import de.sluit.mediatracker.common.NotFoundException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.application.log
+import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.ContentTransformationException
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 
+/**
+ * Maps exceptions and bare status codes to responses. API paths get a JSON [ErrorResponse]; everything else
+ * gets plain text. StatusPages picks the most specific registered exception type, so the domain exceptions
+ * below win over the `Throwable` fallback.
+ *
+ * | Exception                                     | Status | code               |
+ * |-----------------------------------------------|--------|--------------------|
+ * | [InvalidValueException] (value object rejected) | 400  | `validation_error` |
+ * | [BadRequestException] (malformed/ill-typed body) | 400 | `invalid_body`     |
+ * | [ContentTransformationException] (no/unsupported body) | 400 | `invalid_body` |
+ * | [NotFoundException]                           | 404    | `not_found`        |
+ * | anything else                                 | 500    | `internal_error`   |
+ */
 fun Application.configureStatusPages() {
     install(StatusPages) {
+        exception<InvalidValueException> { call, cause ->
+            call.respondError(HttpStatusCode.BadRequest, "validation_error", cause.message)
+        }
+        exception<NotFoundException> { call, _ ->
+            call.respondError(HttpStatusCode.NotFound, "not_found")
+        }
+        exception<BadRequestException> { call, cause ->
+            // Ktor wraps the kotlinx.serialization failure; its message carries the offending field but also
+            // the raw JSON input after a line break, which is not something to echo back.
+            val detail = cause.cause?.message?.lineSequence()?.firstOrNull()
+            call.respondError(HttpStatusCode.BadRequest, "invalid_body", detail)
+        }
+        exception<ContentTransformationException> { call, _ ->
+            call.respondError(HttpStatusCode.BadRequest, "invalid_body")
+        }
         exception<Throwable> { call, cause ->
             call.application.log.error("Unhandled error on ${call.request.path()}", cause)
-            if (call.request.path().startsWith("/api/")) {
-                call.respond(HttpStatusCode.InternalServerError, ErrorResponse("internal_error"))
-            } else {
-                call.respondText("Internal server error", status = HttpStatusCode.InternalServerError)
-            }
+            call.respondError(HttpStatusCode.InternalServerError, "internal_error", text = "Internal server error")
         }
         status(HttpStatusCode.NotFound) { call, status ->
-            if (call.request.path().startsWith("/api/")) {
-                call.respond(status, ErrorResponse("not_found"))
-            } else {
-                call.respondText("Not found", status = status)
-            }
+            call.respondError(status, "not_found", text = "Not found")
         }
+    }
+}
+
+private fun ApplicationCall.isApiCall() = request.path().startsWith("/api/")
+
+private suspend fun ApplicationCall.respondError(
+    status: HttpStatusCode,
+    code: String,
+    message: String? = null,
+    text: String = message ?: code,
+) {
+    if (isApiCall()) {
+        respond(status, ErrorResponse(code, message))
+    } else {
+        respondText(text, status = status)
     }
 }
