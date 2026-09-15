@@ -19,6 +19,14 @@ export default defineConfig([
       reactRefresh.configs.vite(),
     ],
     languageOptions: { globals: { ...globals.browser } },
+    rules: {
+      // Icons are imported by path (`@mui/icons-material/Edit`): the barrel re-exports ~2000 modules and slows
+      // Vite's dev pre-bundling; production output is tree-shaken either way.
+      "no-restricted-imports": [
+        "error",
+        { paths: [{ name: "@mui/icons-material", message: "Import icons by path: @mui/icons-material/<Name>." }] },
+      ],
+    },
   },
   {
     files: ["vite.config.ts", "eslint.config.js"],

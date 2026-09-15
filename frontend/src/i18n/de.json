@@ -1,0 +1,67 @@
+{
+  "app": {
+    "title": "SLU's Media Tracker"
+  },
+  "common": {
+    "close": "Schließen",
+    "cancel": "Abbrechen",
+    "confirm": "Ja",
+    "save": "Speichern",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "comingSoon": "Demnächst verfügbar",
+    "loading": "Lädt…",
+    "retry": "Erneut versuchen",
+    "yes": "Ja",
+    "no": "Nein"
+  },
+  "language": {
+    "label": "Sprache",
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "auth": {
+    "logout": "Abmelden"
+  },
+  "tabs": {
+    "label": "Medienarten",
+    "books": "Bücher",
+    "games": "Spiele",
+    "movies": "Filme",
+    "series": "Serien"
+  },
+  "games": {
+    "addGame": "Spiel hinzufügen",
+    "gameDetails": "Spieldetails",
+    "editGame": "Spiel bearbeiten",
+    "empty": "Noch keine Spiele. Mit dem +-Button legst du das erste an.",
+    "noCover": "Kein Coverbild",
+    "coverPreview": "Cover-Vorschau",
+    "deleteQuestion": "„{{title}}“ löschen?",
+    "pagination": {
+      "range": "{{from}}–{{to}} von {{total}}"
+    },
+    "fields": {
+      "title": "Titel",
+      "releaseYear": "Erscheinungsjahr",
+      "platforms": "Plattformen",
+      "description": "Beschreibung",
+      "rating": "Bewertung",
+      "coverImageUrl": "Coverbild-URL",
+      "coverImageUrlHint": "Optional. Leer lassen für kein Cover."
+    },
+    "notRated": "Noch nicht bewertet"
+  },
+  "validation": {
+    "required": "Pflichtfeld",
+    "tooLong": "Höchstens {{max}} Zeichen",
+    "invalidUrl": "Muss eine absolute http(s)-URL sein",
+    "invalidYear": "Muss eine vierstellige Jahreszahl sein",
+    "invalidRating": "Muss zwischen 0,25 und 5 in Schritten von 0,25 liegen"
+  },
+  "errors": {
+    "loadFailed": "Die Liste konnte nicht geladen werden.",
+    "saveFailed": "Speichern fehlgeschlagen.",
+    "deleteFailed": "Löschen fehlgeschlagen."
+  }
+}

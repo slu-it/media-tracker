@@ -9,6 +9,9 @@ import de.sluit.mediatracker.auth.UserRepository
 import de.sluit.mediatracker.auth.loginRoutes
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.db.DatabaseFactory
+import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.persistence.ExposedGamePlatformRepository
+import de.sluit.mediatracker.games.persistence.ExposedGameRepository
 import de.sluit.mediatracker.plugins.configureMonitoring
 import de.sluit.mediatracker.plugins.configureSecurity
 import de.sluit.mediatracker.plugins.configureSerialization
@@ -41,6 +44,7 @@ fun Application.module() {
     val userRepository = UserRepository()
     val sessionRepository = SessionRepository()
     val authService = AuthService(userRepository, passwordHasher)
+    val gameService = GameService(ExposedGameRepository(), ExposedGamePlatformRepository())
 
     configureSerialization()
     configureMonitoring()
@@ -50,7 +54,7 @@ fun Application.module() {
 
     routing {
         loginRoutes(authService)
-        apiRoutes()
+        apiRoutes(gameService)
         webRoutes()
     }
 

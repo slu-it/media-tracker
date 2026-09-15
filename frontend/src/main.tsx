@@ -1,7 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import "./i18n"; // initialises translations before the first render
 import { App } from "./App";
-import "./index.css";
+import { AppProviders } from "./AppProviders";
 
 const container = document.getElementById("root");
 if (!container) {
@@ -10,6 +11,8 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <App />
+    <AppProviders>
+      <App />
+    </AppProviders>
   </StrictMode>,
 );

@@ -8,8 +8,11 @@ Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA +
 running on a Raspberry Pi against a remote MySQL 8. Two Gradle projects, `backend` and `frontend`; Gradle
 is the only tool you need installed besides JDK 25 (Node 24 and pnpm 10 are downloaded by Gradle).
 
-Phase 1 (build, login gate, sessions) is done. Phase 2 (media domain: lists, items, statuses) is not
-started: `backend/.../media/` and `frontend/src/features/*` are intentional empty placeholders.
+Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one media kind at a time: Games
+(MT-001: title, year, optional description and quarter-step rating, many-to-many platforms from a seeded
+`game_platforms` table, ADR 0009) is implemented end to end (`backend/.../games/`, `frontend/src/features/games/`)
+and is the template for Books, Movies and Series, which are "coming soon" tabs
+(`frontend/src/features/{books,movies,series}/`).
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -66,14 +69,23 @@ with Ktor auto-reload the new instance starts before the old one stops and would
 
 **Backend wiring** (`Application.kt`, `module()`): config → `DatabaseFactory.connect` → services →
 plugins (Serialization, Monitoring, StatusPages, Sessions, Security) → routes (`loginRoutes`,
-`apiRoutes`, `webRoutes`). Config is typed in `config/AppConfig.kt` from `application.yaml`, where every
+`apiRoutes(gameService)`, `webRoutes`). Config is typed in `config/AppConfig.kt` from `application.yaml`, where every
 secret is an env-var reference (`"$VAR"` required, `"$VAR:default"` optional).
 
 **Two auth tiers on one port.** Public: `/login`, `/login/static/*`, `/logout`, `/health`. Everything
 else (SPA with `index.html` fallback, `/api/**`) sits inside `authenticate(SESSION_AUTH)`. The challenge
 in `plugins/Security.kt` returns JSON 401 for `/api/*` and a 302 to `/login` otherwise. `apiRoutes` ends
-with a `{...}` catch-all so unknown API paths are JSON 404s instead of the SPA. New API routes go under
-that `authenticate` block in `api/ApiRoutes.kt`.
+with a `{...}` catch-all so unknown API paths are JSON 404s instead of the SPA. Each feature defines its routes
+in `<feature>/api/*Routes.kt` (`Route.gameRoutes(service)`) and `api/ApiRoutes.kt` mounts them inside that
+`authenticate` block, before the catch-all.
+
+**Feature packages are onion-layered** (ADR 0007): `de.sluit.mediatracker.<feature>.{api,domain,persistence}`,
+dependencies `api → domain ← persistence`, the domain imports no Ktor/Exposed/kotlinx. Each layer has its own types
+(DTOs / entities + `@JvmInline value class`es / Exposed tables); only domain types cross layers. Value classes
+validate in `init` via `requireValid(field, cond) { reason }` → `InvalidValueException` → HTTP 400
+`validation_error` (`plugins/StatusPages.kt` also maps `NotFoundException` → 404, Ktor body failures → 400
+`invalid_body`). Shared primitives (`Page*`, `Patch`, exceptions) live in `common/`; optional PATCH fields use
+`api/PatchField.kt` (absent / null / value). Copy the `games` package for the next media kind.
 
 **Sessions** live in the `sessions` table; the cookie `MT_SESSION` holds only an HMAC-signed id.
 `DbSessionStorage` rebuilds the `UserSession` principal per request and lazily deletes expired rows.
@@ -85,25 +97,49 @@ which runs the transaction on `Dispatchers.IO`. Repositories expose `*Blocking` 
 an existing transaction (tests, `CreateUser`).
 
 **Schema changes are a two-file commit.** Flyway SQL in `backend/src/main/resources/db/migration/` is
-the source of truth; `db/Tables.kt` mirrors it and must be added to `allTables`. `SchemaDriftTest`
+the source of truth; an Exposed table object mirrors it (`db/Tables.kt` for users/sessions,
+`<feature>/persistence/*Table.kt` for feature tables) and must be listed in `allTables` in `db/Tables.kt`. `SchemaDriftTest`
 migrates a fresh H2 and fails if Exposed would still want to change anything. Rules:
 - Name scripts `V<n>__<snake_case>.sql`; never edit an applied script, add `V<n+1>`.
 - SQL must run on MySQL 8 and H2 MySQL mode. Use `${timestamp_type}` for timestamp columns (resolved to
   `DATETIME(6)` in prod, `TIMESTAMP(9)` in tests).
 - Every FK column gets an explicit `INDEX` in SQL and `.index()` in Kotlin, or the drift test fails on H2.
 - Migrations run at startup; the app never alters the schema itself.
+- UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()` (BINARY(16) on MySQL vs UUID on H2).
 
-**DTO mirroring.** `@Serializable` DTOs in `backend/.../api/Dtos.kt` are hand-mirrored in
-`frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`) redirects to
-`/login` on 401 and throws `ApiError` on other non-2xx.
+**DTO mirroring.** `@Serializable` DTOs in `backend/.../api/Dtos.kt` (shared) and `backend/.../<feature>/api/*Dtos.kt`
+are hand-mirrored in `frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`)
+redirects to `/login` on 401, resolves `undefined` for 204, and throws `ApiError` (with the parsed `ErrorResponse`
+as `body`) on other non-2xx.
+
+**Frontend stack** (ADR 0008): MUI 9 (`sx` prop, `slotProps.*`, icons imported by path `@mui/icons-material/<Name>`;
+the barrel import is an ESLint error), theme in `src/theme/theme.ts` (no `index.css`), i18next with typed keys: every
+UI string goes through `t()` and must exist in both `src/i18n/en.json` and `de.json` (a test compares key sets;
+platform labels come from the database via `/api/game-platforms`, not from the bundles). Hooks/constants/validators
+live in non-component files (react-refresh rule). Feature layout `src/features/<kind>/{api,domain,hooks,components}`
++ `<Kind>View.tsx`; domain constraints are mirrored as validators returning i18n codes and wrapped in
+self-validating field components. Common dialogs: `components/dialog/BaseDialog` (round protruding close button,
+optional left action column with top and bottom slots, optional fixed height) and `ConfirmDialog`.
+The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default.
 
 **Backend tests** use Ktor `testApplication` with `application-test.yaml` (H2 in-memory, no
 `ktor.application.modules` entry, so tests call `module()` explicitly) and seed users with a cheap
-`PasswordHasher(memoryKb = 1024, iterations = 1)`. See `LoginFlowTest.appWithUser` for the pattern.
-Frontend tests use Vitest + Testing Library with jsdom and mock `globalThis.fetch`.
+`PasswordHasher(memoryKb = 1024, iterations = 1)`. Shared helpers are in `test/.../TestApp.kt` (`appWithUser` with a
+seed lambda, `loginAs`, `decodeBody`, `jsonBody`); the H2 database is shared across tests in a JVM, so seed
+idempotently or clean up (`GamesTable.deleteAll()`). Frontend tests use Vitest + Testing Library + user-event with
+MUI rendered in jsdom: `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
+records calls); dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
 
 ## Version policy
 
 `gradle/libs.versions.toml` is the single source for JVM versions; npm packages are pinned exactly in
 `frontend/package.json` (no `^` ranges). Stay on the current majors and take the newest release within
-each; do not bump majors (e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking.
+each (current: MUI 9, Emotion 11, i18next 26, react-i18next 17 on the npm side); do not bump majors
+(e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking.
+
+## Delegation
+- Main session: planning, decisions, synthesis. Do not read whole files or run tests directly.
+- Use Explore for any codebase search, implementer for scoped edits, test-runner for verification, reviewer before finishing
+  (definitions in `.claude/agents/`).
+- Prefer several parallel subagents for independent investigations, but only one subagent that runs Gradle at a time:
+  concurrent Gradle invocations contend on the daemon lock and the configuration cache.

@@ -1,0 +1,67 @@
+{
+  "app": {
+    "title": "SLU's Media Tracker"
+  },
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "confirm": "Yes",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "comingSoon": "Coming soon",
+    "loading": "Loading…",
+    "retry": "Retry",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "language": {
+    "label": "Language",
+    "en": "English",
+    "de": "Deutsch"
+  },
+  "auth": {
+    "logout": "Log out"
+  },
+  "tabs": {
+    "label": "Media kinds",
+    "books": "Books",
+    "games": "Games",
+    "movies": "Movies",
+    "series": "Series"
+  },
+  "games": {
+    "addGame": "Add game",
+    "gameDetails": "Game details",
+    "editGame": "Edit game",
+    "empty": "No games yet. Use the + button to add your first one.",
+    "noCover": "No cover image",
+    "coverPreview": "Cover preview",
+    "deleteQuestion": "Delete \"{{title}}\"?",
+    "pagination": {
+      "range": "{{from}}–{{to}} of {{total}}"
+    },
+    "fields": {
+      "title": "Title",
+      "releaseYear": "Release year",
+      "platforms": "Platforms",
+      "description": "Description",
+      "rating": "Rating",
+      "coverImageUrl": "Cover image URL",
+      "coverImageUrlHint": "Optional. Leave empty for no cover."
+    },
+    "notRated": "Not rated yet"
+  },
+  "validation": {
+    "required": "Required",
+    "tooLong": "At most {{max}} characters",
+    "invalidUrl": "Must be an absolute http(s) URL",
+    "invalidYear": "Must be a four-digit year",
+    "invalidRating": "Must be between 0.25 and 5 in steps of 0.25"
+  },
+  "errors": {
+    "loadFailed": "Could not load the list.",
+    "saveFailed": "Saving failed.",
+    "deleteFailed": "Deleting failed."
+  }
+}
