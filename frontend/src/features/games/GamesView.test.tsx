@@ -179,7 +179,7 @@ describe("GamesView", () => {
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
     const title = within(dialog).getByRole("textbox", { name: /title/i });
     await user.clear(title);
-    await user.type(title, "Celeste (Switch)");
+    await user.paste("Celeste (Switch)");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     expect(await within(dialog).findByRole("heading", { name: "Celeste (Switch)" })).toBeInTheDocument();
@@ -210,7 +210,9 @@ describe("GamesView", () => {
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
     const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByRole("textbox", { name: /title/i }), "Hollow Knight");
+    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hollow Knight");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
     await user.click(screen.getByRole("option", { name: "2020" }));
     await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));

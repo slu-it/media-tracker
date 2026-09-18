@@ -1,5 +1,7 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, beforeEach, vi, type MockInstance } from "vitest";
+// eslint-disable-next-line testing-library/no-manual-cleanup -- see cleanup() in afterEach below
+import { cleanup } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach, vi, type MockInstance } from "vitest";
 import i18n from "./i18n";
 import { unmockedRequests } from "./test/mockFetch";
 
@@ -22,12 +24,23 @@ if (typeof window.matchMedia !== "function") {
 // error boundary firing: real problems that should fail the test rather than scroll by silently.
 let errorSpy: MockInstance<(...args: Parameters<typeof console.error>) => void>;
 
+// Testing Library sets React's act-environment flag in a beforeAll and restores it in an afterAll, both registered
+// when its module loads. With isolate: false that happens once per worker, in the first file, whose afterAll then
+// clears the flag for every later file ("The current testing environment is not configured to support act(...)").
+// Setup files run per test file, so set it here.
+beforeAll(() => {
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
 beforeEach(() => {
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(async () => {
-  // Snapshot both signals before restoreAllMocks() throws away the spy, and before the cleanup below
+  // Unmount first, while errorSpy is still active. Testing Library's own afterEach(cleanup) is registered when its
+  // module loads, i.e. once per worker under isolate: false, so later files would keep the previous file's DOM.
+  cleanup();
+  // Snapshot both signals before restoreAllMocks() throws away the spy, and before the language/storage reset below
   // (which itself must run regardless, so the next test starts from a clean language/storage state).
   const errors = [...errorSpy.mock.calls];
   const unmocked = unmockedRequests.splice(0);

@@ -26,6 +26,16 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // These are integration-style tests: MUI dialogs rendered in jsdom, driven keystroke by keystroke through
+    // user-event. On a shared CI runner the default 5 s timeout was hit while nothing had failed.
+    testTimeout: 10_000,
+    // Reuse workers (and their jsdom) across test files instead of spawning one per file (~1.8 s startup each).
+    // Safe only because src/test-setup.ts runs per file and does the cleanup itself (see there).
+    isolate: false,
+    // GitHub Actions sets CI=true. Its hosted runner has few cores and the backend build runs at the same time
+    // (Gradle parallel, --max-workers=2 in the workflows), so cap the Vitest workers there; locally the default
+    // is fine.
+    maxWorkers: process.env.CI ? 3 : undefined,
     // Coverage is informational, like the backend's Kover report: it has no threshold and never fails the build.
     // src/types/ is excluded because it holds type-only DTO mirrors by contract; a runtime helper does not belong there.
     coverage: {

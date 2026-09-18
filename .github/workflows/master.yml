@@ -43,8 +43,10 @@ jobs:
           restore-keys: |
             node-pnpm-${{ runner.os }}-
 
+      # --max-workers=2: the hosted runner has few cores and the frontend tests (Vitest, capped to 3 workers via
+      # CI=true) run in parallel with the backend build and tests.
       - name: Build, lint and test
-        run: ./gradlew build
+        run: ./gradlew build --max-workers=2
 
       - name: Archive fat JAR
         uses: actions/upload-artifact@v7
