@@ -28,7 +28,7 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | One backend test class | `./gradlew :backend:test --tests 'de.sluit.mediatracker.ApplicationSmokeTest'` |
 | One backend test method (backtick names, quote them) | `./gradlew :backend:test --tests 'de.sluit.mediatracker.auth.api.AuthRoutesTest.anonymous api call gets json 401'` |
 | Backend coverage report (Kover, also written by every `build`/`check`; no threshold) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
-| Frontend tests (Vitest) | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test` |
+| Frontend tests (Vitest; also writes the V8 coverage report, no threshold) | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test`, then open `frontend/build/coverage/index.html` |
 | One frontend test file | `cd frontend && pnpm vitest run src/App.test.tsx` |
 | Frontend type-check only | `cd frontend && pnpm typecheck` (`pnpm build` runs `tsc -b` first) |
 | Kotlin lint / auto-format | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
@@ -158,7 +158,8 @@ operation; and infrastructure edge cases (`DbSessionStorage`, `StatusPages` in a
 tests, repositories in service tests). The shared H2 survives between tests in a JVM, so seed idempotently or clean
 up (`GamesTable.deleteAll()`). Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage
 is informational, there is no threshold. Frontend tests use Vitest + Testing Library + user-event with
-MUI rendered in jsdom: `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
+MUI rendered in jsdom (`pnpm test` runs `vitest run --coverage`; the V8 report lands in `frontend/build/coverage/`,
+also informational): `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
 records calls); dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
 
 ## Version policy
@@ -166,7 +167,8 @@ records calls); dialogs are portals, query via `screen`; open MUI selects with `
 `gradle/libs.versions.toml` is the single source for JVM versions; npm packages are pinned exactly in
 `frontend/package.json` (no `^` ranges). Stay on the current majors and take the newest release within
 each (current: MUI 9, Emotion 11, i18next 26, react-i18next 17 on the npm side); do not bump majors
-(e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking.
+(e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking. `@vitest/coverage-v8` declares the exact Vitest version as
+a peer dependency, so bump it together with `vitest` to the same version.
 
 ## Delegation
 - Main session: planning, decisions, synthesis. Do not read whole files or run tests directly.

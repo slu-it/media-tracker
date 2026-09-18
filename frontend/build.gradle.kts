@@ -37,13 +37,14 @@ val pnpmBuild = tasks.register<PnpmTask>("pnpmBuild") {
 }
 
 val pnpmTest = tasks.register<PnpmTask>("pnpmTest") {
-    description = "Runs the Vitest suite once."
+    description = "Runs the Vitest suite once and writes the V8 coverage report to build/coverage."
     group = "verification"
     dependsOn(tasks.pnpmInstall)
     args = listOf("run", "test")
     inputs.files("package.json", "pnpm-lock.yaml", "vite.config.ts", "tsconfig.json", "tsconfig.app.json")
     inputs.dir("src")
     outputs.upToDateWhen { false }
+    outputs.dir(layout.buildDirectory.dir("coverage"))
 }
 
 val lintInputs = listOf(

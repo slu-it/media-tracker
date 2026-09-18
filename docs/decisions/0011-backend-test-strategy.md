@@ -102,7 +102,11 @@ Rules for every level:
   hasher's own test only.
 - **Coverage is information, not a gate.** Kover (`org.jetbrains.kotlinx.kover`) writes HTML and XML reports as
   part of `check`, so every `./gradlew build` refreshes `backend/build/reports/kover/html/index.html`. There is
-  no `verify { rule { minBound } }`. Generated `*$$serializer` classes are excluded.
+  no `verify { rule { minBound } }`. Generated `*$$serializer` classes are excluded. The frontend follows the same
+  rule: `pnpm test` is `vitest run --coverage` with `@vitest/coverage-v8` (pinned to the Vitest version), so
+  `:frontend:pnpmTest` refreshes `frontend/build/coverage/index.html` on every build; no `thresholds`; excluded on
+  top of Vitest's defaults are the tests and test helpers, the type-only `types/`, `main.tsx` and `*.d.ts`. The
+  frontend side of the rule is cross-referenced from decision record 0008.
 
 ## Alternatives not taken
 
@@ -155,5 +159,5 @@ Rules for every level:
 - The reviewer checklist gains: test names read as sentences, one behaviour per method, MockK only above the
   repository interfaces, negative paths in handler tests and happy paths in smoke tests, shared H2 seeded
   idempotently or cleaned, no `verify` threshold added silently.
-- `./gradlew build` gets `koverHtmlReport` and `koverXmlReport`; the reports land in `backend/build/reports/kover/`.
-  No CI workflow change.
+- `./gradlew build` gets `koverHtmlReport` and `koverXmlReport`; the reports land in `backend/build/reports/kover/`,
+  the frontend's V8 report in `frontend/build/coverage/`. No CI workflow change.
