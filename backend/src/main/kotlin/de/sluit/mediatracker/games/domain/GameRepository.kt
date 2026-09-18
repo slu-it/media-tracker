@@ -1,7 +1,7 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.Page
-import de.sluit.mediatracker.common.PageRequest
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageRequest
 
 /**
  * Persistence port of the games domain. Implemented in `games.persistence`; the domain never imports that

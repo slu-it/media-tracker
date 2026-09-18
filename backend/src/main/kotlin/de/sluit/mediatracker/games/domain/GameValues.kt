@@ -1,7 +1,7 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.InvalidValueException
-import de.sluit.mediatracker.common.requireValid
+import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.requireValid
 import java.net.URI
 import java.net.URISyntaxException
 import kotlin.uuid.Uuid

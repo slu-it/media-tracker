@@ -1,6 +1,6 @@
 package de.sluit.mediatracker.games.persistence
 
-import de.sluit.mediatracker.db.dbQuery
+import de.sluit.mediatracker.common.persistence.dbQuery
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GamePlatformRepository

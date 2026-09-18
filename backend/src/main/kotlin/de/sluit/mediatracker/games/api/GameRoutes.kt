@@ -1,8 +1,8 @@
 package de.sluit.mediatracker.games.api
 
-import de.sluit.mediatracker.api.pageRequest
-import de.sluit.mediatracker.api.toResponse
-import de.sluit.mediatracker.common.InvalidValueException
+import de.sluit.mediatracker.common.api.pageRequest
+import de.sluit.mediatracker.common.api.toResponse
+import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameService
@@ -20,7 +20,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 
 /**
- * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.api.apiRoutes].
+ * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [GameService]; they never touch persistence.
  */
 fun Route.gameRoutes(gameService: GameService) {

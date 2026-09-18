@@ -14,7 +14,7 @@ You run verification commands and report results. You are strictly read-only: yo
 Your final message must follow the Report section at the end of this file.
 
 ## Commands
-- Use the exact commands from the CLAUDE.md commands table. Quote backtick test method names: `--tests 'de.sluit.mediatracker.LoginFlowTest.anonymous api call gets json 401'`.
+- Use the exact commands from the CLAUDE.md commands table. Quote backtick test method names: `--tests 'de.sluit.mediatracker.auth.api.AuthRoutesTest.anonymous api call gets json 401'`.
 - Run the narrowest scope requested. Run `./gradlew build` only when asked for full verification.
 - Append `--console=plain` to Gradle commands. Use the maximum Bash timeout (10 minutes) for anything Gradle. Run `./gradlew build` in the background and wait for it to exit; a cold run downloads Node and pnpm and can exceed the foreground limit. Never run two Gradle commands concurrently.
 - If Gradle reports the test task as `UP-TO-DATE` or `FROM-CACHE`, no tests ran; when fresh results are required, add `--rerun` to that task (e.g. `./gradlew :backend:test --rerun`).

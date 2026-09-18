@@ -1,9 +1,9 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.InvalidValueException
-import de.sluit.mediatracker.common.NotFoundException
-import de.sluit.mediatracker.common.Page
-import de.sluit.mediatracker.common.PageRequest
+import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageRequest
 
 /**
  * Business use cases for games. Deliberately thin while the feature is plain CRUD; decisions that do not

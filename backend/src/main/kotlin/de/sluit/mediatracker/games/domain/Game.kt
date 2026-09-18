@@ -1,8 +1,8 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.Patch
-import de.sluit.mediatracker.common.applyTo
-import de.sluit.mediatracker.common.requireValid
+import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.applyTo
+import de.sluit.mediatracker.common.domain.requireValid
 
 /** A selectable platform a game can be played on; the four rows are seeded by the games migration. */
 data class GamePlatform(val id: GamePlatformId, val label: PlatformLabel, val color: HexColor)

@@ -1,8 +1,11 @@
 package de.sluit.mediatracker.auth
 
+import de.sluit.mediatracker.auth.domain.PasswordHasher
+import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
+import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.DatabaseConfig
-import de.sluit.mediatracker.db.DatabaseFactory
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.io.PrintStream
 import kotlin.system.exitProcess
 
 /**
@@ -20,55 +23,77 @@ import kotlin.system.exitProcess
 object CreateUser {
     @JvmStatic
     fun main(args: Array<String>) {
+        exitProcess(run(args, { System.getenv(it) }, ::readPasswordFromConsole, System.out, System.err))
+    }
+
+    private class CliFailure(message: String) : RuntimeException(message)
+
+    internal fun run(
+        args: Array<String>,
+        env: (String) -> String?,
+        readPassword: () -> CharArray,
+        out: PrintStream,
+        err: PrintStream,
+        hasher: PasswordHasher = PasswordHasher(),
+    ): Int {
         val username = args.firstOrNull { !it.startsWith("--") }?.trim()
         if (username.isNullOrEmpty()) {
-            System.err.println("usage: CreateUser <username> [--reset-password]")
-            exitProcess(2)
+            err.println("usage: CreateUser <username> [--reset-password]")
+            return 2
         }
         val reset = "--reset-password" in args
 
-        val config = DatabaseConfig(
-            url = System.getenv("DB_URL") ?: fail("DB_URL is not set"),
-            user = System.getenv("DB_USER"),
-            password = System.getenv("DB_PASSWORD"),
-            maximumPoolSize = 1,
-            minimumIdle = 1,
-            keepaliveTime = 300_000,
-            maxLifetime = 1_500_000,
-            timestampType = System.getenv("DB_TIMESTAMP_TYPE") ?: DatabaseConfig.DEFAULT_TIMESTAMP_TYPE,
-        )
+        return try {
+            val config = DatabaseConfig(
+                url = env("DB_URL") ?: fail("DB_URL is not set"),
+                user = env("DB_USER"),
+                password = env("DB_PASSWORD"),
+                // Flyway needs a second connection while it creates its history table on a fresh database.
+                maximumPoolSize = 2,
+                minimumIdle = 1,
+                keepaliveTime = 300_000,
+                maxLifetime = 1_500_000,
+                timestampType = env("DB_TIMESTAMP_TYPE") ?: DatabaseConfig.DEFAULT_TIMESTAMP_TYPE,
+            )
 
-        DatabaseFactory.connect(config).use { db ->
-            val users = UserRepository()
+            DatabaseFactory.connect(config).use { db ->
+                val users = ExposedUserRepository()
 
-            val existing = transaction(db.database) { users.findByUsernameBlocking(username) }
-            if (existing != null && !reset) {
-                fail("user '$username' already exists (use --reset-password to change the password)")
-            }
+                val existing = transaction(db.database) { users.findByUsernameBlocking(username) }
+                if (existing != null && !reset) {
+                    fail("user '$username' already exists (use --reset-password to change the password)")
+                }
 
-            val hash = readAndHashPassword()
+                val hash = readAndHashPassword(readPassword, hasher)
 
-            transaction(db.database) {
-                if (existing == null) {
-                    val id = users.createBlocking(username, hash)
-                    println("Created user '$username' (id $id)")
-                } else {
-                    users.updatePasswordBlocking(existing.id, hash)
-                    println("Updated password for '$username'")
+                transaction(db.database) {
+                    if (existing == null) {
+                        val id = users.createBlocking(username, hash)
+                        out.println("Created user '$username' (id $id)")
+                    } else {
+                        users.updatePasswordBlocking(existing.id, hash)
+                        out.println("Updated password for '$username'")
+                    }
                 }
             }
+            0
+        } catch (e: CliFailure) {
+            err.println("error: ${e.message}")
+            1
         }
     }
 
-    private fun readAndHashPassword(): String {
+    private fun readAndHashPassword(readPassword: () -> CharArray, hasher: PasswordHasher): String {
         val password = readPassword()
-        if (password.size < 8) fail("password must be at least 8 characters")
-        val hash = PasswordHasher().hash(password)
-        password.fill('\u0000')
-        return hash
+        try {
+            if (password.size < 8) fail("password must be at least 8 characters")
+            return hasher.hash(password)
+        } finally {
+            password.fill('\u0000')
+        }
     }
 
-    private fun readPassword(): CharArray {
+    private fun readPasswordFromConsole(): CharArray {
         val console = System.console()
         if (console != null) {
             val first = console.readPassword("Password: ") ?: fail("no password given")
@@ -80,8 +105,5 @@ object CreateUser {
         return (readlnOrNull() ?: fail("no password on stdin")).toCharArray()
     }
 
-    private fun fail(message: String): Nothing {
-        System.err.println("error: $message")
-        exitProcess(1)
-    }
+    private fun fail(message: String): Nothing = throw CliFailure(message)
 }

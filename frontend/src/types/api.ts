@@ -1,5 +1,5 @@
-// Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/api/Dtos.kt and
-// backend/src/main/kotlin/de/sluit/mediatracker/games/api/GameDtos.kt. Keep them in sync.
+// Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
+// .../auth/api/AuthDtos.kt (MeResponse) and .../games/api/GameDtos.kt. Keep them in sync.
 
 export interface MeResponse {
   username: string;

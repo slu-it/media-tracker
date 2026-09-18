@@ -1,8 +1,8 @@
 package de.sluit.mediatracker.plugins
 
-import de.sluit.mediatracker.api.ErrorResponse
-import de.sluit.mediatracker.common.InvalidValueException
-import de.sluit.mediatracker.common.NotFoundException
+import de.sluit.mediatracker.common.api.ErrorResponse
+import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.NotFoundException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -38,8 +38,15 @@ fun Application.configureStatusPages() {
         }
         exception<BadRequestException> { call, cause ->
             // Ktor wraps the kotlinx.serialization failure; its message carries the offending field but also
-            // the raw JSON input after a line break, which is not something to echo back.
-            val detail = cause.cause?.message?.lineSequence()?.firstOrNull()
+            // the raw JSON input after a line break, which is not something to echo back. kotlinx.coroutines'
+            // stack trace recovery can additionally re-wrap the exception in same-typed copies as it crosses
+            // suspension points, so skip past those before reading the underlying cause.
+            val detail =
+                generateSequence(cause.cause) { it.cause }
+                    .firstOrNull { it !is BadRequestException }
+                    ?.message
+                    ?.lineSequence()
+                    ?.firstOrNull()
             call.respondError(HttpStatusCode.BadRequest, "invalid_body", detail)
         }
         exception<ContentTransformationException> { call, _ ->

@@ -20,9 +20,9 @@ Implement exactly the described change, nothing more. CLAUDE.md conventions are 
 ## Paired-change checklist
 Finish both halves, or state in the report which half is left open:
 - `*Dtos.kt` change <-> `frontend/src/types/api.ts`
-- new migration `V<n+1>__*.sql` (never edit an applied script) <-> `*Table.kt` + entry in `allTables` in `db/Tables.kt`
+- new migration `V<n+1>__*.sql` (never edit an applied script) <-> `*Table.kt` + entry in `allTables` in `Schema.kt` (package root)
 - `frontend/src/i18n/en.json` <-> `de.json` (same key set)
-- new `<feature>/api/*Routes.kt` <-> mounted in `api/ApiRoutes.kt` inside `authenticate`, before the catch-all
+- new `<feature>/api/*Routes.kt` <-> mounted in `apiRoutes` (root `Routes.kt`) inside `authenticate`, before the catch-all
 - backend value class rule (`requireValid`) <-> frontend validator in `features/<kind>/domain/` + self-validating field component
 
 ## Guardrails
@@ -38,7 +38,7 @@ Finish both halves, or state in the report which half is left open:
 1. Run the smallest relevant test: `./gradlew :backend:test --tests '<FQCN>'` (quote backtick method names) or `cd frontend && pnpm vitest run <file>`. Schema changes: also run `SchemaDriftTest`. i18n changes: also run `pnpm vitest run src/i18n/resources.test.ts`. Any frontend `.ts`/`.tsx` change: also run `cd frontend && pnpm typecheck` (Vitest does not type-check).
 2. Then format the touched project: `./gradlew :backend:ktlintFormat` and/or `cd frontend && pnpm format && pnpm lint:fix`. Re-read files after formatting if you continue editing.
 3. Do not run `./gradlew build` or `pnpm build`; full verification belongs to the test-runner. Use a timeout of at least 5 minutes for any Gradle command; do not run Gradle commands concurrently.
-4. Backend tests share one H2 database per JVM: seed idempotently or clean up (`XTable.deleteAll()`) like `GamesApiTest`.
+4. Backend tests share one H2 database per JVM: seed idempotently or clean up (`XTable.deleteAll()`) like `GamesSmokeTest`; handler tests (`*RoutesTest`) use `handlerApp` with MockK services and need no database.
 5. `pnpm` and `node` may not be on PATH. Prefer the Gradle wrappers (`./gradlew :frontend:pnpmTest`, `pnpmLint`, `pnpmFormatCheck`); for a single Vitest file or `pnpm typecheck`, prepend the Gradle-downloaded binaries: `export PATH="$PWD/frontend/.gradle/nodejs/node-v*/bin:$PWD/frontend/.gradle/pnpm/pnpm-v*/bin:$PATH"` (expand the globs with `ls` first; they exist after any Gradle frontend build).
 
 ## Report (this exact structure, short)

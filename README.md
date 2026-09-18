@@ -26,6 +26,7 @@ touch.
 | Backend only (serves last built frontend) | `./gradlew :backend:run` |
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `localhost:8080`; see note below) |
 | Backend tests (H2 in MySQL mode, no server needed) | `./gradlew :backend:test` |
+| Backend test coverage (Kover HTML + XML, also produced by `./gradlew build`) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
 | Frontend tests | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test` |
 | Kotlin style check / auto-format (ktlint) | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
 | Frontend lint / format check (ESLint, Prettier) | `./gradlew :frontend:pnpmLint` / `./gradlew :frontend:pnpmFormatCheck`, or `cd frontend && pnpm lint` / `pnpm format:check` |
