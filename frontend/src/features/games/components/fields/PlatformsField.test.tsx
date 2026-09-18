@@ -1,16 +1,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { GamePlatformResponse } from "../../../../types/api";
+import { platforms as options } from "../../../../test/fixtures/games";
 import { renderWithProviders } from "../../../../test/renderWithProviders";
 import { PlatformsField } from "./PlatformsField";
-
-const options: GamePlatformResponse[] = [
-  { id: "platform-pc", label: "PC", associatedColor: "757575" },
-  { id: "platform-playstation", label: "PlayStation", associatedColor: "0070D1" },
-  { id: "platform-xbox", label: "Xbox", associatedColor: "107C10" },
-  { id: "platform-nintendo", label: "Nintendo", associatedColor: "E60012" },
-];
 
 describe("PlatformsField", () => {
   it("offers the platform labels and reports the id when selecting one", async () => {

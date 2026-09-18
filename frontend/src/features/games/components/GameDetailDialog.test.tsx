@@ -1,28 +1,16 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { GamePlatformResponse, GameResponse } from "../../../types/api";
+import type { GameResponse } from "../../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
+import { celeste, nintendo, pc, platforms } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameDetailDialog } from "./GameDetailDialog";
 
-const nintendo: GamePlatformResponse = { id: "platform-nintendo", label: "Nintendo", associatedColor: "E60012" };
-const pc: GamePlatformResponse = { id: "platform-pc", label: "PC", associatedColor: "757575" };
-const platforms: GamePlatformResponse[] = [
-  pc,
-  { id: "platform-playstation", label: "PlayStation", associatedColor: "0070D1" },
-  { id: "platform-xbox", label: "Xbox", associatedColor: "107C10" },
-  nintendo,
-];
-
 const game: GameResponse = {
-  id: "id-1",
-  title: "Celeste",
-  releaseYear: 2018,
+  ...celeste,
   description: "A tough platformer about climbing a mountain.",
   rating: 4.5,
-  platforms: [nintendo],
-  coverImageUrl: "https://img.example/c.png",
 };
 
 describe("GameDetailDialog", () => {
@@ -44,7 +32,9 @@ describe("GameDetailDialog", () => {
 
     const cover = within(dialog).getByRole("img", { name: "Celeste" });
     const rating = within(dialog).getByRole("group", { name: "Rating" });
-    // The cover image sits in its own fixed-size frame, so the shared parent is one level up.
+    // The cover image sits in its own fixed-size frame, so the shared parent is one level up. Verifying that
+    // is structural and has no ARIA role/text query equivalent.
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
     expect(rating.parentElement).toBe(cover.parentElement!.parentElement);
   });
 
@@ -58,6 +48,7 @@ describe("GameDetailDialog", () => {
 
     const cover = within(dialog).getByRole("img", { name: "Cover preview" });
     const rating = within(dialog).getByRole("group", { name: "Rating" });
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
     expect(rating.parentElement).toBe(cover.parentElement!.parentElement);
   });
 
@@ -176,16 +167,17 @@ describe("GameDetailDialog", () => {
     const dialog = screen.getByRole("dialog");
 
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-    const confirm = await screen.findByText('Delete "Celeste"?');
-    await user.click(within(confirm.closest('[role="dialog"]')!).getByRole("button", { name: "No" }));
+    await screen.findByText('Delete "Celeste"?');
+    // Selects the last-mounted (topmost) portal: the confirm dialog stacked over the detail dialog.
+    await user.click(within(screen.getAllByRole("dialog").at(-1)!).getByRole("button", { name: "No" }));
     await waitFor(() => expect(screen.queryByText('Delete "Celeste"?')).not.toBeInTheDocument());
     expect(calls).toEqual([]);
     expect(onDeleted).not.toHaveBeenCalled();
 
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));
-    const question = await screen.findByText('Delete "Celeste"?');
-    await user.click(within(question.closest('[role="dialog"]')!).getByRole("button", { name: "Yes" }));
+    await screen.findByText('Delete "Celeste"?');
+    await user.click(within(screen.getAllByRole("dialog").at(-1)!).getByRole("button", { name: "Yes" }));
     await waitFor(() => expect(onDeleted).toHaveBeenCalledExactlyOnceWith("id-1"));
     expect(calls).toEqual([{ method: "DELETE", url: "/api/games/id-1", body: undefined }]);
   });

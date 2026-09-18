@@ -28,7 +28,7 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | One backend test class | `./gradlew :backend:test --tests 'de.sluit.mediatracker.ApplicationSmokeTest'` |
 | One backend test method (backtick names, quote them) | `./gradlew :backend:test --tests 'de.sluit.mediatracker.auth.api.AuthRoutesTest.anonymous api call gets json 401'` |
 | Backend coverage report (Kover, also written by every `build`/`check`; no threshold) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
-| Frontend tests (Vitest; also writes the V8 coverage report, no threshold) | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test`, then open `frontend/build/coverage/index.html` |
+| Frontend tests (Vitest; also writes the V8 coverage report, no threshold) | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test`, then open `frontend/build/coverage/index.html`. The Gradle task is up-to-date-checked like `:backend:test`; `--rerun-tasks` forces a rerun |
 | One frontend test file | `cd frontend && pnpm vitest run src/App.test.tsx` |
 | Frontend type-check only | `cd frontend && pnpm typecheck` (`pnpm build` runs `tsc -b` first) |
 | Kotlin lint / auto-format | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
@@ -160,7 +160,9 @@ up (`GamesTable.deleteAll()`). Kover writes `backend/build/reports/kover/html/in
 is informational, there is no threshold. Frontend tests use Vitest + Testing Library + user-event with
 MUI rendered in jsdom (`pnpm test` runs `vitest run --coverage`; the V8 report lands in `frontend/build/coverage/`,
 also informational): `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
-records calls); dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
+records calls; an unmocked request throws); any `console.error` during a test fails it; shared fixtures live in
+`src/test/fixtures/`; dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
+Conventions and known jsdom limits (MUI Rating clicks) are in ADR 0012.
 
 ## Version policy
 

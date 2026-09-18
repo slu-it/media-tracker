@@ -5,6 +5,8 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import { reactRefresh } from "eslint-plugin-react-refresh";
+import testingLibrary from "eslint-plugin-testing-library";
+import vitest from "@vitest/eslint-plugin";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 import globals from "globals";
 
@@ -31,6 +33,10 @@ export default defineConfig([
   {
     files: ["vite.config.ts", "eslint.config.js"],
     languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    files: ["src/**/*.test.{ts,tsx}", "src/test/**/*.{ts,tsx}", "src/test-setup.ts"],
+    extends: [testingLibrary.configs["flat/react"], vitest.configs.recommended],
   },
   eslintConfigPrettier,
 ]);

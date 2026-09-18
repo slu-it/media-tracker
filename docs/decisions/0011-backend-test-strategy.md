@@ -104,9 +104,9 @@ Rules for every level:
   part of `check`, so every `./gradlew build` refreshes `backend/build/reports/kover/html/index.html`. There is
   no `verify { rule { minBound } }`. Generated `*$$serializer` classes are excluded. The frontend follows the same
   rule: `pnpm test` is `vitest run --coverage` with `@vitest/coverage-v8` (pinned to the Vitest version), so
-  `:frontend:pnpmTest` refreshes `frontend/build/coverage/index.html` on every build; no `thresholds`; excluded on
+  `:frontend:pnpmTest` refreshes `frontend/build/coverage/index.html` whenever its inputs changed; no `thresholds`; excluded on
   top of Vitest's defaults are the tests and test helpers, the type-only `types/`, `main.tsx` and `*.d.ts`. The
-  frontend side of the rule is cross-referenced from decision record 0008.
+  frontend side of the rule is cross-referenced from decision records 0008 and 0012.
 
 ## Alternatives not taken
 

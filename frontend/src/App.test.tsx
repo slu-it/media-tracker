@@ -1,7 +1,8 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
+import { LANGUAGE_STORAGE_KEY } from "./i18n/language";
 import { MEDIA_TAB_STORAGE_KEY } from "./hooks/useStoredTab";
 import { jsonResponse, mockApi } from "./test/mockFetch";
 import { renderWithProviders } from "./test/renderWithProviders";
@@ -13,6 +14,9 @@ describe("App", () => {
     const calls = mockApi({});
     renderWithProviders(<App />);
     expect(screen.getByRole("heading", { level: 1, name: "SLU's Media Tracker" })).toBeInTheDocument();
+    // The logout form has no accessible name of its own (a bare HTML POST form), so its `action` attribute
+    // is only reachable by walking up from the button that submits it.
+    // eslint-disable-next-line testing-library/no-node-access -- form action isn't exposed via any ARIA role/text query
     expect(screen.getByRole("button", { name: "Log out" }).closest("form")).toHaveAttribute("action", "/logout");
     expect(screen.getByRole("button", { name: "Language" })).toBeInTheDocument();
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Books", "Games", "Movies", "Series"]);
@@ -50,5 +54,31 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Abmelden" })).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("de");
     expect(localStorage.getItem("mt.language")).toBe("de");
+  });
+
+  it("closes the language menu on Escape without changing the language", async () => {
+    const user = userEvent.setup();
+    mockApi({});
+    renderWithProviders(<App />);
+    await user.click(screen.getByRole("button", { name: "Language" }));
+    expect(screen.getByRole("menuitem", { name: "Deutsch" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("menuitem")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Books" })).toBeInTheDocument();
+    expect(document.documentElement.lang).toBe("en");
+    expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
+  });
+
+  it.each(["Books", "Movies", "Series"])("shows the coming-soon placeholder for %s", async (tabName) => {
+    const user = userEvent.setup();
+    localStorage.setItem(MEDIA_TAB_STORAGE_KEY, "games");
+    mockApi({
+      "GET /api/games": () => jsonResponse(emptyPage),
+      "GET /api/game-platforms": () => jsonResponse([]),
+    });
+    renderWithProviders(<App />);
+    await screen.findByText(/No games yet/);
+    await user.click(screen.getByRole("tab", { name: tabName }));
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
   });
 });

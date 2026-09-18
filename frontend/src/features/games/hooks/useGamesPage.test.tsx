@@ -43,4 +43,51 @@ describe("useGamesPage", () => {
     expect(result.current.data?.page).toBe(1);
     expect(result.current.loading).toBe(false);
   });
+
+  it("keeps the previous page visible and reports loading while the next page loads", async () => {
+    const resolvers = new Map<number, (response: Response) => void>();
+    mockApi({
+      "GET /api/games": (_call, url) => {
+        const requestedPage = Number(url.searchParams.get("page"));
+        return new Promise<Response>((resolve) => resolvers.set(requestedPage, resolve));
+      },
+    });
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "load failed"), {
+      initialProps: { p: 1 },
+    });
+    resolvers.get(1)!(jsonResponse(page(1)));
+    await waitFor(() => expect(result.current.data?.page).toBe(1));
+    expect(result.current.loading).toBe(false);
+
+    rerender({ p: 2 });
+    expect(result.current.loading).toBe(true);
+    expect(result.current.data?.page).toBe(1);
+
+    resolvers.get(2)!(jsonResponse(page(2)));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.data?.page).toBe(2);
+  });
+
+  it("ignores the response of a superseded request", async () => {
+    const resolvers = new Map<number, (response: Response) => void>();
+    mockApi({
+      "GET /api/games": (_call, url) => {
+        const requestedPage = Number(url.searchParams.get("page"));
+        return new Promise<Response>((resolve) => resolvers.set(requestedPage, resolve));
+      },
+    });
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "load failed"), {
+      initialProps: { p: 1 },
+    });
+
+    rerender({ p: 2 });
+    resolvers.get(2)!(jsonResponse(page(2)));
+    await waitFor(() => expect(result.current.data?.page).toBe(2));
+    expect(result.current.loading).toBe(false);
+
+    resolvers.get(1)!(jsonResponse(page(1)));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.current.data?.page).toBe(2);
+    expect(result.current.loading).toBe(false);
+  });
 });
