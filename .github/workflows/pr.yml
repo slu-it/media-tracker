@@ -47,8 +47,10 @@ jobs:
             node-pnpm-${{ runner.os }}-
 
       # pnpm sees CI=true and installs with --frozen-lockfile, so a stale pnpm-lock.yaml fails the build.
+      # --max-workers=2: the hosted runner has few cores and the frontend tests (Vitest, capped to 3 workers via
+      # CI=true) run in parallel with the backend build and tests.
       - name: Build, lint and test
-        run: ./gradlew build
+        run: ./gradlew build --max-workers=2
 
       - name: Upload test and lint reports
         if: failure()

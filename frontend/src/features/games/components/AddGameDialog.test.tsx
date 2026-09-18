@@ -21,15 +21,22 @@ describe("AddGameDialog", () => {
     const save = within(dialog).getByRole("button", { name: "Save" });
     expect(save).toBeDisabled();
 
-    await user.type(within(dialog).getByRole("textbox", { name: /title/i }), "Hades");
+    // user.paste avoids per-keystroke user.type, which is ~10x slower and hit the CI timeout.
+    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
     await user.click(screen.getByRole("option", { name: "2020" }));
     await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
     await user.click(screen.getByRole("option", { name: "PC" }));
     expect(save).toBeEnabled(); // description, rating and cover are optional
 
-    await user.type(within(dialog).getByRole("textbox", { name: /description/i }), "Roguelike dungeon crawler.");
-    await user.type(within(dialog).getByRole("textbox", { name: /cover image url/i }), "https://img.example/h.png");
+    const description = within(dialog).getByRole("textbox", { name: /description/i });
+    await user.click(description);
+    await user.paste("Roguelike dungeon crawler.");
+    const coverImageUrl = within(dialog).getByRole("textbox", { name: /cover image url/i });
+    await user.click(coverImageUrl);
+    await user.paste("https://img.example/h.png");
     expect(within(dialog).getByRole("img", { name: "Cover preview" })).toHaveAttribute(
       "src",
       "https://img.example/h.png",
@@ -61,7 +68,9 @@ describe("AddGameDialog", () => {
     );
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     const user = userEvent.setup();
-    await user.type(screen.getByRole("textbox", { name: /title/i }), "Draft");
+    const title = screen.getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Draft");
 
     rerender(<AddGameDialog open={false} onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -78,7 +87,9 @@ describe("AddGameDialog", () => {
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
 
-    await user.type(within(dialog).getByRole("textbox", { name: /title/i }), "Hades");
+    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
     await user.click(screen.getByRole("option", { name: "2020" }));
     await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));

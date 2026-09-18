@@ -80,7 +80,7 @@ describe("GameDetailDialog", () => {
 
     const title = within(dialog).getByRole("textbox", { name: /title/i });
     await user.clear(title);
-    await user.type(title, "Celeste (Switch)");
+    await user.paste("Celeste (Switch)");
     await user.clear(within(dialog).getByRole("textbox", { name: /cover image url/i }));
     expect(save).toBeEnabled();
 
@@ -193,7 +193,7 @@ describe("GameDetailDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
     const title = within(dialog).getByRole("textbox", { name: /title/i });
     await user.clear(title);
-    await user.type(title, "Celeste (changed)");
+    await user.paste("Celeste (changed)");
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
 

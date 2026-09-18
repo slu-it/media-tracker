@@ -49,6 +49,24 @@ Books, Movies and Series will copy `features/games/` and its tests, so the conve
   rule disables are per line with a reason.
 - **`:frontend:pnpmTest` is an ordinary incremental Gradle task**: inputs are `src/`, the Vite and TS configs,
   `package.json` and `pnpm-lock.yaml`; `--rerun-tasks` forces a rerun. Coverage stays informational (0011).
+- **Runtime budget is set for a shared CI runner, not a developer machine**: `testTimeout` is 10 s (the 5 s
+  default was hit on GitHub Actions by dialog tests that had not failed), `isolate: false` reuses one worker and
+  jsdom across files instead of paying ~1.8 s startup per file. That is only safe because `src/test-setup.ts`
+  runs per file and owns the lifecycle itself: Testing Library registers its automatic `afterEach(cleanup)` and
+  its `beforeAll`/`afterAll` pair for `IS_REACT_ACT_ENVIRONMENT` when its module loads, which with reused workers
+  happens once per worker, so later files would inherit the previous file's DOM and lose the act flag. The setup
+  therefore calls `cleanup()` first inside its own `afterEach` (before the console.error and unmocked-request
+  checks, so unmount errors are caught and a failing check cannot skip the unmount) and sets the act flag in a
+  per-file `beforeAll`. A test must never rely on module state from another file. `maxWorkers` is capped to 3
+  only when `CI` is set; the workflows pass `--max-workers=2` to Gradle
+  for the same reason, because the backend build and tests run concurrently with Vitest. Locally both stay on
+  their core-based defaults.
+- **Multi-character input is entered with `user.click(field)` + `user.paste("...")`, not `user.type`**:
+  user-event's `type` dispatches the full key event sequence per character and every keystroke re-renders the
+  form through the draft state, its validator and the character counter, roughly 11 ms per character locally and
+  ~80 ms on the CI runner, so the add-game test (57 characters) exceeded the 10 s timeout while nothing had failed.
+  Paste is one input event per field and cuts such tests roughly in half. `user.type` stays for single characters
+  where the per-keystroke behaviour (touched state, counter, disabled save button) is what the test asserts.
 
 Known limits, accepted: MUI `Rating` derives the value from pointer geometry, which jsdom reports as zero, so a
 star click yields `NaN`; rating changes are covered by the `gameValues` validators and the field's display

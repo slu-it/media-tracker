@@ -53,6 +53,8 @@ The ktlint plugin is only applied in `:backend`; the root and frontend Gradle sc
 **CI.** `.github/workflows/pr.yml` (pull requests to `master`) and `master.yml` (push to `master`) both run
 `./gradlew build` on JDK 25 with Gradle and Node/pnpm caches; `master.yml` uploads `backend/build/libs/media-tracker.jar`
 as the `media-tracker-jar` artifact. pnpm runs with a frozen lockfile in CI, so commit `pnpm-lock.yaml` changes.
+CI passes `--max-workers=2` to Gradle and Vitest caps itself to 3 workers when `CI` is set (few-core hosted runner,
+backend build and frontend tests overlap); locally both use their core-based defaults.
 
 Gradle runs with configuration cache, build cache and parallel on. `frontend/build.gradle.kts` must keep
 `node.version` and `pnpmVersion` as literal strings (node-gradle 7.1.0 configuration-cache bug).
@@ -162,7 +164,12 @@ MUI rendered in jsdom (`pnpm test` runs `vitest run --coverage`; the V8 report l
 also informational): `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
 records calls; an unmocked request throws); any `console.error` during a test fails it; shared fixtures live in
 `src/test/fixtures/`; dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
-Conventions and known jsdom limits (MUI Rating clicks) are in ADR 0012.
+Enter multi-character text with `user.click(field)` then `user.paste("...")`; per-keystroke `user.type` is ~10x slower and
+hit the CI timeout, keep it for single characters whose keystroke behaviour is under test.
+Vitest runs with `testTimeout: 10_000` and `isolate: false` (one jsdom shared across files; `test-setup.ts` runs per
+file and does the lifecycle itself: explicit `afterEach(cleanup)`, a `beforeAll` setting `IS_REACT_ACT_ENVIRONMENT`, then
+mocks, language and `localStorage`; never rely on state from another file and never remove those hooks). Conventions and known
+jsdom limits (MUI Rating clicks) are in ADR 0012.
 
 ## Version policy
 
