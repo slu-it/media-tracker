@@ -54,11 +54,16 @@ describe("BaseDialog", () => {
     );
     const topButton = screen.getByRole("button", { name: "Top" });
     const bottomButton = screen.getByRole("button", { name: "Bottom" });
+    // Verifying the sidebar's layout (which wrapper sits where in the flex column) is structural and has no
+    // ARIA role/text query equivalent.
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
     const sidebar = topButton.parentElement!.parentElement!;
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
     const bottomWrapper = bottomButton.parentElement!.parentElement!;
     // The bottom wrapper is the sidebar's last child and relies on margin-top: auto (not fought further in
     // jsdom, which does support this on flex children) to sit at the bottom; the Stack itself uses gap-based
     // spacing (useFlexGap) rather than margins, so it doesn't cancel that auto margin out.
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
     expect(sidebar.lastElementChild).toBe(bottomWrapper);
     expect(getComputedStyle(bottomWrapper).marginTop).toBe("auto");
     expect(getComputedStyle(sidebar).gap).not.toBe("");

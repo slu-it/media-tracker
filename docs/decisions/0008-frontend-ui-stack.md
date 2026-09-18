@@ -39,7 +39,7 @@ English and German from the start.
   (`test/renderWithProviders.tsx`), `fetch` replaced by a small router (`test/mockFetch.ts`). Dialogs render in
   portals, so tests query through `screen`; MUI selects are opened with `user.click` on the combobox. Coverage
   (`@vitest/coverage-v8`, `pnpm test` = `vitest run --coverage`, report in `frontend/build/coverage/`) follows the
-  informational, no-threshold rule of decision record 0011.
+  informational, no-threshold rule of decision record 0011; the test conventions are decision record 0012.
 
 ## Alternatives not taken
 

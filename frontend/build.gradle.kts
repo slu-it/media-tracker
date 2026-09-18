@@ -43,7 +43,6 @@ val pnpmTest = tasks.register<PnpmTask>("pnpmTest") {
     args = listOf("run", "test")
     inputs.files("package.json", "pnpm-lock.yaml", "vite.config.ts", "tsconfig.json", "tsconfig.app.json")
     inputs.dir("src")
-    outputs.upToDateWhen { false }
     outputs.dir(layout.buildDirectory.dir("coverage"))
 }
 

@@ -3,13 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GamePlatformResponse } from "../../../types/api";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
+import { pc, playstation } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddGameDialog } from "./AddGameDialog";
 
-const platforms: GamePlatformResponse[] = [
-  { id: "platform-pc", label: "PC", associatedColor: "757575" },
-  { id: "platform-playstation", label: "PlayStation", associatedColor: "0070D1" },
-];
+const platforms: GamePlatformResponse[] = [pc, playstation];
 
 describe("AddGameDialog", () => {
   it("posts the filled form and reports the created game", async () => {
@@ -69,5 +67,28 @@ describe("AddGameDialog", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     rerender(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     expect(screen.getByRole("textbox", { name: /title/i })).toHaveValue("");
+  });
+
+  it("shows the backend error and stays open when creating fails", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    mockApi({
+      "POST /api/games": () => jsonResponse({ error: "validation_error", message: "title: nope" }, 400),
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    await user.type(within(dialog).getByRole("textbox", { name: /title/i }), "Hades");
+    await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+    await user.click(screen.getByRole("option", { name: "2020" }));
+    await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(save);
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("title: nope");
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(save).toBeEnabled();
   });
 });

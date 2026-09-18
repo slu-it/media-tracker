@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { GamePlatformResponse, GameResponse } from "../../../types/api";
+import type { GameResponse } from "../../../types/api";
+import { celeste, nintendo, pc, playstation } from "../../../test/fixtures/games";
 import {
   draftFromGame,
   emptyGameDraft,
@@ -9,23 +10,7 @@ import {
   toUpdateRequest,
 } from "./gameDraft";
 
-const nintendo: GamePlatformResponse = { id: "platform-nintendo", label: "Nintendo", associatedColor: "E60012" };
-const pc: GamePlatformResponse = { id: "platform-pc", label: "PC", associatedColor: "757575" };
-const playstation: GamePlatformResponse = {
-  id: "platform-playstation",
-  label: "PlayStation",
-  associatedColor: "0070D1",
-};
-
-const game: GameResponse = {
-  id: "9a1d6c1e-0f2a-4b7c-8d3e-5f6a7b8c9d0e",
-  title: "Celeste",
-  releaseYear: 2018,
-  description: "A tough platformer.",
-  rating: 4.5,
-  platforms: [nintendo],
-  coverImageUrl: "https://img.example/c.png",
-};
+const game: GameResponse = { ...celeste, description: "A tough platformer.", rating: 4.5 };
 
 describe("gameDraft", () => {
   it("round-trips a game and knows when nothing changed", () => {
