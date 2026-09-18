@@ -37,7 +37,9 @@ English and German from the start.
   `ErrorResponse` on `ApiError.body`.
 - **Tests**: Vitest + Testing Library + `@testing-library/user-event`, MUI rendered for real in jsdom
   (`test/renderWithProviders.tsx`), `fetch` replaced by a small router (`test/mockFetch.ts`). Dialogs render in
-  portals, so tests query through `screen`; MUI selects are opened with `user.click` on the combobox.
+  portals, so tests query through `screen`; MUI selects are opened with `user.click` on the combobox. Coverage
+  (`@vitest/coverage-v8`, `pnpm test` = `vitest run --coverage`, report in `frontend/build/coverage/`) follows the
+  informational, no-threshold rule of decision record 0011.
 
 ## Alternatives not taken
 

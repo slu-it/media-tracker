@@ -183,7 +183,7 @@ Rules:
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
 | Backend tests (handler tests without a database, smoke/repository tests on H2 in MySQL mode, schema drift test; ADR 0011) | `./gradlew :backend:test` |
 | Backend coverage report (Kover, informational, decision record 0011) | `./gradlew :backend:koverHtmlReport` |
-| Frontend tests (Vitest) | `./gradlew :frontend:pnpmTest` |
+| Frontend tests (Vitest; writes the V8 coverage report to `frontend/build/coverage/`, informational, decision record 0011) | `./gradlew :frontend:pnpmTest` |
 | Kotlin style (ktlint, `intellij_idea` style from `.editorconfig`) | `./gradlew :backend:ktlintCheck` / `:backend:ktlintFormat` |
 | Frontend lint and format (ESLint, Prettier) | `./gradlew :frontend:pnpmLint :frontend:pnpmFormatCheck` / `:frontend:pnpmFormat :frontend:pnpmLintFix` |
 | Release artifact | `./gradlew :backend:buildFatJar` then `backend/build/libs/media-tracker.jar` |
