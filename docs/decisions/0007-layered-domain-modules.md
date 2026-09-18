@@ -1,6 +1,6 @@
 # 0007: Feature-first backend modules with onion layers and self-validating value classes
 
-Status: accepted, 2026-09
+Status: accepted, 2026-09; table registry location and the `auth` layout amended by 0010
 
 ## Context
 
@@ -29,8 +29,8 @@ boundary.
   interface exists for the dependency direction, not for mocking.
 - **Routes are contributed per feature.** `games/api/GameRoutes.kt` defines `Route.gameRoutes(service)`;
   `api/ApiRoutes.kt` only mounts it inside the authenticated `/api` prefix, before the JSON-404 catch-all.
-  Tables stay next to their repository (`games/persistence/GamesTable.kt`) and are registered in `db/Tables.kt`'s
-  `allTables` for the drift check.
+  Tables stay next to their repository (`games/persistence/GamesTable.kt`) and are registered in `allTables`
+  (`Schema.kt` in the package root, see 0010) for the drift check.
 - **Error mapping is central** (`plugins/StatusPages.kt`), by exception type:
 
   | Exception | Status | `error` code | `message` |

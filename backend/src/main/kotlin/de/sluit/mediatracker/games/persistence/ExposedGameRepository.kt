@@ -1,8 +1,8 @@
 package de.sluit.mediatracker.games.persistence
 
-import de.sluit.mediatracker.common.Page
-import de.sluit.mediatracker.common.PageRequest
-import de.sluit.mediatracker.db.dbQuery
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.persistence.dbQuery
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.Game

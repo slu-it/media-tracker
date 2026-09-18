@@ -1,9 +1,9 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.InvalidValueException
-import de.sluit.mediatracker.common.PageNumber
-import de.sluit.mediatracker.common.PageSize
-import de.sluit.mediatracker.common.Patch
+import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.Patch
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

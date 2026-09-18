@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktor) // applies `application` + Shadow; provides buildFatJar / runFatJar
     alias(libs.plugins.ktlint) // ktlintCheck (part of `check`) and ktlintFormat; style from .editorconfig
+    alias(libs.plugins.kover) // coverage reports as part of `check`, see below
 }
 
 kotlin {
@@ -22,6 +23,25 @@ ktor {
 
 ktlint {
     version.set(libs.versions.ktlint.asProvider().get())
+}
+
+// --- Coverage -----------------------------------------------------------------------------------
+// Kover instruments the test JVM and writes HTML + XML reports as part of `check`, so every `./gradlew build`
+// refreshes backend/build/reports/kover/. Informational only: no `verify { rule }` threshold (ADR 0011 names the
+// trigger for adding one).
+kover {
+    reports {
+        filters {
+            excludes {
+                // kotlinx.serialization generates one `<Dto>$$serializer` class per @Serializable type.
+                classes("*\$\$serializer")
+            }
+        }
+        total {
+            html { onCheck = true }
+            xml { onCheck = true }
+        }
+    }
 }
 
 // --- Frontend bundle -------------------------------------------------------------------------
@@ -62,6 +82,8 @@ dependencies {
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.h2)
     testImplementation(kotlin("test"))
+    // mocks only above the repository interfaces, see ADR 0011
+    testImplementation(libs.mockk)
 }
 
 // --- Dev loop (start-dev.sh) --------------------------------------------------------------------

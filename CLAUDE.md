@@ -25,8 +25,9 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 |---|---|
 | Everything: both projects, lint, format checks, all tests, fat JAR | `./gradlew build` |
 | Backend tests (H2 in MySQL mode, no DB needed) | `./gradlew :backend:test` |
-| One backend test class | `./gradlew :backend:test --tests 'de.sluit.mediatracker.LoginFlowTest'` |
-| One backend test method (backtick names, quote them) | `./gradlew :backend:test --tests 'de.sluit.mediatracker.LoginFlowTest.anonymous api call gets json 401'` |
+| One backend test class | `./gradlew :backend:test --tests 'de.sluit.mediatracker.ApplicationSmokeTest'` |
+| One backend test method (backtick names, quote them) | `./gradlew :backend:test --tests 'de.sluit.mediatracker.auth.api.AuthRoutesTest.anonymous api call gets json 401'` |
+| Backend coverage report (Kover, also written by every `build`/`check`; no threshold) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
 | Frontend tests (Vitest) | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test` |
 | One frontend test file | `cd frontend && pnpm vitest run src/App.test.tsx` |
 | Frontend type-check only | `cd frontend && pnpm typecheck` (`pnpm build` runs `tsc -b` first) |
@@ -67,38 +68,56 @@ never pass it to `build`/`buildFatJar`.
 Shutdown hooks in `module()` must hang off the application's coroutine job, not `monitor.subscribe(ApplicationStopped)`:
 with Ktor auto-reload the new instance starts before the old one stops and would close the new instance's resources.
 
-**Backend wiring** (`Application.kt`, `module()`): config → `DatabaseFactory.connect` → services →
-plugins (Serialization, Monitoring, StatusPages, Sessions, Security) → routes (`loginRoutes`,
-`apiRoutes(gameService)`, `webRoutes`). Config is typed in `config/AppConfig.kt` from `application.yaml`, where every
-secret is an env-var reference (`"$VAR"` required, `"$VAR:default"` optional).
+**Backend wiring** (`Application.kt`): `module()` does config → `DatabaseFactory.connect` →
+`DatabaseFactory.warnOnSchemaDrift(database, allTables)` → `Services(authService, gameService)` from Exposed
+repositories → `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
+persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) → routes
+(`loginRoutes`, `apiRoutes(gameService)`, `webRoutes`). Handler tests boot `configureHttp` with MockK services and
+an in-memory session storage; a new media kind adds its service to `Services`.
+Config is typed in `config/AppConfig.kt` from `application.yaml`, where every secret is an env-var reference
+(`"$VAR"` required, `"$VAR:default"` optional).
+
+**Top-level packages are domains** (ADR 0010): business domains (`games`, later books/movies/series), the
+technical domain `auth` and the shared `common` are onion modules `{api,domain,persistence}`; `CreateUser`
+(bootstrap CLI) sits at the `auth` root. `common/domain` holds framework-free primitives (`Page*`, `Patch`,
+exceptions), `common/api` the shared DTOs, paging and `PatchField`, `common/persistence` HikariCP/Flyway/`dbQuery`.
+`common/`, `plugins/` (Serialization, Monitoring, StatusPages) and `config/` never import a feature package. The
+composition root is the package root: `Application.kt` (wiring), `Routes.kt` (`apiRoutes` mounts `meRoutes()` and
+`gameRoutes()` under the authenticated `/api` prefix with the JSON 404 catch-all; `webRoutes` serves `/health` and
+the session-gated SPA) and `Schema.kt` (`allTables`).
 
 **Two auth tiers on one port.** Public: `/login`, `/login/static/*`, `/logout`, `/health`. Everything
 else (SPA with `index.html` fallback, `/api/**`) sits inside `authenticate(SESSION_AUTH)`. The challenge
-in `plugins/Security.kt` returns JSON 401 for `/api/*` and a 302 to `/login` otherwise. `apiRoutes` ends
+in `auth/api/Security.kt` (which also defines `SESSION_AUTH`) returns JSON 401 for `/api/*` and a 302 to
+`/login` otherwise. `/api/me` is `auth/api/MeRoutes.kt`. `apiRoutes` ends
 with a `{...}` catch-all so unknown API paths are JSON 404s instead of the SPA. Each feature defines its routes
-in `<feature>/api/*Routes.kt` (`Route.gameRoutes(service)`) and `api/ApiRoutes.kt` mounts them inside that
-`authenticate` block, before the catch-all.
+in `<feature>/api/*Routes.kt` (`Route.gameRoutes(service)`) and `apiRoutes` in the root `Routes.kt` mounts them
+inside that `authenticate` block, before the catch-all.
 
 **Feature packages are onion-layered** (ADR 0007): `de.sluit.mediatracker.<feature>.{api,domain,persistence}`,
 dependencies `api → domain ← persistence`, the domain imports no Ktor/Exposed/kotlinx. Each layer has its own types
 (DTOs / entities + `@JvmInline value class`es / Exposed tables); only domain types cross layers. Value classes
 validate in `init` via `requireValid(field, cond) { reason }` → `InvalidValueException` → HTTP 400
 `validation_error` (`plugins/StatusPages.kt` also maps `NotFoundException` → 404, Ktor body failures → 400
-`invalid_body`). Shared primitives (`Page*`, `Patch`, exceptions) live in `common/`; optional PATCH fields use
-`api/PatchField.kt` (absent / null / value). Copy the `games` package for the next media kind.
+`invalid_body`). Shared primitives (`Page*`, `Patch`, exceptions) live in `common/domain`; optional PATCH fields use
+`common/api/PatchField.kt` (absent / null / value). Copy the `games` package for the next media kind; `auth` follows the
+same three layers (`AuthService.login` returns the domain `User`, `auth/api/LoginRoutes.kt` maps it to `UserSession`).
 
 **Sessions** live in the `sessions` table; the cookie `MT_SESSION` holds only an HMAC-signed id.
 `DbSessionStorage` rebuilds the `UserSession` principal per request and lazily deletes expired rows.
-Passwords are Argon2id PHC strings (`auth/PasswordHasher.kt`).
+Passwords are Argon2id PHC strings (`auth/domain/PasswordHasher.kt`).
 
 **Database access.** Exposed 1.5 with `org.jetbrains.exposed.v1.*` package roots; timestamps are
-`kotlin.time.Instant`. JDBC is blocking, so route code must call `dbQuery { }` (`db/DatabaseFactory.kt`),
-which runs the transaction on `Dispatchers.IO`. Repositories expose `*Blocking` variants for use inside
+`kotlin.time.Instant`. JDBC is blocking, so route code must call `dbQuery { }`
+(`common/persistence/DatabaseFactory.kt`), which runs the transaction on `Dispatchers.IO`. Repository interfaces
+live in a feature's `domain`; the Exposed
+implementations (`auth/persistence/ExposedUserRepository`) additionally expose `*Blocking` variants for use inside
 an existing transaction (tests, `CreateUser`).
 
 **Schema changes are a two-file commit.** Flyway SQL in `backend/src/main/resources/db/migration/` is
-the source of truth; an Exposed table object mirrors it (`db/Tables.kt` for users/sessions,
-`<feature>/persistence/*Table.kt` for feature tables) and must be listed in `allTables` in `db/Tables.kt`. `SchemaDriftTest`
+the source of truth; an Exposed table object mirrors it (`<feature>/persistence/*Table.kt`, e.g.
+`auth/persistence/UsersTable.kt`, `games/persistence/GamesTable.kt`) and must be listed in `allTables` in
+`Schema.kt` (package root). `SchemaDriftTest`
 migrates a fresh H2 and fails if Exposed would still want to change anything. Rules:
 - Name scripts `V<n>__<snake_case>.sql`; never edit an applied script, add `V<n+1>`.
 - SQL must run on MySQL 8 and H2 MySQL mode. Use `${timestamp_type}` for timestamp columns (resolved to
@@ -107,8 +126,9 @@ migrates a fresh H2 and fails if Exposed would still want to change anything. Ru
 - Migrations run at startup; the app never alters the schema itself.
 - UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()` (BINARY(16) on MySQL vs UUID on H2).
 
-**DTO mirroring.** `@Serializable` DTOs in `backend/.../api/Dtos.kt` (shared) and `backend/.../<feature>/api/*Dtos.kt`
-are hand-mirrored in `frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`)
+**DTO mirroring.** `@Serializable` DTOs in `backend/.../common/api/Dtos.kt` (shared) and
+`backend/.../<feature>/api/*Dtos.kt` (`auth/api/AuthDtos.kt`, `games/api/GameDtos.kt`) are hand-mirrored in
+`frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`)
 redirects to `/login` on 401, resolves `undefined` for 204, and throws `ApiError` (with the parsed `ErrorResponse`
 as `body`) on other non-2xx.
 
@@ -122,11 +142,22 @@ self-validating field components. Common dialogs: `components/dialog/BaseDialog`
 optional left action column with top and bottom slots, optional fixed height) and `ConfirmDialog`.
 The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default.
 
-**Backend tests** use Ktor `testApplication` with `application-test.yaml` (H2 in-memory, no
-`ktor.application.modules` entry, so tests call `module()` explicitly) and seed users with a cheap
-`PasswordHasher(memoryKb = 1024, iterations = 1)`. Shared helpers are in `test/.../TestApp.kt` (`appWithUser` with a
-seed lambda, `loginAs`, `decodeBody`, `jsonBody`); the H2 database is shared across tests in a JVM, so seed
-idempotently or clean up (`GamesTable.deleteAll()`). Frontend tests use Vitest + Testing Library + user-event with
+**Backend tests** (levels and rules in ADR 0011; one behaviour per method, backtick names that read as a sentence,
+no `. / < > : [ ] ; \`). Domain unit tests (no framework); service unit tests with MockK (`coEvery`/`coVerify` on
+the repository interfaces); repository tests on a fresh H2 per test via `withFreshDatabase {}` / `countStatements {}`
+(`test/.../common/persistence/TestDatabase.kt`); **handler tests** (`<feature>/api/<Feature>RoutesTest`,
+`auth/api/AuthRoutesTest`, root `RoutesTest`) through `testApplication` + `handlerApp(auth, games)` from
+`test/.../TestApp.kt`, which boots `configureHttp` with MockK services and `SessionStorageMemory`, no database
+(`loginAsMocked(auth)` logs in through the real `/login`); they own status codes, headers, (de)serialization,
+`PatchField` mapping (`coVerify` the domain value the service receives) and every negative path; **smoke tests**
+(`<feature>/<Feature>SmokeTest`, root `ApplicationSmokeTest`) through `testApplication` + `appWithUser` (real
+`module()` on the shared H2 from `application-test.yaml`, cheap `PasswordHasher(memoryKb = 1024, iterations = 1)`
+for the seeded user, `loginAs`, `decodeBody`, `jsonBody`), happy paths only, at least one valid request per
+operation; and infrastructure edge cases (`DbSessionStorage`, `StatusPages` in an isolated app, `AppConfig` via
+`MapApplicationConfig`, `CreateUser.run()`). Mocks only above the repository interfaces (services in handler
+tests, repositories in service tests). The shared H2 survives between tests in a JVM, so seed idempotently or clean
+up (`GamesTable.deleteAll()`). Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage
+is informational, there is no threshold. Frontend tests use Vitest + Testing Library + user-event with
 MUI rendered in jsdom: `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
 records calls); dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
 

@@ -1,8 +1,8 @@
 package de.sluit.mediatracker.games.api
 
-import de.sluit.mediatracker.api.PatchField
-import de.sluit.mediatracker.api.PatchFieldSerializer
-import de.sluit.mediatracker.api.toPatch
+import de.sluit.mediatracker.common.api.PatchField
+import de.sluit.mediatracker.common.api.PatchFieldSerializer
+import de.sluit.mediatracker.common.api.toPatch
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.Game

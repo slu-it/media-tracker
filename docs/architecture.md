@@ -25,7 +25,7 @@ Two tiers share one port:
 | Authenticated | `/` and everything under it (SPA, falls back to `index.html`), `/api/**` | session cookie |
 
 Unauthenticated requests to `/api/**` get a JSON `401`; unauthenticated browser navigation is redirected
-to `/login`. Both are decided in `plugins/Security.kt`.
+to `/login`. Both are decided in `auth/api/Security.kt`.
 
 ## Sessions
 
@@ -34,7 +34,7 @@ to `/login`. Both are decided in `plugins/Security.kt`.
   `SESSION_SECURE=false`.
 - The `sessions` table holds `(id, user_id, created_at, expires_at)`. `DbSessionStorage` rebuilds the
   `UserSession` principal from a join with `users` on every request and deletes expired rows lazily.
-- Passwords are Argon2id hashes in PHC string form (`auth/PasswordHasher.kt`). Parameters are embedded in
+- Passwords are Argon2id hashes in PHC string form (`auth/domain/PasswordHasher.kt`). Parameters are embedded in
   the string, so they can be raised later without a migration.
 - There is no self-registration. The first user is created with the bootstrap entry point:
   `java -cp media-tracker.jar de.sluit.mediatracker.auth.CreateUser <username>`.
@@ -43,28 +43,40 @@ to `/login`. Both are decided in `plugins/Security.kt`.
 
 ```
 de.sluit.mediatracker
-├── Application.kt      module(): config -> database -> services -> plugins -> routes
+├── Application.kt      module(): config -> database -> drift warning -> Services -> configureHttp (plugins -> routes)
+├── Routes.kt           apiRoutes (meRoutes + feature routes under the authenticated /api prefix, JSON 404
+│                       catch-all) and webRoutes (/health, session-gated SPA from classpath /app)
+├── Schema.kt           allTables: every Exposed table object, for the schema drift check
 ├── config/             AppConfig, DatabaseConfig, SessionConfig (typed application.yaml)
-├── db/                 DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift warning), Tables, dbQuery()
-├── auth/               PasswordHasher, UserSession, repositories, DbSessionStorage, AuthService,
-│                       LoginRoutes (/login, /logout), CreateUser (bootstrap CLI)
-├── plugins/            Serialization, Monitoring, StatusPages, Sessions, Security
-├── api/                ApiRoutes (mounts the feature routes under the authenticated /api prefix), shared DTOs
-│                       (ErrorResponse, PageResponse<T>; mirrored in frontend/src/types/api.ts), PatchField, Paging
-├── common/             cross-feature domain primitives: InvalidValueException/NotFoundException, PageNumber/PageSize/
-│                       PageRequest/Page<T>, Patch<T>
-├── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
-│   ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/game-platforms)
-│   ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl, GamePlatformId,
-│   │                   PlatformLabel, HexColor), Game/NewGame/GamePatch, GamePlatform, GameRepository and
-│   │                   GamePlatformRepository (interfaces), GameService
-│   └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository,
-│                       ExposedGamePlatformRepository
-└── web/                /health and the session-gated SPA (classpath /app)
+├── common/             shared code in the same three layers as a feature; knows no feature:
+│   ├── api/            shared DTOs (ErrorResponse, HealthResponse, PageResponse<T>; mirrored in
+│   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing)
+│   ├── domain/         InvalidValueException/NotFoundException/requireValid,
+│   │                   PageNumber/PageSize/PageRequest/Page<T>, Patch<T>
+│   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery()
+├── plugins/            Serialization, Monitoring, StatusPages
+├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
+│   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me) + AuthDtos, Security (SESSION_AUTH,
+│   │                   session auth + challenge), Sessions (cookie + storage plugin), UserSession (principal),
+│   │                   DbSessionStorage
+│   ├── domain/         AuthService, PasswordHasher (Argon2id), User + UserRepository,
+│   │                   StoredSession + SessionRepository
+│   └── persistence/    UsersTable, SessionsTable, ExposedUserRepository (+ *Blocking helpers),
+│                       ExposedSessionRepository
+└── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
+    ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/game-platforms)
+    ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
+    │                   GamePlatformId, PlatformLabel, HexColor), Game/NewGame/GamePatch, GamePlatform,
+    │                   GameRepository and GamePlatformRepository (interfaces), GameService
+    └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository,
+                        ExposedGamePlatformRepository
 ```
 
-Layer rule inside a feature: `api -> domain <- persistence`; the domain imports neither Ktor nor Exposed. Only
-domain objects and value classes cross a layer boundary; constructing a value class is the validation.
+Layer rule inside a feature: `api -> domain <- persistence`; the domain imports neither Ktor nor Exposed nor
+kotlinx.serialization (pure libraries such as Bouncy Castle or slf4j are fine). Only domain objects and value
+classes cross a layer boundary; constructing a value class is the validation. The shared top-level packages
+(`common`, `plugins`, `config`) never import a feature package. The files that know every feature live in the
+package root (`Application.kt`, `Routes.kt`, `Schema.kt`). Decision record 0010.
 
 ## API
 
@@ -138,8 +150,10 @@ backend processResources ──▶ build/resources/main/app/** ──▶ shadowJ
 ## Schema migrations
 
 Flyway owns the schema. `DatabaseFactory.connect` opens the pool, runs `flyway.migrate()` over
-`backend/src/main/resources/db/migration`, binds Exposed, and finally logs a warning if the Kotlin table objects
-differ from the live schema (Exposed's `MigrationUtils` diff, read-only). Decision record 0004 has the reasoning.
+`backend/src/main/resources/db/migration` and binds Exposed; `module()` then calls
+`DatabaseFactory.warnOnSchemaDrift(database, allTables)`, which logs a warning if the table objects registered in
+`Schema.kt` differ from the live schema (Exposed's `MigrationUtils` diff, read-only). Decision record 0004 has the
+reasoning.
 
 Rules:
 
@@ -150,9 +164,9 @@ Rules:
 - Timestamp columns use the placeholder `${timestamp_type}` (`DATETIME(6)` on MySQL, `TIMESTAMP(9)` on H2, from
   `database.migration.timestampType`).
 - Give foreign-key columns an explicit index in SQL and `.index()` in Kotlin.
-- Mirror every change in the Exposed table object in the same commit (`db/Tables.kt` for users/sessions,
-  `<feature>/persistence/*Table.kt` for feature tables; every table object is listed in `allTables` in
-  `db/Tables.kt`). `SchemaDriftTest` fails when scripts and Kotlin tables disagree, and prints the statements
+- Mirror every change in the Exposed table object in the same commit (`<feature>/persistence/*Table.kt`, e.g.
+  `auth/persistence/UsersTable.kt`; every table object is listed in `allTables` in `Schema.kt`, the package
+  root). `SchemaDriftTest` fails when scripts and Kotlin tables disagree, and prints the statements
   Exposed would need.
 - UUID primary keys are `CHAR(36)` (hex-dash text), not Exposed's `uuid()`; see decision record 0007.
 - Reference data that the app needs from day one (the game platforms) is seeded by the migration that creates
@@ -167,7 +181,8 @@ Rules:
 | Dev loop with live reload (backend + frontend) | `./start-dev.sh`: Docker MySQL, `:backend:run` in Ktor development mode, `:backend:classes -t`, `pnpm dev`; see decision record 0006 |
 | Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment; add `-Pmt.dev=true` for auto-reload without the SPA) |
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
-| Backend tests (H2 in MySQL mode, includes the schema drift test) | `./gradlew :backend:test` |
+| Backend tests (handler tests without a database, smoke/repository tests on H2 in MySQL mode, schema drift test; ADR 0011) | `./gradlew :backend:test` |
+| Backend coverage report (Kover, informational, decision record 0011) | `./gradlew :backend:koverHtmlReport` |
 | Frontend tests (Vitest) | `./gradlew :frontend:pnpmTest` |
 | Kotlin style (ktlint, `intellij_idea` style from `.editorconfig`) | `./gradlew :backend:ktlintCheck` / `:backend:ktlintFormat` |
 | Frontend lint and format (ESLint, Prettier) | `./gradlew :frontend:pnpmLint :frontend:pnpmFormatCheck` / `:frontend:pnpmFormat :frontend:pnpmLintFix` |
