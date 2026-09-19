@@ -12,7 +12,9 @@ Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one 
 (MT-001: title, year, optional description and quarter-step rating, many-to-many platforms from a seeded
 `game_platforms` table, ADR 0009) is implemented end to end (`backend/.../games/`, `frontend/src/features/games/`)
 and is the template for Books, Movies and Series, which are "coming soon" tabs
-(`frontend/src/features/{books,movies,series}/`).
+(`frontend/src/features/{books,movies,series}/`). MT-002 added per-user API keys (two slots, settings dialog in
+`frontend/src/features/settings/`) and an MCP server at `POST /mcp` (ADR 0013) whose tools each feature contributes
+(`games/api/GameMcpTools.kt`: `list_game_platforms`, `add_game`).
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -71,27 +73,34 @@ Shutdown hooks in `module()` must hang off the application's coroutine job, not 
 with Ktor auto-reload the new instance starts before the old one stops and would close the new instance's resources.
 
 **Backend wiring** (`Application.kt`): `module()` does config → `DatabaseFactory.connect` →
-`DatabaseFactory.warnOnSchemaDrift(database, allTables)` → `Services(authService, gameService)` from Exposed
+`DatabaseFactory.warnOnSchemaDrift(database, allTables)` → `Services(auth, games, apiKeys)` from Exposed
 repositories → `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
 persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) → routes
-(`loginRoutes`, `apiRoutes(gameService)`, `webRoutes`). Handler tests boot `configureHttp` with MockK services and
-an in-memory session storage; a new media kind adds its service to `Services`.
+(`loginRoutes`, `apiRoutes(services)`, `mcpRoutes(services)`, `webRoutes`). Handler tests boot `configureHttp` with
+MockK services (`handlerApp(auth, games, apiKeys)`) and an in-memory session storage; a new media kind adds its
+service to `Services`.
 Config is typed in `config/AppConfig.kt` from `application.yaml`, where every secret is an env-var reference
 (`"$VAR"` required, `"$VAR:default"` optional).
 
 **Top-level packages are domains** (ADR 0010): business domains (`games`, later books/movies/series), the
 technical domain `auth` and the shared `common` are onion modules `{api,domain,persistence}`; `CreateUser`
-(bootstrap CLI) sits at the `auth` root. `common/domain` holds framework-free primitives (`Page*`, `Patch`,
-exceptions), `common/api` the shared DTOs, paging and `PatchField`, `common/persistence` HikariCP/Flyway/`dbQuery`.
+(bootstrap CLI) sits at the `auth` root. `mcp` is a technical domain with an `api` layer only (`McpEndpoint`,
+`McpServer`) and imports no feature; the root `Routes.kt#mcpRoutes` is what registers every feature's tools.
+`common/domain` holds framework-free primitives (`Page*`, `Patch`, exceptions), `common/api` the shared DTOs, paging
+and `PatchField`, `common/persistence` HikariCP/Flyway/`dbQuery`.
 `common/`, `plugins/` (Serialization, Monitoring, StatusPages) and `config/` never import a feature package. The
-composition root is the package root: `Application.kt` (wiring), `Routes.kt` (`apiRoutes` mounts `meRoutes()` and
-`gameRoutes()` under the authenticated `/api` prefix with the JSON 404 catch-all; `webRoutes` serves `/health` and
-the session-gated SPA) and `Schema.kt` (`allTables`).
+composition root is the package root: `Application.kt` (wiring), `Routes.kt` (`apiRoutes` mounts `meRoutes()`,
+`apiKeyRoutes()` and `gameRoutes()` under the authenticated `/api` prefix with the JSON 404 catch-all; `mcpRoutes`
+mounts the MCP endpoint under `authenticate(API_KEY_AUTH)`; `webRoutes` serves `/health` and the session-gated SPA)
+and `Schema.kt` (`allTables`).
 
-**Two auth tiers on one port.** Public: `/login`, `/login/static/*`, `/logout`, `/health`. Everything
-else (SPA with `index.html` fallback, `/api/**`) sits inside `authenticate(SESSION_AUTH)`. The challenge
-in `auth/api/Security.kt` (which also defines `SESSION_AUTH`) returns JSON 401 for `/api/*` and a 302 to
-`/login` otherwise. `/api/me` is `auth/api/MeRoutes.kt`. `apiRoutes` ends
+**Three auth tiers on one port.** Public: `/login`, `/login/static/*`, `/logout`, `/health`. The SPA (with
+`index.html` fallback) and `/api/**` sit inside `authenticate(SESSION_AUTH)`; `POST /mcp` sits inside
+`authenticate(API_KEY_AUTH)` (header `X-API-Key: <key>`, alias `Authorization: Bearer <key>`). Both providers and
+their challenges live in `auth/api/Security.kt`: JSON 401 for `/api/*` and `/mcp`, a 302 to `/login` otherwise.
+`authenticate(name)` only consults the named provider, so cookies never open `/mcp` and keys never open `/api`.
+`/api/me` is `auth/api/MeRoutes.kt`; `/api/me/api-keys` (GET, `POST /{primary|secondary}`) is `auth/api/ApiKeyRoutes.kt`,
+backed by `auth/domain/ApiKeyService` over two nullable unique `CHAR(36)` columns on `users` (V3). `apiRoutes` ends
 with a `{...}` catch-all so unknown API paths are JSON 404s instead of the SPA. Each feature defines its routes
 in `<feature>/api/*Routes.kt` (`Route.gameRoutes(service)`) and `apiRoutes` in the root `Routes.kt` mounts them
 inside that `authenticate` block, before the catch-all.
@@ -108,6 +117,16 @@ same three layers (`AuthService.login` returns the domain `User`, `auth/api/Logi
 **Sessions** live in the `sessions` table; the cookie `MT_SESSION` holds only an HMAC-signed id.
 `DbSessionStorage` rebuilds the `UserSession` principal per request and lazily deletes expired rows.
 Passwords are Argon2id PHC strings (`auth/domain/PasswordHasher.kt`).
+
+**MCP endpoint** (`mcp/api/McpEndpoint.kt`, ADR 0013): stateless Streamable HTTP, a fresh SDK `Server` per POST,
+built by hand from the SDK's public transport pieces because the SDK's `mcpStreamableHttp` helpers open their own
+`routing {}` and cannot sit inside `authenticate`. The route pre-encodes JSON-RPC replies with the SDK's `McpJson`
+in an `ApplicationSendPipeline.Before` interceptor; never let them reach the app-wide `ContentNegotiation`
+(`explicitNulls` would emit `"isError": null` and break clients), and never switch the global Json to
+`explicitNulls = false` (drops REST `null`s the TS types mirror). Tools live in the owning feature
+(`<kind>/api/<Kind>McpTools.kt`, `fun Server.add<Kind>Tools(service)`), reuse the REST request DTO and its
+`toNew<Kind>()` mapper, and turn domain exceptions into `CallToolResult(isError = true)`. Requests need
+`Accept: application/json, text/event-stream` and `Content-Type: application/json` (SDK returns 406/415 otherwise).
 
 **Database access.** Exposed 1.5 with `org.jetbrains.exposed.v1.*` package roots; timestamps are
 `kotlin.time.Instant`. JDBC is blocking, so route code must call `dbQuery { }`
@@ -129,8 +148,8 @@ migrates a fresh H2 and fails if Exposed would still want to change anything. Ru
 - UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()` (BINARY(16) on MySQL vs UUID on H2).
 
 **DTO mirroring.** `@Serializable` DTOs in `backend/.../common/api/Dtos.kt` (shared) and
-`backend/.../<feature>/api/*Dtos.kt` (`auth/api/AuthDtos.kt`, `games/api/GameDtos.kt`) are hand-mirrored in
-`frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`)
+`backend/.../<feature>/api/*Dtos.kt` (`auth/api/AuthDtos.kt` incl. `ApiKeysResponse`, `games/api/GameDtos.kt`) are
+hand-mirrored in `frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`)
 redirects to `/login` on 401, resolves `undefined` for 204, and throws `ApiError` (with the parsed `ErrorResponse`
 as `body`) on other non-2xx.
 
@@ -148,7 +167,7 @@ The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the ba
 no `. / < > : [ ] ; \`). Domain unit tests (no framework); service unit tests with MockK (`coEvery`/`coVerify` on
 the repository interfaces); repository tests on a fresh H2 per test via `withFreshDatabase {}` / `countStatements {}`
 (`test/.../common/persistence/TestDatabase.kt`); **handler tests** (`<feature>/api/<Feature>RoutesTest`,
-`auth/api/AuthRoutesTest`, root `RoutesTest`) through `testApplication` + `handlerApp(auth, games)` from
+`auth/api/AuthRoutesTest`, root `RoutesTest`) through `testApplication` + `handlerApp(auth, games, apiKeys)` from
 `test/.../TestApp.kt`, which boots `configureHttp` with MockK services and `SessionStorageMemory`, no database
 (`loginAsMocked(auth)` logs in through the real `/login`); they own status codes, headers, (de)serialization,
 `PatchField` mapping (`coVerify` the domain value the service receives) and every negative path; **smoke tests**
@@ -156,7 +175,9 @@ the repository interfaces); repository tests on a fresh H2 per test via `withFre
 `module()` on the shared H2 from `application-test.yaml`, cheap `PasswordHasher(memoryKb = 1024, iterations = 1)`
 for the seeded user, `loginAs`, `decodeBody`, `jsonBody`), happy paths only, at least one valid request per
 operation; and infrastructure edge cases (`DbSessionStorage`, `StatusPages` in an isolated app, `AppConfig` via
-`MapApplicationConfig`, `CreateUser.run()`). Mocks only above the repository interfaces (services in handler
+`MapApplicationConfig`, `CreateUser.run()`). MCP handler tests (`mcp/api/McpRoutesTest`) post raw JSON-RPC with the two
+headers named above; the smoke test (`mcp/McpSmokeTest`) drives the real module through the SDK's `kotlin-sdk-client`.
+Mocks only above the repository interfaces (services in handler
 tests, repositories in service tests). The shared H2 survives between tests in a JVM, so seed idempotently or clean
 up (`GamesTable.deleteAll()`). Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage
 is informational, there is no threshold. Frontend tests use Vitest + Testing Library + user-event with

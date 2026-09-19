@@ -18,5 +18,9 @@ object UsersTable : Table("users") {
     val passwordHash = varchar("password_hash", 255)
     val createdAt = timestamp("created_at")
 
+    /** See [de.sluit.mediatracker.auth.domain.ApiKey] and [de.sluit.mediatracker.auth.domain.ApiKeySlot]. */
+    val primaryApiKey = char("primary_api_key", 36).nullable().uniqueIndex()
+    val secondaryApiKey = char("secondary_api_key", 36).nullable().uniqueIndex()
+
     override val primaryKey = PrimaryKey(id)
 }

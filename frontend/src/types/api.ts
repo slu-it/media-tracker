@@ -1,9 +1,17 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
-// .../auth/api/AuthDtos.kt (MeResponse) and .../games/api/GameDtos.kt. Keep them in sync.
+// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse) and .../games/api/GameDtos.kt. Keep them in sync.
 
 export interface MeResponse {
   username: string;
 }
+
+/** The user's two MCP API keys; `null` means the slot has no key yet. */
+export interface ApiKeysResponse {
+  primary: string | null;
+  secondary: string | null;
+}
+
+export type ApiKeySlot = "primary" | "secondary";
 
 /** Body of every non-2xx API response. `message` is only present when the backend has a detail to add. */
 export interface ErrorResponse {

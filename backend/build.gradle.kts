@@ -68,6 +68,8 @@ dependencies {
     implementation(libs.ktor.server.status.pages)
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.config.yaml)
+    implementation(libs.ktor.server.sse)
+    implementation(libs.mcp.sdk.server)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.datetime)
@@ -84,6 +86,7 @@ dependencies {
     testImplementation(kotlin("test"))
     // mocks only above the repository interfaces, see ADR 0011
     testImplementation(libs.mockk)
+    testImplementation(libs.mcp.sdk.client)
 }
 
 // --- Dev loop (start-dev.sh) --------------------------------------------------------------------

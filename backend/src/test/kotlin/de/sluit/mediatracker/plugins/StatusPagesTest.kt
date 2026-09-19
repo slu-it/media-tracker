@@ -24,6 +24,8 @@ class StatusPagesTest {
             routing {
                 get("/api/boom") { error("boom") }
                 get("/boom") { error("boom") }
+                get("/mcp") { error("boom") }
+                get("/mcp/") { error("boom") }
                 get("/api/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/api/missing") { throw NotFoundException("game", "42") }
@@ -36,6 +38,22 @@ class StatusPagesTest {
     @Test
     fun `uncaught exception on an api path is a json 500 internal_error`() = testApp {
         val response = get("/api/boom")
+        assertEquals(HttpStatusCode.InternalServerError, response.status)
+        assertEquals(ContentType.Application.Json, response.contentType()?.withoutParameters())
+        assertEquals("""{"error":"internal_error"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `uncaught exception on mcp is a json 500 internal_error`() = testApp {
+        val response = get("/mcp")
+        assertEquals(HttpStatusCode.InternalServerError, response.status)
+        assertEquals(ContentType.Application.Json, response.contentType()?.withoutParameters())
+        assertEquals("""{"error":"internal_error"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `uncaught exception on mcp with a trailing slash is a json 500 internal_error`() = testApp {
+        val response = get("/mcp/")
         assertEquals(HttpStatusCode.InternalServerError, response.status)
         assertEquals(ContentType.Application.Json, response.contentType()?.withoutParameters())
         assertEquals("""{"error":"internal_error"}""", response.bodyAsText())

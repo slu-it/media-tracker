@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
@@ -42,6 +42,18 @@ describe("App", () => {
     mockApi({});
     renderWithProviders(<App />);
     expect(screen.getByRole("tab", { name: "Movies" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("opens the settings dialog with the API Keys tab on demand", async () => {
+    const user = userEvent.setup();
+    mockApi({ "GET /api/me/api-keys": () => jsonResponse({ primary: null, secondary: null }) });
+    renderWithProviders(<App />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("heading", { level: 2, name: "Settings" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("tab", { name: "API Keys" })).toBeInTheDocument();
   });
 
   it("switches the language to German and persists it", async () => {

@@ -23,6 +23,29 @@
   "auth": {
     "logout": "Log out"
   },
+  "settings": {
+    "title": "Settings",
+    "open": "Settings",
+    "tabs": {
+      "label": "Settings sections",
+      "apiKeys": "API Keys"
+    },
+    "apiKeys": {
+      "hint": "API keys authenticate MCP clients: send one in the X-API-Key header when calling /mcp. Keep the second key so you can rotate them without downtime.",
+      "primary": "Primary key",
+      "secondary": "Secondary key",
+      "empty": "No key generated yet",
+      "show": "Show {{label}}",
+      "hide": "Hide {{label}}",
+      "copy": "Copy {{label}}",
+      "copied": "Copied {{label}}",
+      "generate": "Generate {{label}}",
+      "regenerate": "Regenerate {{label}}",
+      "regenerateQuestion": "{{label}}: replace it with a new key? Anything using the old one will stop working immediately.",
+      "loadFailed": "Could not load the API keys.",
+      "regenerateFailed": "Could not generate a new key."
+    }
+  },
   "tabs": {
     "label": "Media kinds",
     "books": "Books",

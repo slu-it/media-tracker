@@ -4,6 +4,7 @@ import de.sluit.mediatracker.auth.api.DbSessionStorage
 import de.sluit.mediatracker.auth.api.configureSecurity
 import de.sluit.mediatracker.auth.api.configureSessions
 import de.sluit.mediatracker.auth.api.loginRoutes
+import de.sluit.mediatracker.auth.domain.ApiKeyService
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.persistence.ExposedSessionRepository
@@ -26,7 +27,7 @@ import kotlinx.coroutines.job
 /**
  * The services the HTTP layer needs; built from Exposed repositories in [module], from MockK mocks in handler tests.
  */
-class Services(val auth: AuthService, val games: GameService)
+class Services(val auth: AuthService, val games: GameService, val apiKeys: ApiKeyService)
 
 /**
  * Plugins and routes, independent of how the services and the session storage are backed.
@@ -37,11 +38,12 @@ fun Application.configureHttp(services: Services, sessionConfig: SessionConfig, 
     configureMonitoring()
     configureStatusPages()
     configureSessions(sessionConfig, sessionStorage)
-    configureSecurity()
+    configureSecurity(services.apiKeys)
 
     routing {
         loginRoutes(services.auth)
-        apiRoutes(services.games)
+        apiRoutes(services)
+        mcpRoutes(services)
         webRoutes()
     }
 }
@@ -69,7 +71,8 @@ fun Application.module() {
     val sessionRepository = ExposedSessionRepository()
     val authService = AuthService(userRepository, passwordHasher)
     val gameService = GameService(ExposedGameRepository(), ExposedGamePlatformRepository())
-    val services = Services(authService, gameService)
+    val apiKeyService = ApiKeyService(userRepository)
+    val services = Services(authService, gameService, apiKeyService)
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))
 
