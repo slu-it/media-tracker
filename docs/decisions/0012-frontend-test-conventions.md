@@ -96,3 +96,8 @@ re-create, so that line is covered through `i18n/language.test.ts`, not through 
 - The reviewer checklist gains: role/label queries only, every hit route mocked, request payload asserted for
   create/update/delete, no `console.error` allow-listing, no `vi.mock` of own modules.
 - Decision records 0008 (frontend stack, tests bullet) and 0011 (coverage paragraph) point here.
+
+Addendum (MT-003, 2026-09): a view with a debounced input takes the delay as an optional prop with the production
+constant as default (`GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS })`), so view tests stay on real timers with a
+short delay; fake timers are confined to the pure hook test (`src/hooks/useDebouncedValue.test.tsx`, with
+`vi.useRealTimers()` in its own `afterEach`) because jsdom is shared across files.

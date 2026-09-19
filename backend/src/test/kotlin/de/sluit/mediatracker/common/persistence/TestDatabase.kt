@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.common.persistence
 
+import de.sluit.mediatracker.allTables
 import de.sluit.mediatracker.config.DatabaseConfig
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.core.Transaction
@@ -8,33 +9,89 @@ import org.jetbrains.exposed.v1.core.statements.StatementContext
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
-import java.util.UUID
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.testcontainers.mariadb.MariaDBContainer
 
 /*
- * Shared fixtures for repository tests: a disposable, migrated H2 database per test (see
- * de.sluit.mediatracker.common.persistence.ConnectedDatabase) and a helper to count the SQL statements a
- * block issues, used to catch N+1 query patterns.
+ * Shared fixtures for backend tests: one MariaDB container (Testcontainers) for the whole test JVM, migrated
+ * once and then truncated between tests instead of recreated (see withFreshDatabase); plus a helper to count
+ * the SQL statements a block issues, used to catch N+1 query patterns. Docker is a hard requirement to run the
+ * backend tests, see CLAUDE.md.
  */
 
-/** A fresh named in-memory H2 database in MariaDB mode; never reused across calls. */
-fun freshH2Config(prefix: String = "test"): DatabaseConfig = DatabaseConfig(
-    url = "jdbc:h2:mem:${prefix}_${UUID.randomUUID().toString().replace("-", "")};" +
-        "MODE=MariaDB;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
-    user = "sa",
-    password = null,
-    maximumPoolSize = 2,
-    minimumIdle = 1,
-    keepaliveTime = 30_000,
-    maxLifetime = 60_000,
-    timestampType = "TIMESTAMP(9)",
-)
+private const val MARIADB_PORT = 3306
+private const val DATABASE_NAME = "media_tracker_test"
 
-/** Connects and migrates a fresh H2 database; callers must [ConnectedDatabase.close] it. */
-fun freshH2(): ConnectedDatabase = DatabaseFactory.connect(freshH2Config())
+/** Seeded once by db/migration/V002__games.sql; truncating it would need re-seeding it by hand, so no test may. */
+private val seedOnlyTableNames = setOf("game_platforms")
 
-/** Runs [block] against a fresh, migrated H2 database that is closed afterwards. */
+/**
+ * One MariaDB container for the whole test JVM, started lazily on first use. Testcontainers' Ryuk reaper removes
+ * it when the JVM exits.
+ */
+private val mariaDbContainer: MariaDBContainer by lazy {
+    val container = MariaDBContainer("mariadb:11.8").withDatabaseName(DATABASE_NAME)
+    try {
+        container.start()
+    } catch (e: Exception) {
+        throw IllegalStateException(
+            "backend tests need Docker: Testcontainers could not start mariadb:11.8. " +
+                "Start the Docker daemon and retry.",
+            e,
+        )
+    }
+    container
+}
+
+/** Connection settings for [mariaDbContainer]; a small pool, since only tests use it. */
+fun testDatabaseConfig(): DatabaseConfig {
+    val container = mariaDbContainer
+    return DatabaseConfig(
+        url = "jdbc:mariadb://${container.host}:${container.getMappedPort(MARIADB_PORT)}/" +
+            "$DATABASE_NAME?sslMode=disable&timezone=UTC&preserveInstants=true",
+        user = container.username,
+        password = container.password,
+        maximumPoolSize = 2,
+        minimumIdle = 1,
+        keepaliveTime = 30_000,
+        maxLifetime = 60_000,
+    )
+}
+
+/**
+ * Connects and migrates [mariaDbContainer] once per test JVM; every test shares it, so never close it.
+ *
+ * Pinned as Exposed's default database: `module()` (via `appWithUser`) connects its own additional pool per
+ * smoke test and closes it again when that test's `testApplication` stops, which would otherwise shift Exposed's
+ * implicit "current database" (the most recently connected one, see `TransactionManager.defaultDatabase`)
+ * out from under any `withFreshDatabase` test that runs around the same time and relies on the implicit
+ * default (e.g. through `dbQuery`), most visibly in the statement-counting tests. Because this pool stays the
+ * pinned default, every implicit `transaction {}`/`dbQuery {}` inside a smoke test also runs on this shared pool
+ * rather than on the pool `module()` itself opened from the merged test config.
+ */
+val sharedTestDatabase: ConnectedDatabase by lazy {
+    DatabaseFactory.connect(testDatabaseConfig()).also { TransactionManager.defaultDatabase = it.database }
+}
+
+/**
+ * Empties every table in [allTables] on [sharedTestDatabase] except [seedOnlyTableNames] (`SET
+ * FOREIGN_KEY_CHECKS = 0`, one `TRUNCATE TABLE` per table, `SET FOREIGN_KEY_CHECKS = 1`), then runs [block]
+ * against it. Fast: the schema is migrated once per JVM, only the data resets between tests.
+ */
 fun withFreshDatabase(block: suspend (ConnectedDatabase) -> Unit) {
-    freshH2().use { db -> runBlocking { block(db) } }
+    val db = sharedTestDatabase
+    transaction(db.database) {
+        exec("SET FOREIGN_KEY_CHECKS = 0")
+        try {
+            allTables.filter { it.tableName !in seedOnlyTableNames }.forEach { table ->
+                exec("TRUNCATE TABLE ${table.tableName}")
+            }
+        } finally {
+            exec("SET FOREIGN_KEY_CHECKS = 1")
+        }
+    }
+    runBlocking { block(db) }
 }
 
 /**

@@ -4,6 +4,7 @@ import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.SearchTerm
 
 /**
  * Business use cases for games. Deliberately thin while the feature is plain CRUD; decisions that do not
@@ -39,7 +40,9 @@ class GameService(private val games: GameRepository, private val platforms: Game
         games.deleteById(id)
     }
 
-    suspend fun list(request: PageRequest): Page<Game> = games.findPage(request)
+    /** Decides between the title-ordered page ([search] absent) and the score-ordered search ([search] present). */
+    suspend fun list(request: PageRequest, search: SearchTerm?): Page<Game> =
+        if (search == null) games.findPage(request) else games.search(search, request)
 
     suspend fun listPlatforms(): List<GamePlatform> = platforms.findAll()
 

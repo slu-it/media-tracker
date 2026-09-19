@@ -48,7 +48,7 @@ boundary.
   (`Unchanged` / `Change(value?)`). Required fields are plain nullable DTO properties where `null` means
   "unchanged". `explicitNulls` stays at its default, so responses spell out `"coverImageUrl": null`.
 - **UUID ids are stored as `CHAR(36)`** (hex-dash form) rather than Exposed's `uuid()`: the latter is `BINARY(16)`
-  on MariaDB but `UUID` on H2, which fails the drift test, and the text form is readable in SQL tools. `GameId` wraps
+  on MariaDB but `UUID` on H2 (the test database until decision record 0015), which failed the drift test, and the text form is readable in SQL tools. `GameId` wraps
   `kotlin.uuid.Uuid` (stable since Kotlin 2.4); DTOs carry the id as a `String` because the kotlinx Uuid serializer
   is still experimental.
 - **Paging contract:** `?page=` (1-based, default 1) and `?pageSize=` (default 50, max 200) into `PageRequest`;

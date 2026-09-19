@@ -13,6 +13,12 @@ import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
+
+/** MariaDB's DATETIME(6) columns store microsecond precision; truncate so a written instant round-trips exactly. */
+private fun now(): Instant = Clock.System.now().let {
+    Instant.fromEpochSeconds(it.epochSeconds, (it.nanosecondsOfSecond / 1_000) * 1_000)
+}
 
 class ExposedSessionRepositoryTest {
 
@@ -20,7 +26,7 @@ class ExposedSessionRepositoryTest {
     fun `save then find returns the session joined with its user`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }
-        val expiresAt = Clock.System.now() + 1.days
+        val expiresAt = now() + 1.days
 
         repo.save("session-1", userId, expiresAt)
         val found = repo.find("session-1")
@@ -42,8 +48,8 @@ class ExposedSessionRepositoryTest {
     fun `save replaces an existing row with the same id`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }
-        val firstExpiry = Clock.System.now() + 1.days
-        val secondExpiry = Clock.System.now() + 2.days
+        val firstExpiry = now() + 1.days
+        val secondExpiry = now() + 2.days
 
         repo.save("session-1", userId, firstExpiry)
         repo.save("session-1", userId, secondExpiry)
@@ -57,7 +63,7 @@ class ExposedSessionRepositoryTest {
     fun `save removes expired rows of other sessions`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }
-        val now = Clock.System.now()
+        val now = now()
         transaction {
             SessionsTable.insert {
                 it[id] = "expired"
@@ -76,7 +82,7 @@ class ExposedSessionRepositoryTest {
     fun `save keeps unexpired rows of other sessions`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }
-        val now = Clock.System.now()
+        val now = now()
         repo.save("session-other", userId, now + 1.days)
 
         repo.save("session-1", userId, now + 1.days)
@@ -88,7 +94,7 @@ class ExposedSessionRepositoryTest {
     fun `delete returns 1 for an existing session and 0 afterwards`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }
-        repo.save("session-1", userId, Clock.System.now() + 1.days)
+        repo.save("session-1", userId, now() + 1.days)
 
         assertEquals(1, repo.delete("session-1"))
         assertEquals(0, repo.delete("session-1"))
@@ -98,7 +104,7 @@ class ExposedSessionRepositoryTest {
     fun `deleting the user cascades to its sessions`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }
-        repo.save("session-1", userId, Clock.System.now() + 1.days)
+        repo.save("session-1", userId, now() + 1.days)
 
         transaction { UsersTable.deleteWhere { UsersTable.id eq userId } }
 

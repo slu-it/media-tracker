@@ -18,6 +18,7 @@ import io.ktor.server.testing.testApplication
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
 import io.modelcontextprotocol.kotlin.sdk.types.Implementation
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -31,7 +32,8 @@ import kotlin.test.assertNotEquals
 /**
  * Smoke tests for the MCP endpoint through the real MCP Kotlin client
  * ([io.modelcontextprotocol.kotlin.sdk.client.Client]) instead of raw JSON-RPC POSTs, against the real `module()`
- * on H2 ([appWithUser]). Happy paths only; everything negative lives in [de.sluit.mediatracker.mcp.api.McpRoutesTest].
+ * on the Testcontainers MariaDB shared by the test JVM ([appWithUser]). Happy paths only; everything negative
+ * lives in [de.sluit.mediatracker.mcp.api.McpRoutesTest].
  */
 class McpSmokeTest {
     /** Logs in, mints a primary API key and cleans out the games table. Returns the session client and the key. */
@@ -65,7 +67,7 @@ class McpSmokeTest {
 
         try {
             val toolNames = mcp.listTools().tools.map { it.name }.toSet()
-            assertEquals(setOf("list_game_platforms", "add_game"), toolNames)
+            assertEquals(setOf("list_game_platforms", "add_game", "search_games"), toolNames)
 
             val result = mcp.callTool("list_game_platforms", emptyMap())
             assertNotEquals(true, result.isError)
@@ -98,6 +100,54 @@ class McpSmokeTest {
 
             val listed = sessionClient.get("/api/games").decodeBody<PageResponse<GameResponse>>()
             assertContains(listed.items.map { it.title }, "Hades")
+        } finally {
+            mcp.close()
+            transaction { GamesTable.deleteAll() }
+        }
+    }
+
+    @Test
+    fun `search_games returns the best matches as structured content`() = testApplication {
+        val (_, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val platforms = mcp.callTool("list_game_platforms", emptyMap())
+            val pcId = platforms.structuredContent!!["platforms"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "PC" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            mcp.callTool(
+                "add_game",
+                mapOf(
+                    "title" to "Hades",
+                    "releaseYear" to 2020,
+                    "platformIds" to listOf(pcId),
+                    "description" to "Escape the underworld",
+                ),
+            )
+            mcp.callTool(
+                "add_game",
+                mapOf(
+                    "title" to "Underworld Chronicles",
+                    "releaseYear" to 2021,
+                    "platformIds" to listOf(pcId),
+                    "description" to "A roguelike inspired by Hades",
+                ),
+            )
+            mcp.callTool(
+                "add_game",
+                mapOf("title" to "Celeste", "releaseYear" to 2018, "platformIds" to listOf(pcId)),
+            )
+
+            val result = mcp.callTool("search_games", mapOf("query" to "hades"))
+
+            assertNotEquals(true, result.isError)
+            assertEquals(2, result.structuredContent!!["totalMatches"]!!.jsonPrimitive.int)
+            val titles = result.structuredContent!!["games"]!!.jsonArray
+                .map { it.jsonObject["title"]!!.jsonPrimitive.content }
+            assertEquals(listOf("Hades", "Underworld Chronicles"), titles)
         } finally {
             mcp.close()
             transaction { GamesTable.deleteAll() }

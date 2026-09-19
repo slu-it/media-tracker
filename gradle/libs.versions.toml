@@ -8,10 +8,10 @@ hikari = "7.1.0"
 mariadb = "3.5.10"
 logback = "1.5.38"
 bouncycastle = "1.86"
-h2 = "2.5.250"
 flyway = "13.6.0"
 mockk = "1.14.11"
 mcp = "0.15.0"
+testcontainers = "2.0.5"
 node-plugin = "7.1.0"
 ktlint-plugin = "14.2.0"
 ktlint = "1.8.0"
@@ -37,12 +37,13 @@ hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
 mariadb-connector = { module = "org.mariadb.jdbc:mariadb-java-client", version.ref = "mariadb" }
 logback = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
-h2 = { module = "com.h2database:h2", version.ref = "h2" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-mysql = { module = "org.flywaydb:flyway-mysql", version.ref = "flyway" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mcp-sdk-server = { module = "io.modelcontextprotocol:kotlin-sdk-server", version.ref = "mcp" }
 mcp-sdk-client = { module = "io.modelcontextprotocol:kotlin-sdk-client", version.ref = "mcp" }
+testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testcontainers" }
+testcontainers-mariadb = { module = "org.testcontainers:testcontainers-mariadb" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

@@ -7,8 +7,8 @@ import org.jetbrains.exposed.v1.core.Table
  * Exposed view of the `games` table; the schema itself is db/migration/V002__games.sql. Registered in
  * [de.sluit.mediatracker.allTables] for the drift check.
  *
- * The id is the UUID in 36-character hex-dash form: readable in SQL tools and identical on MariaDB and H2
- * (Exposed's `uuid()` would be BINARY(16) on MariaDB but UUID on H2 and fail SchemaDriftTest).
+ * The id is the UUID in 36-character hex-dash form: readable in SQL tools (Exposed's `uuid()` column would be
+ * BINARY(16) on MariaDB).
  */
 object GamesTable : Table("games") {
     val id = char("id", 36)
@@ -19,6 +19,17 @@ object GamesTable : Table("games") {
     val coverImageUrl = varchar("cover_image_url", 2048).nullable()
 
     override val primaryKey = PrimaryKey(id)
+
+    init {
+        // V004: title-ordered listing. (title, id) so it is not an "excess" twin of ft_games_title for the
+        // drift check; InnoDB appends the primary key to every secondary index anyway.
+        index("idx_games_title", false, title, id)
+
+        // V005: FULLTEXT indexes for game search. The type is never emitted because the indexes always exist
+        // after Flyway and Index.equals ignores indexType.
+        index("ft_games_title", false, title, indexType = "FULLTEXT")
+        index("ft_games_description", false, description, indexType = "FULLTEXT")
+    }
 }
 
 /** Exposed view of the `game_platforms` table; the four rows seeded by the migration never change ids. */

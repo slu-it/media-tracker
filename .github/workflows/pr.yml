@@ -1,5 +1,5 @@
 # Pull request verification: `./gradlew build` is the single contract (see README) and runs
-# ktlint, ESLint, the Prettier check, backend tests (H2), frontend tests (Vitest) and assembles the JAR.
+# ktlint, ESLint, the Prettier check, backend tests (Testcontainers MariaDB, Docker is available on ubuntu-latest), frontend tests (Vitest) and assembles the JAR.
 name: PR
 
 on:

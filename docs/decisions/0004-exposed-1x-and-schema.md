@@ -2,7 +2,8 @@
 
 Status: accepted, 2026-09 (revised the same month: Flyway replaces startup `SchemaUtils.create`; the database
 engine, driver, collation and migration file naming were changed by ADR 0014, which supersedes the notes below
-where they conflict; read "MySQL" and "H2 in MySQL mode" below as MariaDB 11.8 and H2 in MariaDB mode)
+where they conflict; read "MySQL" and "H2 in MySQL mode" below as MariaDB 11.8 and H2 in MariaDB mode; decision
+record 0015 then replaced H2 with a Testcontainers MariaDB for every test, which retired the `timestampType` setting)
 
 ## Context
 
@@ -52,8 +53,8 @@ of truth plus a mechanical check that the Kotlin model matches it.
   would report a `DROP INDEX` on H2.
 - Index and constraint names do not influence the drift check (it matches by columns), but we keep Exposed's
   naming (`<table>_<column>[_unique]`, `fk_<table>_<column>__<target>`) for readability.
-- Every schema change is one PR touching `db/migration/V<nnn>__*.sql` and `db/Tables.kt` together; the drift test
-  fails otherwise.
+- Every schema change is one PR touching `db/migration/V<nnn>__*.sql` and the Exposed table object together; the
+  drift test fails otherwise.
 
 ## Notes
 

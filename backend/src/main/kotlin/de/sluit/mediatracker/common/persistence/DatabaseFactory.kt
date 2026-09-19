@@ -26,14 +26,16 @@ object DatabaseFactory {
     private val log = LoggerFactory.getLogger(DatabaseFactory::class.java)
 
     const val MIGRATIONS_LOCATION = "classpath:db/migration"
-    const val TIMESTAMP_TYPE_PLACEHOLDER = "timestamp_type"
+    private const val TIMESTAMP_TYPE_PLACEHOLDER = "timestamp_type"
 
     /**
      * Opens the HikariCP pool, applies pending Flyway migrations and binds Exposed to the pool.
      * Does not check the schema for drift; callers that maintain a table registry
      * (e.g. [de.sluit.mediatracker.allTables]) should call [warnOnSchemaDrift] themselves once connected.
      *
-     * The SQL under `db/migration` is the source of truth for the schema; see docs/decisions/0004.
+     * `db/migration` is the source of truth for the schema against the real MariaDB 11.8 every environment
+     * runs on, production and tests alike (tests through Testcontainers, see docs/decisions/0004); see
+     * docs/architecture.md.
      */
     fun connect(config: DatabaseConfig): ConnectedDatabase {
         val hikari = HikariConfig().apply {
@@ -51,7 +53,7 @@ object DatabaseFactory {
         }
         val dataSource = HikariDataSource(hikari)
         try {
-            migrate(dataSource, config)
+            migrate(dataSource)
         } catch (e: RuntimeException) {
             dataSource.close()
             throw e
@@ -63,12 +65,15 @@ object DatabaseFactory {
     }
 
     /** Runs outside any Exposed transaction: Flyway takes and commits its own connections. */
-    private fun migrate(dataSource: HikariDataSource, config: DatabaseConfig) {
+    private fun migrate(dataSource: HikariDataSource) {
         val flyway = Flyway.configure()
             .dataSource(dataSource)
             .locations(MIGRATIONS_LOCATION)
             .validateMigrationNaming(true)
-            .placeholders(mapOf(TIMESTAMP_TYPE_PLACEHOLDER to config.timestampType))
+            // V001 is the only script using ${timestamp_type} and applied scripts are never edited (see
+            // docs/architecture.md, "Schema changes"), so the placeholder stays and always resolves to
+            // DATETIME(6); every later script writes DATETIME(6) directly.
+            .placeholders(mapOf(TIMESTAMP_TYPE_PLACEHOLDER to "DATETIME(6)"))
             .load()
         val result = flyway.migrate()
         if (result.migrationsExecuted > 0) {

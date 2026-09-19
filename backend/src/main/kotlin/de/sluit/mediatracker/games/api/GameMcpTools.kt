@@ -2,6 +2,10 @@ package de.sluit.mediatracker.games.api
 
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.games.domain.GameService
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
@@ -10,7 +14,10 @@ import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import io.modelcontextprotocol.kotlin.sdk.types.ToolAnnotations
 import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -25,6 +32,7 @@ import kotlinx.serialization.json.putJsonObject
 fun Server.addGameTools(gameService: GameService) {
     addListGamePlatformsTool(gameService)
     addAddGameTool(gameService)
+    addSearchGamesTool(gameService)
 }
 
 private const val LIST_GAME_PLATFORMS_DESCRIPTION =
@@ -34,6 +42,12 @@ private const val ADD_GAME_DESCRIPTION =
     "Adds a game to the tracker. title, releaseYear and platformIds are required. " +
         "platformIds are game_platforms.id values; call list_game_platforms first to get them. " +
         "description, rating and coverImageUrl are optional."
+
+private const val SEARCH_GAMES_DESCRIPTION =
+    "Searches the tracked games by title and description and returns the 10 best matches, title matches first, " +
+        "best match first. Any word may match; each word is treated as a prefix (\"zel\" finds \"Zelda\")."
+
+private val SEARCH_GAMES_LIMIT = PageSize(10)
 
 // Mirrors the constraints value classes enforce in games/domain/GameValues.kt.
 private val ADD_GAME_SCHEMA = ToolSchema(
@@ -88,6 +102,18 @@ private val ADD_GAME_SCHEMA = ToolSchema(
     required = listOf("title", "releaseYear", "platformIds"),
 )
 
+private val SEARCH_GAMES_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("query") {
+            put("type", "string")
+            put("description", "Words to search for.")
+            put("minLength", 1)
+            put("maxLength", SearchTerm.MAX_LENGTH)
+        }
+    },
+    required = listOf("query"),
+)
+
 private fun Server.addListGamePlatformsTool(gameService: GameService) {
     addTool(
         name = "list_game_platforms",
@@ -136,6 +162,53 @@ private fun Server.addAddGameTool(gameService: GameService) {
         } catch (e: NotFoundException) {
             e.toErrorResult()
         } catch (e: SerializationException) {
+            e.toErrorResult()
+        }
+    }
+}
+
+private fun Server.addSearchGamesTool(gameService: GameService) {
+    addTool(
+        name = "search_games",
+        description = SEARCH_GAMES_DESCRIPTION,
+        inputSchema = SEARCH_GAMES_SCHEMA,
+        toolAnnotations = ToolAnnotations(readOnlyHint = true),
+    ) { request ->
+        try {
+            val raw = when (val argument = request.arguments?.get("query")) {
+                null, is JsonNull -> null
+
+                is JsonPrimitive -> argument.takeIf { it.isString }?.content
+                    ?: throw InvalidValueException("query", "must be a string")
+
+                else -> throw InvalidValueException("query", "must be a string")
+            }
+            val term = SearchTerm.parseOrNull(raw, field = "query")
+                ?: throw InvalidValueException("query", "must not be blank")
+            val page = gameService.list(PageRequest(PageNumber.FIRST, SEARCH_GAMES_LIMIT), term)
+            val games = page.items.map { it.toResponse() }
+            CallToolResult(
+                content = listOf(
+                    TextContent(
+                        if (games.isEmpty()) {
+                            "No games match \"$term\"."
+                        } else {
+                            // The tool never pages: say how many matches exist so a truncated list is recognisable.
+                            "${games.size} of ${page.totalItems} matches for \"$term\", best first:\n" +
+                                games.joinToString("\n") { "${it.title} (${it.releaseYear}): ${it.id}" }
+                        },
+                    ),
+                ),
+                structuredContent = buildJsonObject {
+                    put("totalMatches", page.totalItems)
+                    putJsonArray("games") {
+                        games.forEach { game ->
+                            add(McpJson.encodeToJsonElement(GameResponse.serializer(), game))
+                        }
+                    }
+                },
+            )
+        } catch (e: InvalidValueException) {
             e.toErrorResult()
         }
     }

@@ -1,6 +1,8 @@
 # 0011: Backend test strategy: six test levels, mocks only above the repository interfaces, coverage as information
 
-Status: accepted, 2026-09 (ADR 0014 moved production to MariaDB 11.8 and the tests to H2 in MariaDB mode; read
+Status: accepted, 2026-09 (ADR 0014 moved production to MariaDB 11.8 and the tests to H2 in MariaDB mode, ADR 0015
+then replaced H2 with a Testcontainers MariaDB for every level that touches a database: `withFreshDatabase` now
+truncates the shared, migrated test database instead of creating a fresh H2; read
 "MySQL" below as "MariaDB")
 
 ## Context
@@ -128,7 +130,9 @@ Rules for every level:
   that interfaces exist for the dependency direction, not for mocking, stays.
 - **No mocking library at all.** Considered because the services are thin CRUD today; rejected by the owner, who
   wants the service layer tested in isolation from the start so the next media kinds copy that too.
-- **Testcontainers with a real MySQL 8** for levels 2 and 3. Removes the H2 divergence but costs Docker in CI and
+- **Testcontainers with a real MySQL 8** for levels 2 and 3 (taken by decision record 0015 with MariaDB 11.8: the
+  fulltext search needed the real engine, and one test database is simpler than two). Removes the H2 divergence but
+  costs Docker in CI and
   locally, seconds per JVM start, and the "Gradle is the only tool you need" promise. Revisit if a migration ever
   passes the drift test and still fails on the Pi.
 - **Ktor tests of single routes** with a single plugin installed, as the general pattern. Level 4 may do this

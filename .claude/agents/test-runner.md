@@ -28,7 +28,8 @@ A PreToolUse hook (`.claude/hooks/agent-guard.py readonly`) denies these; if a c
 ## Reading failures
 - If console output is truncated, read `backend/build/test-results/test/TEST-*.xml` for the message and the first stack frame in `de.sluit.mediatracker`.
 - Configuration-cache, build-cache and daemon banners are noise. "0 tests executed" or a skipped test task is a finding.
-- H2 is shared across tests in one JVM: duplicate-key or leftover-row failures usually mean non-idempotent seeding, say so.
+- The test MariaDB (Testcontainers) is shared across tests in one JVM: duplicate-key or leftover-row failures usually mean non-idempotent seeding, say so.
+- Backend tests need Docker (Testcontainers `mariadb:11.8`); "Could not find a valid Docker environment" or a container start failure means Docker is not running, report that as the cause.
 - `SchemaDriftTest` failure = Flyway SQL and Exposed table disagree. `src/i18n/resources.test.ts` failure = `en.json`/`de.json` key sets differ.
 - ktlint prints `file:line:col: message (rule)`; ESLint prints `file` then `line:col rule`; Prettier prints only file paths.
 

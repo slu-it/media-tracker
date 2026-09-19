@@ -10,6 +10,7 @@ import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
@@ -89,7 +90,7 @@ class GameRoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/game-platforms").status)
 
         coVerify(exactly = 0) { games.create(any()) }
-        coVerify(exactly = 0) { games.list(any()) }
+        coVerify(exactly = 0) { games.list(any(), any()) }
         coVerify(exactly = 0) { games.listPlatforms() }
     }
 
@@ -340,22 +341,22 @@ class GameRoutesTest {
     fun `list without parameters asks the service for page 1 of 50`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
-        coEvery { games.list(any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
 
         client.get("/api/games")
 
-        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50))) }
+        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), null) }
     }
 
     @Test
     fun `list passes page and page size to the service`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
-        coEvery { games.list(any()) } returns Page(emptyList(), PageNumber(3), PageSize(10), 0)
+        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber(3), PageSize(10), 0)
 
         client.get("/api/games?page=3&pageSize=10")
 
-        coVerify { games.list(PageRequest(PageNumber(3), PageSize(10))) }
+        coVerify { games.list(PageRequest(PageNumber(3), PageSize(10)), null) }
     }
 
     @Test
@@ -368,7 +369,7 @@ class GameRoutesTest {
             size = PageSize(10),
             totalItems = 25,
         )
-        coEvery { games.list(any()) } returns page
+        coEvery { games.list(any(), any()) } returns page
 
         val response = client.get("/api/games?page=2&pageSize=10").decodeBody<PageResponse<GameResponse>>()
 
@@ -382,12 +383,43 @@ class GameRoutesTest {
     }
 
     @Test
+    fun `list passes a trimmed search term to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+
+        client.get("/api/games?search=%20hades%20")
+
+        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), SearchTerm("hades")) }
+    }
+
+    @Test
+    fun `list with a blank search term passes no search term`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+
+        client.get("/api/games?search=%20%20")
+
+        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), null) }
+    }
+
+    @Test
+    fun `list rejects a search term over 200 characters`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.get("/api/games?search=${"x".repeat(201)}").assertValidationError("search")
+        coVerify(exactly = 0) { games.list(any(), any()) }
+    }
+
+    @Test
     fun `list rejects page 0`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?page=0").assertValidationError("page")
-        coVerify(exactly = 0) { games.list(any()) }
+        coVerify(exactly = 0) { games.list(any(), any()) }
     }
 
     @Test
@@ -396,7 +428,7 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?pageSize=201").assertValidationError("pageSize")
-        coVerify(exactly = 0) { games.list(any()) }
+        coVerify(exactly = 0) { games.list(any(), any()) }
     }
 
     @Test
@@ -405,7 +437,7 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?page=x").assertValidationError("page")
-        coVerify(exactly = 0) { games.list(any()) }
+        coVerify(exactly = 0) { games.list(any(), any()) }
     }
 
     // ---- patch ----

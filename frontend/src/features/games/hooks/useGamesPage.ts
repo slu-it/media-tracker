@@ -4,7 +4,7 @@ import type { GameResponse, PageResponse } from "../../../types/api";
 import { listGames } from "../api/gamesApi";
 
 interface Loaded {
-  /** Which (page, pageSize, reload) request this result belongs to. */
+  /** Which (page, pageSize, reload, search) request this result belongs to. */
   key: string;
   data: PageResponse<GameResponse> | null;
   error: string | null;
@@ -19,14 +19,15 @@ export interface GamesPageState {
 }
 
 /** Loads one page of games; `reload()` refetches the same page (after create/update/delete). */
-export function useGamesPage(page: number, pageSize: number, loadErrorText: string): GamesPageState {
+export function useGamesPage(page: number, pageSize: number, search: string, loadErrorText: string): GamesPageState {
   const [reloadToken, setReloadToken] = useState(0);
-  const key = `${page}:${pageSize}:${reloadToken}`;
+  // `search` last: it changes independently of page/pageSize/reload and should not shadow those in the key.
+  const key = `${page}:${pageSize}:${reloadToken}:${search}`;
   const [loaded, setLoaded] = useState<Loaded>({ key: "", data: null, error: null });
 
   useEffect(() => {
     let cancelled = false;
-    listGames(page, pageSize)
+    listGames(page, pageSize, search)
       .then((data) => {
         if (!cancelled) setLoaded({ key, data, error: null });
       })
@@ -36,7 +37,7 @@ export function useGamesPage(page: number, pageSize: number, loadErrorText: stri
     return () => {
       cancelled = true;
     };
-  }, [key, page, pageSize, loadErrorText]);
+  }, [key, page, pageSize, search, loadErrorText]);
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 

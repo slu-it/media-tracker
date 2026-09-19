@@ -29,10 +29,10 @@ import kotlin.test.assertNull
 import kotlin.uuid.Uuid
 
 /**
- * Smoke tests for the games domain: the real `module()` on H2 ([appWithUser]), a real login, real SQL;
- * happy paths only, at least one valid request per operation and the request variations that matter.
- * Everything negative lives in [de.sluit.mediatracker.games.api.GameRoutesTest]. There is no GET by id;
- * persistence is verified through GET /api/games.
+ * Smoke tests for the games domain: the real `module()` on the Testcontainers MariaDB shared by the test JVM
+ * ([appWithUser]), a real login, real SQL; happy paths only, at least one valid request per operation and the
+ * request variations that matter. Everything negative lives in [de.sluit.mediatracker.games.api.GameRoutesTest].
+ * There is no GET by id; persistence is verified through GET /api/games.
  */
 class GamesSmokeTest {
     private suspend fun ApplicationTestBuilder.loggedInClient(seed: () -> Unit = {}): HttpClient {
@@ -100,6 +100,27 @@ class GamesSmokeTest {
         assertNull(hades.coverImageUrl)
         assertNull(hades.description)
         assertNull(hades.rating)
+    }
+
+    @Test
+    fun `list with a search term returns the matches best first`() = testApplication {
+        val client = loggedInClient()
+        client.createGame(
+            """{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"],
+                |"description":"Escape the underworld"}
+            """.trimMargin(),
+        )
+        client.createGame(
+            """{"title":"Underworld Chronicles","releaseYear":2021,"platformIds":["${SeededPlatforms.PC}"],
+                |"description":"A roguelike inspired by Hades"}
+            """.trimMargin(),
+        )
+        client.createGame("""{"title":"Celeste","releaseYear":2018,"platformIds":["${SeededPlatforms.PC}"]}""")
+
+        val page = client.get("/api/games?search=hades").decodeBody<PageResponse<GameResponse>>()
+
+        assertEquals(listOf("Hades", "Underworld Chronicles"), page.items.map { it.title })
+        assertEquals(2, page.totalItems)
     }
 
     @Test

@@ -53,7 +53,6 @@ object CreateUser {
                 minimumIdle = 1,
                 keepaliveTime = 300_000,
                 maxLifetime = 1_500_000,
-                timestampType = env("DB_TIMESTAMP_TYPE") ?: DatabaseConfig.DEFAULT_TIMESTAMP_TYPE,
             )
 
             DatabaseFactory.connect(config).use { db ->

@@ -11,7 +11,7 @@ describe("useGamesPage", () => {
     const calls = mockApi({
       "GET /api/games": (_call, url) => jsonResponse(page(Number(url.searchParams.get("page")))),
     });
-    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "load failed"), {
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", "load failed"), {
       initialProps: { p: 1 },
     });
     expect(result.current.loading).toBe(true);
@@ -34,7 +34,7 @@ describe("useGamesPage", () => {
     mockApi({
       "GET /api/games": () => (fail ? jsonResponse({ error: "internal_error" }, 500) : jsonResponse(page(1))),
     });
-    const { result } = renderHook(() => useGamesPage(1, 50, "load failed"));
+    const { result } = renderHook(() => useGamesPage(1, 50, "", "load failed"));
     await waitFor(() => expect(result.current.data).not.toBeNull());
 
     fail = true;
@@ -52,7 +52,7 @@ describe("useGamesPage", () => {
         return new Promise<Response>((resolve) => resolvers.set(requestedPage, resolve));
       },
     });
-    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "load failed"), {
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", "load failed"), {
       initialProps: { p: 1 },
     });
     resolvers.get(1)!(jsonResponse(page(1)));
@@ -76,7 +76,7 @@ describe("useGamesPage", () => {
         return new Promise<Response>((resolve) => resolvers.set(requestedPage, resolve));
       },
     });
-    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "load failed"), {
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", "load failed"), {
       initialProps: { p: 1 },
     });
 
@@ -89,5 +89,40 @@ describe("useGamesPage", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(result.current.data?.page).toBe(2);
     expect(result.current.loading).toBe(false);
+  });
+
+  it("adds the search term to the query and refetches when it changes", async () => {
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(page(1)),
+    });
+    const { rerender } = renderHook(({ search }) => useGamesPage(1, 50, search, "load failed"), {
+      initialProps: { search: "" },
+    });
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    rerender({ search: "hades" });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].url).toBe("/api/games?page=1&pageSize=50&search=hades");
+  });
+
+  it("omits the search param for a blank term", async () => {
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(page(1)),
+    });
+    renderHook(() => useGamesPage(1, 50, "", "load failed"));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].url).toBe("/api/games?page=1&pageSize=50");
+  });
+
+  it("reload keeps the active search term", async () => {
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(page(1)),
+    });
+    const { result } = renderHook(() => useGamesPage(1, 50, "hades", "load failed"));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+
+    act(() => result.current.reload());
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].url).toBe("/api/games?page=1&pageSize=50&search=hades");
   });
 });

@@ -26,7 +26,8 @@ not:
 
 - **MariaDB 11.8 is the production database.** Local development and the end-to-end script use the official
   `mariadb:11.8` image (`docker-compose.yml`, service `mariadb`, health check `healthcheck.sh --connect
-  --innodb_initialized`). CI stays database-free (H2), as before.
+  --innodb_initialized`). CI stays database-free (H2), as before. (Superseded by decision record 0015: every backend
+  test runs against a Testcontainers MariaDB, in CI as well.)
 - **MariaDB Connector/J** (`org.mariadb.jdbc:mariadb-java-client` 3.5.10, LGPL 2.1) replaces MySQL Connector/J. URLs
   start with `jdbc:mariadb://`; the parameters we use are `sslMode=disable|trust|verify-full` (lower case),
   `timezone=UTC` (the driver's shorthand for `connectionTimeZone=UTC` plus forcing it onto the session) and
@@ -44,7 +45,7 @@ not:
   `V001` is version 1; the padding is cosmetic. The three existing scripts were renamed and, for the collation and
   the header comments, edited in place. This is the second and last such amendment (the first is ADR 0009): from
   the first deployment on, applied scripts are immutable and every change is a new `V<nnn+1>`.
-- **Tests run H2 in MariaDB compatibility mode** (`MODE=MariaDB;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE`)
+- **Tests run H2 in MariaDB compatibility mode** (superseded by decision record 0015, Testcontainers MariaDB) (`MODE=MariaDB;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE`)
   instead of `MODE=MySQL`; Exposed's H2 dialect knows both. The drift test passes unchanged, and Flyway now records
   the versions as `001`, `002`, `003` in `flyway_schema_history` (the test that checks the history was adjusted).
 

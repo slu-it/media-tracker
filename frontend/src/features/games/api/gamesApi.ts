@@ -9,8 +9,10 @@ import type {
 
 const BASE = "/api/games";
 
-export function listGames(page: number, pageSize: number): Promise<PageResponse<GameResponse>> {
+export function listGames(page: number, pageSize: number, search = ""): Promise<PageResponse<GameResponse>> {
   const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  const term = search.trim();
+  if (term.length > 0) query.set("search", term);
   return apiFetch<PageResponse<GameResponse>>(`${BASE}?${query}`);
 }
 

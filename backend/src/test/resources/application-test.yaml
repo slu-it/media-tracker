@@ -1,20 +1,20 @@
-# Test configuration: in-memory H2 in MariaDB compatibility mode, plain-http cookie.
+# Test configuration: the Testcontainers MariaDB shared by the whole test JVM, plain-http cookie.
 # `ktor.application.modules` is intentionally absent; tests call `module()` explicitly.
 ktor:
   deployment:
     port: 8080
 
 database:
-  url: "jdbc:h2:mem:media_tracker_test;MODE=MariaDB;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1"
-  user: "sa"
-  password: ""
+  # Dummy values: TestApp.appWithUser overrides url/user/password with the running container's coordinates
+  # (see common/persistence/TestDatabase.kt#testDatabaseConfig) before module() runs.
+  url: "jdbc:mariadb://overridden-by-testapp/media_tracker_test"
+  user: "overridden-by-testapp"
+  password: "overridden-by-testapp"
   pool:
     maximumPoolSize: 2
     minimumIdle: 1
     keepaliveTime: 30000
     maxLifetime: 60000
-  migration:
-    timestampType: "TIMESTAMP(9)"
 
 session:
   cookieName: MT_SESSION
