@@ -1,5 +1,6 @@
 package de.sluit.mediatracker
 
+import de.sluit.mediatracker.auth.api.ApiKeysResponse
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
@@ -8,6 +9,7 @@ import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 /**
  * Smoke test of the composition root: the real `module()` on H2 ([appWithUser]), a real user with a real
@@ -46,6 +48,21 @@ class ApplicationSmokeTest {
         assertEquals("/login", logout.headers["Location"])
 
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/me").status)
+    }
+
+    @Test
+    fun `regenerating and reading back the primary api key round trips through the real stack`() = testApplication {
+        val client = appWithUser("alice", "wonderland-1")
+        client.loginAs("alice", "wonderland-1")
+
+        val regenerated = client.post("/api/me/api-keys/primary")
+        assertEquals(HttpStatusCode.OK, regenerated.status)
+        val primary = regenerated.decodeBody<ApiKeysResponse>().primary
+        assertFalse(primary.isNullOrBlank())
+
+        val read = client.get("/api/me/api-keys")
+        assertEquals(HttpStatusCode.OK, read.status)
+        assertEquals(primary, read.decodeBody<ApiKeysResponse>().primary)
     }
 
     @Test

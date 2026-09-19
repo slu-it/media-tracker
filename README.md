@@ -58,6 +58,25 @@ java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateU
 
 You are prompted for the password (twice). Add `--reset-password` to change an existing user's password.
 
+## MCP server
+
+The backend exposes a [Model Context Protocol](https://modelcontextprotocol.io) server at `POST /mcp`
+(stateless Streamable HTTP) so any MCP-capable agent can add games. It is authenticated with a per-user API key,
+not with the browser session:
+
+1. Log in, open the settings (gear icon) and the **API Keys** tab, generate the primary key and copy it.
+2. Point your client at `https://<host>/mcp` with the header `X-API-Key: <key>`. Clients that can only send an
+   OAuth-style header may use `Authorization: Bearer <key>` instead. Claude Code, for example:
+   ```
+   claude mcp add --transport http media-tracker https://<host>/mcp --header "X-API-Key: <key>"
+   ```
+3. Tools: `list_game_platforms` (ids and labels of the seeded platforms) and `add_game` (same fields as
+   `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional).
+
+Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
+regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in
+`docs/architecture.md` and `docs/decisions/0013-api-keys-and-mcp-server.md`.
+
 ## Local end-to-end run
 
 ```
@@ -150,5 +169,5 @@ gradle/     wrapper and libs.versions.toml (single source of truth for JVM versi
 Phase 1 shipped the build, the login gate and the user session. Phase 2 adds the media kinds one by one:
 Games are implemented (grid, add/edit/delete dialogs with description, star rating and multi-platform chips,
 `/api/games` and the read-only `/api/game-platforms`; see `docs/architecture.md` for the API and
-`docs/decisions/0007-*.md` / `0008-*.md` / `0009-*.md` for the backend, frontend and reference-data patterns);
-Books, Movies and Series are "coming soon" tabs.
+`docs/decisions/0007-*.md` / `0008-*.md` / `0009-*.md` for the backend, frontend and reference-data patterns),
+plus per-user API keys and the MCP server (`0013-*.md`); Books, Movies and Series are "coming soon" tabs.

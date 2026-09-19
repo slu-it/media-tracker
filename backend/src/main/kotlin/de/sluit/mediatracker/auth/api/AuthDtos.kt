@@ -4,6 +4,7 @@
 
 package de.sluit.mediatracker.auth.api
 
+import de.sluit.mediatracker.auth.domain.ApiKeys
 import kotlinx.serialization.Serializable
 
 // Mirrored by hand in frontend/src/types/api.ts. Keep both in sync.
@@ -11,3 +12,9 @@ import kotlinx.serialization.Serializable
 /** GET /api/me */
 @Serializable
 data class MeResponse(val username: String)
+
+/** GET/POST /api/me/api-keys; either slot may be absent (null) if never regenerated. */
+@Serializable
+data class ApiKeysResponse(val primary: String?, val secondary: String?)
+
+fun ApiKeys.toResponse() = ApiKeysResponse(primary = primary?.toString(), secondary = secondary?.toString())

@@ -16,9 +16,9 @@ import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 
 /**
- * Maps exceptions and bare status codes to responses. API paths get a JSON [ErrorResponse]; everything else
- * gets plain text. StatusPages picks the most specific registered exception type, so the domain exceptions
- * below win over the `Throwable` fallback.
+ * Maps exceptions and bare status codes to responses. Routes under `/api` and `/mcp` get a JSON [ErrorResponse];
+ * everything else gets plain text. StatusPages picks the most specific registered exception type, so the domain
+ * exceptions below win over the `Throwable` fallback.
  *
  * | Exception                                     | Status | code               |
  * |-----------------------------------------------|--------|--------------------|
@@ -62,7 +62,8 @@ fun Application.configureStatusPages() {
     }
 }
 
-private fun ApplicationCall.isApiCall() = request.path().startsWith("/api/")
+private fun ApplicationCall.isApiCall() =
+    request.path().startsWith("/api/") || request.path().removeSuffix("/") == "/mcp"
 
 private suspend fun ApplicationCall.respondError(
     status: HttpStatusCode,

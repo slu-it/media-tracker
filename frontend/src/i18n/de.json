@@ -23,6 +23,29 @@
   "auth": {
     "logout": "Abmelden"
   },
+  "settings": {
+    "title": "Einstellungen",
+    "open": "Einstellungen",
+    "tabs": {
+      "label": "Einstellungsbereiche",
+      "apiKeys": "API-Schlüssel"
+    },
+    "apiKeys": {
+      "hint": "API-Schlüssel authentifizieren MCP-Clients: einen davon beim Aufruf von /mcp im Header X-API-Key mitschicken. Den zweiten Schlüssel für die unterbrechungsfreie Rotation aufheben.",
+      "primary": "Primärer Schlüssel",
+      "secondary": "Sekundärer Schlüssel",
+      "empty": "Noch kein Schlüssel erzeugt",
+      "show": "{{label}} anzeigen",
+      "hide": "{{label}} verbergen",
+      "copy": "{{label}} kopieren",
+      "copied": "{{label}} kopiert",
+      "generate": "{{label}} erzeugen",
+      "regenerate": "{{label}} erneuern",
+      "regenerateQuestion": "{{label}}: durch einen neuen Schlüssel ersetzen? Alles, was den alten nutzt, funktioniert danach sofort nicht mehr.",
+      "loadFailed": "Die API-Schlüssel konnten nicht geladen werden.",
+      "regenerateFailed": "Der neue Schlüssel konnte nicht erzeugt werden."
+    }
+  },
   "tabs": {
     "label": "Medienarten",
     "books": "Bücher",

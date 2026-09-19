@@ -1,5 +1,6 @@
 package de.sluit.mediatracker
 
+import de.sluit.mediatracker.auth.domain.ApiKeyService
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.domain.User
@@ -67,8 +68,12 @@ val testSessionConfig = SessionConfig(
  * Boots plugins and routes only ([configureHttp]): the services are the given MockK mocks (strict by default),
  * sessions live in [SessionStorageMemory], no database is opened. Use for handler tests.
  */
-fun ApplicationTestBuilder.handlerApp(auth: AuthService = mockk(), games: GameService = mockk()): HttpClient {
-    application { configureHttp(Services(auth, games), testSessionConfig, SessionStorageMemory()) }
+fun ApplicationTestBuilder.handlerApp(
+    auth: AuthService = mockk(),
+    games: GameService = mockk(),
+    apiKeys: ApiKeyService = mockk(),
+): HttpClient {
+    application { configureHttp(Services(auth, games, apiKeys), testSessionConfig, SessionStorageMemory()) }
     return createClient {
         followRedirects = false
         install(HttpCookies)
