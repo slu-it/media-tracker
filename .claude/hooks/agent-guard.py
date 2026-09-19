@@ -50,7 +50,7 @@ PROTECTED_PATHS = {
 
 EXISTING_ONLY_PATHS = {
     "implementer": [
-        (r"(^|/)db/migration/V\d+__.*\.sql$", "never edit an applied migration; add V<n+1>__*.sql instead"),
+        (r"(^|/)db/migration/V\d+__.*\.sql$", "never edit an applied migration; add V<nnn+1>__*.sql instead"),
     ],
 }
 

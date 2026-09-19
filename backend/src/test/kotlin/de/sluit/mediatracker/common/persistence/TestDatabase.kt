@@ -16,10 +16,10 @@ import java.util.UUID
  * block issues, used to catch N+1 query patterns.
  */
 
-/** A fresh named in-memory H2 database in MySQL mode; never reused across calls. */
+/** A fresh named in-memory H2 database in MariaDB mode; never reused across calls. */
 fun freshH2Config(prefix: String = "test"): DatabaseConfig = DatabaseConfig(
     url = "jdbc:h2:mem:${prefix}_${UUID.randomUUID().toString().replace("-", "")};" +
-        "MODE=MySQL;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
+        "MODE=MariaDB;DATABASE_TO_LOWER=TRUE;CASE_INSENSITIVE_IDENTIFIERS=TRUE;DB_CLOSE_DELAY=-1",
     user = "sa",
     password = null,
     maximumPoolSize = 2,

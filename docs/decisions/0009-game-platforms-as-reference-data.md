@@ -27,7 +27,7 @@ could still be amended in place.
 - **Description and rating** are nullable columns on `games`: `description` (at most 10000 characters, enforced
   by the `Description` value class) and `rating` as a `DOUBLE` (0.25 to 5 in steps of 0.25, enforced by the
   `Rating` value class; quarter steps are exact in binary floating point).
-- **`V2__games.sql` was amended in place** instead of adding `V3`, because MT-001 had never been applied to a
+- **`V002__games.sql` was amended in place** instead of adding `V003`, because MT-001 had never been applied to a
   database that survives. This is a one-off exception documented in the script; from the first release on, the
   "never edit an applied script" rule in `CLAUDE.md` applies without exception.
 
@@ -38,7 +38,7 @@ could still be amended in place.
 - A per-platform colour map in the frontend keyed by label: breaks as soon as a platform is renamed or added.
 - `DECIMAL(3,2)` for the rating: exact as well, but the app-level type would be `BigDecimal`; the owner asked
   for a floating point number and the allowed values are all exactly representable as `DOUBLE`.
-- A new `V3` migration: correct in general, but it would carry a pointless `ALTER TABLE`/data-move for a table that
+- A new `V003` migration: correct in general, but it would carry a pointless `ALTER TABLE`/data-move for a table that
   never held production data.
 
 ## Consequences

@@ -2,7 +2,7 @@
 #
 # Exports the local runtime environment (must match docker-compose.yml) and provides:
 #   step <text>                 print a section header
-#   start_mysql                 docker compose up -d --wait mysql (no-op if already running)
+#   start_mariadb              docker compose up -d --wait mariadb (no-op if already running)
 #   ensure_local_user <jar>     make sure the local user exists, using CreateUser from the given JAR
 #
 # Optional environment:
@@ -12,7 +12,7 @@
 LOCAL_USER="slu"
 JAR="backend/build/libs/media-tracker.jar"
 
-export DB_URL='jdbc:mysql://127.0.0.1:3306/mediatracker?sslMode=DISABLED&allowPublicKeyRetrieval=true&connectionTimeZone=UTC'
+export DB_URL='jdbc:mariadb://127.0.0.1:3306/mediatracker?sslMode=disable&timezone=UTC&preserveInstants=true'
 export DB_USER='mediatracker'
 export DB_PASSWORD='mediatracker'
 # Local-only values; the cookie must not be Secure over plain http.
@@ -22,9 +22,9 @@ export PORT="${PORT:-8080}"
 
 step() { printf '\n==> %s\n' "$*"; }
 
-start_mysql() {
+start_mariadb() {
   step "Database: docker compose up (no-op if already running)"
-  docker compose up -d --wait mysql
+  docker compose up -d --wait mariadb
 }
 
 # CreateUser exits 1 with "already exists" when the user is present; that is fine here, anything else is not.

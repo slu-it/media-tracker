@@ -1,6 +1,8 @@
 # 0004: Exposed 1.5 for queries, Flyway for the schema
 
-Status: accepted, 2026-09 (revised the same month: Flyway replaces startup `SchemaUtils.create`)
+Status: accepted, 2026-09 (revised the same month: Flyway replaces startup `SchemaUtils.create`; the database
+engine, driver, collation and migration file naming were changed by ADR 0014, which supersedes the notes below
+where they conflict; read "MySQL" and "H2 in MySQL mode" below as MariaDB 11.8 and H2 in MariaDB mode)
 
 ## Context
 
@@ -37,7 +39,7 @@ of truth plus a mechanical check that the Kotlin model matches it.
 
 ## Consequences and rules
 
-- Scripts are named `V<n>__<snake_case>.sql` (strict naming validation is on; nothing else may live in the
+- Scripts are named `V<nnn>__<snake_case>.sql` (strict naming validation is on; nothing else may live in the
   folder). A script is never edited once it has been applied anywhere; add a new version instead.
 - Scripts must run on MySQL 8.x and on H2 in MySQL mode. H2 accepts and ignores `ENGINE=` and charset/collation
   clauses; inline `INDEX name (col)` and `CONSTRAINT ... FOREIGN KEY` work on both.
@@ -50,12 +52,12 @@ of truth plus a mechanical check that the Kotlin model matches it.
   would report a `DROP INDEX` on H2.
 - Index and constraint names do not influence the drift check (it matches by columns), but we keep Exposed's
   naming (`<table>_<column>[_unique]`, `fk_<table>_<column>__<target>`) for readability.
-- Every schema change is one PR touching `db/migration/V<n>__*.sql` and `db/Tables.kt` together; the drift test
+- Every schema change is one PR touching `db/migration/V<nnn>__*.sql` and `db/Tables.kt` together; the drift test
   fails otherwise.
 
 ## Notes
 
-- MySQL Connector/J is pinned at 26.7.0. Oracle moved to year-based numbering after 9.7.0; Flyway detects MySQL by
-  JDBC URL prefix, so the driver version is irrelevant to it.
+- The driver was MySQL Connector/J 26.7.0 until ADR 0014 replaced it with MariaDB Connector/J. Flyway detects the
+  database type by JDBC URL prefix, so the driver version is irrelevant to it.
 - Passkeys (`com.yubico:webauthn-server-core`) are not part of phase 1; a future `credentials` table is simply
   the next migration.

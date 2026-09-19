@@ -77,7 +77,7 @@ dependencies {
     implementation(libs.flyway.core)
     implementation(libs.flyway.mysql)
     implementation(libs.hikaricp)
-    implementation(libs.mysql.connector)
+    implementation(libs.mariadb.connector)
     implementation(libs.logback)
     implementation(libs.bouncycastle)
 

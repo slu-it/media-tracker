@@ -1,7 +1,7 @@
 # Architecture
 
 Media Tracker is a single JAR: a Ktor server that hosts a JSON API, a hand-written login page, and the
-compiled React single-page app. It runs on a Raspberry Pi and talks to a MySQL database at a web host.
+compiled React single-page app. It runs on a Raspberry Pi and talks to a MariaDB database at a web host.
 The full version matrix and its reasoning live in `tmp/project-description.md` (not committed) and in
 the decision records under `decisions/`.
 
@@ -13,7 +13,7 @@ Browser ──GET /────────────▶ Ktor ── no valid 
         ──POST /login──────▶ AuthService.login ─▶ Argon2id verify ─▶ sessions row ─▶ Set-Cookie MT_SESSION=<signed id>
         ──GET / (+cookie)──▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
-        ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MySQL
+        ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MariaDB
         ──POST /logout─────▶ sessions row deleted, cookie cleared ─▶ 302 /login
 Agent   ──POST /mcp (X-API-Key)▶ authenticate("api-key") ─▶ ApiKeyService ─▶ users row ─▶ MCP Server ─▶ tools/call add_game ─▶ GameService
 ```
@@ -170,7 +170,7 @@ backend processResources ──▶ build/resources/main/app/** ──▶ shadowJ
 - `deploy/media-tracker.service` runs `java @jvm.options -jar media-tracker.jar` as an unprivileged user
   with `Restart=on-failure` and `EnvironmentFile=/etc/media-tracker/env`.
 - `deploy/jvm.options`: 192 MB heap, SerialGC, C1 only, auto-created CDS archive for faster restarts.
-- HikariCP is tuned for a remote, idle-killing MySQL: `maximumPoolSize=3`, `minimumIdle=1`,
+- HikariCP is tuned for a remote, idle-killing MariaDB: `maximumPoolSize=3`, `minimumIdle=1`,
   `keepaliveTime=300000`, `maxLifetime=1500000`.
 - The schema is applied by Flyway at startup (see "Schema migrations"); the application never alters the
   schema itself. A pre-Flyway database (tables but no history table) stops startup with a clear error.
@@ -187,11 +187,11 @@ reasoning.
 
 Rules:
 
-- One script per change, named `V<n>__<snake_case>.sql`. Strict naming validation is on, so only migration
-  files may live in that folder. Never edit a script once it has been applied anywhere; add `V<n+1>`.
-- Write SQL that runs on MySQL 8.x and on H2 in MySQL mode (the test database). `ENGINE=`, charset and collation
-  clauses are fine (H2 ignores them); avoid MySQL-only syntax beyond that.
-- Timestamp columns use the placeholder `${timestamp_type}` (`DATETIME(6)` on MySQL, `TIMESTAMP(9)` on H2, from
+- One script per change, named `V<nnn>__<snake_case>.sql`. Strict naming validation is on, so only migration
+  files may live in that folder. Never edit a script once it has been applied anywhere; add `V<nnn+1>`.
+- Write SQL that runs on MariaDB 11.8 and on H2 in MariaDB mode (the test database). `ENGINE=`, charset and collation
+  clauses are fine (H2 ignores them); avoid MariaDB-only syntax beyond that.
+- Timestamp columns use the placeholder `${timestamp_type}` (`DATETIME(6)` on MariaDB, `TIMESTAMP(9)` on H2, from
   `database.migration.timestampType`).
 - Give foreign-key columns an explicit index in SQL and `.index()` in Kotlin.
 - Mirror every change in the Exposed table object in the same commit (`<feature>/persistence/*Table.kt`, e.g.
@@ -200,7 +200,7 @@ Rules:
   Exposed would need.
 - UUID primary keys are `CHAR(36)` (hex-dash text), not Exposed's `uuid()`; see decision record 0007.
 - Reference data that the app needs from day one (the game platforms) is seeded by the migration that creates
-  its table, with fixed ids; see decision record 0009. `V2__games.sql` was amended in place once, before the
+  its table, with fixed ids; see decision record 0009. `V002__games.sql` was amended in place once, before the
   first release, under that record; the rule above holds from now on.
 
 ## Developer loop
@@ -208,10 +208,10 @@ Rules:
 | Goal | Command |
 |---|---|
 | Everything (lint, format check, tests, fat JAR) | `./gradlew build` |
-| Dev loop with live reload (backend + frontend) | `./start-dev.sh`: Docker MySQL, `:backend:run` in Ktor development mode, `:backend:classes -t`, `pnpm dev`; see decision record 0006 |
+| Dev loop with live reload (backend + frontend) | `./start-dev.sh`: Docker MariaDB, `:backend:run` in Ktor development mode, `:backend:classes -t`, `pnpm dev`; see decision record 0006 |
 | Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment; add `-Pmt.dev=true` for auto-reload without the SPA) |
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
-| Backend tests (handler tests without a database, smoke/repository tests on H2 in MySQL mode, schema drift test; ADR 0011) | `./gradlew :backend:test` |
+| Backend tests (handler tests without a database, smoke/repository tests on H2 in MariaDB mode, schema drift test; ADR 0011) | `./gradlew :backend:test` |
 | Backend coverage report (Kover, informational, decision record 0011) | `./gradlew :backend:koverHtmlReport` |
 | Frontend tests (Vitest; writes the V8 coverage report to `frontend/build/coverage/`, informational, decision record 0011; conventions in 0012) | `./gradlew :frontend:pnpmTest` |
 | Kotlin style (ktlint, `intellij_idea` style from `.editorconfig`) | `./gradlew :backend:ktlintCheck` / `:backend:ktlintFormat` |

@@ -1,4 +1,4 @@
--- Flyway migration V3: per-user API keys. Mirrored by de.sluit.mediatracker.auth.persistence.UsersTable
+-- Flyway migration V003: per-user API keys. Mirrored by de.sluit.mediatracker.auth.persistence.UsersTable
 -- (primaryApiKey, secondaryApiKey).
 --
 -- Two independent, optional keys per user (primary/secondary) so a key can be rotated without downtime: issue

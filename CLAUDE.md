@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA + hand-written login page)
-running on a Raspberry Pi against a remote MySQL 8. Two Gradle projects, `backend` and `frontend`; Gradle
+running on a Raspberry Pi against a remote MariaDB 11.8. Two Gradle projects, `backend` and `frontend`; Gradle
 is the only tool you need installed besides JDK 25 (Node 24 and pnpm 10 are downloaded by Gradle).
 
 Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one media kind at a time: Games
@@ -26,7 +26,7 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Goal | Command |
 |---|---|
 | Everything: both projects, lint, format checks, all tests, fat JAR | `./gradlew build` |
-| Backend tests (H2 in MySQL mode, no DB needed) | `./gradlew :backend:test` |
+| Backend tests (H2 in MariaDB mode, no DB needed) | `./gradlew :backend:test` |
 | One backend test class | `./gradlew :backend:test --tests 'de.sluit.mediatracker.ApplicationSmokeTest'` |
 | One backend test method (backtick names, quote them) | `./gradlew :backend:test --tests 'de.sluit.mediatracker.auth.api.AuthRoutesTest.anonymous api call gets json 401'` |
 | Backend coverage report (Kover, also written by every `build`/`check`; no threshold) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
@@ -35,10 +35,10 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Frontend type-check only | `cd frontend && pnpm typecheck` (`pnpm build` runs `tsc -b` first) |
 | Kotlin lint / auto-format | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
 | Frontend lint / format | `cd frontend && pnpm lint` / `pnpm format:check`; fix with `pnpm lint:fix` / `pnpm format` (Gradle: `:frontend:pnpmLint`, `pnpmFormatCheck`, `pnpmLintFix`, `pnpmFormat`) |
-| Dev loop with live reload (backend auto-reload + Vite HMR) | `./start-dev.sh` (Docker MySQL, `:backend:run -Pmt.dev=true`, `:backend:classes -t -Pmt.dev=true`, `pnpm dev`; open :5173) |
+| Dev loop with live reload (backend auto-reload + Vite HMR) | `./start-dev.sh` (Docker MariaDB, `:backend:run -Pmt.dev=true`, `:backend:classes -t -Pmt.dev=true`, `pnpm dev`; open :5173) |
 | Backend dev run (serves last built frontend) | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`) |
 | Frontend hot reload | `cd frontend && pnpm dev` (port 5173, proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
-| Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MySQL, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
+| Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MariaDB, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
 | Release JAR | `./gradlew :backend:buildFatJar` then `backend/build/libs/media-tracker.jar` |
 | Create/reset a user (no self-registration) | `java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <name> [--reset-password]` |
 
@@ -140,12 +140,12 @@ the source of truth; an Exposed table object mirrors it (`<feature>/persistence/
 `auth/persistence/UsersTable.kt`, `games/persistence/GamesTable.kt`) and must be listed in `allTables` in
 `Schema.kt` (package root). `SchemaDriftTest`
 migrates a fresh H2 and fails if Exposed would still want to change anything. Rules:
-- Name scripts `V<n>__<snake_case>.sql`; never edit an applied script, add `V<n+1>`.
-- SQL must run on MySQL 8 and H2 MySQL mode. Use `${timestamp_type}` for timestamp columns (resolved to
+- Name scripts `V<nnn>__<snake_case>.sql`; never edit an applied script, add `V<nnn+1>`.
+- SQL must run on MariaDB 11.8 and H2 MariaDB mode. Use `${timestamp_type}` for timestamp columns (resolved to
   `DATETIME(6)` in prod, `TIMESTAMP(9)` in tests).
 - Every FK column gets an explicit `INDEX` in SQL and `.index()` in Kotlin, or the drift test fails on H2.
 - Migrations run at startup; the app never alters the schema itself.
-- UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()` (BINARY(16) on MySQL vs UUID on H2).
+- UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()` (BINARY(16) on MariaDB vs UUID on H2).
 
 **DTO mirroring.** `@Serializable` DTOs in `backend/.../common/api/Dtos.kt` (shared) and
 `backend/.../<feature>/api/*Dtos.kt` (`auth/api/AuthDtos.kt` incl. `ApiKeysResponse`, `games/api/GameDtos.kt`) are

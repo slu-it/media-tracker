@@ -36,7 +36,7 @@ class SchemaDriftTest {
                 }
                 out
             }
-            assertEquals(listOf("1" to true), rows.filter { it.first == "1" })
+            assertEquals(listOf("001" to true), rows.filter { it.first == "001" })
             assertTrue(rows.all { it.second }, "failed migrations in history: $rows")
             assertEquals(migrationFileCount(), rows.size, "history rows should match the number of V*.sql files")
         }

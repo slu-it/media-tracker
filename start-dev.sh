@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local development loop with live code updates:
-#   1. make sure the MySQL from docker-compose.yml is running
+#   1. make sure the MariaDB from docker-compose.yml is running
 #   2. start the backend from compiled classes with Ktor auto-reload (./gradlew :backend:run -Pmt.dev=true)
 #   3. once http://localhost:8080/health answers, start a Gradle continuous build that recompiles the backend
 #      on every Kotlin/resource change (./gradlew :backend:classes -t) and the Vite dev server (pnpm dev)
@@ -13,7 +13,7 @@
 # only the login page and the API.
 #
 # The local user "slu" is created via the last built fat JAR when one exists; otherwise run
-# ./build-and-start-locally.sh once (the MySQL volume keeps the user afterwards).
+# ./build-and-start-locally.sh once (the MariaDB volume keeps the user afterwards).
 #
 # Optional environment:
 #   MT_LOCAL_PASSWORD   password for the local user when it has to be created (otherwise you are prompted)
@@ -28,7 +28,7 @@ VITE_PORT=5173
 HEALTH_TIMEOUT_SECONDS=180
 GRADLE_FLAGS=(--console=plain -Pmt.dev=true)
 
-start_mysql
+start_mariadb
 
 step "Tools: node + pnpm"
 if ! command -v pnpm >/dev/null 2>&1; then

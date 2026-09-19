@@ -48,7 +48,7 @@ boundary.
   (`Unchanged` / `Change(value?)`). Required fields are plain nullable DTO properties where `null` means
   "unchanged". `explicitNulls` stays at its default, so responses spell out `"coverImageUrl": null`.
 - **UUID ids are stored as `CHAR(36)`** (hex-dash form) rather than Exposed's `uuid()`: the latter is `BINARY(16)`
-  on MySQL but `UUID` on H2, which fails the drift test, and the text form is readable in SQL tools. `GameId` wraps
+  on MariaDB but `UUID` on H2, which fails the drift test, and the text form is readable in SQL tools. `GameId` wraps
   `kotlin.uuid.Uuid` (stable since Kotlin 2.4); DTOs carry the id as a `String` because the kotlinx Uuid serializer
   is still experimental.
 - **Paging contract:** `?page=` (1-based, default 1) and `?pageSize=` (default 50, max 200) into `PageRequest`;
@@ -59,7 +59,7 @@ boundary.
 
 ## Consequences
 
-- A new media kind is a copy of the `games` package plus one `V<n>__*.sql`, one line in `allTables`, one line in
+- A new media kind is a copy of the `games` package plus one `V<nnn>__*.sql`, one line in `allTables`, one line in
   `apiRoutes`, one service in `module()`, and the DTO mirror in `frontend/src/types/api.ts`.
 - HTTP status semantics are decided once, in `StatusPages`; handlers never build error responses by hand.
 - Bare `IllegalArgumentException`s (from `require`) are *not* mapped to 400 on purpose; use `requireValid`.

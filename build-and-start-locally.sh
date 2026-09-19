@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Local end-to-end run (production-like, no live reload; see start-dev.sh for that):
-#   1. make sure the MySQL from docker-compose.yml is running (starts it if needed, waits until healthy)
+#   1. make sure the MariaDB from docker-compose.yml is running (starts it if needed, waits until healthy)
 #   2. build the whole project (frontend + backend, tests, fat JAR)
 #   3. make sure the local user "slu" exists (prompts for a password only when the user is missing)
 #   4. start the application on http://localhost:8080
@@ -15,7 +15,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=local-env.sh
 source ./local-env.sh
 
-start_mysql
+start_mariadb
 
 if [[ "${MT_SKIP_BUILD:-0}" == "1" ]]; then
   step "Build skipped (MT_SKIP_BUILD=1)"

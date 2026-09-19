@@ -1,6 +1,7 @@
 # 0011: Backend test strategy: six test levels, mocks only above the repository interfaces, coverage as information
 
-Status: accepted, 2026-09
+Status: accepted, 2026-09 (ADR 0014 moved production to MariaDB 11.8 and the tests to H2 in MariaDB mode; read
+"MySQL" below as "MariaDB")
 
 ## Context
 

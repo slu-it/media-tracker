@@ -20,14 +20,14 @@ Implement exactly the described change, nothing more. CLAUDE.md conventions are 
 ## Paired-change checklist
 Finish both halves, or state in the report which half is left open:
 - `*Dtos.kt` change <-> `frontend/src/types/api.ts`
-- new migration `V<n+1>__*.sql` (never edit an applied script) <-> `*Table.kt` + entry in `allTables` in `Schema.kt` (package root)
+- new migration `V<nnn+1>__*.sql` (never edit an applied script) <-> `*Table.kt` + entry in `allTables` in `Schema.kt` (package root)
 - `frontend/src/i18n/en.json` <-> `de.json` (same key set)
 - new `<feature>/api/*Routes.kt` <-> mounted in `apiRoutes` (root `Routes.kt`) inside `authenticate`, before the catch-all
 - backend value class rule (`requireValid`) <-> frontend validator in `features/<kind>/domain/` + self-validating field component
 
 ## Guardrails
 - Domain layer imports no Ktor, Exposed or kotlinx; routes reach the DB only through `dbQuery { }`.
-- Schema: `CHAR(36)` ids, `${timestamp_type}` for timestamps, explicit `INDEX` in SQL and `.index()` in Kotlin for every FK, SQL valid on MySQL 8 and H2 MySQL mode.
+- Schema: `CHAR(36)` ids, `${timestamp_type}` for timestamps, explicit `INDEX` in SQL and `.index()` in Kotlin for every FK, SQL valid on MariaDB 11.8 and H2 MariaDB mode.
 - Frontend: MUI icons imported by path, every UI string through `t()`, hooks/constants/validators in non-component files, npm versions pinned exactly, no major bumps. Any dependency change must run `pnpm install` and include the resulting `frontend/pnpm-lock.yaml` (CI uses a frozen lockfile).
 - Never write into `backend/src/main/resources/app/`. Never pass `-Pmt.dev=true` to `build` or `buildFatJar`.
 - Do not edit `README.md`, `docs/architecture.md` or `docs/decisions/*`. If your change makes them stale, or looks like it deserves an ADR, say so in the report.
