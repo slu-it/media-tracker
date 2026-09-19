@@ -16,6 +16,8 @@ touch.
 - JDK 25 (Temurin or Zulu; ARM64 builds on the Pi). Nothing else: the Gradle wrapper downloads Gradle,
   and the build downloads Node and pnpm.
 - A MariaDB 11.8 database and, for local development, its credentials (or a throwaway MariaDB in Docker).
+- Docker (or a compatible container runtime) for the backend tests: they run against a Testcontainers
+  `mariadb:11.8`, the same engine as production (decision record 0015).
 
 ## Everyday commands
 
@@ -25,7 +27,7 @@ touch.
 | Dev loop: backend auto-reload + frontend hot reload | `./start-dev.sh` (see "Local dev loop" below) |
 | Backend only (serves last built frontend) | `./gradlew :backend:run` |
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `localhost:8080`; see note below) |
-| Backend tests (H2 in MariaDB mode, no server needed) | `./gradlew :backend:test` |
+| Backend tests (Testcontainers MariaDB, needs Docker) | `./gradlew :backend:test` |
 | Backend test coverage (Kover HTML + XML, also produced by `./gradlew build`) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
 | Frontend tests (also writes the Vitest V8 coverage report) | `./gradlew :frontend:pnpmTest` or `cd frontend && pnpm test`, then open `frontend/build/coverage/index.html` |
 | Kotlin style check / auto-format (ktlint) | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
@@ -70,8 +72,9 @@ not with the browser session:
    ```
    claude mcp add --transport http media-tracker https://<host>/mcp --header "X-API-Key: <key>"
    ```
-3. Tools: `list_game_platforms` (ids and labels of the seeded platforms) and `add_game` (same fields as
-   `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional).
+3. Tools: `list_game_platforms` (ids and labels of the seeded platforms), `add_game` (same fields as
+   `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional)
+   and `search_games` (`query`: words to search for in title and description; returns the ten best matches).
 
 Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
 regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in

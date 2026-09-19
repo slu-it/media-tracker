@@ -5,6 +5,8 @@ import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
+import de.sluit.mediatracker.common.persistence.sharedTestDatabase
+import de.sluit.mediatracker.common.persistence.testDatabaseConfig
 import de.sluit.mediatracker.config.SessionConfig
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.client.HttpClient
@@ -19,6 +21,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.parameters
 import io.ktor.server.config.ApplicationConfig
+import io.ktor.server.config.MapApplicationConfig
+import io.ktor.server.config.mergeWith
 import io.ktor.server.sessions.SessionStorageMemory
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.mockk.coEvery
@@ -30,22 +34,45 @@ import kotlin.time.Duration.Companion.hours
 
 /*
  * Shared helpers for route tests, of two kinds:
- *  - [appWithUser] boots the real `module()` against H2, for smoke tests that need the whole stack.
+ *  - [appWithUser] boots the real `module()` against the Testcontainers MariaDB shared by the whole test JVM,
+ *    for smoke tests that need the whole stack.
  *  - [handlerApp] boots only `configureHttp`, with MockK services and an in-memory session store, for
  *    handler tests that exercise plugins and routes without a database.
- * The H2 database in application-test.yaml is one named in-memory instance per JVM (DB_CLOSE_DELAY=-1),
- * so it survives between tests: seed idempotently or clean up in [seed].
+ * The shared database survives between tests: seed idempotently or clean up in [seed].
  */
 
-/** Boots the real module against H2, seeds one user and runs [seed] inside a transaction. */
+/**
+ * Boots the real module against the Testcontainers MariaDB shared by the whole test JVM, seeds one user and
+ * runs [seed] inside a transaction. `application-test.yaml`'s `database.url/user/password` are dummy values;
+ * they are overridden here with the container's coordinates so every test class talks to the same database.
+ */
 fun ApplicationTestBuilder.appWithUser(username: String, password: String, seed: () -> Unit = {}): HttpClient {
-    environment { config = ApplicationConfig("application-test.yaml") }
+    val cfg = testDatabaseConfig()
+    // Touches the shared, lazily-created database first, so Flyway has already migrated by the time module()
+    // runs its own (then no-op) connect + migrate.
+    sharedTestDatabase
+    environment {
+        config = ApplicationConfig("application-test.yaml").mergeWith(
+            MapApplicationConfig(
+                "database.url" to cfg.url,
+                "database.user" to checkNotNull(cfg.user),
+                "database.password" to checkNotNull(cfg.password),
+            ),
+        )
+    }
     application {
         module()
         transaction {
             val users = ExposedUserRepository()
-            if (users.findByUsernameBlocking(username) == null) {
-                users.createBlocking(username, PasswordHasher(memoryKb = 1024, iterations = 1).hash(password))
+            val hash = PasswordHasher(memoryKb = 1024, iterations = 1).hash(password)
+            val existing = users.findByUsernameBlocking(username)
+            // Upsert, not create-if-absent: `username` is a fixture name (`alice`) other test classes also
+            // insert directly into the shared users table with an unrelated, non-matching password hash (e.g.
+            // ExposedSessionRepositoryTest); this must always leave `username`/`password` valid for login.
+            if (existing == null) {
+                users.createBlocking(username, hash)
+            } else {
+                users.updatePasswordBlocking(existing.id, hash)
             }
             seed()
         }

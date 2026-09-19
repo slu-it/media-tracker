@@ -6,6 +6,11 @@ import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
@@ -263,7 +268,7 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
         assertEquals(
-            setOf("list_game_platforms", "add_game"),
+            setOf("list_game_platforms", "add_game", "search_games"),
             tools.map {
                 it.jsonObject["name"]!!.jsonPrimitive.content
             }.toSet(),
@@ -368,6 +373,129 @@ class McpRoutesTest {
         val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
         assertTrue(text.contains("PC"), text)
         assertTrue(text.contains("Xbox"), text)
+    }
+
+    @Test
+    fun `tools call search_games asks the service for the first ten matches`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { games.list(any(), any()) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"query":"hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        coVerify { games.list(PageRequest(PageNumber.FIRST, PageSize(10)), SearchTerm("hades")) }
+    }
+
+    @Test
+    fun `tools call search_games returns the games as structured content and text`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val matches = listOf(
+            game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020),
+            game("Hades II", platforms = listOf(Platforms.PC), releaseYear = 2024),
+        )
+        coEvery { games.list(any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 2)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"query":"hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"])
+        val titles = result["structuredContent"]!!.jsonObject["games"]!!.jsonArray
+            .map { it.jsonObject["title"]!!.jsonPrimitive.content }
+        assertEquals(listOf("Hades", "Hades II"), titles)
+        assertEquals(2, result["structuredContent"]!!.jsonObject["totalMatches"]!!.jsonPrimitive.content.toInt())
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("Hades"), text)
+        assertTrue(text.contains("Hades II"), text)
+    }
+
+    @Test
+    fun `tools call search_games with a blank query is a tool error without calling the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"query":"  "}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        coVerify(exactly = 0) { games.list(any(), any()) }
+    }
+
+    @Test
+    fun `tools call search_games with a non string query is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games","arguments":{"query":42}}}""",
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            assertTrue(
+                result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content.contains(
+                    "must be a string",
+                ),
+            )
+            coVerify(exactly = 0) { games.list(any(), any()) }
+        }
+
+    @Test
+    fun `tools call search_games without arguments is a tool error without calling the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games","arguments":{}}}""",
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        coVerify(exactly = 0) { games.list(any(), any()) }
     }
 
     @Test

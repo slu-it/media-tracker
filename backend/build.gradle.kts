@@ -82,11 +82,12 @@ dependencies {
     implementation(libs.bouncycastle)
 
     testImplementation(libs.ktor.server.test.host)
-    testImplementation(libs.h2)
     testImplementation(kotlin("test"))
     // mocks only above the repository interfaces, see ADR 0011
     testImplementation(libs.mockk)
     testImplementation(libs.mcp.sdk.client)
+    testImplementation(platform(libs.testcontainers.bom))
+    testImplementation(libs.testcontainers.mariadb)
 }
 
 // --- Dev loop (start-dev.sh) --------------------------------------------------------------------

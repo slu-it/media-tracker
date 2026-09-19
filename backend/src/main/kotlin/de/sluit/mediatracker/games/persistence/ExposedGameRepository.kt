@@ -2,6 +2,7 @@ package de.sluit.mediatracker.games.persistence
 
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.persistence.dbQuery
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
@@ -18,9 +19,11 @@ import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.domain.sortedForGame
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -66,9 +69,44 @@ class ExposedGameRepository : GameRepository {
             .limit(request.size.value)
             .offset(request.offset)
             .toList()
+        pageOf(rows, request, total)
+    }
+
+    /**
+     * Three SELECTs like [findPage]: the total match count, the page of games ordered by title hit first, then
+     * the weighted score, then title, then id, and one join query that loads every game's platforms at once.
+     * Fulltext entries become visible once the inserting transaction commits.
+     */
+    override suspend fun search(term: SearchTerm, request: PageRequest): Page<Game> {
+        val booleanQuery = FulltextQuery.booleanMode(term.value) ?: return findPage(request)
+        return dbQuery {
+            val titleMatch = MatchesFulltext(GamesTable.title, booleanQuery)
+            val descriptionMatch = MatchesFulltext(GamesTable.description, booleanQuery)
+            val matches = titleMatch or descriptionMatch
+            val total = GamesTable.selectAll().where { matches }.count()
+            val score = WeightedFulltextScore(booleanQuery).alias("score")
+            val rows = GamesTable.select(GamesTable.columns + score).where { matches }
+                .orderBy(
+                    titleMatch to SortOrder.DESC,
+                    score to SortOrder.DESC,
+                    GamesTable.title to SortOrder.ASC,
+                    GamesTable.id to SortOrder.ASC,
+                )
+                .limit(request.size.value)
+                .offset(request.offset)
+                .toList()
+            pageOf(rows, request, total)
+        }
+    }
+
+    /**
+     * Maps a page of rows (with or without the extra `score` column) to a [Page] of [Game], loading platforms
+     * with one join query regardless of page size.
+     */
+    private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Game> {
         val platformsByGame = platformsFor(rows.map { it[GamesTable.id] }.toSet())
         val items = rows.map { row -> row.toGame(platformsByGame[row[GamesTable.id]].orEmpty().sortedForGame()) }
-        Page(items, request.page, request.size, total)
+        return Page(items, request.page, request.size, total)
     }
 
     /** One query for all requested game ids: no N+1 when loading a page of games. */

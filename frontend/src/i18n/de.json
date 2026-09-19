@@ -61,8 +61,14 @@
     "noCover": "Kein Coverbild",
     "coverPreview": "Cover-Vorschau",
     "deleteQuestion": "„{{title}}“ löschen?",
+    "search": {
+      "label": "Spiele suchen",
+      "placeholder": "Spiele suchen…",
+      "clear": "Suche löschen",
+      "noResults": "Keine Spiele passen zu „{{term}}“"
+    },
     "pagination": {
-      "range": "{{from}}–{{to}} von {{total}}"
+      "range": "{{from}} – {{to}} von {{total}}"
     },
     "fields": {
       "title": "Titel",

@@ -3,11 +3,13 @@ package de.sluit.mediatracker.auth
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
-import de.sluit.mediatracker.common.persistence.freshH2Config
+import de.sluit.mediatracker.common.persistence.testDatabaseConfig
+import de.sluit.mediatracker.common.persistence.withFreshDatabase
 import de.sluit.mediatracker.config.DatabaseConfig
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -16,6 +18,14 @@ import kotlin.test.assertTrue
 class CreateUserTest {
 
     private val cheap = PasswordHasher(memoryKb = 1024, iterations = 1)
+
+    /**
+     * `withFreshDatabase {}` truncates every table (not just users) and starts the shared Testcontainers container
+     * even for the argument-parsing tests that never touch the database; simple and cheap enough to run for all of
+     * them.
+     */
+    @BeforeTest
+    fun cleanUsers() = withFreshDatabase { }
 
     private fun cli(
         vararg args: String,
@@ -37,8 +47,8 @@ class CreateUserTest {
 
     private fun envFor(cfg: DatabaseConfig) = mapOf(
         "DB_URL" to cfg.url,
-        "DB_USER" to (cfg.user ?: "sa"),
-        "DB_TIMESTAMP_TYPE" to cfg.timestampType,
+        "DB_USER" to checkNotNull(cfg.user),
+        "DB_PASSWORD" to checkNotNull(cfg.password),
     )
 
     private fun storedUser(cfg: DatabaseConfig, name: String) = DatabaseFactory.connect(cfg).use { db ->
@@ -71,7 +81,7 @@ class CreateUserTest {
 
     @Test
     fun `creates the user with a verifiable argon2id hash`() {
-        val cfg = freshH2Config("cli")
+        val cfg = testDatabaseConfig()
 
         val (code, out, _) = cli("bob", env = envFor(cfg), password = { "correct horse".toCharArray() })
 
@@ -84,7 +94,7 @@ class CreateUserTest {
 
     @Test
     fun `refuses an existing user without reset and does not prompt`() {
-        val cfg = freshH2Config("cli")
+        val cfg = testDatabaseConfig()
         cli("bob", env = envFor(cfg), password = { "correct horse".toCharArray() })
 
         val (code, _, err) = cli("bob", env = envFor(cfg))
@@ -95,7 +105,7 @@ class CreateUserTest {
 
     @Test
     fun `resets the password with --reset-password`() {
-        val cfg = freshH2Config("cli")
+        val cfg = testDatabaseConfig()
         cli("bob", env = envFor(cfg), password = { "correct horse".toCharArray() })
         val originalId = storedUser(cfg, "bob")!!.id
 
@@ -112,7 +122,7 @@ class CreateUserTest {
 
     @Test
     fun `rejects a password shorter than 8 characters`() {
-        val cfg = freshH2Config("cli")
+        val cfg = testDatabaseConfig()
 
         val (code, _, err) = cli("bob", env = envFor(cfg), password = { "short".toCharArray() })
 

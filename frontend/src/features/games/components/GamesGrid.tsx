@@ -8,12 +8,14 @@ interface GamesGridProps {
   /** Number of skeleton cards to show while `games` is still null. */
   skeletons?: number;
   onOpen: (game: GameResponse) => void;
+  /** Active search term, if any; switches the empty state to a search-specific message. */
+  searchTerm?: string;
 }
 
 const GRID_SX = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 2, py: 2 };
 
 /** Responsive grid: as many columns as fit 200px cards. */
-export function GamesGrid({ games, skeletons = 8, onOpen }: GamesGridProps) {
+export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm }: GamesGridProps) {
   const { t } = useTranslation();
   if (games === null) {
     return (
@@ -32,7 +34,7 @@ export function GamesGrid({ games, skeletons = 8, onOpen }: GamesGridProps) {
   if (games.length === 0) {
     return (
       <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-        {t("games.empty")}
+        {searchTerm ? t("games.search.noResults", { term: searchTerm }) : t("games.empty")}
       </Typography>
     );
   }

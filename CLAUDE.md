@@ -14,7 +14,10 @@ Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one 
 and is the template for Books, Movies and Series, which are "coming soon" tabs
 (`frontend/src/features/{books,movies,series}/`). MT-002 added per-user API keys (two slots, settings dialog in
 `frontend/src/features/settings/`) and an MCP server at `POST /mcp` (ADR 0013) whose tools each feature contributes
-(`games/api/GameMcpTools.kt`: `list_game_platforms`, `add_game`).
+(`games/api/GameMcpTools.kt`: `list_game_platforms`, `add_game`, `search_games`). MT-003 added fulltext search over
+title and description (`GET /api/games?search=`, debounced field above the games grid, MCP tool `search_games`;
+ADR 0015: MariaDB FULLTEXT; the same ADR replaced H2 with a Testcontainers MariaDB for every backend test, so Docker
+is a development requirement).
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -26,7 +29,7 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Goal | Command |
 |---|---|
 | Everything: both projects, lint, format checks, all tests, fat JAR | `./gradlew build` |
-| Backend tests (H2 in MariaDB mode, no DB needed) | `./gradlew :backend:test` |
+| Backend tests (needs Docker: one Testcontainers `mariadb:11.8` per test JVM, never skipped) | `./gradlew :backend:test` |
 | One backend test class | `./gradlew :backend:test --tests 'de.sluit.mediatracker.ApplicationSmokeTest'` |
 | One backend test method (backtick names, quote them) | `./gradlew :backend:test --tests 'de.sluit.mediatracker.auth.api.AuthRoutesTest.anonymous api call gets json 401'` |
 | Backend coverage report (Kover, also written by every `build`/`check`; no threshold) | `./gradlew :backend:koverHtmlReport`, then open `backend/build/reports/kover/html/index.html` |
@@ -86,8 +89,8 @@ Config is typed in `config/AppConfig.kt` from `application.yaml`, where every se
 technical domain `auth` and the shared `common` are onion modules `{api,domain,persistence}`; `CreateUser`
 (bootstrap CLI) sits at the `auth` root. `mcp` is a technical domain with an `api` layer only (`McpEndpoint`,
 `McpServer`) and imports no feature; the root `Routes.kt#mcpRoutes` is what registers every feature's tools.
-`common/domain` holds framework-free primitives (`Page*`, `Patch`, exceptions), `common/api` the shared DTOs, paging
-and `PatchField`, `common/persistence` HikariCP/Flyway/`dbQuery`.
+`common/domain` holds framework-free primitives (`Page*`, `Patch`, `SearchTerm`, exceptions), `common/api` the shared
+DTOs, paging, `?search` parsing (`Search.kt`) and `PatchField`, `common/persistence` HikariCP/Flyway/`dbQuery`.
 `common/`, `plugins/` (Serialization, Monitoring, StatusPages) and `config/` never import a feature package. The
 composition root is the package root: `Application.kt` (wiring), `Routes.kt` (`apiRoutes` mounts `meRoutes()`,
 `apiKeyRoutes()` and `gameRoutes()` under the authenticated `/api` prefix with the JSON 404 catch-all; `mcpRoutes`
@@ -138,14 +141,17 @@ an existing transaction (tests, `CreateUser`).
 **Schema changes are a two-file commit.** Flyway SQL in `backend/src/main/resources/db/migration/` is
 the source of truth; an Exposed table object mirrors it (`<feature>/persistence/*Table.kt`, e.g.
 `auth/persistence/UsersTable.kt`, `games/persistence/GamesTable.kt`) and must be listed in `allTables` in
-`Schema.kt` (package root). `SchemaDriftTest`
-migrates a fresh H2 and fails if Exposed would still want to change anything. Rules:
+`Schema.kt` (package root). `SchemaDriftTest` compares the migrated test MariaDB with the Kotlin tables and fails
+if Exposed would still want to change anything. Rules:
 - Name scripts `V<nnn>__<snake_case>.sql`; never edit an applied script, add `V<nnn+1>`.
-- SQL must run on MariaDB 11.8 and H2 MariaDB mode. Use `${timestamp_type}` for timestamp columns (resolved to
-  `DATETIME(6)` in prod, `TIMESTAMP(9)` in tests).
-- Every FK column gets an explicit `INDEX` in SQL and `.index()` in Kotlin, or the drift test fails on H2.
+- SQL targets MariaDB 11.8 only (the tests run the same engine, ADR 0015). Timestamp columns are `DATETIME(6)`;
+  the `${timestamp_type}` placeholder in V001 is a leftover from the H2 era and always resolves to `DATETIME(6)`.
+- Every FK column gets an explicit `INDEX` in SQL and `.index()` in Kotlin, or the drift test fails.
+- Declare every index on the table object (`index(name, false, cols, indexType = "FULLTEXT")` for fulltext); Exposed
+  compares indexes by name, columns and uniqueness and treats two indexes over the identical column list as excess,
+  hence `idx_games_title (title, id)` next to the fulltext `ft_games_title (title)`.
 - Migrations run at startup; the app never alters the schema itself.
-- UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()` (BINARY(16) on MariaDB vs UUID on H2).
+- UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()`.
 
 **DTO mirroring.** `@Serializable` DTOs in `backend/.../common/api/Dtos.kt` (shared) and
 `backend/.../<feature>/api/*Dtos.kt` (`auth/api/AuthDtos.kt` incl. `ApiKeysResponse`, `games/api/GameDtos.kt`) are
@@ -161,25 +167,32 @@ live in non-component files (react-refresh rule). Feature layout `src/features/<
 + `<Kind>View.tsx`; domain constraints are mirrored as validators returning i18n codes and wrapped in
 self-validating field components. Common dialogs: `components/dialog/BaseDialog` (round protruding close button,
 optional left action column with top and bottom slots, optional fixed height) and `ConfirmDialog`.
-The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default.
+The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default. The games search field
+debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 1 s), `listGames` appends `search=` only
+when non-blank, and `GamesView` derives the page-1 reset from state (`paging.search === debouncedSearch`) instead of
+an effect: the react-hooks preset in `eslint.config.js` makes `set-state-in-effect` an error.
 
 **Backend tests** (levels and rules in ADR 0011; one behaviour per method, backtick names that read as a sentence,
 no `. / < > : [ ] ; \`). Domain unit tests (no framework); service unit tests with MockK (`coEvery`/`coVerify` on
-the repository interfaces); repository tests on a fresh H2 per test via `withFreshDatabase {}` / `countStatements {}`
-(`test/.../common/persistence/TestDatabase.kt`); **handler tests** (`<feature>/api/<Feature>RoutesTest`,
+the repository interfaces); repository tests via `withFreshDatabase {}` / `countStatements {}`
+(`test/.../common/persistence/TestDatabase.kt`: one Testcontainers `mariadb:11.8` and one migrated database
+`media_tracker_test` per test JVM, `withFreshDatabase` truncates every table in `allTables` except the seeded
+`game_platforms` first, and Exposed's default database is pinned to that shared pool; Docker is required, nothing is
+skipped without it); **handler tests** (`<feature>/api/<Feature>RoutesTest`,
 `auth/api/AuthRoutesTest`, root `RoutesTest`) through `testApplication` + `handlerApp(auth, games, apiKeys)` from
 `test/.../TestApp.kt`, which boots `configureHttp` with MockK services and `SessionStorageMemory`, no database
 (`loginAsMocked(auth)` logs in through the real `/login`); they own status codes, headers, (de)serialization,
 `PatchField` mapping (`coVerify` the domain value the service receives) and every negative path; **smoke tests**
 (`<feature>/<Feature>SmokeTest`, root `ApplicationSmokeTest`) through `testApplication` + `appWithUser` (real
-`module()` on the shared H2 from `application-test.yaml`, cheap `PasswordHasher(memoryKb = 1024, iterations = 1)`
+`module()` on the shared test MariaDB, `application-test.yaml` merged with the container coordinates, cheap `PasswordHasher(memoryKb = 1024, iterations = 1)`
 for the seeded user, `loginAs`, `decodeBody`, `jsonBody`), happy paths only, at least one valid request per
 operation; and infrastructure edge cases (`DbSessionStorage`, `StatusPages` in an isolated app, `AppConfig` via
 `MapApplicationConfig`, `CreateUser.run()`). MCP handler tests (`mcp/api/McpRoutesTest`) post raw JSON-RPC with the two
 headers named above; the smoke test (`mcp/McpSmokeTest`) drives the real module through the SDK's `kotlin-sdk-client`.
 Mocks only above the repository interfaces (services in handler
-tests, repositories in service tests). The shared H2 survives between tests in a JVM, so seed idempotently or clean
-up (`GamesTable.deleteAll()`). Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage
+tests, repositories in service tests). The shared test database survives between tests in a JVM, so seed idempotently
+or clean up (`GamesTable.deleteAll()`); `appWithUser` upserts its user's password hash because repository tests may
+have inserted the same username with a fake hash. Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage
 is informational, there is no threshold. Frontend tests use Vitest + Testing Library + user-event with
 MUI rendered in jsdom (`pnpm test` runs `vitest run --coverage`; the V8 report lands in `frontend/build/coverage/`,
 also informational): `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
@@ -199,6 +212,10 @@ jsdom limits (MUI Rating clicks) are in ADR 0012.
 each (current: MUI 9, Emotion 11, i18next 26, react-i18next 17 on the npm side); do not bump majors
 (e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking. `@vitest/coverage-v8` declares the exact Vitest version as
 a peer dependency, so bump it together with `vitest` to the same version.
+
+## Git
+- Never commit, amend or push on your own. The owner decides how, when and how often to commit; finish a work
+  package with a verified working tree and a summary, and commit only when explicitly asked, in the form asked.
 
 ## Delegation
 - Main session: planning, decisions, synthesis. Do not read whole files or run tests directly.

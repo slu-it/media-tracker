@@ -12,8 +12,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 /**
- * Smoke test of the composition root: the real `module()` on H2 ([appWithUser]), a real user with a real
- * Argon2id hash, real [de.sluit.mediatracker.auth.api.DbSessionStorage]; happy paths only, everything
+ * Smoke test of the composition root: the real `module()` on the Testcontainers MariaDB shared by the test
+ * JVM ([appWithUser]), a real user with a real Argon2id hash, real
+ * [de.sluit.mediatracker.auth.api.DbSessionStorage]; happy paths only, everything
  * negative lives in [de.sluit.mediatracker.auth.api.AuthRoutesTest] and [RoutesTest]. The exception is the 401 on
  * `/api/me` after logout, kept here deliberately as the only end-to-end proof that the session row is really gone;
  * every other negative path lives in the handler tests.

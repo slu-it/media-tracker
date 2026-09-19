@@ -23,12 +23,8 @@ data class DatabaseConfig(
     val minimumIdle: Int,
     val keepaliveTime: Long,
     val maxLifetime: Long,
-    /** Replaces `${timestamp_type}` in the Flyway scripts; engine-specific, see application.yaml. */
-    val timestampType: String = DEFAULT_TIMESTAMP_TYPE,
 ) {
     companion object {
-        const val DEFAULT_TIMESTAMP_TYPE = "DATETIME(6)"
-
         fun from(config: ApplicationConfig): DatabaseConfig = DatabaseConfig(
             url = config.property("url").getString(),
             user = config.propertyOrNull("user")?.getString()?.ifBlank { null },
@@ -37,7 +33,6 @@ data class DatabaseConfig(
             minimumIdle = config.propertyOrNull("pool.minimumIdle")?.getString()?.toInt() ?: 1,
             keepaliveTime = config.propertyOrNull("pool.keepaliveTime")?.getString()?.toLong() ?: 300_000L,
             maxLifetime = config.propertyOrNull("pool.maxLifetime")?.getString()?.toLong() ?: 1_500_000L,
-            timestampType = config.propertyOrNull("migration.timestampType")?.getString() ?: DEFAULT_TIMESTAMP_TYPE,
         )
     }
 }

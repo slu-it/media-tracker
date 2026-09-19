@@ -61,8 +61,14 @@
     "noCover": "No cover image",
     "coverPreview": "Cover preview",
     "deleteQuestion": "Delete \"{{title}}\"?",
+    "search": {
+      "label": "Search games",
+      "placeholder": "Search games…",
+      "clear": "Clear search",
+      "noResults": "No games match \"{{term}}\""
+    },
     "pagination": {
-      "range": "{{from}}–{{to}} of {{total}}"
+      "range": "{{from}} – {{to}} of {{total}}"
     },
     "fields": {
       "title": "Title",

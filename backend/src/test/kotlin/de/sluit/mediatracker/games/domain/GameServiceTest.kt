@@ -7,6 +7,7 @@ import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.game
 import io.mockk.Runs
@@ -161,14 +162,27 @@ class GameServiceTest {
     }
 
     @Test
-    fun `list passes the page request through and maps the page`() = runBlocking {
+    fun `list without a search term asks the repository for the page`() = runBlocking {
         val request = PageRequest(PageNumber(2), PageSize(10))
         val page = Page(listOf(game("Listed")), request.page, request.size, totalItems = 11)
         coEvery { games.findPage(request) } returns page
 
-        val result = service.list(request)
+        val result = service.list(request, null)
 
         assertEquals(page, result)
+    }
+
+    @Test
+    fun `list with a search term asks the repository to search`() = runBlocking {
+        val request = PageRequest(PageNumber(2), PageSize(10))
+        val term = SearchTerm("zelda")
+        val page = Page(listOf(game("The Legend of Zelda")), request.page, request.size, totalItems = 1)
+        coEvery { games.search(term, request) } returns page
+
+        val result = service.list(request, term)
+
+        assertEquals(page, result)
+        coVerify(exactly = 0) { games.findPage(any()) }
     }
 
     @Test

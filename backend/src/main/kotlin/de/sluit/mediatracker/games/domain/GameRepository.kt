@@ -2,6 +2,7 @@ package de.sluit.mediatracker.games.domain
 
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.SearchTerm
 
 /**
  * Persistence port of the games domain. Implemented in `games.persistence`; the domain never imports that
@@ -20,6 +21,12 @@ interface GameRepository {
 
     /** Ordered by title, then id, so paging is deterministic. */
     suspend fun findPage(request: PageRequest): Page<Game>
+
+    /**
+     * Fulltext matches on title and description, games with a title hit first, then by the weighted score, then
+     * title, then id. A term that contains no searchable word behaves like [findPage].
+     */
+    suspend fun search(term: SearchTerm, request: PageRequest): Page<Game>
 }
 
 /**

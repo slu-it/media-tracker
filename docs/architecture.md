@@ -2,8 +2,6 @@
 
 Media Tracker is a single JAR: a Ktor server that hosts a JSON API, a hand-written login page, and the
 compiled React single-page app. It runs on a Raspberry Pi and talks to a MariaDB database at a web host.
-The full version matrix and its reasoning live in `tmp/project-description.md` (not committed) and in
-the decision records under `decisions/`.
 
 ## Request flow
 
@@ -50,8 +48,9 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   Two slots allow rotation: point the client at the second key, then regenerate the first. Decision record 0013.
 - `POST /mcp` hosts an MCP server (official Kotlin SDK, stateless Streamable HTTP: JSON responses only, no SSE
   stream, no session id). Every POST gets a fresh `Server` with the tools of all features (`mcp/api/McpEndpoint.kt`,
-  root `Routes.kt#mcpRoutes`); a tool call is one HTTP round trip. Tools so far: `list_game_platforms` and
-  `add_game` (same fields and optionality as `POST /api/games`, `games/api/GameMcpTools.kt`). The route encodes
+  root `Routes.kt#mcpRoutes`); a tool call is one HTTP round trip. Tools so far: `list_game_platforms`,
+  `add_game` (same fields and optionality as `POST /api/games`) and `search_games` (argument `query`, the ten best
+  matches of `GET /api/games?search=` without paging), all in `games/api/GameMcpTools.kt`. The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
   emit explicit `null`s that MCP clients reject). Clients must send `Accept: application/json, text/event-stream`
   and `Content-Type: application/json`; GET/DELETE answer 405.
@@ -68,9 +67,10 @@ de.sluit.mediatracker
 ├── config/             AppConfig, DatabaseConfig, SessionConfig (typed application.yaml)
 ├── common/             shared code in the same three layers as a feature; knows no feature:
 │   ├── api/            shared DTOs (ErrorResponse, HealthResponse, PageResponse<T>; mirrored in
-│   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing)
+│   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing),
+│   │                   Search (?search parsing)
 │   ├── domain/         InvalidValueException/NotFoundException/requireValid,
-│   │                   PageNumber/PageSize/PageRequest/Page<T>, Patch<T>
+│   │                   PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm
 │   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery()
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
@@ -85,12 +85,13 @@ de.sluit.mediatracker
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/game-platforms),
-    │                   GameMcpTools (MCP tools list_game_platforms, add_game)
+    │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), Game/NewGame/GamePatch, GamePlatform,
     │                   GameRepository and GamePlatformRepository (interfaces), GameService
-    └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository,
-                        ExposedGamePlatformRepository
+    └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository
+                        (findPage by title, search by fulltext score), FulltextQuery (boolean-mode text),
+                        FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository
 ```
 
 Layer rule inside a feature: `api -> domain <- persistence`; the domain imports neither Ktor nor Exposed nor
@@ -108,7 +109,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/me` | 200 `{"username"}` | |
 | `GET /api/me/api-keys` | 200 `ApiKeysResponse {primary, secondary}` | each a UUID string or `null` |
 | `POST /api/me/api-keys/{slot}` | 200 `ApiKeysResponse` | `slot` is `primary` or `secondary` (else 400); replaces that key, the old one stops working at once |
-| `GET /api/games?page=1&pageSize=50` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title, id; `totalPages` 0 when empty |
+| `GET /api/games?page=1&pageSize=50[&search=zelda]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty |
 | `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `platformIds` (at least one seeded platform id), `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional |
 | `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating` or `coverImageUrl`, `platformIds` replaces the whole set; 404 for unknown ids |
 | `DELETE /api/games/{id}` | 204 | also for unknown ids (idempotent); junction rows go with the game (`ON DELETE CASCADE`) |
@@ -132,14 +133,15 @@ frontend/src
 ├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
 ├── api/client.ts         apiFetch (401 -> /login, 204 -> undefined, ApiError with the parsed ErrorResponse)
 ├── types/api.ts          hand-written mirrors of the backend DTOs
-├── hooks/                useLocalStorageState, useStoredTab (selected media tab)
+├── hooks/                useLocalStorageState, useStoredTab (selected media tab), useDebouncedValue (search fields)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, SettingsButton, LogoutButton, MediaTabs,
 │                         mediaKinds), dialog/ (BaseDialog, ConfirmDialog, DialogActionButton), CoverImage, ComingSoon
 ├── features/settings/    UserSettingsDialog (tab bar; "API Keys" tab) + api/ (settingsApi), hooks/ (useApiKeys),
 │                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
-└── features/games/       GamesView + api/ (gamesApi), hooks/ (useGamesPage), domain/ (gameValues validators,
-                          gameDraft), components/ (grid, cards, pagination, detail/add dialogs, fields/)
+└── features/games/       GamesView (search field + pagination bar above the grid) + api/ (gamesApi, ?search),
+                          hooks/ (useGamesPage), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS, gameDraft),
+                          components/ (grid, cards, GameSearchField, pagination, detail/add dialogs, fields/)
 ```
 
 Browser state: `localStorage["mt.language"]` (`en`/`de`) and `localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/
@@ -189,10 +191,10 @@ Rules:
 
 - One script per change, named `V<nnn>__<snake_case>.sql`. Strict naming validation is on, so only migration
   files may live in that folder. Never edit a script once it has been applied anywhere; add `V<nnn+1>`.
-- Write SQL that runs on MariaDB 11.8 and on H2 in MariaDB mode (the test database). `ENGINE=`, charset and collation
-  clauses are fine (H2 ignores them); avoid MariaDB-only syntax beyond that.
-- Timestamp columns use the placeholder `${timestamp_type}` (`DATETIME(6)` on MariaDB, `TIMESTAMP(9)` on H2, from
-  `database.migration.timestampType`).
+- Write SQL for MariaDB 11.8; the tests run the same engine in a Testcontainers `mariadb:11.8` (decision record
+  0015), so MariaDB-only DDL such as FULLTEXT indexes is fine.
+- Timestamp columns are `DATETIME(6)`. V001 still uses the placeholder `${timestamp_type}` from the H2 era; it always
+  resolves to `DATETIME(6)` and new scripts do not use it.
 - Give foreign-key columns an explicit index in SQL and `.index()` in Kotlin.
 - Mirror every change in the Exposed table object in the same commit (`<feature>/persistence/*Table.kt`, e.g.
   `auth/persistence/UsersTable.kt`; every table object is listed in `allTables` in `Schema.kt`, the package
@@ -211,7 +213,7 @@ Rules:
 | Dev loop with live reload (backend + frontend) | `./start-dev.sh`: Docker MariaDB, `:backend:run` in Ktor development mode, `:backend:classes -t`, `pnpm dev`; see decision record 0006 |
 | Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment; add `-Pmt.dev=true` for auto-reload without the SPA) |
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
-| Backend tests (handler tests without a database, smoke/repository tests on H2 in MariaDB mode, schema drift test; ADR 0011) | `./gradlew :backend:test` |
+| Backend tests (handler tests without a database, smoke/repository/drift tests on a Testcontainers MariaDB, needs Docker; ADR 0011, 0015) | `./gradlew :backend:test` |
 | Backend coverage report (Kover, informational, decision record 0011) | `./gradlew :backend:koverHtmlReport` |
 | Frontend tests (Vitest; writes the V8 coverage report to `frontend/build/coverage/`, informational, decision record 0011; conventions in 0012) | `./gradlew :frontend:pnpmTest` |
 | Kotlin style (ktlint, `intellij_idea` style from `.editorconfig`) | `./gradlew :backend:ktlintCheck` / `:backend:ktlintFormat` |

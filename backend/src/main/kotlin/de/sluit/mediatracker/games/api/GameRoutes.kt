@@ -1,6 +1,7 @@
 package de.sluit.mediatracker.games.api
 
 import de.sluit.mediatracker.common.api.pageRequest
+import de.sluit.mediatracker.common.api.searchTerm
 import de.sluit.mediatracker.common.api.toResponse
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.games.domain.Game
@@ -30,8 +31,9 @@ fun Route.gameRoutes(gameService: GameService) {
             call.response.header(HttpHeaders.Location, "/api/games/${game.id}")
             call.respond(HttpStatusCode.Created, game.toResponse())
         }
+        // Ordered by title, id; with `?search=` games with a title hit first, then by relevance (see GameService.list).
         get {
-            call.respond(gameService.list(call.pageRequest()).toResponse(Game::toResponse))
+            call.respond(gameService.list(call.pageRequest(), call.searchTerm()).toResponse(Game::toResponse))
         }
         route("/{id}") {
             patch {
