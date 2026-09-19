@@ -4,11 +4,11 @@ import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.Table
 
 /**
- * Exposed view of the `games` table; the schema itself is db/migration/V2__games.sql. Registered in
+ * Exposed view of the `games` table; the schema itself is db/migration/V002__games.sql. Registered in
  * [de.sluit.mediatracker.allTables] for the drift check.
  *
- * The id is the UUID in 36-character hex-dash form: readable in SQL tools and identical on MySQL and H2
- * (Exposed's `uuid()` would be BINARY(16) on MySQL but UUID on H2 and fail SchemaDriftTest).
+ * The id is the UUID in 36-character hex-dash form: readable in SQL tools and identical on MariaDB and H2
+ * (Exposed's `uuid()` would be BINARY(16) on MariaDB but UUID on H2 and fail SchemaDriftTest).
  */
 object GamesTable : Table("games") {
     val id = char("id", 36)

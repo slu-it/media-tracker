@@ -11,7 +11,7 @@ database:
   url: "$DB_URL"
   user: "$DB_USER"
   password: "$DB_PASSWORD"
-  # HikariCP. Web hosts kill idle MySQL connections after a few minutes; keepalive avoids
+  # HikariCP. Web hosts kill idle MariaDB connections after a few minutes; keepalive avoids
   # reconnect latency on the first request after a quiet period.
   pool:
     maximumPoolSize: 3
@@ -19,8 +19,9 @@ database:
     keepaliveTime: 300000
     maxLifetime: 1500000
   migration:
-    # Value of the ${timestamp_type} placeholder in db/migration/*.sql. Exposed maps timestamp columns to
-    # DATETIME(6) on MySQL but to TIMESTAMP(9) on H2, so the type is not hard-coded in the scripts.
+    # Value of the ${timestamp_type} placeholder in db/migration/*.sql. DATETIME(6) is our choice for MariaDB;
+    # the drift test compares column types on H2 only, where Exposed wants TIMESTAMP(9), so the type is not
+    # hard-coded in the scripts.
     timestampType: "DATETIME(6)"
 
 session:

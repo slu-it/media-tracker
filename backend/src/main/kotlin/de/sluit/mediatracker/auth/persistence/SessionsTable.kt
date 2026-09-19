@@ -8,7 +8,7 @@ import org.jetbrains.exposed.v1.datetime.timestamp
 object SessionsTable : Table("sessions") {
     val id = varchar("id", 64)
 
-    // Explicit index on the FK column: MySQL creates one implicitly, H2 too; declaring it keeps both engines
+    // Explicit index on the FK column: MariaDB creates one implicitly, H2 too; declaring it keeps both engines
     // and the Kotlin model in agreement for the drift check.
     val userId = long("user_id").references(UsersTable.id, onDelete = ReferenceOption.CASCADE).index()
     val createdAt = timestamp("created_at")

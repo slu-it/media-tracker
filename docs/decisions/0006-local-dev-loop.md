@@ -29,7 +29,7 @@ behaviour.
   and rebuild the SPA on every frontend edit. Removing the `from(frontendDist)` (rather than `onlyIf`) is what
   takes the frontend inputs out of the continuous build. One property covers both dev-loop effects; it is a
   configuration-cache input, so the dev and release variants get separate cache entries.
-- **`start-dev.sh` orchestrates it**: Docker MySQL, backend, health wait, then compiler and Vite, with prefixed
+- **`start-dev.sh` orchestrates it**: Docker MariaDB, backend, health wait, then compiler and Vite, with prefixed
   output and a Ctrl+C that stops all three. `local-env.sh` holds the local environment and the user-creation
   helper shared with `build-and-start-locally.sh`.
 - **Shutdown hooks are per application instance.** Ktor starts the new module before it stops the old one and the
@@ -58,6 +58,6 @@ behaviour.
   changes still need a restart of `start-dev.sh`.
 - In dev mode `:8080` serves only the login page and the API; the SPA comes from `:5173`.
 - Every reload reconnects HikariCP and re-runs Flyway (a no-op when the schema is current); briefly two pools
-  exist. Fine for local MySQL, irrelevant in production where development mode is off.
+  exist. Fine for local MariaDB, irrelevant in production where development mode is off.
 - Never combine `-Pmt.dev=true` with `build`, `buildFatJar` or `:backend:run` without Vite, or the SPA is
   missing from the result.

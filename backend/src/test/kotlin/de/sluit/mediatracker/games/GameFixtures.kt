@@ -14,7 +14,7 @@ import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.domain.sortedForGame
 import kotlin.uuid.Uuid
 
-/** The four platforms seeded by db/migration/V2__games.sql, as domain objects, for use in fixtures. */
+/** The four platforms seeded by db/migration/V002__games.sql, as domain objects, for use in fixtures. */
 object Platforms {
     val PC = GamePlatform(
         GamePlatformId(Uuid.parseHexDash(SeededPlatforms.PC)),
