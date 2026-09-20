@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA + hand-written login page)
-running on a Raspberry Pi against a remote MariaDB 11.8. Two Gradle projects, `backend` and `frontend`; Gradle
-is the only tool you need installed besides JDK 25 (Node 24 and pnpm 10 are downloaded by Gradle).
+running on a Raspberry Pi (systemd unit or docker compose, ADR 0016) against a remote MariaDB 11.8. Two Gradle
+projects, `backend` and `frontend`; Gradle is the only tool you need installed besides JDK 25 (Node 24 and pnpm 10
+are downloaded by Gradle).
 
 Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one media kind at a time: Games
 (MT-001: title, year, optional description and quarter-step rating, many-to-many platforms from a seeded
@@ -43,6 +44,8 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Frontend hot reload | `cd frontend && pnpm dev` (port 5173, proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
 | Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MariaDB, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
 | Release JAR | `./gradlew :backend:buildFatJar` then `backend/build/libs/media-tracker.jar` |
+| Container image (JAR first; single-arch for the host, local testing only) | `./gradlew :backend:buildFatJar && docker build -t media-tracker:local .` |
+| Run that image against the local MariaDB | `source local-env.sh && docker compose up -d --wait mariadb && docker run --rm --network host -e DB_URL -e DB_USER -e DB_PASSWORD -e SESSION_SECRET -e SESSION_SECURE media-tracker:local` |
 | Create/reset a user (no self-registration) | `java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <name> [--reset-password]` |
 
 **Lint and format checks fail the build.** `./gradlew build` runs ktlint (`:backend:ktlintCheck`), ESLint
@@ -60,6 +63,12 @@ The ktlint plugin is only applied in `:backend`; the root and frontend Gradle sc
 as the `media-tracker-jar` artifact. pnpm runs with a frozen lockfile in CI, so commit `pnpm-lock.yaml` changes.
 CI passes `--max-workers=2` to Gradle and Vitest caps itself to 3 workers when `CI` is set (few-core hosted runner,
 backend build and frontend tests overlap); locally both use their core-based defaults.
+`master.yml` additionally builds the root `Dockerfile` (one `COPY` of the JAR onto
+`gcr.io/distroless/java25-debian13:nonroot`) with buildx for linux/arm64+amd64 and pushes
+`ghcr.io/slu-it/media-tracker:{latest,sha-<short>}` (`permissions: packages: write`, `GITHUB_TOKEN`); `pr.yml` only
+`docker build`s it and boots it against the root-compose MariaDB (`/health`). Never publish from `pr.yml`. The JVM
+flags live as `JAVA_TOOL_OPTIONS` in the Dockerfile and are mirrored from `deploy/jvm.options`: change both.
+Pi deployment via `deploy/docker-compose.yml` is documented in the README next to the systemd path (ADR 0016).
 
 Gradle runs with configuration cache, build cache and parallel on. `frontend/build.gradle.kts` must keep
 `node.version` and `pnpmVersion` as literal strings (node-gradle 7.1.0 configuration-cache bug).

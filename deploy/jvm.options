@@ -1,3 +1,5 @@
+# Keep in sync with JAVA_TOOL_OPTIONS in the root Dockerfile (there the CDS archive is /tmp/media-tracker.jsa,
+# the only writable path in the distroless image).
 -Xmx192m
 -XX:+UseSerialGC
 -XX:TieredStopAtLevel=1

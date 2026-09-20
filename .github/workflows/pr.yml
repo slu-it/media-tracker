@@ -1,5 +1,7 @@
 # Pull request verification: `./gradlew build` is the single contract (see README) and runs
 # ktlint, ESLint, the Prettier check, backend tests (Testcontainers MariaDB, Docker is available on ubuntu-latest), frontend tests (Vitest) and assembles the JAR.
+# It also builds the container image and boots it against a MariaDB container, without pushing:
+# publishing happens in `master.yml`.
 name: PR
 
 on:
@@ -51,6 +53,39 @@ jobs:
       # CI=true) run in parallel with the backend build and tests.
       - name: Build, lint and test
         run: ./gradlew build --max-workers=2
+
+      # The image is only published from master.yml; here we make sure the Dockerfile still builds and that the
+      # JAR boots on the distroless JRE as uid 65532 with a read-only root fs. The database is the local-dev
+      # MariaDB from the root docker-compose.yml (its image is already in the daemon cache from the Testcontainers
+      # tests); --network host lets the container reach its 127.0.0.1:3306 binding.
+      - name: Build container image
+        run: docker build -t media-tracker:pr .
+
+      - name: Smoke-run the image
+        run: |
+          docker compose up -d --wait mariadb
+          docker run -d --name media-tracker --network host --read-only --tmpfs /tmp \
+            -e DB_URL='jdbc:mariadb://127.0.0.1:3306/mediatracker?sslMode=disable&timezone=UTC&preserveInstants=true' \
+            -e DB_USER=mediatracker -e DB_PASSWORD=mediatracker \
+            -e SESSION_SECRET=ci-smoke-only-secret-not-for-production -e SESSION_SECURE=false \
+            media-tracker:pr
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/health; then echo; exit 0; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' media-tracker 2>/dev/null)" != "true" ]; then
+              echo "::error::the container exited before /health answered"
+              exit 1
+            fi
+            sleep 2
+          done
+          echo "::error::/health did not answer within 60 s"
+          exit 1
+
+      - name: Container logs and cleanup
+        if: always()
+        run: |
+          docker logs media-tracker 2>&1 | tail -n 100 || true
+          docker rm -f media-tracker || true
+          docker compose down -v || true
 
       - name: Upload test and lint reports
         if: failure()

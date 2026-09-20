@@ -1,5 +1,6 @@
-# Master build: same verification as the PR workflow, then the fat JAR is kept as a workflow artifact.
-# Deploying it to the Pi stays manual (see README "Deploy to the Pi").
+# Master build: same verification as the PR workflow, then the fat JAR is kept as a workflow artifact and the
+# container image is published to GHCR (ghcr.io/slu-it/media-tracker, linux/arm64 + linux/amd64, tags `latest`
+# and `sha-<short>`). Deploying it to the Pi stays manual (see README "Deploy to the Pi").
 name: Master
 
 on:
@@ -9,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: master
@@ -16,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build and archive fat JAR
+    name: Build, archive fat JAR, publish image
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -55,6 +57,47 @@ jobs:
           path: backend/build/libs/media-tracker.jar
           if-no-files-found: error
           retention-days: 30
+
+      # The Dockerfile only COPYs the JAR onto a multi-arch base image (no RUN), so buildx produces the arm64 and
+      # amd64 variants without QEMU. No layer cache: the single layer is the JAR, which changes on every build.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # `latest` only from the default branch (a workflow_dispatch from another branch pushes just the sha tag).
+      # Annotations at index level so GHCR shows the description for the multi-arch manifest list too.
+      - name: Image tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+          # These become `--label`, which replaces the Dockerfile's LABELs rather than adding to them. The
+          # repository has no GitHub description, so without this line the image would get an empty one.
+          labels: |
+            org.opencontainers.image.description=Media Tracker: self-hosted media-list tracker (Ktor + React)
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+
+      # provenance: false keeps the attestation manifests (shown as unknown/unknown platforms) out of the index.
+      - name: Build and push image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64,linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: false
 
       - name: Upload test and lint reports
         if: failure()

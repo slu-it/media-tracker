@@ -1,0 +1,4 @@
+# Whitelist: the image only needs the fat JAR (see Dockerfile). Keeps .git, node_modules, .gradle etc. out of the
+# build context, so `docker build` sends the ~30 MB JAR instead of the whole checkout.
+*
+!backend/build/libs/media-tracker.jar

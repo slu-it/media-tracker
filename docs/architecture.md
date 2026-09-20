@@ -153,6 +153,8 @@ and any later 401 redirects to the login page. Decision record 0008 covers the U
 ```
 frontend/src ──pnpm build (Vite 8)──▶ frontend/build/dist ──"frontendDist" variant──▶
 backend processResources ──▶ build/resources/main/app/** ──▶ shadowJar ──▶ backend/build/libs/media-tracker.jar
+                                     ──Dockerfile (COPY onto gcr.io/distroless/java25-debian13:nonroot)──▶
+ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + linux/amd64)
 ```
 
 - `:frontend` exposes its Vite output directory as a consumable configuration with the
@@ -166,11 +168,21 @@ backend processResources ──▶ build/resources/main/app/** ──▶ shadowJ
   auto-reload. Never use it for `build` or `buildFatJar`.
 - Node 24 and pnpm 10 are downloaded by the `com.github.node-gradle.node` plugin into `frontend/.gradle/`;
   nothing has to be installed by hand except a JDK 25.
+- The `Dockerfile` never runs Gradle. It copies the finished fat JAR onto the distroless base image as a single
+  layer, and `.dockerignore` whitelists exactly that file, so the build context is the JAR alone. The JVM flags
+  of `deploy/jvm.options` are baked in as `JAVA_TOOL_OPTIONS`, with the CDS archive at `/tmp/media-tracker.jsa`.
+  `pr.yml` builds the image and boots it against a MariaDB container; only `master.yml` pushes, with buildx for
+  both architectures (no QEMU, because the image has no `RUN` step). Decision record 0016.
 
 ## Runtime on the Pi
 
-- `deploy/media-tracker.service` runs `java @jvm.options -jar media-tracker.jar` as an unprivileged user
-  with `Restart=on-failure` and `EnvironmentFile=/etc/media-tracker/env`.
+- The systemd path: `deploy/media-tracker.service` runs `java @jvm.options -jar media-tracker.jar` as an
+  unprivileged user with `Restart=on-failure` and `EnvironmentFile=/etc/media-tracker/env`.
+- The container path: `deploy/docker-compose.yml` runs the GHCR image from the same environment file
+  (`env_file`) as uid 65532, with a read-only root file system, `cap_drop: ALL`, `no-new-privileges`, a 512 MB
+  memory limit and `restart: unless-stopped`. The named volume `cds-archive` at `/tmp` is the only writable
+  path and keeps the CDS archive across restarts. The image carries no `HEALTHCHECK`: it has no shell, and
+  `/health` remains available for external monitoring. Decision record 0016.
 - `deploy/jvm.options`: 192 MB heap, SerialGC, C1 only, auto-created CDS archive for faster restarts.
 - HikariCP is tuned for a remote, idle-killing MariaDB: `maximumPoolSize=3`, `minimumIdle=1`,
   `keepaliveTime=300000`, `maxLifetime=1500000`.

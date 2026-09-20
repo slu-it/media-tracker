@@ -9,7 +9,7 @@ touch.
 | Build | Gradle 9.7 wrapper, JDK 25 toolchain, Gradle-managed Node 24 + pnpm 10 |
 | Backend | Kotlin 2.4, Ktor 3.5 (CIO), Exposed 1.5, HikariCP 7, MariaDB Connector/J, Argon2id (Bouncy Castle) |
 | Frontend | React 19, TypeScript 6, Vite 8, MUI 9 (Material Design), i18next (EN/DE), Vitest 5 |
-| Runtime | systemd on the Pi, environment-file configuration, sessions in MariaDB |
+| Runtime | systemd on the Pi, or docker compose with the GHCR image (distroless Java 25); environment-file configuration, sessions in MariaDB |
 
 ## Prerequisites
 
@@ -59,6 +59,18 @@ java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateU
 ```
 
 You are prompted for the password (twice). Add `--reset-password` to change an existing user's password.
+
+In the compose deployment the same CLI runs inside the image. The service may keep running; `run` starts a
+separate container that publishes no ports and gives the prompt a TTY:
+
+```
+sudo docker compose run --rm --no-deps -e JAVA_TOOL_OPTIONS= --entrypoint /usr/bin/java media-tracker \
+  -cp /app/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <username>
+```
+
+`-e JAVA_TOOL_OPTIONS=` is required: it stops this second JVM from rewriting the shared class-data archive that
+the running service has mapped into memory. Non-interactively, pipe the password twice and disable the TTY
+with `-T`.
 
 ## MCP server
 
@@ -148,12 +160,19 @@ Two GitHub Actions workflows in `.github/workflows/`, both running `./gradlew bu
 
 | Workflow | Trigger | Result |
 |---|---|---|
-| `pr.yml` | pull requests targeting `master` | lint, format check, tests; fails the PR on any violation |
-| `master.yml` | push to `master`, manual dispatch | same checks, then `media-tracker.jar` is kept as the workflow artifact `media-tracker-jar` for 30 days |
+| `pr.yml` | pull requests targeting `master` | lint, format check, tests, a `docker build` of the image and a boot check against a MariaDB container; fails the PR on any violation |
+| `master.yml` | push to `master`, manual dispatch | same checks, then `media-tracker.jar` is kept as the workflow artifact `media-tracker-jar` for 30 days and the image `ghcr.io/slu-it/media-tracker` (`latest` and `sha-<short>`, linux/arm64 + linux/amd64) is pushed to GHCR |
 
-Test and lint reports are uploaded as the `reports` artifact when a run fails. Deployment to the Pi remains manual.
+Test and lint reports are uploaded as the `reports` artifact when a run fails. Deployment to the Pi remains manual
+(`scp` or `docker compose pull`).
 
 ## Deploy to the Pi
+
+Two interchangeable paths, described in decision record 0016. Both bind port 8080, so run one of them on a
+given Pi, not both. Either way the configuration is the single environment file `/etc/media-tracker/env`
+(template: `deploy/env.example`).
+
+### As a systemd service (the fat JAR)
 
 1. `./gradlew :backend:buildFatJar`
 2. `scp backend/build/libs/media-tracker.jar pi:/opt/media-tracker/`
@@ -162,12 +181,35 @@ Test and lint reports are uploaded as the `reports` artifact when a run fails. D
 First-time setup of the unit, user, and environment file is described at the top of
 `deploy/media-tracker.service`.
 
+### With docker compose (the image from GHCR)
+
+Every push to `master` publishes `ghcr.io/slu-it/media-tracker:latest` (and a `sha-<short>` tag) for
+linux/arm64 and linux/amd64. The container runs as uid 65532 on a distroless Temurin 25 with a read-only root
+file system; the JVM flags of `deploy/jvm.options` are baked in as `JAVA_TOOL_OPTIONS` and can be overridden in
+the compose file.
+
+1. Once: copy `deploy/docker-compose.yml` to `/opt/media-tracker/` and `deploy/env.example` to
+   `/etc/media-tracker/env` (mode 600), then fill in the values. Installation notes are at the top of the
+   compose file.
+2. `cd /opt/media-tracker && sudo docker compose up -d`
+3. Update to a new build: `sudo docker compose pull && sudo docker compose up -d`
+
+`sudo docker compose logs -f` follows the log. The first push creates the GHCR package as private; switch its
+visibility to public once in the package settings, or log the Pi in with a token that has `read:packages`.
+
+To build and run the image locally instead of pulling it:
+
+```
+./gradlew :backend:buildFatJar && docker build -t media-tracker:local .
+```
+
 ## Repository layout
 
 ```
+Dockerfile  runtime image: the fat JAR on distroless Java 25, built and pushed to GHCR by master.yml
 backend/    Ktor application (see docs/architecture.md for the module map)
 frontend/   Vite + React app, wrapped by Gradle; `pnpm dev` for the hot-reload loop (or `./start-dev.sh` for both)
-deploy/     systemd unit, environment template, JVM options for the Pi
+deploy/     systemd unit, docker compose file, environment template, JVM options for the Pi
 docs/       architecture overview and decision records
 gradle/     wrapper and libs.versions.toml (single source of truth for JVM versions)
 ```
