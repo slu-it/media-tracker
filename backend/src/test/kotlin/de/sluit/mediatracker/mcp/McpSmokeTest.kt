@@ -67,7 +67,7 @@ class McpSmokeTest {
 
         try {
             val toolNames = mcp.listTools().tools.map { it.name }.toSet()
-            assertEquals(setOf("list_game_platforms", "add_game", "search_games"), toolNames)
+            assertEquals(setOf("list_game_platforms", "add_game", "search_games", "update_game"), toolNames)
 
             val result = mcp.callTool("list_game_platforms", emptyMap())
             assertNotEquals(true, result.isError)
@@ -148,6 +148,62 @@ class McpSmokeTest {
             val titles = result.structuredContent!!["games"]!!.jsonArray
                 .map { it.jsonObject["title"]!!.jsonPrimitive.content }
             assertEquals(listOf("Hades", "Underworld Chronicles"), titles)
+        } finally {
+            mcp.close()
+            transaction { GamesTable.deleteAll() }
+        }
+    }
+
+    @Test
+    fun `search_games then update_game changes only the fields that were passed`() = testApplication {
+        val (sessionClient, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val platforms = mcp.callTool("list_game_platforms", emptyMap())
+            val pcId = platforms.structuredContent!!["platforms"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "PC" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            mcp.callTool(
+                "add_game",
+                mapOf(
+                    "title" to "Hollow Knight Silksong",
+                    "releaseYear" to 2024,
+                    "platformIds" to listOf(pcId),
+                    "description" to "A metroidvania about a bug princess",
+                    "rating" to 4.5,
+                ),
+            )
+
+            val searchResult = mcp.callTool("search_games", mapOf("query" to "Silksong"))
+            assertNotEquals(true, searchResult.isError)
+            val matches = searchResult.structuredContent!!["games"]!!.jsonArray
+            assertEquals(1, matches.size)
+            val gameId = matches[0].jsonObject["id"]!!.jsonPrimitive.content
+
+            val updated = mcp.callTool(
+                "update_game",
+                mapOf("id" to gameId, "rating" to 5.0, "description" to "Finally released"),
+            )
+            assertNotEquals(true, updated.isError)
+
+            val afterUpdate = sessionClient.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+                .items.single { it.id == gameId }
+            assertEquals("Hollow Knight Silksong", afterUpdate.title)
+            assertEquals(2024, afterUpdate.releaseYear)
+            assertEquals(listOf(pcId), afterUpdate.platforms.map { it.id })
+            assertEquals(5.0, afterUpdate.rating)
+            assertEquals("Finally released", afterUpdate.description)
+
+            val cleared = mcp.callTool("update_game", mapOf("id" to gameId, "rating" to null))
+            assertNotEquals(true, cleared.isError)
+
+            val afterClear = sessionClient.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+                .items.single { it.id == gameId }
+            assertEquals(null, afterClear.rating)
+            assertEquals("Finally released", afterClear.description)
         } finally {
             mcp.close()
             transaction { GamesTable.deleteAll() }

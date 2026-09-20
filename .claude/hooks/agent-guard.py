@@ -20,6 +20,19 @@ import sys
 GIT_MUTATIONS = r"\bgit\b(\s+-{1,2}\S*(\s+[^-\s]\S*)?)*\s+(commit|push|pull|fetch|checkout|switch|reset|restore|stash(?!\s+(list|show)\b)|merge|rebase|cherry-pick|revert|rm|mv|clean|tag|am|apply|config|branch\s+(-[dDmM]|--delete|--move))\b"
 DEV_SCRIPTS = r"(start-dev\.sh|build-and-start-locally\.sh|:backend:run\b|\brunFatJar\b|\bgradlew\s+run\b)"
 
+# Waiting is the harness's job: a long command belongs in Bash's run_in_background, which re-invokes the agent on
+# exit. Hand-rolled wait loops hang instead - `while kill -0 $(pgrep -f "gradlew build")` never ends, because
+# pgrep -f matches the very shell command that contains the pattern, so the loop waits on itself.
+POLL_LOOP_REASON = (
+    "shell wait loops hang (pgrep -f matches your own command, so the loop waits on itself); "
+    "start long commands with the Bash tool's run_in_background parameter and wait for the harness to re-invoke you"
+)
+POLL_LOOPS = [
+    r"\bkill\s+-0\b",
+    r"\b(pgrep|pidof)\b[^\n]*\b(while|until)\b|\b(while|until)\b[^\n]*\b(pgrep|pidof)\b",
+    r"\b(while|until)\b[\s\S]*?\bdo\b[\s\S]*?\bsleep\b",
+]
+
 RULES = {
     "readonly": [
         (r"\bktlintFormat\b", "test-runner/reviewer are read-only: ktlintFormat rewrites files"),
@@ -30,6 +43,7 @@ RULES = {
         (GIT_MUTATIONS, "read-only agent: git must not change state"),
         (r"\b(sed\s+-i|tee|rm|mv|cp|mkdir|touch|chmod|chown|truncate)\b", "read-only agent: shell file mutations are not allowed"),
         (r"(?<![0-9&<])>{1,2}(?!&)\s*(?!/dev/null)\S", "read-only agent: output redirection into files is not allowed"),
+        *((p, f"read-only agent: {POLL_LOOP_REASON}") for p in POLL_LOOPS),
     ],
     "implementer": [
         (GIT_MUTATIONS, "implementer: no commits, branch, stash or history changes; report the diff instead"),
@@ -37,6 +51,7 @@ RULES = {
         (r"\bpnpm\s+(run\s+)?build\b|\bpnpmBuild\b", "implementer: pnpm build belongs to the test-runner; use pnpm typecheck"),
         (r"-Pmt\.dev\b", "implementer: -Pmt.dev is for the dev loop only"),
         (DEV_SCRIPTS, "implementer: dev servers and scripts must not be started"),
+        *((p, f"implementer: {POLL_LOOP_REASON}") for p in POLL_LOOPS),
     ],
 }
 
