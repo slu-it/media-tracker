@@ -14,8 +14,10 @@ Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one 
 `game_platforms` table, ADR 0009) is implemented end to end (`backend/.../games/`, `frontend/src/features/games/`)
 and is the template for Books, Movies and Series, which are "coming soon" tabs
 (`frontend/src/features/{books,movies,series}/`). MT-002 added per-user API keys (two slots, settings dialog in
-`frontend/src/features/settings/`) and an MCP server at `POST /mcp` (ADR 0013) whose tools each feature contributes
-(`games/api/GameMcpTools.kt`: `list_game_platforms`, `add_game`, `search_games`). MT-003 added fulltext search over
+`frontend/src/features/settings/`) and an MCP server at `POST /mcp` (ADR 0013) whose tools each feature
+contributes. The games tools live in `games/api/GameMcpTools.kt`: `list_game_platforms` and `add_game` (MT-002),
+`search_games` (MT-003) and `update_game`, the latter two being one flow - search by title for the id, then patch
+only the fields passed. MT-003 added fulltext search over
 title and description (`GET /api/games?search=`, debounced field above the games grid, MCP tool `search_games`;
 ADR 0015: MariaDB FULLTEXT; the same ADR replaced H2 with a Testcontainers MariaDB for every backend test, so Docker
 is a development requirement).

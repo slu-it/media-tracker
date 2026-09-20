@@ -85,8 +85,10 @@ not with the browser session:
    claude mcp add --transport http media-tracker https://<host>/mcp --header "X-API-Key: <key>"
    ```
 3. Tools: `list_game_platforms` (ids and labels of the seeded platforms), `add_game` (same fields as
-   `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional)
-   and `search_games` (`query`: words to search for in title and description; returns the ten best matches).
+   `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional),
+   `search_games` (`query`: words to search for in title and description; returns the ten best matches) and
+   `update_game` (same fields as `PATCH /api/games/{id}`: `id` required, everything else optional; only the fields
+   passed change, and the id comes from `search_games`).
 
 Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
 regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in

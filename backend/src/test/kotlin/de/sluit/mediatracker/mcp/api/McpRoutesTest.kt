@@ -10,13 +10,19 @@ import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
+import de.sluit.mediatracker.games.domain.CoverImageUrl
+import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.NewGame
+import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
@@ -40,13 +46,22 @@ import io.ktor.server.testing.testApplication
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -256,7 +271,7 @@ class McpRoutesTest {
     }
 
     @Test
-    fun `tools list returns exactly the game tools with add_game required fields`() = testApplication {
+    fun `tools list returns exactly the game tools with the add_game and update_game schemas`() = testApplication {
         val apiKeys = mockk<ApiKeyService>()
         val client = handlerApp(apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
@@ -268,14 +283,31 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
         assertEquals(
-            setOf("list_game_platforms", "add_game", "search_games"),
+            setOf("list_game_platforms", "add_game", "search_games", "update_game"),
             tools.map {
                 it.jsonObject["name"]!!.jsonPrimitive.content
             }.toSet(),
         )
         val addGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "add_game" }.jsonObject
-        val required = addGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map { it.jsonPrimitive.content }
-        assertEquals(listOf("title", "releaseYear", "platformIds"), required)
+        val addGameRequired = addGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
+            it.jsonPrimitive.content
+        }
+        assertEquals(listOf("title", "releaseYear", "platformIds"), addGameRequired)
+
+        val updateGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }.jsonObject
+        val updateGameProperties = updateGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
+        val updateGameRequired = updateGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
+            it.jsonPrimitive.content
+        }
+        assertEquals(listOf("id"), updateGameRequired)
+        assertEquals(
+            listOf("number", "null"),
+            updateGameProperties["rating"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals(
+            listOf("string", "null"),
+            updateGameProperties["description"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
     }
 
     @Test
@@ -522,5 +554,411 @@ class McpRoutesTest {
         val response = client.delete("/mcp") { header(API_KEY_HEADER, key) }
 
         assertEquals(HttpStatusCode.MethodNotAllowed, response.status)
+    }
+
+    // ---- update_game ----
+
+    @Test
+    fun `tools call update_game maps the present fields to the domain patch`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val id = GameId.new()
+        val capturedId = slot<GameId>()
+        val capturedPatch = slot<GamePatch>()
+        coEvery { games.update(capture(capturedId), capture(capturedPatch)) } returns
+            game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                |"arguments":{"id":"$id","title":"Hades (Updated)","releaseYear":2021,
+                |"platformIds":["${SeededPlatforms.PC}","${SeededPlatforms.XBOX}"],
+                |"description":"Updated notes","rating":4.5,"coverImageUrl":"https://img.example/new.png"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"])
+        assertEquals(id, capturedId.captured)
+        assertEquals(Title("Hades (Updated)"), capturedPatch.captured.title)
+        assertEquals(ReleaseYear(2021), capturedPatch.captured.releaseYear)
+        assertEquals(
+            setOf(GamePlatformId.parse(SeededPlatforms.PC), GamePlatformId.parse(SeededPlatforms.XBOX)),
+            capturedPatch.captured.platformIds,
+        )
+        assertEquals(Patch.Change(Description("Updated notes")), capturedPatch.captured.description)
+        assertEquals(Patch.Change(Rating(4.5)), capturedPatch.captured.rating)
+        assertEquals(
+            Patch.Change(CoverImageUrl("https://img.example/new.png")),
+            capturedPatch.captured.coverImageUrl,
+        )
+    }
+
+    @Test
+    fun `tools call update_game leaves omitted fields unchanged`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val capturedPatch = slot<GamePatch>()
+        coEvery { games.update(any(), capture(capturedPatch)) } returns
+            game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                |"arguments":{"id":"${GameId.new()}","rating":4.5}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        assertNull(capturedPatch.captured.title)
+        assertNull(capturedPatch.captured.releaseYear)
+        assertNull(capturedPatch.captured.platformIds)
+        assertEquals(Patch.Unchanged, capturedPatch.captured.description)
+        assertEquals(Patch.Change(Rating(4.5)), capturedPatch.captured.rating)
+        assertEquals(Patch.Unchanged, capturedPatch.captured.coverImageUrl)
+    }
+
+    @Test
+    fun `tools call update_game with explicit nulls clears the optional fields`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val capturedPatch = slot<GamePatch>()
+        coEvery { games.update(any(), capture(capturedPatch)) } returns
+            game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                |"arguments":{"id":"${GameId.new()}","description":null,"rating":null,"coverImageUrl":null}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        assertEquals(Patch.Change(null), capturedPatch.captured.description)
+        assertEquals(Patch.Change(null), capturedPatch.captured.rating)
+        assertEquals(Patch.Change(null), capturedPatch.captured.coverImageUrl)
+    }
+
+    @Test
+    fun `tools call update_game returns a summary of the changed fields and the updated game`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val updated = game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)
+        coEvery { games.update(any(), any()) } returns updated
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                |"arguments":{"id":"${GameId.new()}","description":"Updated notes","rating":4.5}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"])
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertEquals("""Updated description, rating of "Hades" (2020).""", text)
+        val structuredContent = result["structuredContent"]!!.jsonObject
+        assertEquals(updated.id.toString(), structuredContent["id"]!!.jsonPrimitive.content)
+        assertEquals("Hades", structuredContent["title"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `tools call update_game without an id is a tool error without calling the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                |"arguments":{"title":"Hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertEquals("id: is missing", text)
+        coVerify(exactly = 0) { games.update(any(), any()) }
+    }
+
+    @Test
+    fun `tools call update_game with an id that is not a uuid is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"not-a-uuid","title":"Hades"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("UUID"), text)
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game with nothing but an id is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("at least one field"), text)
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game with an unknown field name is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","ratign":4.5}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("unknown"), text)
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game with a null title is a tool error without calling the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                |"arguments":{"id":"${GameId.new()}","title":null}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("cleared"), text)
+        coVerify(exactly = 0) { games.update(any(), any()) }
+    }
+
+    @Test
+    fun `tools call update_game with a non-quarter-step rating is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","rating":3.3}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("rating"), text)
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game with a releaseYear that is not a number is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","releaseYear":"soon"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game with an empty platformIds list is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","platformIds":[]}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game for an unknown id reports the service's not found exception as a tool error`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+            coEvery { games.update(any(), any()) } throws NotFoundException("game", "unknown")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","title":"Hades"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        }
+
+    @Test
+    fun `tools call update_game accepts every field its schema advertises`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val id = GameId.new()
+        val capturedPatch = slot<GamePatch>()
+        coEvery { games.update(any(), capture(capturedPatch)) } returns
+            game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)
+
+        val listResponse = client.postJsonRpc(key, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
+        val tools = Json.parseToJsonElement(listResponse.bodyAsText())
+            .jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
+        val updateGameSchema = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }
+            .jsonObject["inputSchema"]!!.jsonObject
+        val fields = updateGameSchema["properties"]!!.jsonObject.keys - "id"
+
+        // One valid value per field the schema could ever advertise; a schema/DTO drift in either direction (a
+        // field the schema lists but the map has no value for, or one the map has but the schema no longer lists)
+        // fails this test loudly instead of silently narrowing what gets exercised.
+        val validValues: Map<String, JsonElement> = mapOf(
+            "title" to JsonPrimitive("Hades (Updated)"),
+            "releaseYear" to JsonPrimitive(2021),
+            "platformIds" to buildJsonArray { add(SeededPlatforms.PC) },
+            "description" to JsonPrimitive("Updated notes"),
+            "rating" to JsonPrimitive(4.5),
+            "coverImageUrl" to JsonPrimitive("https://img.example/new.png"),
+        )
+        assertEquals(validValues.keys, fields)
+
+        val arguments = buildJsonObject {
+            put("id", id.toString())
+            fields.forEach { field -> put(field, validValues.getValue(field)) }
+        }
+        val requestBody = buildJsonObject {
+            put("jsonrpc", "2.0")
+            put("id", 1)
+            put("method", "tools/call")
+            putJsonObject("params") {
+                put("name", "update_game")
+                put("arguments", arguments)
+            }
+        }
+
+        val response = client.postJsonRpc(key, requestBody.toString())
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        fields.forEach { field ->
+            when (field) {
+                "title" -> assertNotNull(capturedPatch.captured.title)
+                "releaseYear" -> assertNotNull(capturedPatch.captured.releaseYear)
+                "platformIds" -> assertTrue(!capturedPatch.captured.platformIds.isNullOrEmpty())
+                "description" -> assertTrue(capturedPatch.captured.description is Patch.Change)
+                "rating" -> assertTrue(capturedPatch.captured.rating is Patch.Change)
+                "coverImageUrl" -> assertTrue(capturedPatch.captured.coverImageUrl is Patch.Change)
+                else -> error("no expected value wired up for schema field \"$field\"")
+            }
+        }
     }
 }

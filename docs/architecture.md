@@ -49,8 +49,10 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
 - `POST /mcp` hosts an MCP server (official Kotlin SDK, stateless Streamable HTTP: JSON responses only, no SSE
   stream, no session id). Every POST gets a fresh `Server` with the tools of all features (`mcp/api/McpEndpoint.kt`,
   root `Routes.kt#mcpRoutes`); a tool call is one HTTP round trip. Tools so far: `list_game_platforms`,
-  `add_game` (same fields and optionality as `POST /api/games`) and `search_games` (argument `query`, the ten best
-  matches of `GET /api/games?search=` without paging), all in `games/api/GameMcpTools.kt`. The route encodes
+  `add_game` (same fields and optionality as `POST /api/games`), `search_games` (argument `query`, the ten best
+  matches of `GET /api/games?search=` without paging) and `update_game` (the fields of `PATCH /api/games/{id}` plus
+  the required `id`, which an agent looks up with `search_games`; only the fields passed are changed, and the three
+  optional ones accept `null` to clear), all in `games/api/GameMcpTools.kt`. The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
   emit explicit `null`s that MCP clients reject). Clients must send `Accept: application/json, text/event-stream`
   and `Content-Type: application/json`; GET/DELETE answer 405.
@@ -85,7 +87,7 @@ de.sluit.mediatracker
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/game-platforms),
-    │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games)
+    │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games, update_game)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), Game/NewGame/GamePatch, GamePlatform,
     │                   GameRepository and GamePlatformRepository (interfaces), GameService
