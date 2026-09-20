@@ -19,6 +19,14 @@ interface BaseDialogProps {
    * sizes to its content up to `calc(100vh - 96px)`, as before.
    */
   height?: number | string;
+  /**
+   * `"self"` (default): the content box is the single scroll region.
+   * `"children"`: from `sm` up the contract is that a child declares its own `overflow: auto`; the box itself
+   * falls back to scrolling if none does, so a child that forgets to constrain itself degrades to the old
+   * single-scrollbox behaviour instead of clipping unreachable content. At `xs` it behaves like `"self"`.
+   * Requires `height` — without one there is nothing to distribute.
+   */
+  contentScroll?: "self" | "children";
 }
 
 /**
@@ -35,12 +43,14 @@ export function BaseDialog({
   maxWidth = "md",
   titleId,
   height,
+  contentScroll = "self",
 }: BaseDialogProps) {
   const { t } = useTranslation();
   const resolvedHeight =
     height === undefined
       ? undefined
       : `min(${typeof height === "number" ? `${height}px` : height}, calc(100vh - 96px))`;
+  const childrenScroll = contentScroll === "children" && resolvedHeight !== undefined;
   return (
     <Dialog
       open={open}
@@ -97,7 +107,22 @@ export function BaseDialog({
             )}
           </Stack>
         )}
-        <Box sx={{ flex: 1, minWidth: 0, p: 3, overflow: "auto" }}>{children}</Box>
+        <Box
+          sx={
+            childrenScroll
+              ? {
+                  flex: 1,
+                  minWidth: 0,
+                  p: 3,
+                  display: { xs: "block", sm: "flex" },
+                  flexDirection: "column",
+                  overflow: "auto",
+                }
+              : { flex: 1, minWidth: 0, p: 3, overflow: "auto" }
+          }
+        >
+          {children}
+        </Box>
       </Box>
     </Dialog>
   );

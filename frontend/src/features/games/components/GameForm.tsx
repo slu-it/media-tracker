@@ -1,4 +1,4 @@
-import { Stack } from "@mui/material";
+import { Box, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "../../../components/CoverImage";
 import type { GamePlatformResponse } from "../../../types/api";
@@ -8,7 +8,10 @@ import { CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { CoverImageUrlField } from "./fields/CoverImageUrlField";
 import { DescriptionField } from "./fields/DescriptionField";
 import { GameTitleField } from "./fields/GameTitleField";
+import { HiddenField } from "./fields/HiddenField";
+import { OwnershipField } from "./fields/OwnershipField";
 import { PlatformsField } from "./fields/PlatformsField";
+import { ProgressField } from "./fields/ProgressField";
 import { RatingField } from "./fields/RatingField";
 import { ReleaseYearField } from "./fields/ReleaseYearField";
 
@@ -29,6 +32,7 @@ export function GameForm({ value, onChange, platforms, disabled, showErrors }: G
   const previewUrl = validateCoverImageUrl(value.coverImageUrl) === null ? value.coverImageUrl : null;
   return (
     <CoverAndInfoLayout
+      scrollInfo
       cover={<CoverImage src={previewUrl} alt={t("games.coverPreview")} width={240} height={320} />}
       underCover={
         <RatingField
@@ -72,6 +76,19 @@ export function GameForm({ value, onChange, platforms, disabled, showErrors }: G
           disabled={disabled}
           showErrors={showErrors}
         />
+        <Box sx={{ display: "flex", gap: 2, flexDirection: { xs: "column", sm: "row" } }}>
+          <OwnershipField
+            value={value.ownership}
+            onChange={(ownership) => onChange({ ...value, ownership })}
+            disabled={disabled}
+          />
+          <ProgressField
+            value={value.progress}
+            onChange={(progress) => onChange({ ...value, progress })}
+            disabled={disabled}
+          />
+        </Box>
+        <HiddenField value={value.hidden} onChange={(hidden) => onChange({ ...value, hidden })} disabled={disabled} />
       </Stack>
     </CoverAndInfoLayout>
   );

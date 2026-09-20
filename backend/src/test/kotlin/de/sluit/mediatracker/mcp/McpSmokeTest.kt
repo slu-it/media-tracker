@@ -185,7 +185,13 @@ class McpSmokeTest {
 
             val updated = mcp.callTool(
                 "update_game",
-                mapOf("id" to gameId, "rating" to 5.0, "description" to "Finally released"),
+                mapOf(
+                    "id" to gameId,
+                    "rating" to 5.0,
+                    "description" to "Finally released",
+                    "ownership" to "owned",
+                    "progress" to "playing",
+                ),
             )
             assertNotEquals(true, updated.isError)
 
@@ -196,6 +202,8 @@ class McpSmokeTest {
             assertEquals(listOf(pcId), afterUpdate.platforms.map { it.id })
             assertEquals(5.0, afterUpdate.rating)
             assertEquals("Finally released", afterUpdate.description)
+            assertEquals("owned", afterUpdate.ownership)
+            assertEquals("playing", afterUpdate.progress)
 
             val cleared = mcp.callTool("update_game", mapOf("id" to gameId, "rating" to null))
             assertNotEquals(true, cleared.isError)

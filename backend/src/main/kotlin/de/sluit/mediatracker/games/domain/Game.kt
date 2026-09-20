@@ -20,6 +20,9 @@ data class Game(
     val description: Description? = null,
     val rating: Rating? = null,
     val coverImageUrl: CoverImageUrl? = null,
+    val ownership: Ownership = Ownership.DEFAULT,
+    val progress: Progress = Progress.DEFAULT,
+    val hidden: Boolean = DEFAULT_HIDDEN,
 ) {
     init {
         requireValid(GamePlatformId.FIELD, platforms.isNotEmpty()) { "must not be empty" }
@@ -40,6 +43,9 @@ data class NewGame(
     val description: Description? = null,
     val rating: Rating? = null,
     val coverImageUrl: CoverImageUrl? = null,
+    val ownership: Ownership = Ownership.DEFAULT,
+    val progress: Progress = Progress.DEFAULT,
+    val hidden: Boolean = DEFAULT_HIDDEN,
 ) {
     init {
         requireValid(GamePlatformId.FIELD, platformIds.isNotEmpty()) { "must not be empty" }
@@ -58,6 +64,9 @@ data class GamePatch(
     val description: Patch<Description> = Patch.Unchanged,
     val rating: Patch<Rating> = Patch.Unchanged,
     val coverImageUrl: Patch<CoverImageUrl> = Patch.Unchanged,
+    val ownership: Ownership? = null,
+    val progress: Progress? = null,
+    val hidden: Boolean? = null,
 ) {
     init {
         if (platformIds != null) {
@@ -73,5 +82,8 @@ data class GamePatch(
         description = description.applyTo(game.description),
         rating = rating.applyTo(game.rating),
         coverImageUrl = coverImageUrl.applyTo(game.coverImageUrl),
+        ownership = ownership ?: game.ownership,
+        progress = progress ?: game.progress,
+        hidden = hidden ?: game.hidden,
     )
 }

@@ -54,7 +54,14 @@ function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDia
   );
 
   return (
-    <BaseDialog open onClose={onClose} actions={actions} titleId={TITLE_ID} height={GAME_DIALOG_HEIGHT}>
+    <BaseDialog
+      open
+      onClose={onClose}
+      actions={actions}
+      titleId={TITLE_ID}
+      height={GAME_DIALOG_HEIGHT}
+      contentScroll="children"
+    >
       <Typography id={TITLE_ID} variant="h6" component="h2" sx={{ mb: 2 }}>
         {t("games.addGame")}
       </Typography>

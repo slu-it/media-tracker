@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../../types/api";
 import { CoverImage } from "../../../components/CoverImage";
 import { CoverAndInfoLayout } from "./CoverAndInfoLayout";
+import { GameStatusIcons } from "./GameStatusIcons";
 import { PlatformChips } from "./PlatformChips";
 
 /** Read-only view of one game (the detail dialog's view mode). */
@@ -10,6 +11,7 @@ export function GameDetails({ game, titleId }: { game: GameResponse; titleId: st
   const { t } = useTranslation();
   return (
     <CoverAndInfoLayout
+      scrollInfo
       cover={<CoverImage src={game.coverImageUrl} alt={game.title} width={240} height={320} />}
       underCover={
         <Box
@@ -23,18 +25,21 @@ export function GameDetails({ game, titleId }: { game: GameResponse; titleId: st
           </Typography>
         </Box>
       }
-    >
-      <Stack spacing={2}>
-        <div>
+      infoHeader={
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Typography id={titleId} variant="h5" component="h2">
             {game.title}
           </Typography>
-          {game.description && (
-            <Typography variant="body1" color="text.primary" sx={{ whiteSpace: "pre-wrap", mt: 1 }}>
-              {game.description}
-            </Typography>
-          )}
-        </div>
+          <GameStatusIcons ownership={game.ownership} progress={game.progress} hidden={game.hidden} />
+        </Box>
+      }
+    >
+      <Stack spacing={2}>
+        {game.description && (
+          <Typography variant="body1" color="text.primary" sx={{ whiteSpace: "pre-wrap" }}>
+            {game.description}
+          </Typography>
+        )}
         <Field label={t("games.fields.releaseYear")}>{game.releaseYear}</Field>
         <Field label={t("games.fields.platforms")}>
           <PlatformChips platforms={game.platforms} />

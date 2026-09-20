@@ -4,12 +4,15 @@ import de.sluit.mediatracker.common.api.PatchField
 import de.sluit.mediatracker.common.api.PatchFieldSerializer
 import de.sluit.mediatracker.common.api.toPatch
 import de.sluit.mediatracker.games.domain.CoverImageUrl
+import de.sluit.mediatracker.games.domain.DEFAULT_HIDDEN
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.NewGame
+import de.sluit.mediatracker.games.domain.Ownership
+import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
@@ -26,11 +29,15 @@ data class CreateGameRequest(
     val description: String? = null,
     val rating: Double? = null,
     val coverImageUrl: String? = null,
+    val ownership: String? = null,
+    val progress: String? = null,
+    val hidden: Boolean? = null,
 )
 
 /**
  * PATCH /api/games/{id}: every field optional; `coverImageUrl`/`description`/`rating: null` clears the
- * field. `platformIds`, when present, replaces the full set and must not be empty.
+ * field. `platformIds`, when present, replaces the full set and must not be empty. `ownership`, `progress`
+ * and `hidden` cannot be cleared, so they are plain nullable fields rather than `PatchField`.
  */
 @Serializable
 data class UpdateGameRequest(
@@ -43,6 +50,9 @@ data class UpdateGameRequest(
     val rating: PatchField<Double> = PatchField.Absent,
     @Serializable(with = PatchFieldSerializer::class)
     val coverImageUrl: PatchField<String> = PatchField.Absent,
+    val ownership: String? = null,
+    val progress: String? = null,
+    val hidden: Boolean? = null,
 )
 
 @Serializable
@@ -57,6 +67,9 @@ data class GameResponse(
     val description: String?,
     val rating: Double?,
     val coverImageUrl: String?,
+    val ownership: String,
+    val progress: String,
+    val hidden: Boolean,
 )
 
 // DTO <-> domain conversions. Constructing the value objects is the validation; failures surface as 400.
@@ -68,6 +81,9 @@ fun CreateGameRequest.toNewGame() = NewGame(
     description = description?.let(::Description),
     rating = rating?.let(::Rating),
     coverImageUrl = coverImageUrl?.let(::CoverImageUrl),
+    ownership = ownership?.let(Ownership::from) ?: Ownership.DEFAULT,
+    progress = progress?.let(Progress::from) ?: Progress.DEFAULT,
+    hidden = hidden ?: DEFAULT_HIDDEN,
 )
 
 fun UpdateGameRequest.toPatch() = GamePatch(
@@ -77,6 +93,9 @@ fun UpdateGameRequest.toPatch() = GamePatch(
     description = description.toPatch(::Description),
     rating = rating.toPatch(::Rating),
     coverImageUrl = coverImageUrl.toPatch(::CoverImageUrl),
+    ownership = ownership?.let(Ownership::from),
+    progress = progress?.let(Progress::from),
+    hidden = hidden,
 )
 
 fun GamePlatform.toResponse() =
@@ -90,4 +109,7 @@ fun Game.toResponse() = GameResponse(
     description = description?.value,
     rating = rating?.value,
     coverImageUrl = coverImageUrl?.value,
+    ownership = ownership.wire,
+    progress = progress.wire,
+    hidden = hidden,
 )

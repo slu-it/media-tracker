@@ -83,4 +83,18 @@ describe("BaseDialog", () => {
     const expectedHeight = Math.min(640, window.innerHeight - 96);
     expect(getComputedStyle(paper).height).toBe(`${expectedHeight}px`);
   });
+
+  it("falls back to scrolling the content box when no fixed height is given", () => {
+    renderWithProviders(
+      <BaseDialog open onClose={() => {}} contentScroll="children">
+        <p>Body</p>
+      </BaseDialog>,
+    );
+    // This only exercises the "no height" fallback (plain `overflow: "auto"`); the `contentScroll="children"`
+    // branch itself cannot be asserted here because jsdom drops every MUI breakpoint value (even `xs`, which
+    // ships as `@media (min-width:0px)`), so don't try to "fix" this into a real assertion of that branch.
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
+    const content = screen.getByText("Body").parentElement!;
+    expect(getComputedStyle(content).overflow).toBe("auto");
+  });
 });

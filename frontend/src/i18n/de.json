@@ -77,7 +77,22 @@
       "description": "Beschreibung",
       "rating": "Bewertung",
       "coverImageUrl": "Coverbild-URL",
-      "coverImageUrlHint": "Optional. Leer lassen für kein Cover."
+      "coverImageUrlHint": "Optional. Leer lassen für kein Cover.",
+      "ownership": "Besitzstatus",
+      "progress": "Fortschritt",
+      "hidden": "Ausgeblendet"
+    },
+    "ownership": {
+      "watchlist": "Merkliste",
+      "owned": "Besitz"
+    },
+    "progress": {
+      "not_started": "Nicht begonnen",
+      "playing": "Wird gespielt",
+      "finished": "Durchgespielt",
+      "completed": "100%",
+      "paused": "Pausiert",
+      "abandoned": "Abgebrochen"
     },
     "notRated": "Noch nicht bewertet"
   },

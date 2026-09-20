@@ -17,6 +17,9 @@ object GamesTable : Table("games") {
     val description = text("description").nullable()
     val rating = double("rating").nullable()
     val coverImageUrl = varchar("cover_image_url", 2048).nullable()
+    val ownership = varchar("ownership", 32)
+    val progress = varchar("progress", 32)
+    val hidden = bool("hidden")
 
     override val primaryKey = PrimaryKey(id)
 

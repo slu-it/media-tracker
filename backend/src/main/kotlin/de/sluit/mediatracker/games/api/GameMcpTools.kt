@@ -9,6 +9,8 @@ import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.domain.Ownership
+import de.sluit.mediatracker.games.domain.Progress
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.McpJson
@@ -46,7 +48,9 @@ private const val LIST_GAME_PLATFORMS_DESCRIPTION =
 private const val ADD_GAME_DESCRIPTION =
     "Adds a game to the tracker. title, releaseYear and platformIds are required. " +
         "platformIds are game_platforms.id values; call list_game_platforms first to get them. " +
-        "description, rating and coverImageUrl are optional."
+        "description, rating and coverImageUrl are optional. ownership, progress and hidden are also optional: " +
+        "ownership defaults to watchlist, progress defaults to not_started (completed means fully finished, " +
+        "100%), and hidden defaults to false."
 
 private const val SEARCH_GAMES_DESCRIPTION =
     "Searches the tracked games by title and description and returns the 10 best matches, title matches first, " +
@@ -59,8 +63,9 @@ private const val UPDATE_GAME_DESCRIPTION =
         "returns more than one plausible match (sequels and series entries often have nearly identical titles), " +
         "ask the user which one they mean and update nothing until they answer. Pass only the fields that " +
         "should change; every field you omit keeps its current value. description, rating and coverImageUrl " +
-        "accept null to clear the field; title, releaseYear and platformIds cannot be cleared. platformIds, " +
-        "when given, replaces the whole platform list (ids from list_game_platforms), it does not add to it. " +
+        "accept null to clear the field; title, releaseYear, platformIds, ownership, progress and hidden " +
+        "cannot be cleared. platformIds, when given, replaces the whole platform list (ids from " +
+        "list_game_platforms), it does not add to it. progress's completed value means fully finished, 100%. " +
         "Passing nothing but id, or a field name that is not in the schema, is an error."
 
 private val SEARCH_GAMES_LIMIT = PageSize(10)
@@ -113,6 +118,24 @@ private val ADD_GAME_SCHEMA = ToolSchema(
             put("minLength", 1)
             put("maxLength", 2048)
             put("format", "uri")
+        }
+        putJsonObject("ownership") {
+            put("type", "string")
+            putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
+            put("description", "Whether the game is owned or just on the watchlist. Defaults to watchlist.")
+        }
+        putJsonObject("progress") {
+            put("type", "string")
+            putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
+            put(
+                "description",
+                "How far the game has been played. completed means fully finished (100%). " +
+                    "Defaults to not_started.",
+            )
+        }
+        putJsonObject("hidden") {
+            put("type", "boolean")
+            put("description", "Whether the game is hidden from the default list view. Defaults to false.")
         }
     },
     required = listOf("title", "releaseYear", "platformIds"),
@@ -193,19 +216,39 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
             put("maxLength", 2048)
             put("format", "uri")
         }
+        putJsonObject("ownership") {
+            put("type", "string")
+            putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
+            put("description", "Whether the game is owned or just on the watchlist. Cannot be cleared.")
+        }
+        putJsonObject("progress") {
+            put("type", "string")
+            putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
+            put(
+                "description",
+                "How far the game has been played. completed means fully finished (100%). Cannot be cleared.",
+            )
+        }
+        putJsonObject("hidden") {
+            put("type", "boolean")
+            put("description", "Whether the game is hidden from the default list view. Cannot be cleared.")
+        }
     },
     required = listOf("id"),
 )
 
 // McpJson has ignoreUnknownKeys = true and isLenient = true, which would turn a typo'd field name into a silent
-// no-op instead of an error; validate the key set by hand instead. title/releaseYear/platformIds are also plain
-// nullable types rather than PatchField, so an explicit null would silently mean "unchanged" - hence the
-// unclearable check below. The accepted names are derived from UpdateGameRequest's serial descriptor, so they
-// cannot drift from the DTO.
+// no-op instead of an error; validate the key set by hand instead. The accepted names are derived from
+// UpdateGameRequest's serial descriptor, so they cannot drift from the DTO.
 @OptIn(ExperimentalSerializationApi::class)
 private val UPDATE_GAME_FIELDS: Set<String> = UpdateGameRequest.serializer().descriptor.elementNames.toSet()
 
-private val UPDATE_GAME_UNCLEARABLE = setOf("title", "releaseYear", "platformIds")
+// The PatchField-backed fields are the only ones that accept null to clear themselves; every other field on
+// UpdateGameRequest is a plain nullable type where null would silently mean "unchanged" instead of "clear", so
+// it is derived as everything else rather than hand-listed - a new plain nullable field is unclearable by
+// default without touching this set.
+private val UPDATE_GAME_CLEARABLE = setOf("description", "rating", "coverImageUrl")
+private val UPDATE_GAME_UNCLEARABLE = UPDATE_GAME_FIELDS - UPDATE_GAME_CLEARABLE
 
 private fun Server.addListGamePlatformsTool(gameService: GameService) {
     addTool(

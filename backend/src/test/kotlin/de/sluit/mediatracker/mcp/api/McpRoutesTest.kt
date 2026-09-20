@@ -22,6 +22,8 @@ import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.NewGame
+import de.sluit.mediatracker.games.domain.Ownership
+import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
@@ -48,7 +50,9 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
@@ -110,6 +114,43 @@ class McpRoutesTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun `tools call add_game sets and echoes the status fields`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game(
+            "Hades",
+            platforms = listOf(Platforms.PC),
+            releaseYear = 2020,
+            ownership = Ownership.OWNED,
+            progress = Progress.PLAYING,
+            hidden = true,
+        )
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_game",
+                |"arguments":{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"],
+                |"ownership":"owned","progress":"playing","hidden":true}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        assertEquals(Ownership.OWNED, captured.captured.ownership)
+        assertEquals(Progress.PLAYING, captured.captured.progress)
+        assertEquals(true, captured.captured.hidden)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        val structuredContent = result["structuredContent"]!!.jsonObject
+        assertEquals("owned", structuredContent["ownership"]!!.jsonPrimitive.content)
+        assertEquals("playing", structuredContent["progress"]!!.jsonPrimitive.content)
+        assertEquals(true, structuredContent["hidden"]!!.jsonPrimitive.content.toBoolean())
     }
 
     @Test
@@ -289,10 +330,23 @@ class McpRoutesTest {
             }.toSet(),
         )
         val addGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "add_game" }.jsonObject
+        val addGameProperties = addGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
         val addGameRequired = addGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
             it.jsonPrimitive.content
         }
         assertEquals(listOf("title", "releaseYear", "platformIds"), addGameRequired)
+        assertEquals(
+            Ownership.entries.map { it.wire },
+            addGameProperties["ownership"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals(
+            Progress.entries.map { it.wire },
+            addGameProperties["progress"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals("boolean", addGameProperties["hidden"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertTrue("ownership" !in addGameRequired)
+        assertTrue("progress" !in addGameRequired)
+        assertTrue("hidden" !in addGameRequired)
 
         val updateGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }.jsonObject
         val updateGameProperties = updateGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
@@ -308,6 +362,18 @@ class McpRoutesTest {
             listOf("string", "null"),
             updateGameProperties["description"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
         )
+        assertEquals(
+            Ownership.entries.map { it.wire },
+            updateGameProperties["ownership"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals(
+            Progress.entries.map { it.wire },
+            updateGameProperties["progress"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals("boolean", updateGameProperties["hidden"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        assertTrue("ownership" !in updateGameRequired)
+        assertTrue("progress" !in updateGameRequired)
+        assertTrue("hidden" !in updateGameRequired)
     }
 
     @Test
@@ -357,6 +423,32 @@ class McpRoutesTest {
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
         coVerify(exactly = 0) { games.create(any()) }
     }
+
+    @Test
+    fun `tools call add_game with an unknown ownership enum value is a tool error not a server error`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_game",
+                    |"arguments":{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"],
+                    |"ownership":"borrowed"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("ownership"), text)
+            coVerify(exactly = 0) { games.create(any()) }
+        }
 
     @Test
     fun `tools call add_game with an unknown platform id is a tool error`() = testApplication {
@@ -653,6 +745,56 @@ class McpRoutesTest {
     }
 
     @Test
+    fun `tools call update_game with an explicit null ownership is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","ownership":null}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("cannot be cleared"), text)
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
+    fun `tools call update_game with an unknown ownership enum value is a tool error not a server error`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"update_game",
+                    |"arguments":{"id":"${GameId.new()}","ownership":"borrowed"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("ownership"), text)
+            coVerify(exactly = 0) { games.update(any(), any()) }
+        }
+
+    @Test
     fun `tools call update_game returns a summary of the changed fields and the updated game`() = testApplication {
         val games = mockk<GameService>()
         val apiKeys = mockk<ApiKeyService>()
@@ -926,6 +1068,9 @@ class McpRoutesTest {
             "description" to JsonPrimitive("Updated notes"),
             "rating" to JsonPrimitive(4.5),
             "coverImageUrl" to JsonPrimitive("https://img.example/new.png"),
+            "ownership" to JsonPrimitive(Ownership.OWNED.wire),
+            "progress" to JsonPrimitive(Progress.PLAYING.wire),
+            "hidden" to JsonPrimitive(true),
         )
         assertEquals(validValues.keys, fields)
 
@@ -957,8 +1102,67 @@ class McpRoutesTest {
                 "description" -> assertTrue(capturedPatch.captured.description is Patch.Change)
                 "rating" -> assertTrue(capturedPatch.captured.rating is Patch.Change)
                 "coverImageUrl" -> assertTrue(capturedPatch.captured.coverImageUrl is Patch.Change)
+                "ownership" -> assertEquals(Ownership.OWNED, capturedPatch.captured.ownership)
+                "progress" -> assertEquals(Progress.PLAYING, capturedPatch.captured.progress)
+                "hidden" -> assertEquals(true, capturedPatch.captured.hidden)
                 else -> error("no expected value wired up for schema field \"$field\"")
             }
         }
     }
+
+    @Test
+    fun `tools call update_game rejects an explicit null exactly for fields the schema does not mark clearable`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+            // Stub for the fields the schema marks clearable: their update_game call must actually go through.
+            coEvery { games.update(any(), any()) } returns
+                game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)
+
+            val listResponse = client.postJsonRpc(key, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
+            val tools = Json.parseToJsonElement(listResponse.bodyAsText())
+                .jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
+            val updateGameSchema = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }
+                .jsonObject["inputSchema"]!!.jsonObject
+            val properties = updateGameSchema["properties"]!!.jsonObject
+            val fields = properties.keys - "id"
+
+            // The schema marks a field clearable by giving it a `["<type>", "null"]` type array (see
+            // UPDATE_GAME_SCHEMA); every other field rejects an explicit null. Driving the expectation off the
+            // schema itself, rather than a hardcoded list, means a future PatchField-backed field that is wired
+            // into UPDATE_GAME_SCHEMA but forgotten in UPDATE_GAME_CLEARABLE fails this test loudly.
+            fields.forEach { field ->
+                val type = properties.getValue(field).jsonObject["type"]
+                val schemaMarksClearable = type is JsonArray && type.any { it.jsonPrimitive.content == "null" }
+
+                val response = client.postJsonRpc(
+                    key,
+                    buildJsonObject {
+                        put("jsonrpc", "2.0")
+                        put("id", 1)
+                        put("method", "tools/call")
+                        putJsonObject("params") {
+                            put("name", "update_game")
+                            putJsonObject("arguments") {
+                                put("id", GameId.new().toString())
+                                put(field, JsonNull)
+                            }
+                        }
+                    }.toString(),
+                )
+
+                val body = response.bodyAsText()
+                assertEquals(HttpStatusCode.OK, response.status, body)
+                val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+                val isError = result["isError"]?.jsonPrimitive?.content?.toBoolean() ?: false
+                assertEquals(
+                    !schemaMarksClearable,
+                    isError,
+                    "field \"$field\": expected rejected=${!schemaMarksClearable}, was $isError, body=$body",
+                )
+            }
+        }
 }

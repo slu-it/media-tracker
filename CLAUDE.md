@@ -20,7 +20,12 @@ contributes. The games tools live in `games/api/GameMcpTools.kt`: `list_game_pla
 only the fields passed. MT-003 added fulltext search over
 title and description (`GET /api/games?search=`, debounced field above the games grid, MCP tool `search_games`;
 ADR 0015: MariaDB FULLTEXT; the same ADR replaced H2 with a Testcontainers MariaDB for every backend test, so Docker
-is a development requirement).
+is a development requirement). MT-007 added three status fields to a game - `ownership` (watchlist, owned),
+`progress` (not_started, playing, finished, completed, paused, abandoned) and the boolean `hidden` - as Kotlin enums
+in `games/domain/GameStatus.kt` whose `wire` value (`name.lowercase()`) is what the `VARCHAR(32)` column, the DTOs
+and the MCP tool schemas all use (ADR 0017: closed sets are enums, extensible vocabulary is a seeded table as in
+ADR 0009). They are set on create and edit, shown as icons after the title in the detail dialog and on the grid
+card, and do not affect search, listing or paging.
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -161,6 +166,10 @@ if Exposed would still want to change anything. Rules:
 - Declare every index on the table object (`index(name, false, cols, indexType = "FULLTEXT")` for fulltext); Exposed
   compares indexes by name, columns and uniqueness and treats two indexes over the identical column list as excess,
   hence `idx_games_title (title, id)` next to the fulltext `ft_games_title (title)`.
+- A new column with a default adds it as `NOT NULL DEFAULT <x>` to backfill the existing rows and then drops the
+  default again (`ALTER TABLE t ALTER COLUMN c DROP DEFAULT`), and the Exposed column declares no `.default()`: the
+  drift test compares defaults in both directions, and the domain owns them (ADR 0017). Raw Exposed inserts in
+  tests must therefore write every column.
 - Migrations run at startup; the app never alters the schema itself.
 - UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()`.
 
@@ -177,7 +186,13 @@ platform labels come from the database via `/api/game-platforms`, not from the b
 live in non-component files (react-refresh rule). Feature layout `src/features/<kind>/{api,domain,hooks,components}`
 + `<Kind>View.tsx`; domain constraints are mirrored as validators returning i18n codes and wrapped in
 self-validating field components. Common dialogs: `components/dialog/BaseDialog` (round protruding close button,
-optional left action column with top and bottom slots, optional fixed height) and `ConfirmDialog`.
+optional left action column with top and bottom slots, optional fixed height, and `contentScroll="children"`) and
+`ConfirmDialog` (which builds on MUI `Dialog` directly, not on `BaseDialog`). `contentScroll="children"` needs a
+fixed `height` and hands the scrolling to a child: the games dialogs pair it with `scrollInfo` on
+`CoverAndInfoLayout` so that from the `sm` breakpoint up the headline, cover and rating stay frozen and only the
+field column scrolls, while at `xs` the layout stacks and scrolls as one. A media kind copying the games dialogs
+copies both flags. The responsive `sx` behind this is invisible to jsdom (it evaluates no MUI breakpoint, not even
+`xs`) and jsdom has no layout engine, so the frozen layout is verified by eye, not by a test.
 The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default. The games search field
 debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 1 s), `listGames` appends `search=` only
 when non-blank, and `GamesView` derives the page-1 reset from state (`paging.search === debouncedSearch`) instead of

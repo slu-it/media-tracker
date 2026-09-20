@@ -21,6 +21,8 @@ import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.NewGame
+import de.sluit.mediatracker.games.domain.Ownership
+import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
@@ -119,6 +121,9 @@ class GameRoutesTest {
             description = Description("A climbing game."),
             rating = Rating(4.75),
             coverImageUrl = CoverImageUrl("https://img.example/c.png"),
+            ownership = Ownership.OWNED,
+            progress = Progress.PLAYING,
+            hidden = true,
         )
         coEvery { games.create(any()) } returns created
 
@@ -134,6 +139,9 @@ class GameRoutesTest {
         assertEquals("A climbing game.", response.description)
         assertEquals(4.75, response.rating)
         assertEquals("https://img.example/c.png", response.coverImageUrl)
+        assertEquals("owned", response.ownership)
+        assertEquals("playing", response.progress)
+        assertEquals(true, response.hidden)
     }
 
     @Test
@@ -183,6 +191,38 @@ class GameRoutesTest {
         assertNull(captured.captured.description)
         assertNull(captured.captured.rating)
         assertNull(captured.captured.coverImageUrl)
+    }
+
+    @Test
+    fun `create hands the status fields to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Celeste")
+
+        client.createGame(
+            """{"title":"Celeste","releaseYear":2018,"platformIds":["${SeededPlatforms.PC}"],
+                |"ownership":"owned","progress":"playing","hidden":true}
+            """.trimMargin(),
+        )
+
+        assertEquals(Ownership.OWNED, captured.captured.ownership)
+        assertEquals(Progress.PLAYING, captured.captured.progress)
+        assertEquals(true, captured.captured.hidden)
+    }
+
+    @Test
+    fun `create without status fields defaults to watchlist not started and visible`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Hades")
+
+        client.createGame("""{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"]}""")
+
+        assertEquals(Ownership.WATCHLIST, captured.captured.ownership)
+        assertEquals(Progress.NOT_STARTED, captured.captured.progress)
+        assertEquals(false, captured.captured.hidden)
     }
 
     @Test
@@ -292,6 +332,28 @@ class GameRoutesTest {
                 |"coverImageUrl":"/relative.png"}
             """.trimMargin(),
         ).assertValidationError("coverImageUrl")
+        coVerify(exactly = 0) { games.create(any()) }
+    }
+
+    @Test
+    fun `create rejects an unknown ownership value`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.createGame(
+            """{"title":"x","releaseYear":2018,"platformIds":["${SeededPlatforms.PC}"],"ownership":"borrowed"}""",
+        ).assertValidationError("ownership")
+        coVerify(exactly = 0) { games.create(any()) }
+    }
+
+    @Test
+    fun `create rejects an unknown progress value`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.createGame(
+            """{"title":"x","releaseYear":2018,"platformIds":["${SeededPlatforms.PC}"],"progress":"halfway"}""",
+        ).assertValidationError("progress")
         coVerify(exactly = 0) { games.create(any()) }
     }
 
@@ -458,6 +520,9 @@ class GameRoutesTest {
         assertEquals(Patch.Unchanged, captured.captured.description)
         assertEquals(Patch.Unchanged, captured.captured.rating)
         assertEquals(Patch.Unchanged, captured.captured.coverImageUrl)
+        assertNull(captured.captured.ownership)
+        assertNull(captured.captured.progress)
+        assertNull(captured.captured.hidden)
     }
 
     @Test
@@ -489,7 +554,8 @@ class GameRoutesTest {
             jsonBody(
                 """{"title":"Celeste (Switch)","releaseYear":2019,
                     |"platformIds":["${SeededPlatforms.PC}","${SeededPlatforms.XBOX}"],
-                    |"description":"Updated","rating":4.5,"coverImageUrl":"https://img.example/new.png"}
+                    |"description":"Updated","rating":4.5,"coverImageUrl":"https://img.example/new.png",
+                    |"ownership":"owned","progress":"completed","hidden":true}
                 """.trimMargin(),
             )
         }
@@ -506,6 +572,39 @@ class GameRoutesTest {
             Patch.Change(CoverImageUrl("https://img.example/new.png")),
             captured.captured.coverImageUrl,
         )
+        assertEquals(Ownership.OWNED, captured.captured.ownership)
+        assertEquals(Progress.COMPLETED, captured.captured.progress)
+        assertEquals(true, captured.captured.hidden)
+    }
+
+    @Test
+    fun `patch with an explicit null on ownership progress or hidden leaves them unchanged`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id)
+
+        client.patch("/api/games/$id") {
+            jsonBody("""{"ownership":null,"progress":null,"hidden":null}""")
+        }
+
+        assertNull(captured.captured.ownership)
+        assertNull(captured.captured.progress)
+        assertNull(captured.captured.hidden)
+    }
+
+    @Test
+    fun `patch with hidden false unhides a hidden game`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id, hidden = true)
+
+        client.patch("/api/games/$id") { jsonBody("""{"hidden":false}""") }
+
+        assertEquals(false, captured.captured.hidden)
     }
 
     @Test
@@ -526,7 +625,14 @@ class GameRoutesTest {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
         val id = GameId.new()
-        val updated = game("Celeste (Switch)", id = id, platforms = listOf(Platforms.NINTENDO))
+        val updated = game(
+            "Celeste (Switch)",
+            id = id,
+            platforms = listOf(Platforms.NINTENDO),
+            ownership = Ownership.OWNED,
+            progress = Progress.COMPLETED,
+            hidden = true,
+        )
         coEvery { games.update(any(), any()) } returns updated
 
         val response = client.patch("/api/games/$id") { jsonBody("{}") }.decodeBody<GameResponse>()
@@ -534,6 +640,9 @@ class GameRoutesTest {
         assertEquals(id.toString(), response.id)
         assertEquals("Celeste (Switch)", response.title)
         assertEquals(listOf("Nintendo"), response.platforms.map { it.label })
+        assertEquals("owned", response.ownership)
+        assertEquals("completed", response.progress)
+        assertEquals(true, response.hidden)
     }
 
     @Test
@@ -606,6 +715,26 @@ class GameRoutesTest {
 
         client.patch("/api/games/${GameId.new()}") { jsonBody("""{"rating":5.25}""") }
             .assertValidationError("rating")
+        coVerify(exactly = 0) { games.update(any(), any()) }
+    }
+
+    @Test
+    fun `patch rejects an unknown ownership value`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.patch("/api/games/${GameId.new()}") { jsonBody("""{"ownership":"borrowed"}""") }
+            .assertValidationError("ownership")
+        coVerify(exactly = 0) { games.update(any(), any()) }
+    }
+
+    @Test
+    fun `patch rejects an unknown progress value`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.patch("/api/games/${GameId.new()}") { jsonBody("""{"progress":"halfway"}""") }
+            .assertValidationError("progress")
         coVerify(exactly = 0) { games.update(any(), any()) }
     }
 
