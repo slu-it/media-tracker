@@ -1,0 +1,73 @@
+# Media Tracker on the Raspberry Pi with docker compose, the alternative to the systemd unit
+# (deploy/media-tracker.service). Only the app: MariaDB stays at the web host. This is NOT the local-development
+# database file, that one is docker-compose.yml at the repository root.
+#
+# Install (once; the env file is the same one the systemd unit reads):
+#   sudo mkdir -p /etc/media-tracker /opt/media-tracker
+#   sudo cp env.example /etc/media-tracker/env && sudo chmod 600 /etc/media-tracker/env   # then edit it
+#   sudo cp docker-compose.yml /opt/media-tracker/
+#   cd /opt/media-tracker && sudo docker compose up -d
+#
+# First user (the service may keep running; `run` publishes no ports and gives the password prompt a TTY).
+# `-e JAVA_TOOL_OPTIONS=` is required, not optional: without it this second JVM would dump the shared CDS archive
+# onto the path the running service has mapped into memory.
+#   sudo docker compose run --rm --no-deps -e JAVA_TOOL_OPTIONS= --entrypoint /usr/bin/java media-tracker \
+#     -cp /app/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <name> [--reset-password]
+#
+# Update:   sudo docker compose pull && sudo docker compose up -d
+# Logs:     sudo docker compose logs -f
+#
+# sudo because /etc/media-tracker/env is root-owned mode 600 (or chown it to the user in the docker group).
+# MT_ENV_FILE points the env_file elsewhere, e.g. for a test on a laptop: MT_ENV_FILE=./env docker compose up.
+# It must survive sudo (`sudo -E`, or set it after sudo), and a relative path resolves against this file's
+# directory, not the working directory.
+# Do not run this next to the systemd unit on the same Pi: both listen on 8080.
+# The memory limit below needs cgroup memory accounting; on Raspberry Pi OS that means
+# `cgroup_enable=memory cgroup_memory=1` in /boot/cmdline.txt. Check with `docker info` (it warns "No memory
+# limit support" otherwise). -Xmx is enforced by the JVM either way.
+
+# Deliberately not "media-tracker": that is the default project name of the repository's own
+# docker-compose.yml (the local-development MariaDB), and a shared name lets `--remove-orphans` in either
+# direction delete the other project's container.
+name: media-tracker-app
+
+services:
+  media-tracker:
+    image: ghcr.io/slu-it/media-tracker:latest
+    container_name: media-tracker
+    restart: unless-stopped
+    env_file: ${MT_ENV_FILE:-/etc/media-tracker/env}
+    ports:
+      # Change the host side only; leave PORT unset (8080) in the env file.
+      - "8080:8080"
+    # The JVM flags baked into the image (Dockerfile, mirrored from deploy/jvm.options) can be replaced here.
+    # If you raise -Xmx, raise the memory limit below by the same amount.
+    # environment:
+    #   JAVA_TOOL_OPTIONS: "-Xmx256m -XX:+UseSerialGC -XX:TieredStopAtLevel=1 -XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=/tmp/media-tracker.jsa"
+    read_only: true
+    volumes:
+      # The only writable path. Holds the CDS archive (-XX:SharedArchiveFile=/tmp/media-tracker.jsa) so it survives
+      # restarts and reboots; after an image update the JVM finds it stale and rewrites it on the next exit.
+      # Anything else that starts a JVM from this image must pass `-e JAVA_TOOL_OPTIONS=` so it does not write
+      # this archive while the service has it mapped; see the CreateUser command in the header.
+      - cds-archive:/tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Matches TimeoutStopSec=20 in the systemd unit; the JVM exits on SIGTERM and dumps the CDS archive first.
+    stop_grace_period: 20s
+    deploy:
+      resources:
+        limits:
+          # -Xmx192m caps the heap only; metaspace, code cache, thread stacks and the mapped CDS archive add roughly
+          # 150-250 MB. Enough headroom that the kernel never OOM-kills the container on a Pi.
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  cds-archive:

@@ -1,4 +1,5 @@
-# systemd unit for the Raspberry Pi.
+# systemd unit for the Raspberry Pi. The alternative is deploy/docker-compose.yml (decision record 0016);
+# both bind port 8080, so run one of them, not both.
 #
 # Install:
 #   sudo useradd --system --home /opt/media-tracker --shell /usr/sbin/nologin media-tracker
