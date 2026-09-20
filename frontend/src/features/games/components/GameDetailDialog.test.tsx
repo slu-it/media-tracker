@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GameResponse } from "../../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
-import { celeste, nintendo, pc, platforms } from "../../../test/fixtures/games";
+import { celeste, hades, nintendo, pc, platforms } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameDetailDialog } from "./GameDetailDialog";
 
@@ -60,6 +60,64 @@ describe("GameDetailDialog", () => {
 
     expect(within(dialog).getByText(game.description!)).toBeInTheDocument();
     expect(within(dialog).getByText("Nintendo")).toBeInTheDocument();
+  });
+
+  it("labels the dialog with the game's title in view mode", () => {
+    renderWithProviders(
+      <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
+    );
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(game.title);
+  });
+
+  it("shows the status icons in view mode", () => {
+    renderWithProviders(
+      <GameDetailDialog
+        game={hades}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByRole("img", { name: "Watchlist" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("img", { name: "100%" })).toBeInTheDocument();
+  });
+
+  it("shows no ownership icon for an owned, unhidden game", () => {
+    renderWithProviders(
+      <GameDetailDialog
+        game={celeste}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByRole("img", { name: "Playing" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();
+  });
+
+  it("sends only the changed progress when editing solely the progress field", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "PATCH /api/games/:id": (call) => jsonResponse({ ...game, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    await user.click(within(dialog).getByRole("combobox", { name: "Progress" }));
+    await user.click(screen.getByRole("option", { name: "Finished" }));
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].body).toEqual({ progress: "finished" });
   });
 
   it("edits and saves only the changed fields, then returns to view mode", async () => {

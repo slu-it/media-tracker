@@ -11,6 +11,8 @@ import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.Ownership
+import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
@@ -69,6 +71,17 @@ class ExposedGameRepositoryTest {
     }
 
     @Test
+    fun `insert round-trips a non-default ownership progress and hidden`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val inserted = game("Hades", ownership = Ownership.OWNED, progress = Progress.COMPLETED, hidden = true)
+        repo.insert(inserted)
+
+        val found = repo.findById(inserted.id)
+
+        assertEquals(inserted, found)
+    }
+
+    @Test
     fun `insert stores absent optional fields as null`() = withFreshDatabase {
         val repo = ExposedGameRepository()
         val inserted = game("Tetris")
@@ -97,6 +110,9 @@ class ExposedGameRepositoryTest {
                 it[GamesTable.id] = id.toString()
                 it[title] = "Orphan"
                 it[releaseYear] = 2000
+                it[ownership] = Ownership.DEFAULT.wire
+                it[progress] = Progress.DEFAULT.wire
+                it[hidden] = false
             }
         }
 
@@ -225,6 +241,22 @@ class ExposedGameRepositoryTest {
         assertNull(found?.description)
         assertNull(found?.rating)
         assertNull(found?.coverImageUrl)
+    }
+
+    @Test
+    fun `update changes ownership progress and hidden`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val original = game("Hades")
+        repo.insert(original)
+
+        val updated = original.copy(ownership = Ownership.OWNED, progress = Progress.PLAYING, hidden = true)
+        val result = repo.update(updated)
+
+        assertTrue(result)
+        val found = repo.findById(original.id)
+        assertEquals(Ownership.OWNED, found?.ownership)
+        assertEquals(Progress.PLAYING, found?.progress)
+        assertEquals(true, found?.hidden)
     }
 
     @Test

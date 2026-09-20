@@ -1,6 +1,12 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
 // .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse) and .../games/api/GameDtos.kt. Keep them in sync.
 
+/** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
+export type Ownership = "watchlist" | "owned";
+
+/** Mirrors the Kotlin `Progress` enum in games/domain/GameStatus.kt. */
+export type Progress = "not_started" | "playing" | "finished" | "completed" | "paused" | "abandoned";
+
 export interface MeResponse {
   username: string;
 }
@@ -46,6 +52,9 @@ export interface GameResponse {
   /** 0.25..5 in steps of 0.25; `null` means not rated yet. */
   rating: number | null;
   coverImageUrl: string | null;
+  ownership: Ownership;
+  progress: Progress;
+  hidden: boolean;
 }
 
 export interface CreateGameRequest {
@@ -55,6 +64,12 @@ export interface CreateGameRequest {
   description?: string | null;
   rating?: number | null;
   coverImageUrl?: string | null;
+  /** Omit for the default (`"watchlist"`); can never be cleared. */
+  ownership?: Ownership | null;
+  /** Omit for the default (`"not_started"`); can never be cleared. */
+  progress?: Progress | null;
+  /** Omit for the default (`false`); can never be cleared. */
+  hidden?: boolean | null;
 }
 
 /** PATCH body: omit a key to leave the field unchanged; `null` clears `description`/`rating`/`coverImageUrl`. */
@@ -65,4 +80,10 @@ export interface UpdateGameRequest {
   description?: string | null;
   rating?: number | null;
   coverImageUrl?: string | null;
+  /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
+  ownership?: Ownership;
+  /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
+  progress?: Progress;
+  /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
+  hidden?: boolean;
 }

@@ -55,10 +55,42 @@ describe("AddGameDialog", () => {
           description: "Roguelike dungeon crawler.",
           rating: null,
           coverImageUrl: "https://img.example/h.png",
+          ownership: "watchlist",
+          progress: "not_started",
+          hidden: false,
         },
       },
     ]);
     expect(onCreated.mock.calls[0][0]).toMatchObject({ id: "new-id", title: "Hades" });
+  });
+
+  it("posts the chosen ownership, progress and hidden state", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const calls = mockApi({
+      "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
+    await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+    await user.click(screen.getByRole("option", { name: "2020" }));
+    await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    await user.click(within(dialog).getByRole("combobox", { name: "Ownership" }));
+    await user.click(screen.getByRole("option", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("combobox", { name: "Progress" }));
+    await user.click(screen.getByRole("option", { name: "Playing" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: "Hidden" }));
+
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(save);
+    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
+    expect(calls[0].body).toMatchObject({ ownership: "owned", progress: "playing", hidden: true });
   });
 
   it("has no delete action and resets when reopened", async () => {

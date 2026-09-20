@@ -7,7 +7,9 @@ import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.HexColor
+import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
+import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
@@ -47,6 +49,9 @@ fun game(
     description: Description? = null,
     rating: Rating? = null,
     coverImageUrl: CoverImageUrl? = null,
+    ownership: Ownership = Ownership.DEFAULT,
+    progress: Progress = Progress.DEFAULT,
+    hidden: Boolean = false,
 ): Game = Game(
     id = id,
     title = Title(title),
@@ -55,4 +60,7 @@ fun game(
     description = description,
     rating = rating,
     coverImageUrl = coverImageUrl,
+    ownership = ownership,
+    progress = progress,
+    hidden = hidden,
 )

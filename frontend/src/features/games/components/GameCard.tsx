@@ -1,6 +1,8 @@
 import { Card, CardActionArea, CardContent, Typography } from "@mui/material";
 import { CoverImage } from "../../../components/CoverImage";
 import type { GameResponse } from "../../../types/api";
+import { GameStatusIcons } from "./GameStatusIcons";
+import { PlatformChips } from "./PlatformChips";
 
 export const CARD_COVER_WIDTH = 168;
 export const CARD_COVER_HEIGHT = 224;
@@ -9,7 +11,7 @@ export const CARD_COVER_HEIGHT = 224;
 export function GameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: GameResponse) => void }) {
   return (
     <Card variant="outlined">
-      <CardActionArea onClick={() => onOpen(game)} sx={{ height: "100%" }}>
+      <CardActionArea onClick={() => onOpen(game)} aria-label={game.title} sx={{ height: "100%" }}>
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
           <CoverImage src={game.coverImageUrl} alt="" width={CARD_COVER_WIDTH} height={CARD_COVER_HEIGHT} />
           <Typography
@@ -27,6 +29,8 @@ export function GameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: 
           >
             {game.title}
           </Typography>
+          <PlatformChips platforms={game.platforms} />
+          <GameStatusIcons ownership={game.ownership} progress={game.progress} hidden={game.hidden} />
         </CardContent>
       </CardActionArea>
     </Card>

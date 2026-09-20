@@ -20,6 +20,7 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
 
@@ -53,6 +54,27 @@ class GameServiceTest {
     }
 
     @Test
+    fun `create stores the ownership progress and hidden values from the new game`() = runBlocking {
+        val newGame = NewGame(
+            title = Title("Hollow Knight"),
+            releaseYear = ReleaseYear(2017),
+            platformIds = setOf(Platforms.PC.id),
+            ownership = Ownership.OWNED,
+            progress = Progress.FINISHED,
+            hidden = true,
+        )
+        coEvery { platforms.findByIds(setOf(Platforms.PC.id)) } returns listOf(Platforms.PC)
+        val inserted = slot<Game>()
+        coEvery { games.insert(capture(inserted)) } just Runs
+
+        service.create(newGame)
+
+        assertEquals(Ownership.OWNED, inserted.captured.ownership)
+        assertEquals(Progress.FINISHED, inserted.captured.progress)
+        assertTrue(inserted.captured.hidden)
+    }
+
+    @Test
     fun `create rejects an unknown platform id naming the platformIds field`() = runBlocking {
         val unknown = GamePlatformId(Uuid.random())
         val newGame = NewGame(
@@ -83,6 +105,55 @@ class GameServiceTest {
         val expected = current.copy(title = Title("New Title"), description = null)
         assertEquals(expected, saved.captured)
         assertEquals(expected, result)
+    }
+
+    @Test
+    fun `update leaves ownership progress and hidden untouched when the patch carries none of them`() = runBlocking {
+        val id = GameId.new()
+        val current = game(
+            "Some Title",
+            id = id,
+            ownership = Ownership.OWNED,
+            progress = Progress.PLAYING,
+            hidden = true,
+        )
+        coEvery { games.findById(id) } returns current
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(title = Title("Renamed")))
+
+        assertEquals(Ownership.OWNED, saved.captured.ownership)
+        assertEquals(Progress.PLAYING, saved.captured.progress)
+        assertTrue(saved.captured.hidden)
+    }
+
+    @Test
+    fun `update changes ownership progress and hidden when the patch carries them`() = runBlocking {
+        val id = GameId.new()
+        val current = game("Some Title", id = id)
+        coEvery { games.findById(id) } returns current
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(ownership = Ownership.OWNED, progress = Progress.COMPLETED, hidden = true))
+
+        assertEquals(Ownership.OWNED, saved.captured.ownership)
+        assertEquals(Progress.COMPLETED, saved.captured.progress)
+        assertTrue(saved.captured.hidden)
+    }
+
+    @Test
+    fun `update unhides a hidden game when the patch carries hidden false`() = runBlocking {
+        val id = GameId.new()
+        val current = game("Some Title", id = id, hidden = true)
+        coEvery { games.findById(id) } returns current
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(hidden = false))
+
+        assertFalse(saved.captured.hidden)
     }
 
     @Test

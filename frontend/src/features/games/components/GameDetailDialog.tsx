@@ -134,6 +134,7 @@ function GameDetailDialogContent({
       bottomActions={bottomActions}
       titleId={TITLE_ID}
       height={GAME_DIALOG_HEIGHT}
+      contentScroll="children"
     >
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>

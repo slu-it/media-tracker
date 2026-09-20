@@ -77,7 +77,22 @@
       "description": "Description",
       "rating": "Rating",
       "coverImageUrl": "Cover image URL",
-      "coverImageUrlHint": "Optional. Leave empty for no cover."
+      "coverImageUrlHint": "Optional. Leave empty for no cover.",
+      "ownership": "Ownership",
+      "progress": "Progress",
+      "hidden": "Hidden"
+    },
+    "ownership": {
+      "watchlist": "Watchlist",
+      "owned": "Owned"
+    },
+    "progress": {
+      "not_started": "Not started",
+      "playing": "Playing",
+      "finished": "Finished",
+      "completed": "100%",
+      "paused": "Paused",
+      "abandoned": "Abandoned"
     },
     "notRated": "Not rated yet"
   },

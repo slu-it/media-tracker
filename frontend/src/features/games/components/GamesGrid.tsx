@@ -24,7 +24,11 @@ export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm }: GamesGri
           <Card key={i} variant="outlined">
             <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
               <Skeleton variant="rounded" width={CARD_COVER_WIDTH} height={CARD_COVER_HEIGHT} />
-              <Skeleton width="70%" />
+              <Skeleton width="70%" height="2.6em" />
+              <Skeleton variant="rounded" width="50%" height={24} />
+              {/* The icon row is conditional on the real card (a default-status game shows none), so its
+                  height is not reserved here either; reserving it would make every skeleton taller than
+                  most real cards instead of matching them. */}
             </CardContent>
           </Card>
         ))}

@@ -12,7 +12,9 @@ import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameRepository
 import de.sluit.mediatracker.games.domain.HexColor
+import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
+import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
@@ -137,6 +139,9 @@ class ExposedGameRepository : GameRepository {
         this[GamesTable.description] = game.description?.value
         this[GamesTable.rating] = game.rating?.value
         this[GamesTable.coverImageUrl] = game.coverImageUrl?.value
+        this[GamesTable.ownership] = game.ownership.wire
+        this[GamesTable.progress] = game.progress.wire
+        this[GamesTable.hidden] = game.hidden
     }
 
     private fun ResultRow.toGamePlatform() = GamePlatform(
@@ -156,5 +161,8 @@ class ExposedGameRepository : GameRepository {
         description = this[GamesTable.description]?.let(::Description),
         rating = this[GamesTable.rating]?.let(::Rating),
         coverImageUrl = this[GamesTable.coverImageUrl]?.let(::CoverImageUrl),
+        ownership = Ownership.from(this[GamesTable.ownership]),
+        progress = Progress.from(this[GamesTable.progress]),
+        hidden = this[GamesTable.hidden],
     )
 }

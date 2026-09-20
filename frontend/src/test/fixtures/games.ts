@@ -22,6 +22,9 @@ export const celeste: GameResponse = {
   rating: null,
   platforms: [nintendo],
   coverImageUrl: "https://img.example/c.png",
+  ownership: "owned",
+  progress: "playing",
+  hidden: false,
 };
 
 export const hades: GameResponse = {
@@ -32,4 +35,7 @@ export const hades: GameResponse = {
   rating: null,
   platforms: [pc],
   coverImageUrl: null,
+  ownership: "watchlist",
+  progress: "completed",
+  hidden: true,
 };

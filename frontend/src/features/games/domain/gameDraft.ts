@@ -1,4 +1,5 @@
 import type { CreateGameRequest, GameResponse, UpdateGameRequest } from "../../../types/api";
+import { DEFAULT_HIDDEN, DEFAULT_OWNERSHIP, DEFAULT_PROGRESS, type Ownership, type Progress } from "./gameStatus";
 import {
   validateCoverImageUrl,
   validateDescription,
@@ -16,10 +17,23 @@ export interface GameDraft {
   description: string;
   rating: number | null;
   coverImageUrl: string;
+  ownership: Ownership;
+  progress: Progress;
+  hidden: boolean;
 }
 
 export function emptyGameDraft(): GameDraft {
-  return { title: "", releaseYear: null, platformIds: [], description: "", rating: null, coverImageUrl: "" };
+  return {
+    title: "",
+    releaseYear: null,
+    platformIds: [],
+    description: "",
+    rating: null,
+    coverImageUrl: "",
+    ownership: DEFAULT_OWNERSHIP,
+    progress: DEFAULT_PROGRESS,
+    hidden: DEFAULT_HIDDEN,
+  };
 }
 
 export function draftFromGame(game: GameResponse): GameDraft {
@@ -30,6 +44,9 @@ export function draftFromGame(game: GameResponse): GameDraft {
     description: game.description ?? "",
     rating: game.rating,
     coverImageUrl: game.coverImageUrl ?? "",
+    ownership: game.ownership,
+    progress: game.progress,
+    hidden: game.hidden,
   };
 }
 
@@ -72,6 +89,9 @@ export function toCreateRequest(draft: GameDraft): CreateGameRequest {
     description: normalizeDescription(draft.description),
     rating: draft.rating,
     coverImageUrl: normalizeCoverImageUrl(draft.coverImageUrl),
+    ownership: draft.ownership,
+    progress: draft.progress,
+    hidden: draft.hidden,
   };
 }
 
@@ -95,5 +115,8 @@ export function toUpdateRequest(game: GameResponse, draft: GameDraft): UpdateGam
   if (draft.rating !== game.rating) request.rating = draft.rating;
   const cover = normalizeCoverImageUrl(draft.coverImageUrl);
   if (cover !== game.coverImageUrl) request.coverImageUrl = cover;
+  if (draft.ownership !== game.ownership) request.ownership = draft.ownership;
+  if (draft.progress !== game.progress) request.progress = draft.progress;
+  if (draft.hidden !== game.hidden) request.hidden = draft.hidden;
   return request;
 }

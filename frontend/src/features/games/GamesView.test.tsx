@@ -44,6 +44,8 @@ describe("GamesView", () => {
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Hades" })).toBeInTheDocument();
     expect(screen.getAllByText("1 – 2 of 2")).toHaveLength(2);
+    expect(screen.getByRole("img", { name: "Playing" })).toBeInTheDocument(); // Celeste's card status icon
+    expect(screen.getByRole("img", { name: "Watchlist" })).toBeInTheDocument(); // Hades' card status icon
 
     await user.click(screen.getByRole("button", { name: /Hades/ }));
     const dialog = await screen.findByRole("dialog");

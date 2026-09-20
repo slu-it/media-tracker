@@ -56,6 +56,9 @@ class GamesSmokeTest {
             this[GamesTable.title] = "Game %02d".format(n)
             this[GamesTable.releaseYear] = 2000
             this[GamesTable.coverImageUrl] = null
+            this[GamesTable.ownership] = "watchlist"
+            this[GamesTable.progress] = "not_started"
+            this[GamesTable.hidden] = false
         }
         GameToPlatformTable.batchInsert(
             GamesTable.selectAll().map { it[GamesTable.id] },
@@ -100,6 +103,36 @@ class GamesSmokeTest {
         assertNull(hades.coverImageUrl)
         assertNull(hades.description)
         assertNull(hades.rating)
+    }
+
+    @Test
+    fun `create without status fields defaults to watchlist not started and visible`() = testApplication {
+        val client = loggedInClient()
+
+        val hades = client.createdGame(
+            """{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"]}""",
+        )
+
+        assertEquals("watchlist", hades.ownership)
+        assertEquals("not_started", hades.progress)
+        assertEquals(false, hades.hidden)
+    }
+
+    @Test
+    fun `create with status fields returns the stored game with them set`() = testApplication {
+        val client = loggedInClient()
+
+        val hades = client.createdGame(
+            """{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"],
+                |"ownership":"owned","progress":"playing","hidden":true}
+            """.trimMargin(),
+        )
+
+        assertEquals("owned", hades.ownership)
+        assertEquals("playing", hades.progress)
+        assertEquals(true, hades.hidden)
+        val listed = client.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+        assertEquals(hades, listed.items.first())
     }
 
     @Test
@@ -180,6 +213,22 @@ class GamesSmokeTest {
         assertEquals("Celeste", cleared.title)
         val listed = client.get("/api/games").decodeBody<PageResponse<GameResponse>>()
         assertNull(listed.items.first().coverImageUrl)
+    }
+
+    @Test
+    fun `patch changes the status fields and the change is visible in the list`() = testApplication {
+        val client = loggedInClient()
+        val game = client.createdGame(CELESTE_BODY)
+
+        val patched = client.patch("/api/games/${game.id}") {
+            jsonBody("""{"ownership":"owned","progress":"completed","hidden":true}""")
+        }.decodeBody<GameResponse>()
+
+        assertEquals("owned", patched.ownership)
+        assertEquals("completed", patched.progress)
+        assertEquals(true, patched.hidden)
+        val listed = client.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+        assertEquals(listOf(patched), listed.items)
     }
 
     @Test

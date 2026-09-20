@@ -21,6 +21,9 @@ class GameService(private val games: GameRepository, private val platforms: Game
             description = newGame.description,
             rating = newGame.rating,
             coverImageUrl = newGame.coverImageUrl,
+            ownership = newGame.ownership,
+            progress = newGame.progress,
+            hidden = newGame.hidden,
         )
         games.insert(game)
         return game
