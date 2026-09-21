@@ -11,8 +11,8 @@ database:
   url: "$DB_URL"
   user: "$DB_USER"
   password: "$DB_PASSWORD"
-  # HikariCP. Web hosts kill idle MariaDB connections after a few minutes; keepalive avoids
-  # reconnect latency on the first request after a quiet period.
+  # HikariCP. The keepalive dates from the web-host era, where idle connections were killed from the other
+  # side; against the Pi's local MariaDB (decision record 0018) it is harmless rather than necessary.
   pool:
     maximumPoolSize: 3
     minimumIdle: 1

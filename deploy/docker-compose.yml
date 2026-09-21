@@ -1,12 +1,20 @@
 # Media Tracker on the Raspberry Pi with docker compose, the alternative to the systemd unit
-# (deploy/media-tracker.service). Only the app: MariaDB stays at the web host. This is NOT the local-development
-# database file, that one is docker-compose.yml at the repository root.
+# (deploy/media-tracker.service). Only the app: the database is the central MariaDB of deploy/database,
+# which runs on the same Pi as its own compose project (decision record 0018). This is NOT the
+# local-development database file, that one is docker-compose.yml at the repository root.
 #
 # Install (once; the env file is the same one the systemd unit reads):
+#   # 1. the database stack first: it owns the pi-db network this file joins
+#   cd deploy/database && sudo docker compose up -d --wait && sudo ./create-database.sh media-tracker
+#   # 2. then the app; create-database.sh printed the DB_URL, DB_USER and DB_PASSWORD to fill in
 #   sudo mkdir -p /etc/media-tracker /opt/media-tracker
 #   sudo cp env.example /etc/media-tracker/env && sudo chmod 600 /etc/media-tracker/env   # then edit it
 #   sudo cp docker-compose.yml /opt/media-tracker/
 #   cd /opt/media-tracker && sudo docker compose up -d
+#
+# Starting this before the database stack fails with "network pi-db declared as external, but could not be
+# found". Bringing the database stack down while this one is up fails the other way round, with "active
+# endpoints": stop the app first.
 #
 # First user (the service may keep running; `run` publishes no ports and gives the password prompt a TTY).
 # `-e JAVA_TOOL_OPTIONS=` is required, not optional: without it this second JVM would dump the shared CDS archive
@@ -18,10 +26,14 @@
 # Logs:     sudo docker compose logs -f
 #
 # sudo because /etc/media-tracker/env is root-owned mode 600 (or chown it to the user in the docker group).
-# MT_ENV_FILE points the env_file elsewhere, e.g. for a test on a laptop: MT_ENV_FILE=./env docker compose up.
+# MT_ENV_FILE points the env_file elsewhere, e.g. for a test on a laptop:
+# MT_ENV_FILE=./env docker compose up -- which needs the pi-db network to exist there too, so start
+# deploy/database (or `docker network create pi-db`) first.
 # It must survive sudo (`sudo -E`, or set it after sudo), and a relative path resolves against this file's
 # directory, not the working directory.
-# Do not run this next to the systemd unit on the same Pi: both listen on 8080.
+# Do not run this next to the systemd unit on the same Pi: both listen on 8080. The systemd unit also needs
+# a different DB_URL, because it runs on the host and cannot resolve the `mariadb` service name; see
+# deploy/env.example.
 # The memory limit below needs cgroup memory accounting; on Raspberry Pi OS that means
 # `cgroup_enable=memory cgroup_memory=1` in /boot/cmdline.txt. Check with `docker info` (it warns "No memory
 # limit support" otherwise). -Xmx is enforced by the JVM either way.
@@ -68,6 +80,18 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # Reaches the central MariaDB as host `mariadb`. There is no depends_on across compose projects: when
+    # this container starts first, the HikariCP pool fails to initialise, the JVM exits and
+    # `restart: unless-stopped` retries with backoff until the database answers. A wrong DB_URL or password
+    # looks exactly the same from the outside, so read `docker compose logs` before assuming a race.
+    networks:
+      - pi-db
 
 volumes:
   cds-archive:
+
+networks:
+  # Owned by deploy/database/docker-compose.yml, which creates it under this exact name.
+  pi-db:
+    external: true
+    name: pi-db

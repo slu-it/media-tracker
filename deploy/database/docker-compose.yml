@@ -1,0 +1,115 @@
+# Central MariaDB for the Raspberry Pi: one server, one bind-mounted data directory, several applications,
+# each with its own database and user created by ./create-database.sh. Decision record 0018.
+# Media Tracker is its first consumer (deploy/docker-compose.yml).
+#
+# This is neither the local-development database (docker-compose.yml at the repository root) nor the
+# application itself (deploy/docker-compose.yml).
+#
+# Install (once):
+#   sudo mkdir -p /opt/pi-database
+#   sudo cp -r deploy/database/. /opt/pi-database/     # compose file, conf.d, env.example, both scripts
+#   cd /opt/pi-database
+#   sudo cp env.example env && sudo chmod 600 env     # then put a real root password in it
+#   sudo docker compose up -d --wait
+#   sudo ./create-database.sh media-tracker           # prints the DB_URL/DB_USER/DB_PASSWORD to copy
+#
+# Logs:    sudo docker compose logs -f
+# Backup:  sudo ./backup-database.sh [database]       # cron-friendly, writes ./backups
+# Shell:   sudo docker compose exec mariadb mariadb -uroot -p
+#
+# MT_DB_ENV_FILE points the env_file elsewhere, e.g. for a test on a laptop: MT_DB_ENV_FILE=./env.
+# It must survive sudo (`sudo -E`, or set it after sudo), and a relative path resolves against this file's
+# directory, not the working directory.
+#
+# ./data is a bind mount rather than a named volume, so backups and rsync see plain files. The container
+# initialises it on first start and chowns it to uid/gid 999, which means:
+#   - read it from the host with sudo, and `sudo chown -R 999:999 data` after restoring files into it
+#   - it needs a filesystem with Unix ownership: ext4, not exFAT and not a CIFS/NFS mount
+#   - prefer an SSD over the SD card, which several applications writing here will wear out
+#   - never put a placeholder file into an empty data/: the entrypoint treats "not empty but no data/mysql"
+#     as a broken data directory and refuses to initialise
+#
+# Shutdown order: stop the application stacks first. `docker compose down` here also removes the pi-db
+# network, which fails with "active endpoints" while an app container is attached to it, and breaks the
+# next start of every app stack when it succeeds.
+#
+# The memory limit below needs cgroup memory accounting; on Raspberry Pi OS that means
+# `cgroup_enable=memory cgroup_memory=1` in /boot/cmdline.txt (`docker info` warns when it is missing).
+
+# Own project name, distinct from `media-tracker` (the repository's local-development database) and
+# `media-tracker-app` (deploy/docker-compose.yml), so `--remove-orphans` in any of them stays harmless.
+name: pi-database
+
+services:
+  mariadb:
+    # The service name is the host name applications use on the pi-db network. There is no linux/arm/v7
+    # image, so the Pi has to run a 64-bit OS.
+    image: mariadb:11.8
+    container_name: pi-mariadb
+    restart: unless-stopped
+    env_file: ${MT_DB_ENV_FILE:-./env}
+    security_opt:
+      # Matches deploy/docker-compose.yml. No cap_drop: the entrypoint still needs CHOWN, SETUID, SETGID
+      # and DAC_OVERRIDE to prepare the data directory and drop to the mysql user.
+      - no-new-privileges:true
+    environment:
+      # glibc creates one malloc arena per core and hardly ever gives them back; capping the count keeps
+      # a few dozen MB of resident memory off the table on a multi-core arm64.
+      MALLOC_ARENA_MAX: 2
+    # Deliberately no `ports:` by default. The server is reachable on the pi-db network only, which keeps
+    # it off the LAN and away from every other process on the Pi. Everything needed to open it is prepared
+    # below: uncomment one of the two blocks, `docker compose up -d` to recreate the container, and comment
+    # it out again (plus another `up -d`) when the session is over. Nothing else has to change -- MariaDB
+    # leaves `bind-address` unset and therefore already listens on every interface inside the container,
+    # and the users create-database.sh makes are `'<name>'@'%'`, so they can log in from anywhere.
+    #
+    # (a) From another machine, e.g. an IDE on a laptop pointed at the Pi. Reachable from the whole LAN
+    #     while it is uncommented, so treat it as a debugging session and not a setting:
+    #       - connect as the application's own user (`media-tracker` / the database name reversed), not as
+    #         root: root is `MARIADB_ROOT_HOST=localhost` and refuses everything but the container's socket
+    #       - the JDBC URL is the one from deploy/env.example with the Pi's address instead of `mariadb`:
+    #         jdbc:mariadb://<pi>:3306/media-tracker?sslMode=disable&timezone=UTC&preserveInstants=true
+    #       - the server has no certificate, so credentials and rows cross the LAN unencrypted, and a
+    #         host firewall (ufw, nftables) will need the port opened as well
+    #ports:
+    #  - "3306:3306"
+    #
+    # (b) The Pi itself only: host tooling (the mariadb CLI, a backup agent), the systemd deployment path
+    #     which cannot resolve `mariadb`, or an SSH tunnel from a laptop, which gets (a) without exposing
+    #     anything to the LAN: `ssh -L 3306:127.0.0.1:3306 pi`, then point the IDE at 127.0.0.1:3306.
+    #     On a development machine this clashes with the repository-root docker-compose.yml, which also
+    #     binds 127.0.0.1:3306.
+    #ports:
+    #  - "127.0.0.1:3306:3306"
+    volumes:
+      - ./data:/var/lib/mysql
+      - ./conf.d:/etc/mysql/conf.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits:
+          # A ceiling, not a reservation. conf.d/50-tuning.cnf is what decides the actual footprint
+          # (measured: 111 MiB idle, 131 MiB right after dumping every database); the headroom is what
+          # keeps the kernel from OOM-killing the server during
+          # a dump or a burst of temporary tables. MariaDB does not read this limit the way a JVM reads
+          # its own, so it has to sit above the real peak.
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - pi-db
+
+networks:
+  # Created by this stack under exactly this name, without a project prefix; application stacks join it
+  # with `external: true`. Every service that has to reach MariaDB must list it under `networks:`.
+  pi-db:
+    name: pi-db

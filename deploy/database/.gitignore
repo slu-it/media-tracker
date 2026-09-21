@@ -1,0 +1,4 @@
+# The live data directory (root-owned, created by the container), dumps and the real secrets.
+data/
+backups/
+env

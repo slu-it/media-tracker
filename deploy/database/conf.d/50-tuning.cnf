@@ -1,0 +1,73 @@
+# Small-footprint tuning for a Raspberry Pi shared by several applications. Decision record 0018.
+#
+# Read from /etc/mysql/conf.d, which the image's my.cnf includes after /etc/mysql/mariadb.conf.d, so these
+# values win over the image defaults. mariadbd reads [server], [mysqld], [mariadb] and [mariadbd];
+# [mariadbd] is the most specific group and never leaks into the client tools.
+#
+# MariaDB is widely said to need a gigabyte. That is about the stock configuration, where three caches
+# allocate 128M each before the server does any work. Shrinking those is most of what this file does.
+#
+# An unknown variable here makes the server refuse to start, so after editing check `docker compose logs`
+# and verify the values really took effect:
+#   docker compose exec mariadb mariadb -uroot -p -e "SHOW VARIABLES LIKE 'innodb_buffer_pool_size'"
+
+[mariadbd]
+
+# --- memory: the allocations that dominate the resident set --------------------------------------------
+
+# Default 128M, and the largest single allocation (plus roughly 7% of its size in bookkeeping). 64M holds
+# the working set of a handful of small applications; raise this first if queries start hitting the disk.
+innodb_buffer_pool_size = 64M
+# Default 16M.
+innodb_log_buffer_size = 8M
+# Default 128M. Aria backs the system tables and internal temporary tables, not application data.
+aria_pagecache_buffer_size = 16M
+# Default 128M. Only MyISAM uses it, and nothing here is MyISAM.
+key_buffer_size = 8M
+
+# Already off by default in MariaDB (unlike MySQL); stated so an upgrade cannot turn it on unnoticed.
+performance_schema = OFF
+
+# --- connections ---------------------------------------------------------------------------------------
+
+# Media Tracker's HikariCP pool is 3 connections (backend/src/main/resources/application.yaml), so 25
+# covers several applications plus a shell. Each connection costs a thread stack and the buffers below.
+max_connections = 25
+thread_cache_size = 8
+table_open_cache = 200
+
+# Per-connection buffers, allocated on demand. The defaults assume a server with real memory.
+sort_buffer_size = 512K
+read_buffer_size = 128K
+read_rnd_buffer_size = 256K
+join_buffer_size = 256K
+
+# Per-statement and on demand: a query needing a larger temporary table spills to disk instead of growing
+# the footprint. These are the main source of peaks above the steady state.
+tmp_table_size = 8M
+max_heap_table_size = 8M
+
+# --- storage -------------------------------------------------------------------------------------------
+
+# Default 96M. Smaller redo logs mean more frequent checkpoints but a smaller working set and a faster
+# crash recovery, which is the better trade on a Pi.
+innodb_log_file_size = 32M
+# Flash storage: neighbour flushing is a rotational-disk optimisation, and the default io_capacity assumes
+# far more IOPS than an SD card or a small SSD delivers.
+innodb_flush_neighbors = 0
+innodb_io_capacity = 100
+
+# Not set on purpose: innodb_flush_method=O_DIRECT is deprecated since MariaDB 10.11 (superseded by
+# innodb_data_file_buffering=OFF), and on one small instance the saving from bypassing the page cache does
+# not justify the fallback behaviour of O_DIRECT on SD-card and overlay filesystems.
+
+# --- behaviour -----------------------------------------------------------------------------------------
+
+# No reverse DNS lookup per connection. Consequence: the host part of a user must be a literal address or
+# '%', never a host name, which is what create-database.sh generates ('<name>'@'%').
+skip_name_resolve = ON
+
+# The server default is still latin1, so these two lines do real work: a database created without an
+# explicit CHARACTER SET clause inherits utf8mb4 and matches every Flyway migration (decision record 0014).
+character-set-server = utf8mb4
+collation-server = utf8mb4_uca1400_ai_ci

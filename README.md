@@ -1,8 +1,8 @@
 # Media Tracker
 
 A small, self-hosted tracker for media lists (books, films, series, games) with a login gate.
-One fat JAR (Ktor + React) on a Raspberry Pi, MariaDB at a web host, Gradle as the only build tool you
-touch.
+One fat JAR (Ktor + React) on a Raspberry Pi, next to the central MariaDB that machine shares between its
+applications, Gradle as the only build tool you touch.
 
 | Layer | Stack |
 |---|---|
@@ -42,7 +42,7 @@ pnpm version pinned in `frontend/package.json`. Alternatively use the copy Gradl
 The backend needs four environment variables at runtime (see `deploy/env.example`):
 
 ```
-DB_URL=jdbc:mariadb://host:3306/mediatracker?sslMode=verify-full&timezone=UTC&preserveInstants=true
+DB_URL=jdbc:mariadb://host:3306/database?sslMode=disable&timezone=UTC&preserveInstants=true
 DB_USER=...
 DB_PASSWORD=...
 SESSION_SECRET=<long random string>
@@ -170,9 +170,51 @@ Test and lint reports are uploaded as the `reports` artifact when a run fails. D
 
 ## Deploy to the Pi
 
-Two interchangeable paths, described in decision record 0016. Both bind port 8080, so run one of them on a
-given Pi, not both. Either way the configuration is the single environment file `/etc/media-tracker/env`
-(template: `deploy/env.example`).
+The database comes first: one central MariaDB (`deploy/database`) serves every application on the Pi, and the
+app reaches it over a private Docker network. Decision record 0018.
+
+For the application itself there are two paths, described in decision record 0016. Both bind port 8080, so run
+one of them on a given Pi, not both, and both read the environment file `/etc/media-tracker/env` (template:
+`deploy/env.example`). They are no longer fully interchangeable: the compose path reaches the database over
+`pi-db`, the systemd path needs a published port and its own `DB_URL`, and one file cannot hold both.
+
+### The shared database
+
+```
+sudo mkdir -p /opt/pi-database
+sudo cp -r deploy/database/. /opt/pi-database/      # compose file, conf.d, env.example, both scripts
+cd /opt/pi-database
+sudo cp env.example env && sudo chmod 600 env      # set MARIADB_ROOT_PASSWORD
+sudo docker compose up -d --wait
+sudo ./create-database.sh media-tracker
+```
+
+`create-database.sh <name> [password]` creates the database together with a user of the same name that owns it
+and nothing else, then prints the `DB_URL`, `DB_USER` and `DB_PASSWORD` lines to paste into the application's
+environment file. Running it again for a database that exists changes nothing. The password defaults to the
+database name reversed; pass a second argument to use a real one.
+
+The server publishes no port. It is reachable only on the Docker network `pi-db`, which this stack creates and
+every application stack joins. What follows from that:
+
+- Start the database stack before any application stack, and stop the applications before stopping it. Compose
+  names both mistakes clearly: "network pi-db declared as external, but could not be found" one way round,
+  "active endpoints" the other.
+- To reach the server from outside the network -- an IDE on a laptop, say -- `deploy/database/docker-compose.yml`
+  has two commented-out `ports:` blocks ready: (a) `3306:3306` for a direct connection from the LAN, (b)
+  `127.0.0.1:3306:3306` for the Pi itself or for an SSH tunnel (`ssh -L 3306:127.0.0.1:3306 pi`), which gets
+  the same result without exposing anything. Uncomment one, `docker compose up -d`, and comment it out again
+  afterwards. Connect as the application's own user; root is confined to the container's socket. Block (a)
+  puts credentials and rows on the LAN unencrypted, so keep it to the length of the debugging session.
+- The systemd path below cannot resolve the `mariadb` service name, because it runs on the host. It needs
+  block (b) and the matching `DB_URL` from `deploy/env.example`.
+- `deploy/database/conf.d/50-tuning.cnf` sizes the server for the Pi: about 110-130 MB resident rather than the
+  several hundred a default configuration takes, behind a 512 MB container limit. `innodb_buffer_pool_size` is
+  the first value to raise if queries get slow.
+- The data lives in `data/` next to the compose file as a bind mount rather than a named volume, owned by
+  uid 999, and belongs on an SSD rather than the SD card.
+- Backups are the Pi's job now that the database is local: `./backup-database.sh [database]` writes a gzipped
+  dump into `backups/` and its header has a cron line. Copying those dumps off the Pi is not automated.
 
 ### As a systemd service (the fat JAR)
 
@@ -181,7 +223,11 @@ given Pi, not both. Either way the configuration is the single environment file 
 3. `ssh pi sudo systemctl restart media-tracker`
 
 First-time setup of the unit, user, and environment file is described at the top of
-`deploy/media-tracker.service`.
+`deploy/media-tracker.service`. Since the database moved onto the Pi, this path also depends on the database
+container: uncomment ports block (b) in `deploy/database/docker-compose.yml`, use the `127.0.0.1`
+`DB_URL` from `deploy/env.example`, and expect the unit to restart a few times after a reboot until Docker
+has the database up (`Restart=on-failure` handles it; add `After=docker.service` to the unit to avoid the
+noise).
 
 ### With docker compose (the image from GHCR)
 
@@ -191,8 +237,9 @@ file system; the JVM flags of `deploy/jvm.options` are baked in as `JAVA_TOOL_OP
 the compose file.
 
 1. Once: copy `deploy/docker-compose.yml` to `/opt/media-tracker/` and `deploy/env.example` to
-   `/etc/media-tracker/env` (mode 600), then fill in the values. Installation notes are at the top of the
-   compose file.
+   `/etc/media-tracker/env` (mode 600), then fill in the values `create-database.sh` printed. Installation
+   notes are at the top of the compose file. The service joins the `pi-db` network, so the database stack has
+   to be up first.
 2. `cd /opt/media-tracker && sudo docker compose up -d`
 3. Update to a new build: `sudo docker compose pull && sudo docker compose up -d`
 
@@ -212,6 +259,7 @@ Dockerfile  runtime image: the fat JAR on distroless Java 25, built and pushed t
 backend/    Ktor application (see docs/architecture.md for the module map)
 frontend/   Vite + React app, wrapped by Gradle; `pnpm dev` for the hot-reload loop (or `./start-dev.sh` for both)
 deploy/     systemd unit, docker compose file, environment template, JVM options for the Pi
+deploy/database/  the central MariaDB every application on the Pi shares (decision record 0018)
 docs/       architecture overview and decision records
 gradle/     wrapper and libs.versions.toml (single source of truth for JVM versions)
 ```
