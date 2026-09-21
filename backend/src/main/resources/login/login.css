@@ -1,24 +1,25 @@
+/*
+ * light-dark() resolves each value against color-scheme: the OS preference decides by default, and the
+ * .light/.dark class the inline script in login.html sets on <html> (from the shared "mt.mode" localStorage
+ * key) overrides it once the user has made a choice.
+ */
 :root {
   color-scheme: light dark;
-  --bg: #f4f6fa;
-  --fg: #1c2331;
-  --card: #ffffff;
-  --accent: #1f3a5f;
-  --error-bg: #fbe9e7;
-  --error-fg: #8a1c0d;
-  --border: #d4dae3;
+  --bg: light-dark(#f4f6fa, #121721);
+  --fg: light-dark(#1c2331, #e6eaf1);
+  --card: light-dark(#ffffff, #1b2230);
+  --accent: light-dark(#1f3a5f, #7fa7d8);
+  --error-bg: light-dark(#fbe9e7, #3a1d19);
+  --error-fg: light-dark(#8a1c0d, #ffb4a8);
+  --border: light-dark(#d4dae3, #2d3646);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121721;
-    --fg: #e6eaf1;
-    --card: #1b2230;
-    --accent: #7fa7d8;
-    --error-bg: #3a1d19;
-    --error-fg: #ffb4a8;
-    --border: #2d3646;
-  }
+:root.light {
+  color-scheme: light;
+}
+
+:root.dark {
+  color-scheme: dark;
 }
 
 * {

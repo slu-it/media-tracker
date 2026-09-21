@@ -20,6 +20,12 @@
     "en": "English",
     "de": "Deutsch"
   },
+  "theme": {
+    "switchTo": {
+      "light": "Switch to light mode",
+      "dark": "Switch to dark mode"
+    }
+  },
   "auth": {
     "logout": "Log out"
   },

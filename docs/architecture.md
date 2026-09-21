@@ -136,13 +136,15 @@ results with `isError: true` and the domain message, not as HTTP errors.
 ```
 frontend/src
 ├── main.tsx / App.tsx / AppProviders.tsx   i18n init, theme + CssBaseline, shell (AppHeader, MediaTabs, active view)
-├── theme/theme.ts        MUI theme: login-page palette, light/dark by OS preference, system font stack
+├── theme/                MUI theme: login-page palette, system font stack; light/dark from the header
+│                         toggle (mode.ts: localStorage key mt.mode, default "system" = OS preference)
 ├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
 ├── api/client.ts         apiFetch (401 -> /login, 204 -> undefined, ApiError with the parsed ErrorResponse)
 ├── types/api.ts          hand-written mirrors of the backend DTOs
 ├── hooks/                useLocalStorageState, useStoredTab (selected media tab), useDebouncedValue (search fields)
-├── components/           shared UI: layout/ (AppHeader, LanguageMenu, SettingsButton, LogoutButton, MediaTabs,
-│                         mediaKinds), dialog/ (BaseDialog, ConfirmDialog, DialogActionButton), CoverImage, ComingSoon
+├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
+│                         LogoutButton, MediaTabs, mediaKinds), dialog/ (BaseDialog, ConfirmDialog,
+│                         DialogActionButton), CoverImage, ComingSoon
 ├── features/settings/    UserSettingsDialog (tab bar; "API Keys" tab) + api/ (settingsApi), hooks/ (useApiKeys),
 │                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"

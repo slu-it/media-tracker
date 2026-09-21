@@ -188,7 +188,13 @@ as `body`) on other non-2xx.
 the barrel import is an ESLint error), theme in `src/theme/theme.ts` (no `index.css`), i18next with typed keys: every
 UI string goes through `t()` and must exist in both `src/i18n/en.json` and `de.json` (a test compares key sets;
 platform labels come from the database via `/api/game-platforms`, not from the bundles). Hooks/constants/validators
-live in non-component files (react-refresh rule). Feature layout `src/features/<kind>/{api,domain,hooks,components}`
+live in non-component files (react-refresh rule). Light/dark is a two-state header toggle (ADR 0020):
+`theme.ts` uses `colorSchemeSelector: "class"`, `components/layout/ThemeModeToggle.tsx` drives MUI's `useColorScheme`,
+and `AppProviders` lets `ThemeProvider` persist the mode (`defaultMode="system"`, `noSsr`) under the localStorage key
+`mt.mode` from `src/theme/mode.ts`. That key is hard-coded in three places - `mode.ts`, the pre-paint script in
+`frontend/index.html`, and the one in `backend/src/main/resources/login/login.html`, whose CSS uses `light-dark()` so
+the login page follows the same choice; a test pins each of the three copies (ADR 0020 lists them).
+Feature layout `src/features/<kind>/{api,domain,hooks,components}`
 + `<Kind>View.tsx`; domain constraints are mirrored as validators returning i18n codes and wrapped in
 self-validating field components. Common dialogs: `components/dialog/BaseDialog` (round protruding close button,
 optional left action column with top and bottom slots, optional fixed height, and `contentScroll="children"`) and

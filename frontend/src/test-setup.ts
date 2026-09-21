@@ -50,6 +50,9 @@ afterEach(async () => {
   // behind, so the next test would not see an empty localStorage.
   await i18n.changeLanguage("en");
   localStorage.clear();
+  // MUI's cssVariables color scheme adds "light"/"dark" to <html>; with isolate: false that would leak into
+  // the next test file's first render, which reads the class before any of its own mode changes happen.
+  document.documentElement.classList.remove("light", "dark");
   const problems: string[] = [];
   if (errors.length > 0) {
     problems.push(`Unexpected console.error during test: ${errors[0].map((part) => String(part)).join(" ")}`);
