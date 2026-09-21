@@ -2,9 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../../api/client";
 import type { GameResponse, PageResponse } from "../../../types/api";
 import { listGames } from "../api/gamesApi";
+import { filtersKey, type GameFilters } from "../domain/gameFilters";
 
 interface Loaded {
-  /** Which (page, pageSize, reload, search) request this result belongs to. */
+  /** Which (page, pageSize, reload, search, filters) request this result belongs to. */
   key: string;
   data: PageResponse<GameResponse> | null;
   error: string | null;
@@ -19,15 +20,23 @@ export interface GamesPageState {
 }
 
 /** Loads one page of games; `reload()` refetches the same page (after create/update/delete). */
-export function useGamesPage(page: number, pageSize: number, search: string, loadErrorText: string): GamesPageState {
+export function useGamesPage(
+  page: number,
+  pageSize: number,
+  search: string,
+  filters: GameFilters,
+  loadErrorText: string,
+): GamesPageState {
   const [reloadToken, setReloadToken] = useState(0);
-  // `search` last: it changes independently of page/pageSize/reload and should not shadow those in the key.
-  const key = `${page}:${pageSize}:${reloadToken}:${search}`;
+  // `filtersKey` rather than the object, so the same selection made in a different order is the same request.
+  const filterKey = filtersKey(filters);
+  // `search` and `filterKey` last: they change independently of page/pageSize/reload and should not shadow those.
+  const key = `${page}:${pageSize}:${reloadToken}:${search}:${filterKey}`;
   const [loaded, setLoaded] = useState<Loaded>({ key: "", data: null, error: null });
 
   useEffect(() => {
     let cancelled = false;
-    listGames(page, pageSize, search)
+    listGames(page, pageSize, search, filters)
       .then((data) => {
         if (!cancelled) setLoaded({ key, data, error: null });
       })
@@ -37,7 +46,7 @@ export function useGamesPage(page: number, pageSize: number, search: string, loa
     return () => {
       cancelled = true;
     };
-  }, [key, page, pageSize, search, loadErrorText]);
+  }, [key, page, pageSize, search, filters, loadErrorText]);
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 

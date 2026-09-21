@@ -41,6 +41,18 @@ export interface GamePlatformResponse {
   associatedColor: string;
 }
 
+/** The filter values that actually occur in the stored games; mirrors `GameMetaResponse` in games/api/GameDtos.kt. */
+export interface GameMetaResponse {
+  /** Only platforms in use, alphabetically by label. */
+  platforms: GamePlatformResponse[];
+  /** Only values in use, in enum declaration order. */
+  ownership: Ownership[];
+  /** Only values in use, in enum declaration order. */
+  progress: Progress[];
+  /** Only years in use, ascending. */
+  releaseYears: number[];
+}
+
 export interface GameResponse {
   id: string;
   title: string;

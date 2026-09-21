@@ -7,10 +7,13 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
+import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
+import de.sluit.mediatracker.games.domain.ReleaseYear
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.McpJson
@@ -20,12 +23,14 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.elementNames
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -55,7 +60,11 @@ private const val ADD_GAME_DESCRIPTION =
 private const val SEARCH_GAMES_DESCRIPTION =
     "Searches the tracked games by title and description and returns the 10 best matches, title matches first, " +
         "best match first. Any word may match; each word is treated as a prefix (\"zel\" finds \"Zelda\"). " +
-        "Each match carries the id update_game needs to change it."
+        "platformIds, ownership, progress and releaseYears narrow the search: several values inside one filter " +
+        "mean \"any of\" (e.g. ownership: [\"owned\",\"watchlist\"] matches either), but every filter that is " +
+        "given has to match. platformIds are game_platforms.id values; call list_game_platforms first to get " +
+        "them. At least one of query or a filter is required. Each match carries the id update_game needs to " +
+        "change it."
 
 private const val UPDATE_GAME_DESCRIPTION =
     "Updates a game that is already tracked. id is the game's id as returned by search_games - never guess or " +
@@ -141,6 +150,7 @@ private val ADD_GAME_SCHEMA = ToolSchema(
     required = listOf("title", "releaseYear", "platformIds"),
 )
 
+// Mirrors GameFilters; the enum arrays are built from the domain entries so the schema cannot drift from it.
 private val SEARCH_GAMES_SCHEMA = ToolSchema(
     properties = buildJsonObject {
         putJsonObject("query") {
@@ -149,8 +159,52 @@ private val SEARCH_GAMES_SCHEMA = ToolSchema(
             put("minLength", 1)
             put("maxLength", SearchTerm.MAX_LENGTH)
         }
+        putJsonObject("platformIds") {
+            put("type", "array")
+            put(
+                "description",
+                "Only games released on one of these platforms, ids from list_game_platforms.",
+            )
+            putJsonObject("items") {
+                put("type", "string")
+                put("format", "uuid")
+            }
+            put("uniqueItems", true)
+            put("maxItems", MAX_FILTER_VALUES)
+        }
+        putJsonObject("ownership") {
+            put("type", "array")
+            put("description", "Only games whose ownership is one of these values.")
+            putJsonObject("items") {
+                put("type", "string")
+                putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
+            }
+            put("uniqueItems", true)
+            put("maxItems", MAX_FILTER_VALUES)
+        }
+        putJsonObject("progress") {
+            put("type", "array")
+            put("description", "Only games whose progress is one of these values.")
+            putJsonObject("items") {
+                put("type", "string")
+                putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
+            }
+            put("uniqueItems", true)
+            put("maxItems", MAX_FILTER_VALUES)
+        }
+        putJsonObject("releaseYears") {
+            put("type", "array")
+            put("description", "Only games released in one of these years.")
+            putJsonObject("items") {
+                put("type", "integer")
+                put("minimum", ReleaseYear.MIN)
+                put("maximum", ReleaseYear.MAX)
+            }
+            put("uniqueItems", true)
+            put("maxItems", MAX_FILTER_VALUES)
+        }
     },
-    required = listOf("query"),
+    required = emptyList(),
 )
 
 // Mirrors the constraints value classes enforce in games/domain/GameValues.kt.
@@ -243,6 +297,11 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
 @OptIn(ExperimentalSerializationApi::class)
 private val UPDATE_GAME_FIELDS: Set<String> = UpdateGameRequest.serializer().descriptor.elementNames.toSet()
 
+// Same reasoning as UPDATE_GAME_FIELDS: search_games has no request DTO (its arguments are read by hand into a
+// GameFilters), so the accepted names are derived from SEARCH_GAMES_SCHEMA's own property keys instead, which
+// keeps the guard from drifting from the schema an agent actually sees.
+private val SEARCH_GAMES_FIELDS: Set<String> = SEARCH_GAMES_SCHEMA.properties!!.keys
+
 // The PatchField-backed fields are the only ones that accept null to clear themselves; every other field on
 // UpdateGameRequest is a plain nullable type where null would silently mean "unchanged" instead of "clear", so
 // it is derived as everything else rather than hand-listed - a new plain nullable field is unclearable by
@@ -311,19 +370,33 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
         toolAnnotations = ToolAnnotations(readOnlyHint = true),
     ) { request ->
         try {
-            val raw = (request.arguments ?: JsonObject(emptyMap())).stringOrNull("query")
-            val term = SearchTerm.parseOrNull(raw, field = "query")
-                ?: throw InvalidValueException("query", "must not be blank")
-            val page = gameService.list(PageRequest(PageNumber.FIRST, SEARCH_GAMES_LIMIT), term)
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            // McpJson ignores unknown keys, which would turn a typo'd filter name (or the singular REST spelling)
+            // into a silently unfiltered search instead of an error; reject it here instead, as update_game does.
+            val unknown = arguments.keys - SEARCH_GAMES_FIELDS
+            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            val term = SearchTerm.parseOrNull(arguments.stringOrNull("query"), field = "query")
+            val filters = GameFilters(
+                platformIds = arguments.stringArrayOrNull("platformIds")
+                    ?.map(GamePlatformId::parse)?.toSet() ?: emptySet(),
+                ownership = arguments.stringArrayOrNull("ownership")?.map(Ownership::from)?.toSet() ?: emptySet(),
+                progress = arguments.stringArrayOrNull("progress")?.map(Progress::from)?.toSet() ?: emptySet(),
+                releaseYears = arguments.intArrayOrNull("releaseYears")
+                    ?.map(::ReleaseYear)?.toSet() ?: emptySet(),
+            )
+            requireValid("query", term != null || !filters.isEmpty) { "provide a query or at least one filter" }
+            val page = gameService.list(PageRequest(PageNumber.FIRST, SEARCH_GAMES_LIMIT), term, filters)
             val games = page.items.map { it.toResponse() }
+            // Both a query and filters may be absent from the summary text: describe whichever was given.
+            val subject = term?.let { "\"$it\"" } ?: "the given filters"
             CallToolResult(
                 content = listOf(
                     TextContent(
                         if (games.isEmpty()) {
-                            "No games match \"$term\"."
+                            "No games match $subject."
                         } else {
                             // The tool never pages: say how many matches exist so a truncated list is recognisable.
-                            "${games.size} of ${page.totalItems} matches for \"$term\", best first:\n" +
+                            "${games.size} of ${page.totalItems} matches for $subject, best first:\n" +
                                 games.joinToString("\n") { "${it.title} (${it.releaseYear}): ${it.id}" }
                         },
                     ),
@@ -388,6 +461,28 @@ private fun JsonObject.stringOrNull(field: String): String? = when (val argument
         ?: throw InvalidValueException(field, "must be a string")
 
     else -> throw InvalidValueException(field, "must be a string")
+}
+
+private fun JsonObject.stringArrayOrNull(field: String): List<String>? = when (val argument = this[field]) {
+    null, is JsonNull -> null
+
+    is JsonArray -> argument.map { element ->
+        (element as? JsonPrimitive)?.takeIf { it.isString }?.content
+            ?: throw InvalidValueException(field, "must be an array of strings")
+    }
+
+    else -> throw InvalidValueException(field, "must be an array of strings")
+}
+
+private fun JsonObject.intArrayOrNull(field: String): List<Int>? = when (val argument = this[field]) {
+    null, is JsonNull -> null
+
+    is JsonArray -> argument.map { element ->
+        (element as? JsonPrimitive)?.intOrNull
+            ?: throw InvalidValueException(field, "must be an array of integers")
+    }
+
+    else -> throw InvalidValueException(field, "must be an array of integers")
 }
 
 private fun Exception.toErrorResult(): CallToolResult =

@@ -10,12 +10,14 @@ interface GamesGridProps {
   onOpen: (game: GameResponse) => void;
   /** Active search term, if any; switches the empty state to a search-specific message. */
   searchTerm?: string;
+  /** Whether a platform/ownership/progress/release-year filter is narrowing the list; see [searchTerm]. */
+  filtered?: boolean;
 }
 
 const GRID_SX = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 2, py: 2 };
 
 /** Responsive grid: as many columns as fit 200px cards. */
-export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm }: GamesGridProps) {
+export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm, filtered }: GamesGridProps) {
   const { t } = useTranslation();
   if (games === null) {
     return (
@@ -36,9 +38,16 @@ export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm }: GamesGri
     );
   }
   if (games.length === 0) {
+    // A search term wins over an active filter: it names the exact text the user typed, while the filter
+    // message only says "the selected filters" without listing them, so it is the less specific of the two.
+    const message = searchTerm
+      ? t("games.search.noResults", { term: searchTerm })
+      : filtered
+        ? t("games.filters.noResults")
+        : t("games.empty");
     return (
       <Typography color="text.secondary" align="center" sx={{ py: 6 }}>
-        {searchTerm ? t("games.search.noResults", { term: searchTerm }) : t("games.empty")}
+        {message}
       </Typography>
     );
   }

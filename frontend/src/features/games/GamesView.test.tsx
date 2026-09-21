@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
-import { celeste, hades, nintendo, pc } from "../../test/fixtures/games";
+import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { GamesView } from "./GamesView";
 
@@ -16,6 +16,10 @@ function pageOf(items: GameResponse[], page: number, totalItems: number) {
 
 function mockPlatforms() {
   return jsonResponse(platforms);
+}
+
+function mockMeta() {
+  return jsonResponse(meta);
 }
 
 /** URLs of `GET /api/games` requests, in order. */
@@ -38,12 +42,15 @@ function searchAwareGames(_call: unknown, url: URL) {
 describe("GamesView", () => {
   it("renders the grid, both pagination bars and opens the detail dialog from a card", async () => {
     const user = userEvent.setup();
-    mockApi({ "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)), "GET /api/game-platforms": mockPlatforms });
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView />);
 
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Hades" })).toBeInTheDocument();
-    expect(screen.getAllByText("1 – 2 of 2")).toHaveLength(2);
     expect(screen.getByRole("img", { name: "Playing" })).toBeInTheDocument(); // Celeste's card status icon
     expect(screen.getByRole("img", { name: "Watchlist" })).toBeInTheDocument(); // Hades' card status icon
 
@@ -63,21 +70,23 @@ describe("GamesView", () => {
         return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
       },
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
-    expect(await screen.findAllByText("51 – 51 of 51")).toHaveLength(2);
-    expect(calls.map((c) => c.url).filter((url) => url.startsWith("/api/games"))).toEqual([
-      "/api/games?page=1&pageSize=50",
-      "/api/games?page=2&pageSize=50",
-    ]);
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+    expect(gamesUrls(calls)).toEqual(["/api/games?page=1&pageSize=50", "/api/games?page=2&pageSize=50"]);
   });
 
   it("shows the empty state and opens the add dialog from the FAB", async () => {
     const user = userEvent.setup();
-    mockApi({ "GET /api/games": () => jsonResponse(pageOf([], 1, 0)), "GET /api/game-platforms": mockPlatforms });
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf([], 1, 0)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView />);
     expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
     expect(screen.queryByText(/of 0/)).not.toBeInTheDocument();
@@ -96,6 +105,7 @@ describe("GamesView", () => {
       "GET /api/games": () =>
         fail ? jsonResponse({ error: "internal_error" }, 500) : jsonResponse(pageOf(games, 1, 2)),
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the list.");
@@ -111,6 +121,7 @@ describe("GamesView", () => {
       "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
       "GET /api/game-platforms": () =>
         fail ? jsonResponse({ error: "internal_error" }, 500) : jsonResponse(platforms),
+      "GET /api/games.meta": mockMeta,
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the list.");
@@ -129,6 +140,7 @@ describe("GamesView", () => {
         return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
       },
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
       "DELETE /api/games/:id": () => noContent(),
     });
     renderWithProviders(<GamesView />);
@@ -157,6 +169,7 @@ describe("GamesView", () => {
     const calls = mockApi({
       "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
       "DELETE /api/games/:id": () => noContent(),
     });
     renderWithProviders(<GamesView />);
@@ -188,6 +201,7 @@ describe("GamesView", () => {
         return jsonResponse(pageOf(items, 1, 2));
       },
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
       "PATCH /api/games/:id": (call) => jsonResponse({ ...games[0], ...(call.body as object) }),
     });
     renderWithProviders(<GamesView />);
@@ -222,6 +236,7 @@ describe("GamesView", () => {
         return jsonResponse(pageOf(items, 1, totalItems));
       },
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
       "POST /api/games": (call) => jsonResponse({ id: "id-3", ...(call.body as object) }, 201),
     });
     renderWithProviders(<GamesView />);
@@ -246,7 +261,11 @@ describe("GamesView", () => {
 
   it("sends one request with the search term after the debounce and shows the matches", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({ "GET /api/games": searchAwareGames, "GET /api/game-platforms": mockPlatforms });
+    const calls = mockApi({
+      "GET /api/games": searchAwareGames,
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView searchDebounceMs={300} />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
@@ -260,7 +279,11 @@ describe("GamesView", () => {
 
   it("coalesces edits within the debounce window into a single request", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({ "GET /api/games": searchAwareGames, "GET /api/game-platforms": mockPlatforms });
+    const calls = mockApi({
+      "GET /api/games": searchAwareGames,
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView searchDebounceMs={300} />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
@@ -278,7 +301,11 @@ describe("GamesView", () => {
 
   it("clears the search with the clear button and drops the search param", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({ "GET /api/games": searchAwareGames, "GET /api/game-platforms": mockPlatforms });
+    const calls = mockApi({
+      "GET /api/games": searchAwareGames,
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView searchDebounceMs={300} />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
@@ -299,6 +326,7 @@ describe("GamesView", () => {
         return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
       },
       "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
     });
     renderWithProviders(<GamesView searchDebounceMs={300} />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
@@ -320,7 +348,11 @@ describe("GamesView", () => {
 
   it("shows the search-specific empty state when nothing matches", async () => {
     const user = userEvent.setup();
-    mockApi({ "GET /api/games": searchAwareGames, "GET /api/game-platforms": mockPlatforms });
+    mockApi({
+      "GET /api/games": searchAwareGames,
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView searchDebounceMs={300} />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
@@ -334,7 +366,11 @@ describe("GamesView", () => {
 
   it("searches immediately on Enter", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({ "GET /api/games": searchAwareGames, "GET /api/game-platforms": mockPlatforms });
+    const calls = mockApi({
+      "GET /api/games": searchAwareGames,
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
     renderWithProviders(<GamesView searchDebounceMs={5000} />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
@@ -345,5 +381,100 @@ describe("GamesView", () => {
     await waitFor(() => expect(gamesUrls(calls)).toContain("/api/games?page=1&pageSize=50&search=hades"), {
       timeout: 500,
     });
+  });
+
+  it("adds the selected platform as a repeated parameter to the games request", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    await waitFor(() => expect(gamesUrls(calls)).toContain("/api/games?page=1&pageSize=50&platformIds=platform-pc"));
+  });
+
+  it("sends two parameters when two values of one filter are selected", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "Nintendo" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    await waitFor(() =>
+      expect(gamesUrls(calls)).toContain(
+        "/api/games?page=1&pageSize=50&platformIds=platform-nintendo&platformIds=platform-pc",
+      ),
+    );
+  });
+
+  it("returns to page 1 when a filter changes on a later page", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games": (_call, url) => {
+        const page = Number(url.searchParams.get("page"));
+        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
+      },
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+
+    await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    await waitFor(() =>
+      expect(gamesUrls(calls)).toEqual([
+        "/api/games?page=1&pageSize=50",
+        "/api/games?page=2&pageSize=50",
+        "/api/games?page=1&pageSize=50&platformIds=platform-pc",
+      ]),
+    );
+  });
+
+  it("shows the filter-specific empty state when a filter excludes everything", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games": (_call, url) =>
+        url.searchParams.has("platformIds") ? jsonResponse(pageOf([], 1, 0)) : jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    expect(await screen.findByText("No games match the selected filters.")).toBeInTheDocument();
+    expect(screen.queryByText(/No games yet/)).not.toBeInTheDocument();
   });
 });

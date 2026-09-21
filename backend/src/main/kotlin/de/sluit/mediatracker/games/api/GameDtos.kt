@@ -7,6 +7,7 @@ import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.DEFAULT_HIDDEN
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.Game
+import de.sluit.mediatracker.games.domain.GameMeta
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
@@ -72,6 +73,15 @@ data class GameResponse(
     val hidden: Boolean,
 )
 
+/** GET /api/games.meta: the filter values that actually occur in the stored games, pre-ordered by the domain. */
+@Serializable
+data class GameMetaResponse(
+    val platforms: List<GamePlatformResponse>,
+    val ownership: List<String>,
+    val progress: List<String>,
+    val releaseYears: List<Int>,
+)
+
 // DTO <-> domain conversions. Constructing the value objects is the validation; failures surface as 400.
 
 fun CreateGameRequest.toNewGame() = NewGame(
@@ -112,4 +122,11 @@ fun Game.toResponse() = GameResponse(
     ownership = ownership.wire,
     progress = progress.wire,
     hidden = hidden,
+)
+
+fun GameMeta.toResponse() = GameMetaResponse(
+    platforms = platforms.map { it.toResponse() },
+    ownership = ownership.map { it.wire },
+    progress = progress.map { it.wire },
+    releaseYears = releaseYears.map { it.value },
 )

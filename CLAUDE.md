@@ -25,7 +25,12 @@ is a development requirement). MT-007 added three status fields to a game - `own
 in `games/domain/GameStatus.kt` whose `wire` value (`name.lowercase()`) is what the `VARCHAR(32)` column, the DTOs
 and the MCP tool schemas all use (ADR 0017: closed sets are enums, extensible vocabulary is a seeded table as in
 ADR 0009). They are set on create and edit, shown as icons after the title in the detail dialog and on the grid
-card, and do not affect search, listing or paging.
+card, and do not affect search, listing or paging. The game list is filterable by platform, ownership, progress
+and release year (ADR 0021): four repeatable query parameters on `GET /api/games` that OR within one filter and
+AND across filters, any of which takes the same repository branch as a search; the values to offer come from
+`GET /api/games.meta` (`.meta` is the convention for a resource's lookup data) and are only the ones that occur
+in a stored game; `search_games` takes the same filters and its `query` is now optional. `V007` indexes the three
+filterable `games` columns.
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -204,10 +209,13 @@ fixed `height` and hands the scrolling to a child: the games dialogs pair it wit
 field column scrolls, while at `xs` the layout stacks and scrolls as one. A media kind copying the games dialogs
 copies both flags. The responsive `sx` behind this is invisible to jsdom (it evaluates no MUI breakpoint, not even
 `xs`) and jsdom has no layout engine, so the frozen layout is verified by eye, not by a test.
-The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default. The games search field
+The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default. Above the games grid sit the search field, the four
+`-all-` filter multi-selects of `components/GameFilterBar.tsx` (fed by `hooks/useGamesMeta.ts`) and a
+`PaginationBar` capped to five page buttons via MUI's `boundaryCount`/`siblingCount`. The games search field
 debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 1 s), `listGames` appends `search=` only
-when non-blank, and `GamesView` derives the page-1 reset from state (`paging.search === debouncedSearch`) instead of
-an effect: the react-hooks preset in `eslint.config.js` makes `set-state-in-effect` an error.
+when non-blank, and `GamesView` derives the page-1 reset from state (the stored page is paired with the search term
+and the filter key it was chosen for) instead of an effect: the react-hooks preset in `eslint.config.js` makes
+`set-state-in-effect` an error.
 
 **Backend tests** (levels and rules in ADR 0011; one behaviour per method, backtick names that read as a sentence,
 no `. / < > : [ ] ; \`). Domain unit tests (no framework); service unit tests with MockK (`coEvery`/`coVerify` on

@@ -32,6 +32,12 @@ object GamesTable : Table("games") {
         // after Flyway and Index.equals ignores indexType.
         index("ft_games_title", false, title, indexType = "FULLTEXT")
         index("ft_games_description", false, description, indexType = "FULLTEXT")
+
+        // V007: filter indexes (game filters, ADR 0021). Mostly for findUsedFilterValues()'s DISTINCT selects;
+        // see the migration comment for why they rarely help the filtered listing itself.
+        index("idx_games_ownership", false, ownership)
+        index("idx_games_progress", false, progress)
+        index("idx_games_release_year", false, releaseYear)
     }
 }
 

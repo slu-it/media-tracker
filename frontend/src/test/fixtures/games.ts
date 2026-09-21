@@ -1,4 +1,4 @@
-import type { GamePlatformResponse, GameResponse } from "../../types/api";
+import type { GameMetaResponse, GamePlatformResponse, GameResponse } from "../../types/api";
 
 export const pc: GamePlatformResponse = { id: "platform-pc", label: "PC", associatedColor: "757575" };
 export const playstation: GamePlatformResponse = {
@@ -38,4 +38,11 @@ export const hades: GameResponse = {
   ownership: "watchlist",
   progress: "completed",
   hidden: true,
+};
+
+export const meta: GameMetaResponse = {
+  platforms: [nintendo, pc],
+  ownership: ["watchlist", "owned"],
+  progress: ["playing", "completed"],
+  releaseYears: [2018, 2020],
 };

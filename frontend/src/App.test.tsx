@@ -8,6 +8,7 @@ import { jsonResponse, mockApi } from "./test/mockFetch";
 import { renderWithProviders } from "./test/renderWithProviders";
 
 const emptyPage = { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 };
+const emptyMeta = { platforms: [], ownership: [], progress: [], releaseYears: [] };
 
 describe("App", () => {
   it("shows the header, the tabs in order and the books view by default", () => {
@@ -30,6 +31,7 @@ describe("App", () => {
     mockApi({
       "GET /api/games": () => jsonResponse(emptyPage),
       "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
     });
     renderWithProviders(<App />);
     await user.click(screen.getByRole("tab", { name: "Games" }));
@@ -87,6 +89,7 @@ describe("App", () => {
     mockApi({
       "GET /api/games": () => jsonResponse(emptyPage),
       "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
     });
     renderWithProviders(<App />);
     await screen.findByText(/No games yet/);

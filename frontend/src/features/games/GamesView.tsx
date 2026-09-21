@@ -6,11 +6,14 @@ import type { GameResponse } from "../../types/api";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { AddGameDialog } from "./components/AddGameDialog";
 import { GameDetailDialog } from "./components/GameDetailDialog";
+import { GameFilterBar } from "./components/GameFilterBar";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
 import { PaginationBar } from "./components/PaginationBar";
+import { EMPTY_FILTERS, filtersKey, hasActiveFilters, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
 import { useGamePlatforms } from "./hooks/useGamePlatforms";
+import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
 
 interface GamesViewProps {
@@ -25,14 +28,24 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
   const { t } = useTranslation();
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, flushSearch] = useDebouncedValue(searchInput.trim(), searchDebounceMs);
-  // The page is stored together with the search term it was chosen for, so a new term evaluates to page 1
-  // in the same render: no reset effect, no redundant request for the stale page. Clearing the search returns
-  // to the page that was open before searching (the stored page belongs to the empty term).
-  const [paging, setPaging] = useState({ page: 1, search: "" });
-  const page = paging.search === debouncedSearch ? paging.page : 1;
-  const setPage = (next: number) => setPaging({ page: next, search: debouncedSearch });
-  const { data, loading, error, reload } = useGamesPage(page, GAMES_PAGE_SIZE, debouncedSearch, t("errors.loadFailed"));
+  const [filters, setFilters] = useState<GameFilters>(EMPTY_FILTERS);
+  const filtersValue = filtersKey(filters);
+  // The page is stored together with the search term and filter selection it was chosen for, so a new term or
+  // a filter change evaluates to page 1 in the same render: no reset effect, no redundant request for the stale
+  // page. Clearing the search/filters returns to the page that was open before (the stored page belongs to the
+  // empty term/filters).
+  const [paging, setPaging] = useState({ page: 1, search: "", filters: filtersKey(EMPTY_FILTERS) });
+  const page = paging.search === debouncedSearch && paging.filters === filtersValue ? paging.page : 1;
+  const setPage = (next: number) => setPaging({ page: next, search: debouncedSearch, filters: filtersValue });
+  const { data, loading, error, reload } = useGamesPage(
+    page,
+    GAMES_PAGE_SIZE,
+    debouncedSearch,
+    filters,
+    t("errors.loadFailed"),
+  );
   const { platforms, error: platformsError, reload: reloadPlatforms } = useGamePlatforms(t("errors.loadFailed"));
+  const { meta, error: metaError, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<GameResponse | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
@@ -40,7 +53,6 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
     <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
       <PaginationBar
         page={data.page}
-        pageSize={data.pageSize}
         totalItems={data.totalItems}
         totalPages={data.totalPages}
         onPageChange={setPage}
@@ -51,6 +63,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
 
   const onDeleted = () => {
     setSelected(null);
+    reloadMeta();
     // Removing the last item of a later page: step back instead of showing an empty page.
     if (data && data.items.length === 1 && page > 1) setPage(page - 1);
     else reload();
@@ -58,13 +71,14 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
 
   return (
     <Box sx={{ pb: 12 }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center", minHeight: 64 }}>
+      <Stack direction="row" spacing={2} sx={{ alignItems: "center", minHeight: 64, flexWrap: "wrap", rowGap: 2 }}>
         <GameSearchField
           value={searchInput}
           onChange={setSearchInput}
           onClear={() => setSearchInput("")}
           onSubmit={flushSearch}
         />
+        <GameFilterBar filters={filters} onChange={setFilters} meta={meta} />
         <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>{pagination}</Box>
       </Stack>
       <Divider />
@@ -78,7 +92,17 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
           {platformsError}
         </Alert>
       )}
-      <GamesGrid games={data?.items ?? null} onOpen={setSelected} searchTerm={debouncedSearch} />
+      {metaError && (
+        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}>
+          {metaError}
+        </Alert>
+      )}
+      <GamesGrid
+        games={data?.items ?? null}
+        onOpen={setSelected}
+        searchTerm={debouncedSearch}
+        filtered={hasActiveFilters(filters)}
+      />
       <Divider />
       {pagination}
 
@@ -98,6 +122,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
         onSaved={(updated) => {
           setSelected(updated);
           reload();
+          reloadMeta();
         }}
         onDeleted={onDeleted}
         platforms={platforms}
@@ -108,6 +133,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
         onCreated={() => {
           setAddOpen(false);
           reload();
+          reloadMeta();
         }}
         platforms={platforms}
       />

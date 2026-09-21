@@ -43,11 +43,25 @@ class GameService(private val games: GameRepository, private val platforms: Game
         games.deleteById(id)
     }
 
-    /** Decides between the title-ordered page ([search] absent) and the score-ordered search ([search] present). */
-    suspend fun list(request: PageRequest, search: SearchTerm?): Page<Game> =
-        if (search == null) games.findPage(request) else games.search(search, request)
+    /**
+     * Decides between the title-ordered page ([search] absent and [filters] empty) and the filtered/search
+     * listing (either one present).
+     */
+    suspend fun list(request: PageRequest, search: SearchTerm?, filters: GameFilters): Page<Game> =
+        if (search == null && filters.isEmpty) games.findPage(request) else games.search(search, filters, request)
 
     suspend fun listPlatforms(): List<GamePlatform> = platforms.findAll()
+
+    /** The filter values that actually occur in the stored games, ordered for display. */
+    suspend fun meta(): GameMeta {
+        val used = games.findUsedFilterValues()
+        return GameMeta(
+            platforms = platforms.findAll().filter { it.id in used.platformIds },
+            ownership = Ownership.entries.filter { it in used.ownership },
+            progress = Progress.entries.filter { it in used.progress },
+            releaseYears = used.releaseYears.sortedBy { it.value },
+        )
+    }
 
     private suspend fun resolvePlatforms(ids: Set<GamePlatformId>): List<GamePlatform> {
         val found = platforms.findByIds(ids)
