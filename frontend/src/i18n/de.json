@@ -20,6 +20,12 @@
     "en": "English",
     "de": "Deutsch"
   },
+  "theme": {
+    "switchTo": {
+      "light": "Zum hellen Design wechseln",
+      "dark": "Zum dunklen Design wechseln"
+    }
+  },
   "auth": {
     "logout": "Abmelden"
   },

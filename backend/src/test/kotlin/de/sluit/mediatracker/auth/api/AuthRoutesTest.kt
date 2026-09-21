@@ -66,6 +66,17 @@ class AuthRoutesTest {
     }
 
     @Test
+    fun `login page reads the shared color mode key`() = testApplication {
+        // Guards against the inline mode script drifting away from frontend/src/theme/mode.ts unnoticed:
+        // both read the same "mt.mode" localStorage key to apply light/dark mode before first paint.
+        val client = handlerApp()
+
+        val login = client.get("/login")
+        assertEquals(HttpStatusCode.OK, login.status)
+        assertContains(login.bodyAsText(), """localStorage.getItem("mt.mode")""")
+    }
+
+    @Test
     fun `login stylesheet is served publicly as text css`() = testApplication {
         val client = handlerApp()
 

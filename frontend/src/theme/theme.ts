@@ -2,11 +2,12 @@ import { createTheme } from "@mui/material/styles";
 
 /*
  * The palette mirrors the hand-written login page (backend/src/main/resources/login/login.css) so both surfaces
- * look like one application. Light/dark follow the OS preference through CSS media queries; there is no in-app
- * toggle. The font stack is the system one: the app is self-hosted and loads nothing from a CDN.
+ * look like one application. Light/dark follow the mode stored by the header toggle (src/theme/mode.ts),
+ * defaulting to the OS preference until the user picks one explicitly. The font stack is the system one: the app
+ * is self-hosted and loads nothing from a CDN.
  */
 export const appTheme = createTheme({
-  cssVariables: { colorSchemeSelector: "media" },
+  cssVariables: { colorSchemeSelector: "class" },
   colorSchemes: {
     light: {
       palette: {

@@ -5,6 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>SLU's Media Tracker</title>
+    <!-- MUI's InitColorSchemeScript is a React component and runs too late for a client-only SPA, so this
+         hand-written equivalent sets the class before mount so dark-mode users get no white flash. Keep the key in
+         sync with src/theme/mode.ts (MODE_STORAGE_KEY). The <style> below duplicates the two color-scheme rules MUI
+         emits for the same classes (theme.vars keeps MUI from setting color-scheme on <html> itself), so the very
+         first paint already matches; it must stay a stylesheet rule, not an inline style, or it would outrank MUI's
+         rules for the rest of the session. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem("mt.mode");
+          if (m !== "light" && m !== "dark") m = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          document.documentElement.classList.add(m);
+        } catch (e) {
+          /* storage unavailable: MUI applies the class after mount */
+        }
+      })();
+    </script>
+    <style>
+      .light {
+        color-scheme: light;
+      }
+      .dark {
+        color-scheme: dark;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

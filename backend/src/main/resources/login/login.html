@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex" />
     <title>Sign in - Media Tracker</title>
+    <!-- mt.mode is the shared storage key also read by frontend/src/theme/mode.ts -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem("mt.mode");
+          if (m === "light" || m === "dark") document.documentElement.classList.add(m);
+        } catch (e) {
+          /* storage unavailable: the OS preference decides */
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/login/static/login.css" />
   </head>
   <body>
