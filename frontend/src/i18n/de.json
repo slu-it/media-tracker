@@ -73,8 +73,13 @@
       "clear": "Suche löschen",
       "noResults": "Keine Spiele passen zu „{{term}}“"
     },
-    "pagination": {
-      "range": "{{from}} – {{to}} von {{total}}"
+    "filters": {
+      "all": "-alle-",
+      "platform": "Plattform",
+      "ownership": "Besitzstatus",
+      "progress": "Fortschritt",
+      "releaseYear": "Erscheinungsjahr",
+      "noResults": "Keine Spiele passen zu den gewählten Filtern."
     },
     "fields": {
       "title": "Titel",

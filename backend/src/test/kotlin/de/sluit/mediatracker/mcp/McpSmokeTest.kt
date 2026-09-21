@@ -155,6 +155,47 @@ class McpSmokeTest {
     }
 
     @Test
+    fun `search_games narrows the matches by the filters passed alongside the query`() = testApplication {
+        val (_, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val platforms = mcp.callTool("list_game_platforms", emptyMap())
+            val pcId = platforms.structuredContent!!["platforms"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "PC" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            mcp.callTool(
+                "add_game",
+                mapOf("title" to "Hades", "releaseYear" to 2020, "platformIds" to listOf(pcId)),
+            )
+            mcp.callTool(
+                "add_game",
+                mapOf(
+                    "title" to "Hades II",
+                    "releaseYear" to 2024,
+                    "platformIds" to listOf(pcId),
+                    "ownership" to "owned",
+                ),
+            )
+
+            val result = mcp.callTool(
+                "search_games",
+                mapOf("query" to "hades", "ownership" to listOf("owned")),
+            )
+
+            assertNotEquals(true, result.isError)
+            val titles = result.structuredContent!!["games"]!!.jsonArray
+                .map { it.jsonObject["title"]!!.jsonPrimitive.content }
+            assertEquals(listOf("Hades II"), titles)
+        } finally {
+            mcp.close()
+            transaction { GamesTable.deleteAll() }
+        }
+    }
+
+    @Test
     fun `search_games then update_game changes only the fields that were passed`() = testApplication {
         val (sessionClient, key) = loggedInClientWithApiKey()
         val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))

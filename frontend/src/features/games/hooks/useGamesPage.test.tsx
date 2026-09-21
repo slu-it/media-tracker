@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
+import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
 import { useGamesPage } from "./useGamesPage";
 
 const page = (n: number) => ({ items: [], page: n, pageSize: 50, totalItems: 0, totalPages: 0 });
@@ -11,7 +12,7 @@ describe("useGamesPage", () => {
     const calls = mockApi({
       "GET /api/games": (_call, url) => jsonResponse(page(Number(url.searchParams.get("page")))),
     });
-    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", "load failed"), {
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", EMPTY_FILTERS, "load failed"), {
       initialProps: { p: 1 },
     });
     expect(result.current.loading).toBe(true);
@@ -34,7 +35,7 @@ describe("useGamesPage", () => {
     mockApi({
       "GET /api/games": () => (fail ? jsonResponse({ error: "internal_error" }, 500) : jsonResponse(page(1))),
     });
-    const { result } = renderHook(() => useGamesPage(1, 50, "", "load failed"));
+    const { result } = renderHook(() => useGamesPage(1, 50, "", EMPTY_FILTERS, "load failed"));
     await waitFor(() => expect(result.current.data).not.toBeNull());
 
     fail = true;
@@ -52,7 +53,7 @@ describe("useGamesPage", () => {
         return new Promise<Response>((resolve) => resolvers.set(requestedPage, resolve));
       },
     });
-    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", "load failed"), {
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", EMPTY_FILTERS, "load failed"), {
       initialProps: { p: 1 },
     });
     resolvers.get(1)!(jsonResponse(page(1)));
@@ -76,7 +77,7 @@ describe("useGamesPage", () => {
         return new Promise<Response>((resolve) => resolvers.set(requestedPage, resolve));
       },
     });
-    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", "load failed"), {
+    const { result, rerender } = renderHook(({ p }) => useGamesPage(p, 50, "", EMPTY_FILTERS, "load failed"), {
       initialProps: { p: 1 },
     });
 
@@ -95,7 +96,7 @@ describe("useGamesPage", () => {
     const calls = mockApi({
       "GET /api/games": () => jsonResponse(page(1)),
     });
-    const { rerender } = renderHook(({ search }) => useGamesPage(1, 50, search, "load failed"), {
+    const { rerender } = renderHook(({ search }) => useGamesPage(1, 50, search, EMPTY_FILTERS, "load failed"), {
       initialProps: { search: "" },
     });
     await waitFor(() => expect(calls).toHaveLength(1));
@@ -109,7 +110,7 @@ describe("useGamesPage", () => {
     const calls = mockApi({
       "GET /api/games": () => jsonResponse(page(1)),
     });
-    renderHook(() => useGamesPage(1, 50, "", "load failed"));
+    renderHook(() => useGamesPage(1, 50, "", EMPTY_FILTERS, "load failed"));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].url).toBe("/api/games?page=1&pageSize=50");
   });
@@ -118,11 +119,34 @@ describe("useGamesPage", () => {
     const calls = mockApi({
       "GET /api/games": () => jsonResponse(page(1)),
     });
-    const { result } = renderHook(() => useGamesPage(1, 50, "hades", "load failed"));
+    const { result } = renderHook(() => useGamesPage(1, 50, "hades", EMPTY_FILTERS, "load failed"));
     await waitFor(() => expect(result.current.data).not.toBeNull());
 
     act(() => result.current.reload());
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1].url).toBe("/api/games?page=1&pageSize=50&search=hades");
+  });
+
+  it("adds the filter parameters to the query and refetches when the filters change", async () => {
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(page(1)),
+    });
+    const { rerender } = renderHook(
+      ({ filters }: { filters: GameFilters }) => useGamesPage(1, 50, "", filters, "load failed"),
+      { initialProps: { filters: EMPTY_FILTERS } },
+    );
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    const filters: GameFilters = {
+      platformIds: ["platform-pc", "platform-xbox"],
+      ownership: ["owned"],
+      progress: [],
+      releaseYears: [2018],
+    };
+    rerender({ filters });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].url).toBe(
+      "/api/games?page=1&pageSize=50&platformIds=platform-pc&platformIds=platform-xbox&ownership=owned&releaseYear=2018",
+    );
   });
 });

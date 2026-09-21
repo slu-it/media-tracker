@@ -50,8 +50,9 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
 - `POST /mcp` hosts an MCP server (official Kotlin SDK, stateless Streamable HTTP: JSON responses only, no SSE
   stream, no session id). Every POST gets a fresh `Server` with the tools of all features (`mcp/api/McpEndpoint.kt`,
   root `Routes.kt#mcpRoutes`); a tool call is one HTTP round trip. Tools so far: `list_game_platforms`,
-  `add_game` (same fields and optionality as `POST /api/games`), `search_games` (argument `query`, the ten best
-  matches of `GET /api/games?search=` without paging) and `update_game` (the fields of `PATCH /api/games/{id}` plus
+  `add_game` (same fields and optionality as `POST /api/games`), `search_games` (optional `query` plus the four optional
+  filter arrays `platformIds`, `ownership`, `progress`, `releaseYears`, the ten best matches of
+  `GET /api/games` without paging; at least one of query or filter is required) and `update_game` (the fields of `PATCH /api/games/{id}` plus
   the required `id`, which an agent looks up with `search_games`; only the fields passed are changed;
   `description`, `rating` and `coverImageUrl` accept `null` to clear, every other field rejects an explicit `null`
   rather than silently ignoring it), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
@@ -90,14 +91,16 @@ de.sluit.mediatracker
 ├── mcp/                technical domain, api layer only, knows no feature:
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
-    ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/game-platforms),
+    ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
+    │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
     │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games, update_game)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
-    │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform,
+    │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters/GameMeta,
     │                   GameRepository and GamePlatformRepository (interfaces), GameService
     └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository
-                        (findPage by title, search by fulltext score), FulltextQuery (boolean-mode text),
+                        (findPage by title, search by fulltext score and filters, findUsedFilterValues),
+                        FulltextQuery (boolean-mode text),
                         FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository
 ```
 
@@ -116,10 +119,11 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/me` | 200 `{"username"}` | |
 | `GET /api/me/api-keys` | 200 `ApiKeysResponse {primary, secondary}` | each a UUID string or `null` |
 | `POST /api/me/api-keys/{slot}` | 200 `ApiKeysResponse` | `slot` is `primary` or `secondary` (else 400); replaces that key, the old one stops working at once |
-| `GET /api/games?page=1&pageSize=50[&search=zelda]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty |
+| `GET /api/games?page=1&pageSize=50[&search=zelda][&filters]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty. Four repeatable filter parameters narrow the result: `platformIds`, `ownership`, `progress`, `releaseYear`; repetitions of one parameter mean "any of", different parameters all have to match, and an unknown value is a 400. Any filter takes the same branch as a search, without a term the title order stays (decision record 0021) |
 | `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `platformIds` (at least one seeded platform id), `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional; `ownership` (`watchlist`/`owned`, default `watchlist`), `progress` (`not_started`/`playing`/`finished`/`completed`/`paused`/`abandoned`, default `not_started`) and `hidden` (default `false`) optional, an unknown value is a 400 (decision record 0017) |
 | `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating` or `coverImageUrl`, `platformIds` replaces the whole set; `ownership`, `progress` and `hidden` cannot be cleared, so an explicit `null` on them means unchanged (as for `title`, `releaseYear` and `platformIds`); 404 for unknown ids |
 | `DELETE /api/games/{id}` | 204 | also for unknown ids (idempotent); junction rows go with the game (`ON DELETE CASCADE`) |
+| `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (ascending). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 
 Errors are `ErrorResponse {error, message?}` with codes `validation_error` (400, a value class rejected a field:
@@ -148,10 +152,12 @@ frontend/src
 ├── features/settings/    UserSettingsDialog (tab bar; "API Keys" tab) + api/ (settingsApi), hooks/ (useApiKeys),
 │                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
-└── features/games/       GamesView (search field + pagination bar above the grid) + api/ (gamesApi, ?search),
-                          hooks/ (useGamesPage), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS, gameDraft,
-                          gameStatus: ownership/progress values and defaults),
-                          components/ (grid, cards, GameSearchField, pagination, detail/add dialogs, fields/)
+└── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
+                          ?search and the filter parameters, games.meta), hooks/ (useGamesPage, useGamesMeta),
+                          domain/ (gameValues validators, SEARCH_DEBOUNCE_MS, gameDraft, gameFilters: the
+                          selection and its stable key, gameStatus: ownership/progress values and defaults),
+                          components/ (grid, cards, GameSearchField, GameFilterBar, pagination, detail/add
+                          dialogs, fields/)
 ```
 
 Browser state: `localStorage["mt.language"]` (`en`/`de`) and `localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/

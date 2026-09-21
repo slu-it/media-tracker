@@ -73,8 +73,13 @@
       "clear": "Clear search",
       "noResults": "No games match \"{{term}}\""
     },
-    "pagination": {
-      "range": "{{from}} – {{to}} of {{total}}"
+    "filters": {
+      "all": "-all-",
+      "platform": "Platform",
+      "ownership": "Ownership",
+      "progress": "Progress",
+      "releaseYear": "Release year",
+      "noResults": "No games match the selected filters."
     },
     "fields": {
       "title": "Title",

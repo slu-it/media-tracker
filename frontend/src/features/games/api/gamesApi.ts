@@ -1,23 +1,38 @@
 import { apiFetch } from "../../../api/client";
 import type {
   CreateGameRequest,
+  GameMetaResponse,
   GamePlatformResponse,
   GameResponse,
   PageResponse,
   UpdateGameRequest,
 } from "../../../types/api";
+import type { GameFilters } from "../domain/gameFilters";
 
 const BASE = "/api/games";
 
-export function listGames(page: number, pageSize: number, search = ""): Promise<PageResponse<GameResponse>> {
+export function listGames(
+  page: number,
+  pageSize: number,
+  search: string,
+  filters: GameFilters,
+): Promise<PageResponse<GameResponse>> {
   const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   const term = search.trim();
   if (term.length > 0) query.set("search", term);
+  for (const id of filters.platformIds) query.append("platformIds", id);
+  for (const value of filters.ownership) query.append("ownership", value);
+  for (const value of filters.progress) query.append("progress", value);
+  for (const year of filters.releaseYears) query.append("releaseYear", String(year));
   return apiFetch<PageResponse<GameResponse>>(`${BASE}?${query}`);
 }
 
 export function listGamePlatforms(): Promise<GamePlatformResponse[]> {
   return apiFetch<GamePlatformResponse[]>("/api/game-platforms");
+}
+
+export function getGamesMeta(): Promise<GameMetaResponse> {
+  return apiFetch<GameMetaResponse>("/api/games.meta");
 }
 
 export function createGame(body: CreateGameRequest): Promise<GameResponse> {

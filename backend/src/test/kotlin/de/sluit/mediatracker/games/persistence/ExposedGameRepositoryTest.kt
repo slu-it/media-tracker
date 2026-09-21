@@ -10,10 +10,12 @@ import de.sluit.mediatracker.common.persistence.withFreshDatabase
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
+import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import org.jetbrains.exposed.v1.core.eq
@@ -311,7 +313,7 @@ class ExposedGameRepositoryTest {
         repo.insert(hades)
         repo.insert(celeste)
 
-        val page = repo.search(SearchTerm("hades celeste"), PageRequest())
+        val page = repo.search(SearchTerm("hades celeste"), GameFilters.NONE, PageRequest())
 
         assertEquals(setOf(hades.id, celeste.id), page.items.map { it.id }.toSet())
         assertEquals(2, page.totalItems)
@@ -324,7 +326,7 @@ class ExposedGameRepositoryTest {
         repo.insert(zelda)
         repo.insert(game("Hades"))
 
-        val page = repo.search(SearchTerm("zel"), PageRequest())
+        val page = repo.search(SearchTerm("zel"), GameFilters.NONE, PageRequest())
 
         assertEquals(listOf(zelda.id), page.items.map { it.id })
     }
@@ -336,7 +338,7 @@ class ExposedGameRepositoryTest {
         repo.insert(zelda)
         repo.insert(game("Hades"))
 
-        val page = repo.search(SearchTerm("ze"), PageRequest())
+        val page = repo.search(SearchTerm("ze"), GameFilters.NONE, PageRequest())
 
         assertEquals(listOf(zelda.id), page.items.map { it.id })
     }
@@ -356,7 +358,7 @@ class ExposedGameRepositoryTest {
         repo.insert(descriptionMatch)
         repo.insert(unrelated)
 
-        val page = repo.search(SearchTerm("hades"), PageRequest())
+        val page = repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
 
         // With plain fulltext relevance (tf * idf^2 per index) the description-only game would win here:
         // "hades" appears in 2 of the 4 titles but only 1 of the 4 descriptions, so its per-index idf is
@@ -378,7 +380,7 @@ class ExposedGameRepositoryTest {
         repo.insert(alphaSecond)
         repo.insert(alphaFirst)
 
-        val page = repo.search(SearchTerm("hades"), PageRequest())
+        val page = repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
 
         assertEquals(listOf(alpha.id, beta.id, alphaFirst.id, alphaSecond.id), page.items.map { it.id })
     }
@@ -390,7 +392,7 @@ class ExposedGameRepositoryTest {
         repo.insert(match)
         repo.insert(game("Celeste"))
 
-        val page = repo.search(SearchTerm("roguelike"), PageRequest())
+        val page = repo.search(SearchTerm("roguelike"), GameFilters.NONE, PageRequest())
 
         assertEquals(listOf(match.id), page.items.map { it.id })
     }
@@ -400,7 +402,7 @@ class ExposedGameRepositoryTest {
         val repo = ExposedGameRepository()
         listOf("Hades One", "Hades Two", "Hades Three").forEach { repo.insert(game(it)) }
 
-        val page = repo.search(SearchTerm("hades"), PageRequest(PageNumber(2), PageSize(2)))
+        val page = repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest(PageNumber(2), PageSize(2)))
 
         assertEquals(1, page.items.size)
         assertEquals(3, page.totalItems)
@@ -415,11 +417,27 @@ class ExposedGameRepositoryTest {
         repo.insert(b)
         repo.insert(a)
 
-        val page = repo.search(SearchTerm("+-*"), PageRequest())
+        val page = repo.search(SearchTerm("+-*"), GameFilters.NONE, PageRequest())
 
         assertEquals(listOf(a.id, b.id), page.items.map { it.id })
         assertEquals(2, page.totalItems)
     }
+
+    @Test
+    fun `a term stripped to nothing falls back to the filtered listing instead of dropping the filters`() =
+        withFreshDatabase {
+            val repo = ExposedGameRepository()
+            val owned = game("Alpha", ownership = Ownership.OWNED)
+            val watchlisted = game("Beta", ownership = Ownership.WATCHLIST)
+            repo.insert(owned)
+            repo.insert(watchlisted)
+
+            val filters = GameFilters(ownership = setOf(Ownership.OWNED))
+            val page = repo.search(SearchTerm("+-*"), filters, PageRequest())
+
+            assertEquals(listOf(owned.id), page.items.map { it.id })
+            assertEquals(1, page.totalItems)
+        }
 
     @Test
     fun `search ignores boolean operators in the term`() = withFreshDatabase {
@@ -427,7 +445,7 @@ class ExposedGameRepositoryTest {
         val hades = game("Hades")
         repo.insert(hades)
 
-        val page = repo.search(SearchTerm("-hades"), PageRequest())
+        val page = repo.search(SearchTerm("-hades"), GameFilters.NONE, PageRequest())
 
         assertEquals(listOf(hades.id), page.items.map { it.id })
     }
@@ -437,7 +455,7 @@ class ExposedGameRepositoryTest {
         val repo = ExposedGameRepository()
         repo.insert(game("Hades"))
 
-        val page = repo.search(SearchTerm("zelda"), PageRequest())
+        val page = repo.search(SearchTerm("zelda"), GameFilters.NONE, PageRequest())
 
         assertEquals(emptyList(), page.items)
         assertEquals(0, page.totalItems)
@@ -449,12 +467,121 @@ class ExposedGameRepositoryTest {
         val twoPlatforms = listOf(Platforms.PC, Platforms.XBOX)
         (1..2).forEach { repo.insert(game("Hades $it", platforms = twoPlatforms)) }
 
-        val countWithTwoGames = countStatements(db.database) { repo.search(SearchTerm("hades"), PageRequest()) }
+        val countWithTwoGames = countStatements(db.database) {
+            repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
+        }
 
         (3..5).forEach { repo.insert(game("Hades $it", platforms = twoPlatforms)) }
-        val countWithFiveGames = countStatements(db.database) { repo.search(SearchTerm("hades"), PageRequest()) }
+        val countWithFiveGames = countStatements(db.database) {
+            repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
+        }
 
         assertEquals(3, countWithTwoGames)
         assertEquals(countWithTwoGames, countWithFiveGames)
+    }
+
+    // search - filters
+
+    @Test
+    fun `two values in one filter match either game`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val notStarted = game("Alpha", progress = Progress.NOT_STARTED)
+        val playing = game("Beta", progress = Progress.PLAYING)
+        val finished = game("Gamma", progress = Progress.FINISHED)
+        listOf(notStarted, playing, finished).forEach { repo.insert(it) }
+
+        val filters = GameFilters(progress = setOf(Progress.NOT_STARTED, Progress.PLAYING))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(setOf(notStarted.id, playing.id), page.items.map { it.id }.toSet())
+        assertEquals(2, page.totalItems)
+    }
+
+    @Test
+    fun `two different filters both have to match`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val matchesBoth = game("Alpha", ownership = Ownership.OWNED, progress = Progress.PLAYING)
+        val matchesOwnershipOnly = game("Beta", ownership = Ownership.OWNED, progress = Progress.FINISHED)
+        val matchesProgressOnly = game("Gamma", ownership = Ownership.WATCHLIST, progress = Progress.PLAYING)
+        listOf(matchesBoth, matchesOwnershipOnly, matchesProgressOnly).forEach { repo.insert(it) }
+
+        val filters = GameFilters(ownership = setOf(Ownership.OWNED), progress = setOf(Progress.PLAYING))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(listOf(matchesBoth.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
+    fun `a game on two selected platforms is returned once and counted once`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val onBothPlatforms = game("Celeste", platforms = listOf(Platforms.PC, Platforms.XBOX))
+        repo.insert(onBothPlatforms)
+
+        val filters = GameFilters(platformIds = setOf(Platforms.PC.id, Platforms.XBOX.id))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(listOf(onBothPlatforms.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
+    fun `filters narrow a fulltext search`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val owned = game("Hades", ownership = Ownership.OWNED)
+        val watchlisted = game("Hades Clone", ownership = Ownership.WATCHLIST)
+        repo.insert(owned)
+        repo.insert(watchlisted)
+
+        val filters = GameFilters(ownership = setOf(Ownership.OWNED))
+        val page = repo.search(SearchTerm("hades"), filters, PageRequest())
+
+        assertEquals(listOf(owned.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
+    fun `a filter-only call is ordered by title`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val c = game("C", ownership = Ownership.OWNED)
+        val a = game("A", ownership = Ownership.OWNED)
+        val b = game("B", ownership = Ownership.OWNED)
+        listOf(c, a, b).forEach { repo.insert(it) }
+        repo.insert(game("Unrelated", ownership = Ownership.WATCHLIST))
+
+        val filters = GameFilters(ownership = setOf(Ownership.OWNED))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(listOf(a.id, b.id, c.id), page.items.map { it.id })
+    }
+
+    @Test
+    fun `findUsedFilterValues returns only the values in use`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        repo.insert(
+            game(
+                "Alpha",
+                platforms = listOf(Platforms.PC),
+                releaseYear = 2010,
+                ownership = Ownership.OWNED,
+                progress = Progress.PLAYING,
+            ),
+        )
+        repo.insert(
+            game(
+                "Beta",
+                platforms = listOf(Platforms.XBOX),
+                releaseYear = 2015,
+                ownership = Ownership.WATCHLIST,
+                progress = Progress.FINISHED,
+            ),
+        )
+
+        val used = repo.findUsedFilterValues()
+
+        assertEquals(setOf(Platforms.PC.id, Platforms.XBOX.id), used.platformIds)
+        assertEquals(setOf(Ownership.OWNED, Ownership.WATCHLIST), used.ownership)
+        assertEquals(setOf(Progress.PLAYING, Progress.FINISHED), used.progress)
+        assertEquals(setOf(ReleaseYear(2010), ReleaseYear(2015)), used.releaseYears)
     }
 }

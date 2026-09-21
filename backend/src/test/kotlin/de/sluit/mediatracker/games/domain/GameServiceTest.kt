@@ -233,12 +233,12 @@ class GameServiceTest {
     }
 
     @Test
-    fun `list without a search term asks the repository for the page`() = runBlocking {
+    fun `list without a search term or filters asks the repository for the page`() = runBlocking {
         val request = PageRequest(PageNumber(2), PageSize(10))
         val page = Page(listOf(game("Listed")), request.page, request.size, totalItems = 11)
         coEvery { games.findPage(request) } returns page
 
-        val result = service.list(request, null)
+        val result = service.list(request, null, GameFilters.NONE)
 
         assertEquals(page, result)
     }
@@ -248,12 +248,39 @@ class GameServiceTest {
         val request = PageRequest(PageNumber(2), PageSize(10))
         val term = SearchTerm("zelda")
         val page = Page(listOf(game("The Legend of Zelda")), request.page, request.size, totalItems = 1)
-        coEvery { games.search(term, request) } returns page
+        coEvery { games.search(term, GameFilters.NONE, request) } returns page
 
-        val result = service.list(request, term)
+        val result = service.list(request, term, GameFilters.NONE)
 
         assertEquals(page, result)
         coVerify(exactly = 0) { games.findPage(any()) }
+    }
+
+    @Test
+    fun `list with filters but no search term takes the search branch`() = runBlocking {
+        val request = PageRequest(PageNumber(1), PageSize(10))
+        val filters = GameFilters(ownership = setOf(Ownership.OWNED))
+        val page = Page(listOf(game("Owned Game")), request.page, request.size, totalItems = 1)
+        coEvery { games.search(null, filters, request) } returns page
+
+        val result = service.list(request, null, filters)
+
+        assertEquals(page, result)
+        coVerify(exactly = 0) { games.findPage(any()) }
+    }
+
+    @Test
+    fun `list with both a search term and filters passes both to the repository`() = runBlocking {
+        val request = PageRequest(PageNumber(1), PageSize(10))
+        val term = SearchTerm("zelda")
+        val filters = GameFilters(progress = setOf(Progress.PLAYING))
+        val page = Page(listOf(game("The Legend of Zelda")), request.page, request.size, totalItems = 1)
+        coEvery { games.search(term, filters, request) } returns page
+
+        val result = service.list(request, term, filters)
+
+        assertEquals(page, result)
+        coVerify { games.search(term, filters, request) }
     }
 
     @Test
@@ -265,4 +292,25 @@ class GameServiceTest {
 
         assertEquals(all, result)
     }
+
+    @Test
+    fun `meta composes enum order label order and ascending years from a deliberately unordered repository answer`() =
+        runBlocking {
+            val labelOrdered = listOf(Platforms.NINTENDO, Platforms.PC, Platforms.PLAYSTATION, Platforms.XBOX)
+            coEvery { platforms.findAll() } returns labelOrdered
+            val used = GameFilters(
+                platformIds = setOf(Platforms.XBOX.id, Platforms.NINTENDO.id),
+                ownership = setOf(Ownership.OWNED, Ownership.WATCHLIST),
+                progress = setOf(Progress.ABANDONED, Progress.NOT_STARTED, Progress.PLAYING),
+                releaseYears = setOf(ReleaseYear(2020), ReleaseYear(1998), ReleaseYear(2010)),
+            )
+            coEvery { games.findUsedFilterValues() } returns used
+
+            val result = service.meta()
+
+            assertEquals(listOf(Platforms.NINTENDO, Platforms.XBOX), result.platforms)
+            assertEquals(listOf(Ownership.WATCHLIST, Ownership.OWNED), result.ownership)
+            assertEquals(listOf(Progress.NOT_STARTED, Progress.PLAYING, Progress.ABANDONED), result.progress)
+            assertEquals(listOf(ReleaseYear(1998), ReleaseYear(2010), ReleaseYear(2020)), result.releaseYears)
+        }
 }

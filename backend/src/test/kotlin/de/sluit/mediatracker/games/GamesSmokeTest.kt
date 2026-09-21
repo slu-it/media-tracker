@@ -3,6 +3,7 @@ package de.sluit.mediatracker.games
 import de.sluit.mediatracker.appWithUser
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
+import de.sluit.mediatracker.games.api.GameMetaResponse
 import de.sluit.mediatracker.games.api.GamePlatformResponse
 import de.sluit.mediatracker.games.api.GameResponse
 import de.sluit.mediatracker.games.persistence.GameToPlatformTable
@@ -157,6 +158,24 @@ class GamesSmokeTest {
     }
 
     @Test
+    fun `list with an ownership filter returns only games with that ownership`() = testApplication {
+        val client = loggedInClient()
+        client.createGame(
+            """{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"],"ownership":"owned"}""",
+        )
+        client.createGame(
+            """{"title":"Celeste","releaseYear":2018,"platformIds":["${SeededPlatforms.PC}"],
+                |"ownership":"watchlist"}
+            """.trimMargin(),
+        )
+
+        val page = client.get("/api/games?ownership=owned").decodeBody<PageResponse<GameResponse>>()
+
+        assertEquals(listOf("Hades"), page.items.map { it.title })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
     fun `list returns the games ordered by title with the paging totals`() = testApplication {
         val client = loggedInClient { seedGames(3) }
 
@@ -290,6 +309,23 @@ class GamesSmokeTest {
         assertEquals(listOf("Nintendo", "PC", "PlayStation", "Xbox"), platforms.map { it.label })
         assertEquals(SeededPlatforms.PC, platforms.first { it.label == "PC" }.id)
         assertEquals("757575", platforms.first { it.label == "PC" }.associatedColor)
+    }
+
+    @Test
+    fun `games meta lists only the filter values actually in use`() = testApplication {
+        val client = loggedInClient()
+        client.createGame(
+            """{"title":"Hades","releaseYear":2020,"platformIds":["${SeededPlatforms.PC}"],
+                |"ownership":"owned","progress":"playing"}
+            """.trimMargin(),
+        )
+
+        val meta = client.get("/api/games.meta").decodeBody<GameMetaResponse>()
+
+        assertEquals(listOf("PC"), meta.platforms.map { it.label })
+        assertEquals(listOf("owned"), meta.ownership)
+        assertEquals(listOf("playing"), meta.progress)
+        assertEquals(listOf(2020), meta.releaseYears)
     }
 
     private companion object {

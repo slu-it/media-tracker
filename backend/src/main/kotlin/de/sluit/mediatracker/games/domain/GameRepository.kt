@@ -23,10 +23,15 @@ interface GameRepository {
     suspend fun findPage(request: PageRequest): Page<Game>
 
     /**
-     * Fulltext matches on title and description, games with a title hit first, then by the weighted score, then
-     * title, then id. A term that contains no searchable word behaves like [findPage].
+     * Filtered and/or fulltext-searched listing. With a [term], fulltext matches on title and description order
+     * games with a title hit first, then by the weighted score, then title, then id; without one, the ordering
+     * is title, then id, same as [findPage]. [filters] AND across categories, OR (IN) inside one; an empty
+     * [GameFilters] applies no predicate. A term that contains no searchable word behaves as if it were absent.
      */
-    suspend fun search(term: SearchTerm, request: PageRequest): Page<Game>
+    suspend fun search(term: SearchTerm?, filters: GameFilters, request: PageRequest): Page<Game>
+
+    /** The distinct values each filter category currently has across all games, unordered. */
+    suspend fun findUsedFilterValues(): GameFilters
 }
 
 /**

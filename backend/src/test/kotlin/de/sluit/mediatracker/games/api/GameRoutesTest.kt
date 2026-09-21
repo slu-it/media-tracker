@@ -16,7 +16,9 @@ import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.GameMeta
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
@@ -90,10 +92,12 @@ class GameRoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/games").status)
         assertEquals(HttpStatusCode.Unauthorized, client.createGame("{}").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/game-platforms").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/games.meta").status)
 
         coVerify(exactly = 0) { games.create(any()) }
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
         coVerify(exactly = 0) { games.listPlatforms() }
+        coVerify(exactly = 0) { games.meta() }
     }
 
     // ---- create ----
@@ -403,22 +407,22 @@ class GameRoutesTest {
     fun `list without parameters asks the service for page 1 of 50`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
-        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+        coEvery { games.list(any(), any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
 
         client.get("/api/games")
 
-        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), null) }
+        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), null, GameFilters.NONE) }
     }
 
     @Test
     fun `list passes page and page size to the service`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
-        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber(3), PageSize(10), 0)
+        coEvery { games.list(any(), any(), any()) } returns Page(emptyList(), PageNumber(3), PageSize(10), 0)
 
         client.get("/api/games?page=3&pageSize=10")
 
-        coVerify { games.list(PageRequest(PageNumber(3), PageSize(10)), null) }
+        coVerify { games.list(PageRequest(PageNumber(3), PageSize(10)), null, GameFilters.NONE) }
     }
 
     @Test
@@ -431,7 +435,7 @@ class GameRoutesTest {
             size = PageSize(10),
             totalItems = 25,
         )
-        coEvery { games.list(any(), any()) } returns page
+        coEvery { games.list(any(), any(), any()) } returns page
 
         val response = client.get("/api/games?page=2&pageSize=10").decodeBody<PageResponse<GameResponse>>()
 
@@ -448,22 +452,22 @@ class GameRoutesTest {
     fun `list passes a trimmed search term to the service`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
-        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+        coEvery { games.list(any(), any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
 
         client.get("/api/games?search=%20hades%20")
 
-        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), SearchTerm("hades")) }
+        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), SearchTerm("hades"), GameFilters.NONE) }
     }
 
     @Test
     fun `list with a blank search term passes no search term`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
-        coEvery { games.list(any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+        coEvery { games.list(any(), any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
 
         client.get("/api/games?search=%20%20")
 
-        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), null) }
+        coVerify { games.list(PageRequest(PageNumber(1), PageSize(50)), null, GameFilters.NONE) }
     }
 
     @Test
@@ -472,7 +476,7 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?search=${"x".repeat(201)}").assertValidationError("search")
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
     }
 
     @Test
@@ -481,7 +485,7 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?page=0").assertValidationError("page")
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
     }
 
     @Test
@@ -490,7 +494,7 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?pageSize=201").assertValidationError("pageSize")
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
     }
 
     @Test
@@ -499,7 +503,84 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games)
 
         client.get("/api/games?page=x").assertValidationError("page")
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+    }
+
+    // ---- list filters ----
+
+    @Test
+    fun `list passes repeated filter parameters to the service as one GameFilters`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        coEvery { games.list(any(), any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+
+        client.get(
+            "/api/games?platformIds=${SeededPlatforms.PC}&platformIds=${SeededPlatforms.NINTENDO}" +
+                "&ownership=owned&ownership=watchlist&progress=playing&progress=finished" +
+                "&releaseYear=2018&releaseYear=2020",
+        )
+
+        coVerify {
+            games.list(
+                PageRequest(PageNumber(1), PageSize(50)),
+                null,
+                GameFilters(
+                    platformIds = setOf(
+                        GamePlatformId.parse(SeededPlatforms.PC),
+                        GamePlatformId.parse(SeededPlatforms.NINTENDO),
+                    ),
+                    ownership = setOf(Ownership.OWNED, Ownership.WATCHLIST),
+                    progress = setOf(Progress.PLAYING, Progress.FINISHED),
+                    releaseYears = setOf(ReleaseYear(2018), ReleaseYear(2020)),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `list rejects an unknown ownership filter value`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.get("/api/games?ownership=borrowed").assertValidationError("ownership")
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+    }
+
+    @Test
+    fun `list rejects a malformed platform id filter`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.get("/api/games?platformIds=not-a-uuid").assertValidationError("platformIds")
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+    }
+
+    @Test
+    fun `list rejects a release year filter below the four-digit range`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.get("/api/games?releaseYear=12").assertValidationError("releaseYear")
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+    }
+
+    @Test
+    fun `list rejects a non numeric release year filter`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.get("/api/games?releaseYear=twenty").assertValidationError("releaseYear")
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+    }
+
+    @Test
+    fun `list rejects more than 50 repetitions of one filter parameter`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val tooMany = (1..MAX_FILTER_VALUES + 1).joinToString("&") { "platformIds=${SeededPlatforms.PC}" }
+
+        client.get("/api/games?$tooMany").assertValidationError("platformIds")
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
     }
 
     // ---- patch ----
@@ -783,6 +864,30 @@ class GameRoutesTest {
             ),
             response,
         )
+    }
+
+    // ---- meta ----
+
+    @Test
+    fun `games meta renders the four lists in the order the service produced them`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        coEvery { games.meta() } returns GameMeta(
+            platforms = listOf(Platforms.NINTENDO, Platforms.PC),
+            ownership = listOf(Ownership.WATCHLIST, Ownership.OWNED),
+            progress = listOf(Progress.PLAYING, Progress.COMPLETED),
+            releaseYears = listOf(ReleaseYear(2018), ReleaseYear(2020)),
+        )
+
+        val response = client.get("/api/games.meta").decodeBody<GameMetaResponse>()
+
+        assertEquals(
+            listOf(Platforms.NINTENDO.id.toString(), Platforms.PC.id.toString()),
+            response.platforms.map { it.id },
+        )
+        assertEquals(listOf("watchlist", "owned"), response.ownership)
+        assertEquals(listOf("playing", "completed"), response.progress)
+        assertEquals(listOf(2018, 2020), response.releaseYears)
     }
 
     private companion object {

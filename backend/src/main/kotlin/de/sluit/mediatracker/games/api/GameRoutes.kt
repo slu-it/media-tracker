@@ -31,9 +31,14 @@ fun Route.gameRoutes(gameService: GameService) {
             call.response.header(HttpHeaders.Location, "/api/games/${game.id}")
             call.respond(HttpStatusCode.Created, game.toResponse())
         }
-        // Ordered by title, id; with `?search=` games with a title hit first, then by relevance (see GameService.list).
+        // Ordered by title, id; with `?search=` games with a title hit first, then by relevance (see
+        // GameService.list). `?platformIds=`/`?ownership=`/`?progress=`/`?releaseYear=` (each repeatable) narrow
+        // the listing further and take the same branch as a search.
         get {
-            call.respond(gameService.list(call.pageRequest(), call.searchTerm()).toResponse(Game::toResponse))
+            call.respond(
+                gameService.list(call.pageRequest(), call.searchTerm(), call.gameFilters())
+                    .toResponse(Game::toResponse),
+            )
         }
         route("/{id}") {
             patch {
@@ -50,6 +55,11 @@ fun Route.gameRoutes(gameService: GameService) {
     route("/game-platforms") {
         get {
             call.respond(gameService.listPlatforms().map { it.toResponse() })
+        }
+    }
+    route("/games.meta") {
+        get {
+            call.respond(gameService.meta().toResponse())
         }
     }
 }

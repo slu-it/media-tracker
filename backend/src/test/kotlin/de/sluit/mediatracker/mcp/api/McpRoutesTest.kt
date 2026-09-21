@@ -17,6 +17,7 @@ import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
@@ -506,7 +507,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any()) } returns
+        coEvery { games.list(any(), any(), any()) } returns
             Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
 
         val response = client.postJsonRpc(
@@ -518,7 +519,7 @@ class McpRoutesTest {
 
         val body = response.bodyAsText()
         assertEquals(HttpStatusCode.OK, response.status, body)
-        coVerify { games.list(PageRequest(PageNumber.FIRST, PageSize(10)), SearchTerm("hades")) }
+        coVerify { games.list(PageRequest(PageNumber.FIRST, PageSize(10)), SearchTerm("hades"), GameFilters.NONE) }
     }
 
     @Test
@@ -532,7 +533,7 @@ class McpRoutesTest {
             game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020),
             game("Hades II", platforms = listOf(Platforms.PC), releaseYear = 2024),
         )
-        coEvery { games.list(any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 2)
+        coEvery { games.list(any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 2)
 
         val response = client.postJsonRpc(
             key,
@@ -573,7 +574,7 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
     }
 
     @Test
@@ -599,7 +600,7 @@ class McpRoutesTest {
                     "must be a string",
                 ),
             )
-            coVerify(exactly = 0) { games.list(any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any()) }
         }
 
     @Test
@@ -619,8 +620,155 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-        coVerify(exactly = 0) { games.list(any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any()) }
     }
+
+    @Test
+    fun `tools call search_games with filters passes the exact filters to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { games.list(any(), any(), any()) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"query":"hades","platformIds":["${SeededPlatforms.PC}","${SeededPlatforms.XBOX}"],
+                |"ownership":["owned"],"progress":["playing","paused"],"releaseYears":[2020,2024]}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        coVerify {
+            games.list(
+                PageRequest(PageNumber.FIRST, PageSize(10)),
+                SearchTerm("hades"),
+                GameFilters(
+                    platformIds = setOf(
+                        GamePlatformId.parse(SeededPlatforms.PC),
+                        GamePlatformId.parse(SeededPlatforms.XBOX),
+                    ),
+                    ownership = setOf(Ownership.OWNED),
+                    progress = setOf(Progress.PLAYING, Progress.PAUSED),
+                    releaseYears = setOf(ReleaseYear(2020), ReleaseYear(2024)),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `tools call search_games with filters and no query works`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { games.list(any(), any(), any()) } returns
+            Page(
+                listOf(game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)),
+                PageNumber.FIRST,
+                PageSize(10),
+                1,
+            )
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"ownership":["owned"]}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"])
+        coVerify {
+            games.list(
+                PageRequest(PageNumber.FIRST, PageSize(10)),
+                null,
+                GameFilters(ownership = setOf(Ownership.OWNED)),
+            )
+        }
+    }
+
+    @Test
+    fun `tools call search_games with neither a query nor a filter is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"platformIds":[]}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("query or at least one filter"), text)
+            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+        }
+
+    @Test
+    fun `tools call search_games with an unknown argument name is a tool error without calling the service`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"ownerships":["owned"]}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("ownerships"), text)
+            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+        }
+
+    @Test
+    fun `tools call search_games with an unknown ownership value is a tool error not a server error`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"query":"hades","ownership":["borrowed"]}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("ownership"), text)
+            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+        }
 
     @Test
     fun `get mcp with a valid key is method not allowed`() = testApplication {
