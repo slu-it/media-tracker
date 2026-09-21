@@ -73,6 +73,17 @@ and left every future feature with the question "which of the two databases test
   score 0.23 and the weights decide). That is why the ordering puts every game with a title hit before the
   description-only matches and lets the weighted score rank inside each group. A word present in every indexed
   row scores 0 everywhere and the order inside a group falls back to title, id.
+- A table holding **exactly one row** breaks that formula in MariaDB 11.8. Once the row's hit is served from the
+  on-disk index instead of the in-memory FTS cache -- which happens after a server restart -- `MATCH ... AGAINST`
+  evaluates to infinity, and any arithmetic on it aborts the query with `ERROR 1690, DOUBLE value is out of
+  range`. Two rows are already enough to avoid it, the bare `WHERE MATCH(...)` predicate is unaffected because it
+  does no arithmetic, and `OPTIMIZE TABLE`, `FLUSH TABLES` and `ALTER TABLE ... FORCE` do not provoke it -- only a
+  restart does. `FulltextExpressions.kt` therefore clamps each relevance with `LEAST(..., RELEVANCE_CAP)` before
+  weighting it; measured against a three-row fixture the clamped scores are identical to the unclamped ones, so
+  the cap only ever binds on the pathological value. Without it the first game on a fresh installation turns every
+  search into an HTTP 500 after the first restart. The regression test in `FulltextExpressionsTest` asserts the
+  clamp is in the generated SQL rather than reproducing the fault: the backend tests share one MariaDB per JVM and
+  cannot restart it.
 - `./gradlew :backend:test` needs Docker and pulls `mariadb:11.8` once; the first start of a test JVM pays the
   container start (a few seconds). GitHub-hosted runners have Docker, the workflows are unchanged.
 - The tests now exercise the production engine, collation and DDL; the MariaDB/H2 divergence risk from decision
