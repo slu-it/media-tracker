@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA + hand-written login page)
-running on a Raspberry Pi (systemd unit or docker compose, ADR 0016) against a remote MariaDB 11.8. Two Gradle
+running on a Raspberry Pi (systemd unit or docker compose, ADR 0016) against a MariaDB 11.8. Two Gradle
 projects, `backend` and `frontend`; Gradle is the only tool you need installed besides JDK 25 (Node 24 and pnpm 10
 are downloaded by Gradle).
 
@@ -76,6 +76,11 @@ backend build and frontend tests overlap); locally both use their core-based def
 `docker build`s it and boots it against the root-compose MariaDB (`/health`). Never publish from `pr.yml`. The JVM
 flags live as `JAVA_TOOL_OPTIONS` in the Dockerfile and are mirrored from `deploy/jvm.options`: change both.
 Pi deployment via `deploy/docker-compose.yml` is documented in the README next to the systemd path (ADR 0016).
+The database it talks to is the Pi's central MariaDB, `deploy/database/` as its own compose project: it
+publishes no port, owns the Docker network `pi-db` that the app's compose file joins as external and addresses
+as `mariadb`, and its databases plus owning users come from `deploy/database/create-database.sh` (ADR 0018).
+Media Tracker uses the database and user `media-tracker` there; local development keeps `mediatracker` from the
+repository-root `docker-compose.yml`.
 
 Gradle runs with configuration cache, build cache and parallel on. `frontend/build.gradle.kts` must keep
 `node.version` and `pnpmVersion` as literal strings (node-gradle 7.1.0 configuration-cache bug).

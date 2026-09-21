@@ -1,7 +1,8 @@
 # Architecture
 
 Media Tracker is a single JAR: a Ktor server that hosts a JSON API, a hand-written login page, and the
-compiled React single-page app. It runs on a Raspberry Pi and talks to a MariaDB database at a web host.
+compiled React single-page app. It runs on a Raspberry Pi and talks to the central MariaDB on that same Pi
+(decision record 0018).
 
 ## Request flow
 
@@ -190,9 +191,17 @@ ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + l
   memory limit and `restart: unless-stopped`. The named volume `cds-archive` at `/tmp` is the only writable
   path and keeps the CDS archive across restarts. The image carries no `HEALTHCHECK`: it has no shell, and
   `/health` remains available for external monitoring. Decision record 0016.
+- The database: `deploy/database/docker-compose.yml`, a separate compose project that serves every application
+  on the Pi. It publishes no port and owns the Docker network `pi-db`, which the container path joins and
+  addresses as `mariadb`; `deploy/database/conf.d/50-tuning.cnf` sizes it for the machine. Databases and their
+  owning users come from `deploy/database/create-database.sh`. There is no `depends_on` across compose
+  projects: if the application starts first, the pool fails to initialise, the JVM exits and the restart policy
+  retries until the database answers. The systemd path cannot resolve `mariadb` and needs the published port
+  instead. Decision record 0018.
 - `deploy/jvm.options`: 192 MB heap, SerialGC, C1 only, auto-created CDS archive for faster restarts.
-- HikariCP is tuned for a remote, idle-killing MariaDB: `maximumPoolSize=3`, `minimumIdle=1`,
-  `keepaliveTime=300000`, `maxLifetime=1500000`.
+- HikariCP: `maximumPoolSize=3`, `minimumIdle=1`, `keepaliveTime=300000`, `maxLifetime=1500000`. The
+  keepalive dates from the web-host era, where idle connections were killed from the other side; against the
+  local server it is harmless rather than necessary.
 - The schema is applied by Flyway at startup (see "Schema migrations"); the application never alters the
   schema itself. A pre-Flyway database (tables but no history table) stops startup with a clear error.
 - Static assets are served `Cache-Control: private`; Vite's hashed `/assets/*` may be cached for a year,
