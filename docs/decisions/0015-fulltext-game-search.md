@@ -1,6 +1,7 @@
 # 0015: Fulltext game search on MariaDB, and Testcontainers MariaDB instead of H2 for every backend test
 
-Status: accepted, 2026-09
+Status: accepted, 2026-09 (the search field's debounce dropped to 500 ms in MT-015; `search_games`'s fixed page
+size of ten became a configurable `pageSize` in record 0022)
 
 ## Context
 
@@ -56,8 +57,8 @@ and left every future feature with the question "which of the two databases test
   secondary index anyway, and the composite matches the listing's sort order.
 - **REST and MCP.** `GET /api/games?search=<term>` (blank or absent means the plain listing); `search_games`
   (argument `query`) returns the ten best matches without paging, plus the total number of matches, by calling the
-  same service method with a page size of ten. The frontend debounces the field by one second and resets to page 1
-  when the term changes.
+  same service method with a page size of ten. The frontend debounces the field by 500 ms (one second until
+  MT-015) and resets to page 1 when the term changes.
 
 ## Consequences
 

@@ -222,7 +222,7 @@ The frontend sends `pageSize=36` explicitly (`GAMES_PAGE_SIZE` in `games/domain/
 the backend's default of 50); the games tests derive their expected URLs from that constant instead of pinning it. Above the games grid sit the search field, the four
 `-all-` filter multi-selects of `components/GameFilterBar.tsx` (fed by `hooks/useGamesMeta.ts`) and a
 `PaginationBar` capped to five page buttons via MUI's `boundaryCount`/`siblingCount`. The games search field
-debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 1 s), `listGames` appends `search=` only
+debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 500 ms), `listGames` appends `search=` only
 when non-blank, and `GamesView` derives the page-1 reset from state (the stored page is paired with the search term
 and the filter key it was chosen for) instead of an effect: the react-hooks preset in `eslint.config.js` makes
 `set-state-in-effect` an error.
