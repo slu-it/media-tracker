@@ -59,7 +59,7 @@ class GameService(private val games: GameRepository, private val platforms: Game
             platforms = platforms.findAll().filter { it.id in used.platformIds },
             ownership = Ownership.entries.filter { it in used.ownership },
             progress = Progress.entries.filter { it in used.progress },
-            releaseYears = used.releaseYears.sortedBy { it.value },
+            releaseYears = used.releaseYears.sortedByDescending { it.value },
         )
     }
 

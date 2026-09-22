@@ -308,7 +308,7 @@ class GameServiceTest {
     }
 
     @Test
-    fun `meta composes enum order label order and ascending years from a deliberately unordered repository answer`() =
+    fun `meta composes enum order label order and newest-first years from an unordered repository answer`() =
         runBlocking {
             val labelOrdered = listOf(Platforms.NINTENDO, Platforms.PC, Platforms.PLAYSTATION, Platforms.XBOX)
             coEvery { platforms.findAll() } returns labelOrdered
@@ -325,6 +325,6 @@ class GameServiceTest {
             assertEquals(listOf(Platforms.NINTENDO, Platforms.XBOX), result.platforms)
             assertEquals(listOf(Ownership.WATCHLIST, Ownership.OWNED), result.ownership)
             assertEquals(listOf(Progress.NOT_STARTED, Progress.PLAYING, Progress.ABANDONED), result.progress)
-            assertEquals(listOf(ReleaseYear(1998), ReleaseYear(2010), ReleaseYear(2020)), result.releaseYears)
+            assertEquals(listOf(ReleaseYear(2020), ReleaseYear(2010), ReleaseYear(1998)), result.releaseYears)
         }
 }
