@@ -12,6 +12,7 @@ import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
@@ -553,6 +554,90 @@ class ExposedGameRepositoryTest {
         val page = repo.search(null, filters, PageRequest())
 
         assertEquals(listOf(a.id, b.id, c.id), page.items.map { it.id })
+    }
+
+    @Test
+    fun `missing description filter returns only the game without a description`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val noDescription = game(
+            "Alpha",
+            description = null,
+            coverImageUrl = CoverImageUrl("https://example.com/alpha.jpg"),
+        )
+        val noCoverImage = game(
+            "Beta",
+            description = Description("a description"),
+            coverImageUrl = null,
+        )
+        val complete = game(
+            "Gamma",
+            description = Description("a description"),
+            coverImageUrl = CoverImageUrl("https://example.com/gamma.jpg"),
+        )
+        listOf(noDescription, noCoverImage, complete).forEach { repo.insert(it) }
+
+        val filters = GameFilters(missing = setOf(MissingField.DESCRIPTION))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(listOf(noDescription.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
+    fun `missing description or missing cover image matches either incomplete game`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val noDescription = game(
+            "Alpha",
+            description = null,
+            coverImageUrl = CoverImageUrl("https://example.com/alpha.jpg"),
+        )
+        val noCoverImage = game(
+            "Beta",
+            description = Description("a description"),
+            coverImageUrl = null,
+        )
+        val complete = game(
+            "Gamma",
+            description = Description("a description"),
+            coverImageUrl = CoverImageUrl("https://example.com/gamma.jpg"),
+        )
+        listOf(noDescription, noCoverImage, complete).forEach { repo.insert(it) }
+
+        val filters = GameFilters(missing = setOf(MissingField.DESCRIPTION, MissingField.COVER_IMAGE_URL))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(setOf(noDescription.id, noCoverImage.id), page.items.map { it.id }.toSet())
+        assertEquals(2, page.totalItems)
+    }
+
+    @Test
+    fun `missing description combined with ownership filter matches only games satisfying both`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val matchesBoth = game("Alpha", description = null, ownership = Ownership.OWNED)
+        val missingOnly = game("Beta", description = null, ownership = Ownership.WATCHLIST)
+        val ownedOnly = game("Gamma", description = Description("a description"), ownership = Ownership.OWNED)
+        listOf(matchesBoth, missingOnly, ownedOnly).forEach { repo.insert(it) }
+
+        val filters = GameFilters(missing = setOf(MissingField.DESCRIPTION), ownership = setOf(Ownership.OWNED))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(listOf(matchesBoth.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
+    fun `missing description narrows a fulltext search to games lacking a description`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val hadesWithoutDescription = game("Hades", description = null)
+        val hadesWithDescription = game("Hades Full", description = Description("a description"))
+        repo.insert(hadesWithoutDescription)
+        repo.insert(hadesWithDescription)
+
+        val filters = GameFilters(missing = setOf(MissingField.DESCRIPTION))
+        val page = repo.search(SearchTerm("hades"), filters, PageRequest())
+
+        assertEquals(listOf(hadesWithoutDescription.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
     }
 
     @Test

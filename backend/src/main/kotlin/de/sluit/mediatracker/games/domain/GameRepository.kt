@@ -25,12 +25,16 @@ interface GameRepository {
     /**
      * Filtered and/or fulltext-searched listing. With a [term], fulltext matches on title and description order
      * games with a title hit first, then by the weighted score, then title, then id; without one, the ordering
-     * is title, then id, same as [findPage]. [filters] AND across categories, OR (IN) inside one; an empty
-     * [GameFilters] applies no predicate. A term that contains no searchable word behaves as if it were absent.
+     * is title, then id, same as [findPage]. [filters] AND across categories and OR inside one (an `IN` list,
+     * or `IS NULL` checks for the `missing` category); an empty [GameFilters] applies no predicate. A term that contains no searchable word behaves as if it were absent.
      */
     suspend fun search(term: SearchTerm?, filters: GameFilters, request: PageRequest): Page<Game>
 
-    /** The distinct values each filter category currently has across all games, unordered. */
+    /**
+     * The distinct values each filter category currently has across all games, unordered. Only the four
+     * categories the REST filters expose; `missing` is never populated, it has no lookup values to offer
+     * (decision record 0022).
+     */
     suspend fun findUsedFilterValues(): GameFilters
 }
 

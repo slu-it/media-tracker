@@ -270,6 +270,20 @@ class GameServiceTest {
     }
 
     @Test
+    fun `list with only a missing filter takes the search branch`() = runBlocking {
+        val request = PageRequest(PageNumber(1), PageSize(10))
+        val filters = GameFilters(missing = setOf(MissingField.DESCRIPTION))
+        val page = Page(listOf(game("Incomplete Game")), request.page, request.size, totalItems = 1)
+        coEvery { games.search(null, filters, request) } returns page
+
+        val result = service.list(request, null, filters)
+
+        assertEquals(page, result)
+        coVerify { games.search(null, filters, request) }
+        coVerify(exactly = 0) { games.findPage(any()) }
+    }
+
+    @Test
     fun `list with both a search term and filters passes both to the repository`() = runBlocking {
         val request = PageRequest(PageNumber(1), PageSize(10))
         val term = SearchTerm("zelda")
