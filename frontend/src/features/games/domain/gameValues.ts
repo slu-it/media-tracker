@@ -9,8 +9,8 @@ export const RELEASE_YEAR_MIN_DIGITS = 1000;
 export const RELEASE_YEAR_MAX_DIGITS = 9999;
 /** First year offered by the year selector; the backend only insists on four digits. */
 export const RELEASE_YEAR_SELECT_MIN = 1980;
-/** Matches the backend default page size; sent explicitly so the two cannot drift silently. */
-export const GAMES_PAGE_SIZE = 50;
+/** Games per grid page. Sent explicitly on every request, so it is independent of the backend default. */
+export const GAMES_PAGE_SIZE = 36;
 /** How long the search box waits after the last keystroke before firing a request. */
 export const SEARCH_DEBOUNCE_MS = 1000;
 /** Mirrors `SearchTerm.MAX_LENGTH` (backend). */

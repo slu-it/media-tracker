@@ -1,5 +1,13 @@
 import { createTheme } from "@mui/material/styles";
 
+/** Dropdown menus scroll after this many options instead of growing towards the full viewport height. */
+export const MENU_MAX_ITEMS = 6;
+/** Height of one option row: a MenuItem / Autocomplete option is 6px padding around a 24px line box. */
+const MENU_ITEM_HEIGHT = 36;
+/** Vertical padding of the menu list / Autocomplete listbox (8px top + 8px bottom). */
+const MENU_LIST_PADDING = 16;
+const MENU_MAX_HEIGHT = MENU_MAX_ITEMS * MENU_ITEM_HEIGHT + MENU_LIST_PADDING;
+
 /*
  * The palette mirrors the hand-written login page (backend/src/main/resources/login/login.css) so both surfaces
  * look like one application. Light/dark follow the mode stored by the header toggle (src/theme/mode.ts),
@@ -30,4 +38,15 @@ export const appTheme = createTheme({
     fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
   },
   shape: { borderRadius: 10 },
+  components: {
+    // Every dropdown is capped here, so feature code never sets a menu height itself.
+    MuiSelect: {
+      defaultProps: {
+        MenuProps: { slotProps: { paper: { sx: { maxHeight: MENU_MAX_HEIGHT } } } },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: { listbox: { maxHeight: MENU_MAX_HEIGHT } },
+    },
+  },
 });
