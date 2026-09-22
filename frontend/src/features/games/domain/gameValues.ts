@@ -12,7 +12,7 @@ export const RELEASE_YEAR_SELECT_MIN = 1980;
 /** Games per grid page. Sent explicitly on every request, so it is independent of the backend default. */
 export const GAMES_PAGE_SIZE = 36;
 /** How long the search box waits after the last keystroke before firing a request. */
-export const SEARCH_DEBOUNCE_MS = 1000;
+export const SEARCH_DEBOUNCE_MS = 500;
 /** Mirrors `SearchTerm.MAX_LENGTH` (backend). */
 export const SEARCH_MAX_LENGTH = 200;
 
