@@ -11,6 +11,7 @@ import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.ReleaseYear
@@ -58,13 +59,15 @@ private const val ADD_GAME_DESCRIPTION =
         "100%), and hidden defaults to false."
 
 private const val SEARCH_GAMES_DESCRIPTION =
-    "Searches the tracked games by title and description and returns the 10 best matches, title matches first, " +
+    "Searches the tracked games by title and description and returns the best matches - at most pageSize of " +
+        "them, 10 by default - title matches first, " +
         "best match first. Any word may match; each word is treated as a prefix (\"zel\" finds \"Zelda\"). " +
         "platformIds, ownership, progress and releaseYears narrow the search: several values inside one filter " +
         "mean \"any of\" (e.g. ownership: [\"owned\",\"watchlist\"] matches either), but every filter that is " +
         "given has to match. platformIds are game_platforms.id values; call list_game_platforms first to get " +
-        "them. At least one of query or a filter is required. Each match carries the id update_game needs to " +
-        "change it."
+        "them. hasMissing finds games whose description or cover image is still empty, so they can be filled in " +
+        "with update_game. At least one of query or a filter is required. Each match carries the id update_game " +
+        "needs to change it. pageSize controls how many matches come back, 10 by default and 100 at most."
 
 private const val UPDATE_GAME_DESCRIPTION =
     "Updates a game that is already tracked. id is the game's id as returned by search_games - never guess or " +
@@ -77,7 +80,11 @@ private const val UPDATE_GAME_DESCRIPTION =
         "list_game_platforms), it does not add to it. progress's completed value means fully finished, 100%. " +
         "Passing nothing but id, or a field name that is not in the schema, is an error."
 
-private val SEARCH_GAMES_LIMIT = PageSize(10)
+/** What `search_games` returns when the caller names no `pageSize`; its ceiling is [SEARCH_GAMES_MAX_SIZE]. */
+private val SEARCH_GAMES_DEFAULT_SIZE = PageSize(10)
+
+/** The tool's own cap, deliberately below `PageSize`'s 200: a tool result is prose in someone's context window. */
+private const val SEARCH_GAMES_MAX_SIZE = 100
 
 // Mirrors the constraints value classes enforce in games/domain/GameValues.kt.
 private val ADD_GAME_SCHEMA = ToolSchema(
@@ -202,6 +209,30 @@ private val SEARCH_GAMES_SCHEMA = ToolSchema(
             }
             put("uniqueItems", true)
             put("maxItems", MAX_FILTER_VALUES)
+        }
+        putJsonObject(MissingField.FIELD) {
+            put("type", "array")
+            put(
+                "description",
+                "Only games where at least one of these properties has no value yet. Use it to find games " +
+                    "with incomplete data.",
+            )
+            putJsonObject("items") {
+                put("type", "string")
+                putJsonArray("enum") { MissingField.entries.forEach { add(it.wire) } }
+            }
+            put("uniqueItems", true)
+            put("maxItems", MissingField.entries.size)
+        }
+        putJsonObject(PageSize.FIELD) {
+            put("type", "integer")
+            put(
+                "description",
+                "How many games to return at most. Defaults to 10, $SEARCH_GAMES_MAX_SIZE at most.",
+            )
+            put("minimum", 1)
+            put("maximum", SEARCH_GAMES_MAX_SIZE)
+            put("default", SEARCH_GAMES_DEFAULT_SIZE.value)
         }
     },
     required = emptyList(),
@@ -383,9 +414,17 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                 progress = arguments.stringArrayOrNull("progress")?.map(Progress::from)?.toSet() ?: emptySet(),
                 releaseYears = arguments.intArrayOrNull("releaseYears")
                     ?.map(::ReleaseYear)?.toSet() ?: emptySet(),
+                missing = arguments.stringArrayOrNull(MissingField.FIELD)
+                    ?.map(MissingField::from)?.toSet() ?: emptySet(),
             )
             requireValid("query", term != null || !filters.isEmpty) { "provide a query or at least one filter" }
-            val page = gameService.list(PageRequest(PageNumber.FIRST, SEARCH_GAMES_LIMIT), term, filters)
+            val size = arguments.intOrNull(PageSize.FIELD)?.let { requested ->
+                requireValid(PageSize.FIELD, requested in 1..SEARCH_GAMES_MAX_SIZE) {
+                    "must be between 1 and $SEARCH_GAMES_MAX_SIZE"
+                }
+                PageSize(requested)
+            } ?: SEARCH_GAMES_DEFAULT_SIZE
+            val page = gameService.list(PageRequest(PageNumber.FIRST, size), term, filters)
             val games = page.items.map { it.toResponse() }
             // Both a query and filters may be absent from the summary text: describe whichever was given.
             val subject = term?.let { "\"$it\"" } ?: "the given filters"
@@ -395,7 +434,8 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                         if (games.isEmpty()) {
                             "No games match $subject."
                         } else {
-                            // The tool never pages: say how many matches exist so a truncated list is recognisable.
+                            // The tool returns at most pageSize matches without paging: say how many matches exist
+                            // so a truncated list is recognisable.
                             "${games.size} of ${page.totalItems} matches for $subject, best first:\n" +
                                 games.joinToString("\n") { "${it.title} (${it.releaseYear}): ${it.id}" }
                         },
@@ -403,6 +443,7 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                 ),
                 structuredContent = buildJsonObject {
                     put("totalMatches", page.totalItems)
+                    put("truncated", page.totalItems > games.size)
                     putJsonArray("games") {
                         games.forEach { game ->
                             add(McpJson.encodeToJsonElement(GameResponse.serializer(), game))
@@ -483,6 +524,12 @@ private fun JsonObject.intArrayOrNull(field: String): List<Int>? = when (val arg
     }
 
     else -> throw InvalidValueException(field, "must be an array of integers")
+}
+
+private fun JsonObject.intOrNull(field: String): Int? = when (val argument = this[field]) {
+    null, is JsonNull -> null
+    is JsonPrimitive -> argument.intOrNull ?: throw InvalidValueException(field, "must be an integer")
+    else -> throw InvalidValueException(field, "must be an integer")
 }
 
 private fun Exception.toErrorResult(): CallToolResult =

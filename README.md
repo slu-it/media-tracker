@@ -86,7 +86,9 @@ not with the browser session:
    ```
 3. Tools: `list_game_platforms` (ids and labels of the seeded platforms), `add_game` (same fields as
    `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional),
-   `search_games` (`query`: words to search for in title and description; returns the ten best matches) and
+   `search_games` (`query`: words to search for in title and description, optional next to the `platformIds`,
+   `ownership`, `progress` and `releaseYears` filter arrays and `hasMissing`, which finds games whose
+   `description` or `coverImageUrl` is still empty; `pageSize` returns up to 100 matches, 10 by default) and
    `update_game` (same fields as `PATCH /api/games/{id}`: `id` required, everything else optional; only the fields
    passed change, and the id comes from `search_games`).
 

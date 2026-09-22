@@ -30,7 +30,12 @@ and release year (ADR 0021): four repeatable query parameters on `GET /api/games
 AND across filters, any of which takes the same repository branch as a search; the values to offer come from
 `GET /api/games.meta` (`.meta` is the convention for a resource's lookup data) and are only the ones that occur
 in a stored game; `search_games` takes the same filters and its `query` is now optional. `V007` indexes the three
-filterable `games` columns.
+filterable `games` columns. MT-013 gave `search_games` two agent-only extras (ADR 0022): `hasMissing`, a fifth
+`GameFilters` category (`MissingField`, wire values `description`/`coverImageUrl` - the DTO field names, not the
+`name.lowercase()` of ADR 0017) that ORs `IS NULL` checks so an agent can find incomplete games, and an optional
+`pageSize` (default 10, maximum 100) next to `totalMatches`/`truncated` in the result. The filter never reaches
+REST - `GameFilterParams.kt` does not parse it and `.meta` does not offer it - and needed no migration or index;
+`pageSize` is the tool's own ceiling, below the 1..200 that `GET /api/games?pageSize=` has always taken.
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration

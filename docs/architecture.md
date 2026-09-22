@@ -50,9 +50,12 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
 - `POST /mcp` hosts an MCP server (official Kotlin SDK, stateless Streamable HTTP: JSON responses only, no SSE
   stream, no session id). Every POST gets a fresh `Server` with the tools of all features (`mcp/api/McpEndpoint.kt`,
   root `Routes.kt#mcpRoutes`); a tool call is one HTTP round trip. Tools so far: `list_game_platforms`,
-  `add_game` (same fields and optionality as `POST /api/games`), `search_games` (optional `query` plus the four optional
-  filter arrays `platformIds`, `ownership`, `progress`, `releaseYears`, the ten best matches of
-  `GET /api/games` without paging; at least one of query or filter is required) and `update_game` (the fields of `PATCH /api/games/{id}` plus
+  `add_game` (same fields and optionality as `POST /api/games`), `search_games` (optional `query` plus the four
+  optional filter arrays `platformIds`, `ownership`, `progress`, `releaseYears` and the MCP-only `hasMissing`
+  (`description`, `coverImageUrl`; a game matches when any listed property is `null`, decision record 0022);
+  returns the best matches of `GET /api/games` without paging - `pageSize` many, 10 by default and 100 at most,
+  with `totalMatches` and `truncated` alongside them in the structured result; at least one of query or filter is
+  required) and `update_game` (the fields of `PATCH /api/games/{id}` plus
   the required `id`, which an agent looks up with `search_games`; only the fields passed are changed;
   `description`, `rating` and `coverImageUrl` accept `null` to clear, every other field rejects an explicit `null`
   rather than silently ignoring it), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
@@ -93,10 +96,11 @@ de.sluit.mediatracker
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
-    │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games, update_game)
+    │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games incl. hasMissing
+    │                   and pageSize, update_game)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
-    │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters/GameMeta,
+    │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
     │                   GameRepository and GamePlatformRepository (interfaces), GameService
     └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository
                         (findPage by title, search by fulltext score and filters, findUsedFilterValues),

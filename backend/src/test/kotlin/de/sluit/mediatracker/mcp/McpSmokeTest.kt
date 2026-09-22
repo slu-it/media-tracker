@@ -196,6 +196,49 @@ class McpSmokeTest {
     }
 
     @Test
+    fun `search_games with hasMissing finds a game that was stored without a description`() = testApplication {
+        val (_, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val platforms = mcp.callTool("list_game_platforms", emptyMap())
+            val pcId = platforms.structuredContent!!["platforms"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "PC" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            mcp.callTool(
+                "add_game",
+                mapOf(
+                    "title" to "Hades",
+                    "releaseYear" to 2020,
+                    "platformIds" to listOf(pcId),
+                    "description" to "Escape the underworld",
+                ),
+            )
+            mcp.callTool(
+                "add_game",
+                mapOf("title" to "Celeste", "releaseYear" to 2018, "platformIds" to listOf(pcId)),
+            )
+
+            // pageSize rides along on the happy path: the real module has to accept it above the default of 10.
+            val result = mcp.callTool(
+                "search_games",
+                mapOf("hasMissing" to listOf("description"), "pageSize" to 100),
+            )
+
+            assertNotEquals(true, result.isError)
+            val titles = result.structuredContent!!["games"]!!.jsonArray
+                .map { it.jsonObject["title"]!!.jsonPrimitive.content }
+            assertEquals(listOf("Celeste"), titles)
+            assertEquals(false, result.structuredContent!!["truncated"]!!.jsonPrimitive.content.toBoolean())
+        } finally {
+            mcp.close()
+            transaction { GamesTable.deleteAll() }
+        }
+    }
+
+    @Test
     fun `search_games then update_game changes only the fields that were passed`() = testApplication {
         val (sessionClient, key) = loggedInClientWithApiKey()
         val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))

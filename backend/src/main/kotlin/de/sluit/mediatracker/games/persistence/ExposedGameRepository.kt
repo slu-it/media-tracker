@@ -13,6 +13,7 @@ import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameRepository
 import de.sluit.mediatracker.games.domain.HexColor
+import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
@@ -25,10 +26,12 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.compoundAnd
+import org.jetbrains.exposed.v1.core.compoundOr
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.batchInsert
@@ -128,7 +131,8 @@ class ExposedGameRepository : GameRepository {
      * `null` when nothing is filtered; AND across the categories, OR (IN) inside one. The platform filter is an
      * uncorrelated `IN` subquery rather than an `innerJoin`: a game on two selected platforms would otherwise
      * come back twice per matching platform row and corrupt both `count()` and the LIMIT/OFFSET window, and
-     * MariaDB can still read the inner side straight off `idx_game_to_platform_platform`.
+     * MariaDB can still read the inner side straight off `idx_game_to_platform_platform`. The `missing` category
+     * ORs `IS NULL` checks over the listed [MissingField]s instead of an `IN` list.
      */
     private fun filterOp(filters: GameFilters): Op<Boolean>? = buildList {
         filters.platformIds.takeIf { it.isNotEmpty() }?.let { ids ->
@@ -144,7 +148,14 @@ class ExposedGameRepository : GameRepository {
         filters.progress.takeIf { it.isNotEmpty() }?.let { add(GamesTable.progress inList it.map(Progress::wire)) }
         filters.releaseYears.takeIf { it.isNotEmpty() }
             ?.let { add(GamesTable.releaseYear inList it.map { y -> y.value }) }
+        filters.missing.takeIf { it.isNotEmpty() }?.let { fields -> add(fields.map(::missingOp).compoundOr()) }
     }.takeIf { it.isNotEmpty() }?.compoundAnd()
+
+    /** `IS NULL` is the whole test: `Description` forbids a blank value, so a stored text is never empty. */
+    private fun missingOp(field: MissingField): Op<Boolean> = when (field) {
+        MissingField.DESCRIPTION -> GamesTable.description.isNull()
+        MissingField.COVER_IMAGE_URL -> GamesTable.coverImageUrl.isNull()
+    }
 
     /** Four DISTINCT selects in one transaction; see [GameRepository.findUsedFilterValues]. */
     override suspend fun findUsedFilterValues(): GameFilters = dbQuery {
