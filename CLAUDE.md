@@ -199,6 +199,10 @@ and `AppProviders` lets `ThemeProvider` persist the mode (`defaultMode="system"`
 `mt.mode` from `src/theme/mode.ts`. That key is hard-coded in three places - `mode.ts`, the pre-paint script in
 `frontend/index.html`, and the one in `backend/src/main/resources/login/login.html`, whose CSS uses `light-dark()` so
 the login page follows the same choice; a test pins each of the three copies (ADR 0020 lists them).
+`theme.ts` also caps every dropdown at `MENU_MAX_ITEMS` (6) rows - `MuiSelect.defaultProps.MenuProps` for selects,
+`MuiAutocomplete.styleOverrides.listbox` for autocompletes - so feature code sets no menu height itself and menu rows
+stay a uniform height (hence the compact `Checkbox` in `GameFilterBar`); jsdom has no layout engine, so it is
+verified by eye.
 Feature layout `src/features/<kind>/{api,domain,hooks,components}`
 + `<Kind>View.tsx`; domain constraints are mirrored as validators returning i18n codes and wrapped in
 self-validating field components. Common dialogs: `components/dialog/BaseDialog` (round protruding close button,
@@ -209,7 +213,8 @@ fixed `height` and hands the scrolling to a child: the games dialogs pair it wit
 field column scrolls, while at `xs` the layout stacks and scrolls as one. A media kind copying the games dialogs
 copies both flags. The responsive `sx` behind this is invisible to jsdom (it evaluates no MUI breakpoint, not even
 `xs`) and jsdom has no layout engine, so the frozen layout is verified by eye, not by a test.
-The frontend sends `pageSize=50` explicitly (`GAMES_PAGE_SIZE`), matching the backend default. Above the games grid sit the search field, the four
+The frontend sends `pageSize=36` explicitly (`GAMES_PAGE_SIZE` in `games/domain/gameValues.ts`, independent of
+the backend's default of 50); the games tests derive their expected URLs from that constant instead of pinning it. Above the games grid sit the search field, the four
 `-all-` filter multi-selects of `components/GameFilterBar.tsx` (fed by `hooks/useGamesMeta.ts`) and a
 `PaginationBar` capped to five page buttons via MUI's `boundaryCount`/`siblingCount`. The games search field
 debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 1 s), `listGames` appends `search=` only

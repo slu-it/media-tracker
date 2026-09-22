@@ -5,13 +5,20 @@ import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
 import { renderWithProviders } from "../../test/renderWithProviders";
+import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { GamesView } from "./GamesView";
 
 const platforms: GamePlatformResponse[] = [pc, nintendo];
 const games: GameResponse[] = [celeste, hades];
 
 function pageOf(items: GameResponse[], page: number, totalItems: number) {
-  return { items, page, pageSize: 50, totalItems, totalPages: Math.ceil(totalItems / 50) };
+  return {
+    items,
+    page,
+    pageSize: GAMES_PAGE_SIZE,
+    totalItems,
+    totalPages: Math.ceil(totalItems / GAMES_PAGE_SIZE),
+  };
 }
 
 function mockPlatforms() {
@@ -67,7 +74,7 @@ describe("GamesView", () => {
     const calls = mockApi({
       "GET /api/games": (_call, url) => {
         const page = Number(url.searchParams.get("page"));
-        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
+        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE + 1));
       },
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
@@ -77,7 +84,10 @@ describe("GamesView", () => {
 
     await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
-    expect(gamesUrls(calls)).toEqual(["/api/games?page=1&pageSize=50", "/api/games?page=2&pageSize=50"]);
+    expect(gamesUrls(calls)).toEqual([
+      `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+      `/api/games?page=2&pageSize=${GAMES_PAGE_SIZE}`,
+    ]);
   });
 
   it("shows the empty state and opens the add dialog from the FAB", async () => {
@@ -137,7 +147,7 @@ describe("GamesView", () => {
     const calls = mockApi({
       "GET /api/games": (_call, url) => {
         const page = Number(url.searchParams.get("page"));
-        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
+        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE + 1));
       },
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
@@ -161,7 +171,7 @@ describe("GamesView", () => {
     expect(calls).toContainEqual({ method: "DELETE", url: "/api/games/id-2", body: undefined });
     const deleteIndex = calls.findIndex((c) => c.method === "DELETE");
     const gamesCallsAfterDelete = calls.slice(deleteIndex + 1).filter((c) => c.url.startsWith("/api/games?"));
-    expect(gamesCallsAfterDelete.map((c) => c.url)).toEqual(["/api/games?page=1&pageSize=50"]);
+    expect(gamesCallsAfterDelete.map((c) => c.url)).toEqual([`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`]);
   });
 
   it("reloads the current page after deleting a game that was not the last one", async () => {
@@ -185,10 +195,13 @@ describe("GamesView", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     await waitFor(() => expect(calls.filter((c) => c.url.startsWith("/api/games?"))).toHaveLength(2));
     const gamesCalls = calls.filter((c) => c.url.startsWith("/api/games?"));
-    expect(gamesCalls.map((c) => c.url)).toEqual(["/api/games?page=1&pageSize=50", "/api/games?page=1&pageSize=50"]);
+    expect(gamesCalls.map((c) => c.url)).toEqual([
+      `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+      `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+    ]);
     const deleteIndex = calls.findIndex((c) => c.method === "DELETE");
     expect(deleteIndex).toBeGreaterThan(0);
-    expect(calls[deleteIndex + 1]?.url).toBe("/api/games?page=1&pageSize=50");
+    expect(calls[deleteIndex + 1]?.url).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`);
   });
 
   it("updates the open game and reloads the list after saving", async () => {
@@ -271,10 +284,13 @@ describe("GamesView", () => {
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
     await user.paste("hades");
-    expect(gamesUrls(calls)).toEqual(["/api/games?page=1&pageSize=50"]);
+    expect(gamesUrls(calls)).toEqual([`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`]);
 
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
-    expect(gamesUrls(calls)).toEqual(["/api/games?page=1&pageSize=50", "/api/games?page=1&pageSize=50&search=hades"]);
+    expect(gamesUrls(calls)).toEqual([
+      `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+      `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&search=hades`,
+    ]);
   });
 
   it("coalesces edits within the debounce window into a single request", async () => {
@@ -294,7 +310,7 @@ describe("GamesView", () => {
 
     await waitFor(() =>
       expect(gamesUrls(calls).filter((url) => url.includes("search="))).toEqual([
-        "/api/games?page=1&pageSize=50&search=hades",
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&search=hades`,
       ]),
     );
   });
@@ -315,7 +331,7 @@ describe("GamesView", () => {
 
     await user.click(screen.getByRole("button", { name: "Clear search" }));
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
-    expect(gamesUrls(calls).at(-1)).toBe("/api/games?page=1&pageSize=50");
+    expect(gamesUrls(calls).at(-1)).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`);
   });
 
   it("returns to page 1 when the search term changes on a later page", async () => {
@@ -323,7 +339,7 @@ describe("GamesView", () => {
     const calls = mockApi({
       "GET /api/games": (_call, url) => {
         const page = Number(url.searchParams.get("page"));
-        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
+        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE + 1));
       },
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
@@ -339,9 +355,9 @@ describe("GamesView", () => {
 
     await waitFor(() =>
       expect(gamesUrls(calls)).toEqual([
-        "/api/games?page=1&pageSize=50",
-        "/api/games?page=2&pageSize=50",
-        "/api/games?page=1&pageSize=50&search=hades",
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+        `/api/games?page=2&pageSize=${GAMES_PAGE_SIZE}`,
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&search=hades`,
       ]),
     );
   });
@@ -378,9 +394,12 @@ describe("GamesView", () => {
     await user.paste("hades");
     await user.keyboard("{Enter}");
 
-    await waitFor(() => expect(gamesUrls(calls)).toContain("/api/games?page=1&pageSize=50&search=hades"), {
-      timeout: 500,
-    });
+    await waitFor(
+      () => expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&search=hades`),
+      {
+        timeout: 500,
+      },
+    );
   });
 
   it("adds the selected platform as a repeated parameter to the games request", async () => {
@@ -399,7 +418,9 @@ describe("GamesView", () => {
     await user.click(screen.getByRole("combobox", { name: "Platform" }));
     await user.click(screen.getByRole("option", { name: "PC" }));
 
-    await waitFor(() => expect(gamesUrls(calls)).toContain("/api/games?page=1&pageSize=50&platformIds=platform-pc"));
+    await waitFor(() =>
+      expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`),
+    );
   });
 
   it("sends two parameters when two values of one filter are selected", async () => {
@@ -421,7 +442,7 @@ describe("GamesView", () => {
 
     await waitFor(() =>
       expect(gamesUrls(calls)).toContain(
-        "/api/games?page=1&pageSize=50&platformIds=platform-nintendo&platformIds=platform-pc",
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-nintendo&platformIds=platform-pc`,
       ),
     );
   });
@@ -431,7 +452,7 @@ describe("GamesView", () => {
     const calls = mockApi({
       "GET /api/games": (_call, url) => {
         const page = Number(url.searchParams.get("page"));
-        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, 51));
+        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE + 1));
       },
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
@@ -450,9 +471,9 @@ describe("GamesView", () => {
 
     await waitFor(() =>
       expect(gamesUrls(calls)).toEqual([
-        "/api/games?page=1&pageSize=50",
-        "/api/games?page=2&pageSize=50",
-        "/api/games?page=1&pageSize=50&platformIds=platform-pc",
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+        `/api/games?page=2&pageSize=${GAMES_PAGE_SIZE}`,
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`,
       ]),
     );
   });

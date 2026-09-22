@@ -58,7 +58,8 @@ function FilterSelect<T extends string | number>({
     >
       {options.map((option) => (
         <MenuItem key={option} value={option}>
-          <Checkbox checked={selected.includes(option)} />
+          {/* Compact so an option row stays as high as a plain menu row and the theme's 6-row cap holds. */}
+          <Checkbox checked={selected.includes(option)} size="small" sx={{ p: 0, mr: 1 }} />
           <ListItemText primary={getOptionLabel(option)} />
         </MenuItem>
       ))}
