@@ -1,6 +1,6 @@
 # 0021: Filtering the game list, and `.meta` endpoints for the values to filter by
 
-Status: accepted, 2026-09
+Status: accepted, 2026-09 (the release-year order was reversed to newest first in MT-014)
 
 ## Context
 
@@ -41,8 +41,9 @@ nothing about ownership, progress or years.
 - **The meta endpoint only offers values that occur in the stored games,** all four of them, so no selection can
   produce an empty result. Ordering is decided in the domain, not in SQL and not in the frontend: platforms
   alphabetically by label (`findAll` already is), ownership and progress in the order the enums declare them in
-  `GameStatus.kt`, years ascending. `GameService.meta` therefore filters `Ownership.entries` by what is in use
-  rather than sorting what the database returned.
+  `GameStatus.kt`, years newest first (ascending until MT-014 - the recent years are the ones worth reaching).
+  `GameService.meta` therefore filters `Ownership.entries` by what is in use rather than sorting what the database
+  returned.
 - **Ownership and progress travel as their wire strings**, not as `{value, label}` pairs. The labels are
   translated and the backend has no i18n bundle; the frontend already renders `games.ownership.*` /
   `games.progress.*` for the status icons and the edit form.

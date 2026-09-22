@@ -49,7 +49,7 @@ export interface GameMetaResponse {
   ownership: Ownership[];
   /** Only values in use, in enum declaration order. */
   progress: Progress[];
-  /** Only years in use, ascending. */
+  /** Only years in use, newest first. */
   releaseYears: number[];
 }
 
