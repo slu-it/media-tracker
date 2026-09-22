@@ -36,6 +36,16 @@ filterable `games` columns. MT-013 gave `search_games` two agent-only extras (AD
 `pageSize` (default 10, maximum 100) next to `totalMatches`/`truncated` in the result. The filter never reaches
 REST - `GameFilterParams.kt` does not parse it and `.meta` does not offer it - and needed no migration or index;
 `pageSize` is the tool's own ceiling, below the 1..200 that `GET /api/games?pageSize=` has always taken.
+MT-016 added **expansions** (DLC), the games domain's second aggregate (ADR 0023): `game_expansions` (V008) with a
+cascading FK to `games`, a `title` plus the game's own `Ownership`/`Progress` types reused verbatim, and a
+`sequence` the owner arranges by hand. `ExpansionService` is the sole owner of that sequence: it is dense and
+zero-based per game (0..n-1), create appends, delete re-packs, and a `PATCH` carrying a `sequence` is a *move*
+(reinsert at that index, renumber the rest; outside the range it is a 400). There is deliberately no
+`UNIQUE (game_id, sequence)` - a move rewrites several rows in one transaction. The routes nest inside the
+game's `/{id}` block (`/api/games/{id}/expansions[/{expansionId}]`, `games/api/ExpansionRoutes.kt`, reusing
+`gameId()`), `UpdateExpansionRequest` uses plain nullable fields because nothing on an expansion is clearable,
+and the MCP tools `list_expansions` and `add_expansion` cover the agent side. The frontend shows them as a
+drag-sortable card stack inside the game detail dialog (@dnd-kit, keyboard sensor for the tested path).
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -257,14 +267,16 @@ Enter multi-character text with `user.click(field)` then `user.paste("...")`; pe
 hit the CI timeout, keep it for single characters whose keystroke behaviour is under test.
 Vitest runs with `testTimeout: 10_000` and `isolate: false` (one jsdom shared across files; `test-setup.ts` runs per
 file and does the lifecycle itself: explicit `afterEach(cleanup)`, a `beforeAll` setting `IS_REACT_ACT_ENVIRONMENT`, then
-mocks, language and `localStorage`; never rely on state from another file and never remove those hooks). Conventions and known
+mocks (incl. `matchMedia` and an `Element.prototype.scrollIntoView` stub that @dnd-kit's keyboard sensor needs),
+language and `localStorage`; never rely on state from another file and never remove those hooks). Conventions and known
 jsdom limits (MUI Rating clicks) are in ADR 0012.
 
 ## Version policy
 
 `gradle/libs.versions.toml` is the single source for JVM versions; npm packages are pinned exactly in
 `frontend/package.json` (no `^` ranges). Stay on the current majors and take the newest release within
-each (current: MUI 9, Emotion 11, i18next 26, react-i18next 17 on the npm side); do not bump majors
+each (current: MUI 9, Emotion 11, i18next 26, react-i18next 17, @dnd-kit/core 6 + /sortable 10 + /utilities 3
+on the npm side; `utilities` is a direct dependency because the page imports `CSS` from it and pnpm does not hoist); do not bump majors
 (e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking. `@vitest/coverage-v8` declares the exact Vitest version as
 a peer dependency, so bump it together with `vitest` to the same version.
 

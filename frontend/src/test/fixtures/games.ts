@@ -1,4 +1,4 @@
-import type { GameMetaResponse, GamePlatformResponse, GameResponse } from "../../types/api";
+import type { ExpansionResponse, GameMetaResponse, GamePlatformResponse, GameResponse } from "../../types/api";
 
 export const pc: GamePlatformResponse = { id: "platform-pc", label: "PC", associatedColor: "757575" };
 export const playstation: GamePlatformResponse = {
@@ -39,6 +39,26 @@ export const hades: GameResponse = {
   progress: "completed",
   hidden: true,
 };
+
+export const hadesExpansion1: ExpansionResponse = {
+  id: "expansion-1",
+  gameId: hades.id,
+  sequence: 0,
+  title: "Boon Pack",
+  ownership: "owned",
+  progress: "not_started",
+};
+
+export const hadesExpansion2: ExpansionResponse = {
+  id: "expansion-2",
+  gameId: hades.id,
+  sequence: 1,
+  title: "Soundtrack Edition",
+  ownership: "watchlist",
+  progress: "not_started",
+};
+
+export const hadesExpansions: ExpansionResponse[] = [hadesExpansion1, hadesExpansion2];
 
 export const meta: GameMetaResponse = {
   platforms: [nintendo, pc],

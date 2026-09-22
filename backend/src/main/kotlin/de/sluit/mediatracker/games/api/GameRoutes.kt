@@ -4,6 +4,7 @@ import de.sluit.mediatracker.common.api.pageRequest
 import de.sluit.mediatracker.common.api.searchTerm
 import de.sluit.mediatracker.common.api.toResponse
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameService
@@ -23,8 +24,9 @@ import io.ktor.server.routing.route
 /**
  * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [GameService]; they never touch persistence.
+ * A game's expansions ([expansionRoutes]) are mounted inside its `/{id}` block.
  */
-fun Route.gameRoutes(gameService: GameService) {
+fun Route.gameRoutes(gameService: GameService, expansionService: ExpansionService) {
     route("/games") {
         post {
             val game = gameService.create(call.receive<CreateGameRequest>().toNewGame())
@@ -50,6 +52,7 @@ fun Route.gameRoutes(gameService: GameService) {
                 gameService.delete(call.gameId())
                 call.respond(HttpStatusCode.NoContent)
             }
+            expansionRoutes(expansionService)
         }
     }
     route("/game-platforms") {
@@ -64,5 +67,5 @@ fun Route.gameRoutes(gameService: GameService) {
     }
 }
 
-private fun ApplicationCall.gameId(): GameId =
+internal fun ApplicationCall.gameId(): GameId =
     GameId.parse(parameters["id"] ?: throw InvalidValueException(GameId.FIELD, "is missing"))

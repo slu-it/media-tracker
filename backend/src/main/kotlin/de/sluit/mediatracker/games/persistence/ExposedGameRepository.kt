@@ -57,6 +57,10 @@ class ExposedGameRepository : GameRepository {
         }
     }
 
+    override suspend fun exists(id: GameId): Boolean = dbQuery {
+        GamesTable.select(GamesTable.id).where { GamesTable.id eq id.toString() }.limit(1).any()
+    }
+
     override suspend fun update(game: Game): Boolean = dbQuery {
         val updated = GamesTable.update({ GamesTable.id eq game.id.toString() }) { it.writeGame(game) } == 1
         if (updated) {

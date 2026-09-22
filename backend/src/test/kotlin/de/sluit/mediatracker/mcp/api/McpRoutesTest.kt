@@ -18,17 +18,22 @@ import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.api.GameResponse
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.Expansion
+import de.sluit.mediatracker.games.domain.ExpansionId
+import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.MissingField
+import de.sluit.mediatracker.games.domain.NewExpansion
 import de.sluit.mediatracker.games.domain.NewGame
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.ReleaseYear
+import de.sluit.mediatracker.games.domain.SequenceNumber
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import de.sluit.mediatracker.handlerApp
@@ -88,6 +93,22 @@ class McpRoutesTest {
     private fun HttpRequestBuilder.acceptJsonRpc() {
         header(HttpHeaders.Accept, "application/json, text/event-stream")
     }
+
+    private fun expansion(
+        gameId: GameId,
+        title: String = "Farewell",
+        sequence: Int = 0,
+        id: ExpansionId = ExpansionId.new(),
+        ownership: Ownership = Ownership.DEFAULT,
+        progress: Progress = Progress.DEFAULT,
+    ): Expansion = Expansion(
+        id = id,
+        gameId = gameId,
+        sequence = SequenceNumber(sequence),
+        title = Title(title),
+        ownership = ownership,
+        progress = progress,
+    )
 
     @Test
     fun `tools call add_game creates the game through the service`() = testApplication {
@@ -328,7 +349,14 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
         assertEquals(
-            setOf("list_game_platforms", "add_game", "search_games", "update_game"),
+            setOf(
+                "list_game_platforms",
+                "add_game",
+                "search_games",
+                "update_game",
+                "list_expansions",
+                "add_expansion",
+            ),
             tools.map {
                 it.jsonObject["name"]!!.jsonPrimitive.content
             }.toSet(),
@@ -1533,5 +1561,214 @@ class McpRoutesTest {
                     "field \"$field\": expected rejected=${!schemaMarksClearable}, was $isError, body=$body",
                 )
             }
+        }
+
+    // ---- list_expansions / add_expansion ----
+
+    @Test
+    fun `tools call list_expansions returns the expansions and calls the service with the parsed game id`() =
+        testApplication {
+            val expansions = mockk<ExpansionService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+            val gameId = GameId.new()
+            val first = expansion(gameId, title = "First", sequence = 0)
+            val second = expansion(gameId, title = "Second", sequence = 1)
+            coEvery { expansions.list(gameId) } returns listOf(first, second)
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_expansions",
+                    |"arguments":{"gameId":"$gameId"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertNull(result["isError"])
+            val returned = result["structuredContent"]!!.jsonObject["expansions"]!!.jsonArray
+            assertEquals(listOf("First", "Second"), returned.map { it.jsonObject["title"]!!.jsonPrimitive.content })
+            assertEquals(2, result["structuredContent"]!!.jsonObject["count"]!!.jsonPrimitive.content.toInt())
+            coVerify { expansions.list(gameId) }
+        }
+
+    @Test
+    fun `tools call list_expansions for a game with no expansions is not an error`() = testApplication {
+        val expansions = mockk<ExpansionService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val gameId = GameId.new()
+        coEvery { expansions.list(gameId) } returns emptyList()
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_expansions",
+                |"arguments":{"gameId":"$gameId"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        assertEquals(0, result["structuredContent"]!!.jsonObject["count"]!!.jsonPrimitive.content.toInt())
+        assertEquals(0, result["structuredContent"]!!.jsonObject["expansions"]!!.jsonArray.size)
+    }
+
+    @Test
+    fun `tools call list_expansions with a malformed game id is a tool error without calling the service`() =
+        testApplication {
+            val expansions = mockk<ExpansionService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_expansions",
+                    |"arguments":{"gameId":"not-a-uuid"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            coVerify(exactly = 0) { expansions.list(any()) }
+        }
+
+    @Test
+    fun `tools call list_expansions with an unknown argument name is a tool error without calling the service`() =
+        testApplication {
+            val expansions = mockk<ExpansionService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_expansions",
+                    |"arguments":{"gameid":"${GameId.new()}"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("gameid"), text)
+            coVerify(exactly = 0) { expansions.list(any()) }
+        }
+
+    @Test
+    fun `tools call add_expansion passes the exact new expansion to the service`() = testApplication {
+        val expansions = mockk<ExpansionService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val gameId = GameId.new()
+        val captured = slot<NewExpansion>()
+        coEvery { expansions.create(gameId, capture(captured)) } returns
+            expansion(gameId, title = "Farewell", ownership = Ownership.OWNED, progress = Progress.PLAYING)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_expansion",
+                |"arguments":{"gameId":"$gameId","title":"Farewell","ownership":"owned","progress":"playing"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        assertEquals(
+            NewExpansion(title = Title("Farewell"), ownership = Ownership.OWNED, progress = Progress.PLAYING),
+            captured.captured,
+        )
+    }
+
+    @Test
+    fun `tools call add_expansion without ownership or progress passes the domain defaults`() = testApplication {
+        val expansions = mockk<ExpansionService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val gameId = GameId.new()
+        val captured = slot<NewExpansion>()
+        coEvery { expansions.create(gameId, capture(captured)) } returns expansion(gameId, title = "Farewell")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_expansion",
+                |"arguments":{"gameId":"$gameId","title":"Farewell"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        assertEquals(
+            NewExpansion(title = Title("Farewell"), ownership = Ownership.DEFAULT, progress = Progress.DEFAULT),
+            captured.captured,
+        )
+    }
+
+    @Test
+    fun `tools call add_expansion with an unknown ownership enum value is a tool error not a server error`() =
+        testApplication {
+            val expansions = mockk<ExpansionService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_expansion",
+                    |"arguments":{"gameId":"${GameId.new()}","title":"Farewell","ownership":"borrowed"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("ownership"), text)
+            coVerify(exactly = 0) { expansions.create(any(), any()) }
+        }
+
+    @Test
+    fun `tools call add_expansion for an unknown game reports the service's not found exception as a tool error`() =
+        testApplication {
+            val expansions = mockk<ExpansionService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(apiKeys = apiKeys, expansions = expansions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+            val gameId = GameId.new()
+            coEvery { expansions.create(gameId, any()) } throws NotFoundException("game", gameId.toString())
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"add_expansion",
+                    |"arguments":{"gameId":"$gameId","title":"Farewell"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
         }
 }

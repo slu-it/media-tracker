@@ -105,7 +105,15 @@
       "paused": "Pausiert",
       "abandoned": "Abgebrochen"
     },
-    "notRated": "Noch nicht bewertet"
+    "notRated": "Noch nicht bewertet",
+    "expansions": {
+      "heading": "Erweiterungen",
+      "add": "Erweiterung hinzufügen",
+      "details": "Erweiterungsdetails",
+      "edit": "Erweiterung bearbeiten",
+      "deleteQuestion": "Diese Erweiterung löschen?",
+      "dragHandle": "{{title}} verschieben"
+    }
   },
   "validation": {
     "required": "Pflichtfeld",

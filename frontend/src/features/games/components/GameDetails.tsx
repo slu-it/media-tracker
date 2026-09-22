@@ -1,13 +1,23 @@
 import { Box, Rating, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import type { GameResponse } from "../../../types/api";
+import type { ExpansionResponse, GameResponse } from "../../../types/api";
 import { CoverImage } from "../../../components/CoverImage";
 import { CoverAndInfoLayout } from "./CoverAndInfoLayout";
+import { ExpansionList } from "./ExpansionList";
 import { GameStatusIcons } from "./GameStatusIcons";
 import { PlatformChips } from "./PlatformChips";
 
+interface GameDetailsProps {
+  game: GameResponse;
+  titleId: string;
+  /** The game's expansions, below the platform pills; an empty list renders nothing there. */
+  expansions: ExpansionResponse[];
+  onSelectExpansion: (expansion: ExpansionResponse) => void;
+  onMoveExpansion: (expansionId: string, targetIndex: number) => void;
+}
+
 /** Read-only view of one game (the detail dialog's view mode). */
-export function GameDetails({ game, titleId }: { game: GameResponse; titleId: string }) {
+export function GameDetails({ game, titleId, expansions, onSelectExpansion, onMoveExpansion }: GameDetailsProps) {
   const { t } = useTranslation();
   return (
     <CoverAndInfoLayout
@@ -44,6 +54,7 @@ export function GameDetails({ game, titleId }: { game: GameResponse; titleId: st
         <Field label={t("games.fields.platforms")}>
           <PlatformChips platforms={game.platforms} />
         </Field>
+        <ExpansionList expansions={expansions} onSelect={onSelectExpansion} onMove={onMoveExpansion} />
       </Stack>
     </CoverAndInfoLayout>
   );
