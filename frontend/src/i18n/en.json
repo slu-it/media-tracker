@@ -105,7 +105,15 @@
       "paused": "Paused",
       "abandoned": "Abandoned"
     },
-    "notRated": "Not rated yet"
+    "notRated": "Not rated yet",
+    "expansions": {
+      "heading": "Expansions",
+      "add": "Add expansion",
+      "details": "Expansion details",
+      "edit": "Edit expansion",
+      "deleteQuestion": "Delete this expansion?",
+      "dragHandle": "Reorder {{title}}"
+    }
   },
   "validation": {
     "required": "Required",

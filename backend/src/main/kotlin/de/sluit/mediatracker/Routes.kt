@@ -36,7 +36,7 @@ fun Route.apiRoutes(services: Services) {
 
             apiKeyRoutes(services.apiKeys)
 
-            gameRoutes(services.games)
+            gameRoutes(services.games, services.expansions)
 
             // Unknown API paths must answer JSON 404 instead of falling through to the SPA's index.html.
             route("{...}") {
@@ -54,7 +54,7 @@ fun Route.apiRoutes(services: Services) {
  */
 fun Route.mcpRoutes(services: Services) {
     authenticate(API_KEY_AUTH) {
-        mcpEndpoint { newMcpServer().apply { addGameTools(services.games) } }
+        mcpEndpoint { newMcpServer().apply { addGameTools(services.games, services.expansions) } }
     }
 }
 

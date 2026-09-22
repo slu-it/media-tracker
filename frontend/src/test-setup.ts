@@ -20,6 +20,12 @@ if (typeof window.matchMedia !== "function") {
     }) as MediaQueryList;
 }
 
+// jsdom has no scrollIntoView; @dnd-kit/core's keyboard sensor calls it when the active element sits inside a
+// scrollable ancestor (e.g. a dialog's scrolling content area) and jsdom's zero-size rects look "out of view".
+if (typeof Element.prototype.scrollIntoView !== "function") {
+  Element.prototype.scrollIntoView = () => {};
+}
+
 // An unexpected console.error usually means an act() warning, an unhandled rejection log or a component
 // error boundary firing: real problems that should fail the test rather than scroll by silently.
 let errorSpy: MockInstance<(...args: Parameters<typeof console.error>) => void>;

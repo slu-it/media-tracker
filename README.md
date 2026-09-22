@@ -90,7 +90,8 @@ not with the browser session:
    `ownership`, `progress` and `releaseYears` filter arrays and `hasMissing`, which finds games whose
    `description` or `coverImageUrl` is still empty; `pageSize` returns up to 100 matches, 10 by default) and
    `update_game` (same fields as `PATCH /api/games/{id}`: `id` required, everything else optional; only the fields
-   passed change, and the id comes from `search_games`).
+   passed change, and the id comes from `search_games`), `list_expansions` and `add_expansion` (a game's DLC, by
+   the `gameId` from `search_games`; a new expansion is appended to the end of the game's order).
 
 Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
 regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in

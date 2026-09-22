@@ -58,7 +58,8 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   required) and `update_game` (the fields of `PATCH /api/games/{id}` plus
   the required `id`, which an agent looks up with `search_games`; only the fields passed are changed;
   `description`, `rating` and `coverImageUrl` accept `null` to clear, every other field rejects an explicit `null`
-  rather than silently ignoring it), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
+  rather than silently ignoring it), plus `list_expansions` and `add_expansion` for a game's DLC (both take the `gameId` an agent got from
+  `search_games`; `add_expansion` appends), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
   advertise their allowed values as a JSON-schema `enum` built from the domain enums, so the tool contract cannot
   drift from the code (decision record 0017). The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
@@ -96,13 +97,17 @@ de.sluit.mediatracker
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
-    │                   GameMcpTools (MCP tools list_game_platforms, add_game, search_games incl. hasMissing
-    │                   and pageSize, update_game)
+    │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
+    │                   game's /{id} block), GameMcpTools (MCP tools list_game_platforms, add_game,
+    │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
     │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
-    │                   GameRepository and GamePlatformRepository (interfaces), GameService
-    └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable (Exposed), ExposedGameRepository
+    │                   GameRepository and GamePlatformRepository (interfaces), GameService,
+    │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
+    │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence)
+    └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable (Exposed),
+                        ExposedExpansionRepository, ExposedGameRepository
                         (findPage by title, search by fulltext score and filters, findUsedFilterValues),
                         FulltextQuery (boolean-mode text),
                         FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository
@@ -127,6 +132,10 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `platformIds` (at least one seeded platform id), `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional; `ownership` (`watchlist`/`owned`, default `watchlist`), `progress` (`not_started`/`playing`/`finished`/`completed`/`paused`/`abandoned`, default `not_started`) and `hidden` (default `false`) optional, an unknown value is a 400 (decision record 0017) |
 | `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating` or `coverImageUrl`, `platformIds` replaces the whole set; `ownership`, `progress` and `hidden` cannot be cleared, so an explicit `null` on them means unchanged (as for `title`, `releaseYear` and `platformIds`); 404 for unknown ids |
 | `DELETE /api/games/{id}` | 204 | also for unknown ids (idempotent); junction rows go with the game (`ON DELETE CASCADE`) |
+| `GET /api/games/{id}/expansions` | 200 `ExpansionResponse[]` | a game's expansions (DLC), ordered by `sequence`, which is dense and zero-based per game; 404 if the game is unknown (decision record 0023) |
+| `POST /api/games/{id}/expansions` | 201 `ExpansionResponse` + `Location` | body `CreateExpansionRequest`: `title` required, `ownership` and `progress` optional with the game's own defaults; appended at the end of the order; 404 if the game is unknown |
+| `PATCH /api/games/{id}/expansions/{expansionId}` | 200 `ExpansionResponse` | body `UpdateExpansionRequest`: every field optional, `null` never clears (nothing on an expansion is clearable), so no `PatchField`. A `sequence` is a move: the expansion is reinserted at that index and the whole order is renumbered; outside `0..n-1` it is a 400. 404 for an unknown expansion or one belonging to another game |
+| `DELETE /api/games/{id}/expansions/{expansionId}` | 204 | idempotent, also for unknown ids; the remaining sequences are re-packed. Deleting the game takes its expansions with it (`ON DELETE CASCADE`) |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 
@@ -157,12 +166,17 @@ frontend/src
 │                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
 └── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
-                          ?search and the filter parameters, games.meta), hooks/ (useGamesPage, useGamesMeta),
-                          domain/ (gameValues validators, SEARCH_DEBOUNCE_MS, gameDraft, gameFilters: the
-                          selection and its stable key, gameStatus: ownership/progress values and defaults),
-                          components/ (grid, cards, GameSearchField, GameFilterBar, pagination, detail/add
-                          dialogs, fields/)
+                          ?search and the filter parameters, games.meta; expansionsApi), hooks/ (useGamesPage,
+                          useGamesMeta, useExpansions), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS,
+                          gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
+                          ownership/progress values and defaults), components/ (grid, cards, GameSearchField,
+                          GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:
+                          the sortable DLC stack inside the detail dialog, ExpansionDialog)
 ```
+
+@dnd-kit (`core`, `sortable`, `utilities`) is the frontend's only runtime dependency beyond React, MUI and
+i18next; it drags the expansion cards and its keyboard sensor is what the reorder test drives (decision record
+0023).
 
 Browser state: `localStorage["mt.language"]` (`en`/`de`) and `localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/
 `series`). The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,

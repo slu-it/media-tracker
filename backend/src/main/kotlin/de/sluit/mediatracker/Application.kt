@@ -12,7 +12,9 @@ import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.config.SessionConfig
+import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.persistence.ExposedExpansionRepository
 import de.sluit.mediatracker.games.persistence.ExposedGamePlatformRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameRepository
 import de.sluit.mediatracker.plugins.configureMonitoring
@@ -27,7 +29,12 @@ import kotlinx.coroutines.job
 /**
  * The services the HTTP layer needs; built from Exposed repositories in [module], from MockK mocks in handler tests.
  */
-class Services(val auth: AuthService, val games: GameService, val apiKeys: ApiKeyService)
+class Services(
+    val auth: AuthService,
+    val games: GameService,
+    val apiKeys: ApiKeyService,
+    val expansions: ExpansionService,
+)
 
 /**
  * Plugins and routes, independent of how the services and the session storage are backed.
@@ -70,9 +77,11 @@ fun Application.module() {
     val userRepository = ExposedUserRepository()
     val sessionRepository = ExposedSessionRepository()
     val authService = AuthService(userRepository, passwordHasher)
-    val gameService = GameService(ExposedGameRepository(), ExposedGamePlatformRepository())
+    val gameRepository = ExposedGameRepository()
+    val gameService = GameService(gameRepository, ExposedGamePlatformRepository())
     val apiKeyService = ApiKeyService(userRepository)
-    val services = Services(authService, gameService, apiKeyService)
+    val expansionService = ExpansionService(gameRepository, ExposedExpansionRepository())
+    val services = Services(authService, gameService, apiKeyService, expansionService)
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))
 

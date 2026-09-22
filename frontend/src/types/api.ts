@@ -1,5 +1,6 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
-// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse) and .../games/api/GameDtos.kt. Keep them in sync.
+// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse), .../games/api/GameDtos.kt and
+// .../games/api/ExpansionDtos.kt. Keep them in sync.
 
 /** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
 export type Ownership = "watchlist" | "owned";
@@ -98,4 +99,33 @@ export interface UpdateGameRequest {
   progress?: Progress;
   /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
   hidden?: boolean;
+}
+
+export interface ExpansionResponse {
+  id: string;
+  gameId: string;
+  sequence: number;
+  title: string;
+  ownership: Ownership;
+  progress: Progress;
+}
+
+export interface CreateExpansionRequest {
+  title: string;
+  /** Omit for the default (`"watchlist"`); can never be cleared. */
+  ownership?: Ownership | null;
+  /** Omit for the default (`"not_started"`); can never be cleared. */
+  progress?: Progress | null;
+}
+
+/**
+ * PATCH body: omit a key to leave the field unchanged; unlike a game, no expansion field can be cleared, so there
+ * is no `null` variant for any of them. A present `sequence` is a move request: the new 0-based index among the
+ * game's expansions.
+ */
+export interface UpdateExpansionRequest {
+  title?: string;
+  ownership?: Ownership;
+  progress?: Progress;
+  sequence?: number;
 }

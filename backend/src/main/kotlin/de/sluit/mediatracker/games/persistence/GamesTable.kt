@@ -61,3 +61,29 @@ object GameToPlatformTable : Table("game_to_platform") {
 
     override val primaryKey = PrimaryKey(gameId, platformId)
 }
+
+/**
+ * Exposed view of the `game_expansions` table; the schema itself is db/migration/V008__game_expansions.sql
+ * (MT-016, ADR 0023). Registered in [de.sluit.mediatracker.allTables] for the drift check.
+ *
+ * `title`, `ownership` and `progress` reuse the game's own value objects and wire representations, so their
+ * column types mirror [GamesTable] one for one. `sequence` carries the owner's manual order, dense and
+ * zero-based per game (0..n-1); that density is a domain invariant owned by `ExpansionService`, not the
+ * database, so there is deliberately no unique constraint on `(game_id, sequence)`.
+ */
+object GameExpansionsTable : Table("game_expansions") {
+    val id = char("id", 36)
+    val gameId = char("game_id", 36)
+        .references(GamesTable.id, onDelete = ReferenceOption.CASCADE, fkName = "fk_game_expansions_game")
+        .index("idx_game_expansions_game")
+    val sequence = integer("sequence")
+    val title = varchar("title", 256)
+    val ownership = varchar("ownership", 32)
+    val progress = varchar("progress", 32)
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("idx_game_expansions_game_sequence", false, gameId, sequence)
+    }
+}

@@ -53,6 +53,7 @@ describe("GamesView", () => {
       "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
     });
     renderWithProviders(<GamesView />);
 
@@ -152,6 +153,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
       "DELETE /api/games/:id": () => noContent(),
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
@@ -181,6 +183,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
       "DELETE /api/games/:id": () => noContent(),
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
@@ -216,6 +219,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
       "PATCH /api/games/:id": (call) => jsonResponse({ ...games[0], ...(call.body as object) }),
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();

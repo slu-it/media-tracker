@@ -13,6 +13,9 @@ interface GameRepository {
 
     suspend fun findById(id: GameId): Game?
 
+    /** Cheap existence check for a nested resource (e.g. expansions); unlike [findById] it loads no platforms. */
+    suspend fun exists(id: GameId): Boolean
+
     /** @return false when no row with the game's id exists (anymore). */
     suspend fun update(game: Game): Boolean
 

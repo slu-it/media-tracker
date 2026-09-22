@@ -7,6 +7,7 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
+import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatformId
@@ -41,11 +42,13 @@ import kotlinx.serialization.json.putJsonObject
  * Registers the MCP tools this feature offers on [server]: [de.sluit.mediatracker.mcpRoutes] calls this once per
  * request for every media kind, exactly as [gameRoutes] contributes the REST routes.
  */
-fun Server.addGameTools(gameService: GameService) {
+fun Server.addGameTools(gameService: GameService, expansionService: ExpansionService) {
     addListGamePlatformsTool(gameService)
     addAddGameTool(gameService)
     addSearchGamesTool(gameService)
     addUpdateGameTool(gameService)
+    addListExpansionsTool(expansionService)
+    addAddExpansionTool(expansionService)
 }
 
 private const val LIST_GAME_PLATFORMS_DESCRIPTION =
@@ -68,6 +71,18 @@ private const val SEARCH_GAMES_DESCRIPTION =
         "them. hasMissing finds games whose description or cover image is still empty, so they can be filled in " +
         "with update_game. At least one of query or a filter is required. Each match carries the id update_game " +
         "needs to change it. pageSize controls how many matches come back, 10 by default and 100 at most."
+
+private const val LIST_EXPANSIONS_DESCRIPTION =
+    "Lists a game's expansions - DLC that belongs to that game - in their stored order. gameId is the game's " +
+        "id as returned by search_games - never guess or invent one; if you only have the game's title, look " +
+        "it up with search_games first."
+
+private const val ADD_EXPANSION_DESCRIPTION =
+    "Adds an expansion - DLC that belongs to a game already tracked - and appends it at the end of that " +
+        "game's existing expansion order. gameId is the game's id as returned by search_games - never guess or " +
+        "invent one; if you only have the game's title, look it up with search_games first. title is required. " +
+        "ownership and progress are optional: ownership defaults to watchlist, progress defaults to " +
+        "not_started (completed means fully finished, 100%)."
 
 private const val UPDATE_GAME_DESCRIPTION =
     "Updates a game that is already tracked. id is the game's id as returned by search_games - never guess or " +
@@ -322,11 +337,63 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
     required = listOf("id"),
 )
 
+private val LIST_EXPANSIONS_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("gameId") {
+            put("type", "string")
+            put("format", "uuid")
+            put("description", "The game's id, as returned by search_games.")
+        }
+    },
+    required = listOf("gameId"),
+)
+
+// Mirrors the constraints value classes enforce in games/domain/Expansion.kt / games/domain/GameValues.kt.
+private val ADD_EXPANSION_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("gameId") {
+            put("type", "string")
+            put("format", "uuid")
+            put("description", "The game's id, as returned by search_games.")
+        }
+        putJsonObject("title") {
+            put("type", "string")
+            put("description", "The expansion's title.")
+            put("minLength", 1)
+            put("maxLength", 256)
+        }
+        putJsonObject("ownership") {
+            put("type", "string")
+            putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
+            put("description", "Whether the expansion is owned or just on the watchlist. Defaults to watchlist.")
+        }
+        putJsonObject("progress") {
+            put("type", "string")
+            putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
+            put(
+                "description",
+                "How far the expansion has been played. completed means fully finished (100%). " +
+                    "Defaults to not_started.",
+            )
+        }
+    },
+    required = listOf("gameId", "title"),
+)
+
 // McpJson has ignoreUnknownKeys = true and isLenient = true, which would turn a typo'd field name into a silent
 // no-op instead of an error; validate the key set by hand instead. The accepted names are derived from
 // UpdateGameRequest's serial descriptor, so they cannot drift from the DTO.
 @OptIn(ExperimentalSerializationApi::class)
 private val UPDATE_GAME_FIELDS: Set<String> = UpdateGameRequest.serializer().descriptor.elementNames.toSet()
+
+// Same reasoning as UPDATE_GAME_FIELDS, plus the gameId argument the create request DTO does not carry.
+@OptIn(ExperimentalSerializationApi::class)
+private val ADD_EXPANSION_FIELDS: Set<String> =
+    CreateExpansionRequest.serializer().descriptor.elementNames.toSet() + "gameId"
+
+// Same reasoning as SEARCH_GAMES_FIELDS: list_expansions has no request DTO of its own, so the accepted names
+// are derived from LIST_EXPANSIONS_SCHEMA's own property keys.
+private val LIST_EXPANSIONS_FIELDS: Set<String> = LIST_EXPANSIONS_SCHEMA.properties!!.keys
 
 // Same reasoning as UPDATE_GAME_FIELDS: search_games has no request DTO (its arguments are read by hand into a
 // GameFilters), so the accepted names are derived from SEARCH_GAMES_SCHEMA's own property keys instead, which
@@ -484,6 +551,88 @@ private fun Server.addUpdateGameTool(gameService: GameService) {
                     ),
                 ),
                 structuredContent = McpJson.encodeToJsonElement(GameResponse.serializer(), game).jsonObject,
+            )
+        } catch (e: InvalidValueException) {
+            e.toErrorResult()
+        } catch (e: NotFoundException) {
+            e.toErrorResult()
+        } catch (e: SerializationException) {
+            e.toErrorResult()
+        }
+    }
+}
+
+private fun Server.addListExpansionsTool(expansionService: ExpansionService) {
+    addTool(
+        name = "list_expansions",
+        description = LIST_EXPANSIONS_DESCRIPTION,
+        inputSchema = LIST_EXPANSIONS_SCHEMA,
+        toolAnnotations = ToolAnnotations(readOnlyHint = true),
+    ) { request ->
+        try {
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            val unknown = arguments.keys - LIST_EXPANSIONS_FIELDS
+            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            val gameId = GameId.parse(
+                arguments.stringOrNull("gameId") ?: throw InvalidValueException("gameId", "is missing"),
+            )
+            val expansions = expansionService.list(gameId).map { it.toResponse() }
+            CallToolResult(
+                content = listOf(
+                    TextContent(
+                        if (expansions.isEmpty()) {
+                            "This game has no expansions."
+                        } else {
+                            "${expansions.size} expansion(s), in order:\n" +
+                                expansions.joinToString("\n") {
+                                    "${it.title} (${it.ownership}/${it.progress}): ${it.id}"
+                                }
+                        },
+                    ),
+                ),
+                structuredContent = buildJsonObject {
+                    put("count", expansions.size)
+                    putJsonArray("expansions") {
+                        expansions.forEach { add(McpJson.encodeToJsonElement(ExpansionResponse.serializer(), it)) }
+                    }
+                },
+            )
+        } catch (e: InvalidValueException) {
+            e.toErrorResult()
+        } catch (e: NotFoundException) {
+            e.toErrorResult()
+        }
+    }
+}
+
+private fun Server.addAddExpansionTool(expansionService: ExpansionService) {
+    addTool(
+        name = "add_expansion",
+        description = ADD_EXPANSION_DESCRIPTION,
+        inputSchema = ADD_EXPANSION_SCHEMA,
+    ) { request ->
+        try {
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            // McpJson ignores unknown keys, which would turn a typo'd field name into a silent no-op instead of
+            // an error; reject it here instead, as update_game does.
+            val unknown = arguments.keys - ADD_EXPANSION_FIELDS
+            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            val gameId = GameId.parse(
+                arguments.stringOrNull("gameId") ?: throw InvalidValueException("gameId", "is missing"),
+            )
+            val createRequest = McpJson.decodeFromJsonElement(
+                CreateExpansionRequest.serializer(),
+                JsonObject(arguments - "gameId"),
+            )
+            val expansion = expansionService.create(gameId, createRequest.toNewExpansion()).toResponse()
+            CallToolResult(
+                content = listOf(
+                    TextContent(
+                        "Added expansion \"${expansion.title}\" to game $gameId with id ${expansion.id}.",
+                    ),
+                ),
+                structuredContent =
+                McpJson.encodeToJsonElement(ExpansionResponse.serializer(), expansion).jsonObject,
             )
         } catch (e: InvalidValueException) {
             e.toErrorResult()

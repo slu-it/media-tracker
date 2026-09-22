@@ -67,7 +67,17 @@ class McpSmokeTest {
 
         try {
             val toolNames = mcp.listTools().tools.map { it.name }.toSet()
-            assertEquals(setOf("list_game_platforms", "add_game", "search_games", "update_game"), toolNames)
+            assertEquals(
+                setOf(
+                    "list_game_platforms",
+                    "add_game",
+                    "search_games",
+                    "update_game",
+                    "list_expansions",
+                    "add_expansion",
+                ),
+                toolNames,
+            )
 
             val result = mcp.callTool("list_game_platforms", emptyMap())
             assertNotEquals(true, result.isError)
@@ -296,6 +306,45 @@ class McpSmokeTest {
                 .items.single { it.id == gameId }
             assertEquals(null, afterClear.rating)
             assertEquals("Finally released", afterClear.description)
+        } finally {
+            mcp.close()
+            transaction { GamesTable.deleteAll() }
+        }
+    }
+
+    @Test
+    fun `add_expansion twice then list_expansions returns them in insertion order`() = testApplication {
+        val (_, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val platforms = mcp.callTool("list_game_platforms", emptyMap())
+            val pcId = platforms.structuredContent!!["platforms"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "PC" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            val created = mcp.callTool(
+                "add_game",
+                mapOf("title" to "Hollow Knight", "releaseYear" to 2017, "platformIds" to listOf(pcId)),
+            )
+            assertNotEquals(true, created.isError)
+            val gameId = created.structuredContent!!["id"]!!.jsonPrimitive.content
+
+            val firstExpansion = mcp.callTool("add_expansion", mapOf("gameId" to gameId, "title" to "Godmaster"))
+            assertNotEquals(true, firstExpansion.isError)
+            val secondExpansion = mcp.callTool(
+                "add_expansion",
+                mapOf("gameId" to gameId, "title" to "The Grimm Troupe", "ownership" to "owned"),
+            )
+            assertNotEquals(true, secondExpansion.isError)
+
+            val listed = mcp.callTool("list_expansions", mapOf("gameId" to gameId))
+
+            assertNotEquals(true, listed.isError)
+            val titles = listed.structuredContent!!["expansions"]!!.jsonArray
+                .map { it.jsonObject["title"]!!.jsonPrimitive.content }
+            assertEquals(listOf("Godmaster", "The Grimm Troupe"), titles)
         } finally {
             mcp.close()
             transaction { GamesTable.deleteAll() }
