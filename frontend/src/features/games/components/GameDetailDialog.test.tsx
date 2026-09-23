@@ -7,6 +7,7 @@ import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
 import {
   celeste,
   hades,
+  hadesCoverOptions,
   hadesExpansion1,
   hadesExpansion2,
   hadesExpansions,
@@ -58,10 +59,10 @@ describe("GameDetailDialog", () => {
 
     const cover = within(dialog).getByRole("img", { name: "Celeste" });
     const rating = within(dialog).getByRole("group", { name: "Rating" });
-    // The cover image sits in its own fixed-size frame, so the shared parent is one level up. Verifying that
-    // is structural and has no ARIA role/text query equivalent.
+    // The cover image sits inside a clickable button inside its own fixed-size frame, so the shared parent is
+    // two levels up. Verifying that is structural and has no ARIA role/text query equivalent.
     // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
-    expect(rating.parentElement).toBe(cover.parentElement!.parentElement);
+    expect(rating.parentElement).toBe(cover.parentElement!.parentElement!.parentElement);
   });
 
   it("shows the rating under the cover image, in the same column, in edit mode", async () => {
@@ -538,5 +539,52 @@ describe("GameDetailDialog", () => {
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
+  });
+
+  it("opens the cover picker from the placeholder cover of a game without a cover", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
+      "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions),
+    });
+    renderWithProviders(
+      <GameDetailDialog
+        game={hades}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
+
+    expect(await screen.findByText("Choose a cover")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(calls.some((c) => c.url === `/api/games/${hades.id}/cover-options?query=${hades.title}`)).toBe(true),
+    );
+  });
+
+  it("closes the cover picker and reports the patched game after picking a cover", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const updated = { ...hades, coverImageUrl: hadesCoverOptions.covers[0].imageUrl };
+    mockApi({
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
+      "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions),
+      "PATCH /api/games/:id": () => jsonResponse(updated),
+    });
+    renderWithProviders(
+      <GameDetailDialog game={hades} onClose={() => {}} onSaved={onSaved} onDeleted={() => {}} platforms={platforms} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
+    await screen.findByText("Choose a cover");
+    await user.click(await screen.findByRole("button", { name: "Use cover 1" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledExactlyOnceWith(updated));
+    await waitFor(() => expect(screen.queryByText("Choose a cover")).not.toBeInTheDocument());
   });
 });

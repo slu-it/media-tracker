@@ -1,6 +1,7 @@
 package de.sluit.mediatracker.games
 
 import de.sluit.mediatracker.appWithUser
+import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.api.GameMetaResponse
@@ -309,6 +310,17 @@ class GamesSmokeTest {
         assertEquals(listOf("Nintendo", "PC", "PlayStation", "Xbox"), platforms.map { it.label })
         assertEquals(SeededPlatforms.PC, platforms.first { it.label == "PC" }.id)
         assertEquals("757575", platforms.first { it.label == "PC" }.associatedColor)
+    }
+
+    @Test
+    fun `cover options answer 503 cover_source_unavailable while no api key is configured`() = testApplication {
+        val client = loggedInClient()
+        val game = client.createdGame(CELESTE_BODY)
+
+        val response = client.get("/api/games/${game.id}/cover-options")
+
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status, response.bodyAsText())
+        assertEquals("cover_source_unavailable", response.decodeBody<ErrorResponse>().error)
     }
 
     @Test

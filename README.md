@@ -48,7 +48,9 @@ DB_PASSWORD=...
 SESSION_SECRET=<long random string>
 ```
 
-Optional: `PORT` (default 8080) and `SESSION_SECURE=false` for plain-http testing on a LAN.
+Optional: `PORT` (default 8080), `SESSION_SECURE=false` for plain-http testing on a LAN, and `STEAMGRIDDB_API_KEY`
+(a free key from your [SteamGridDB profile](https://www.steamgriddb.com/profile/preferences/api)) to enable the cover
+picker in the game detail dialog (ADR 0024); without it the picker says it is not configured.
 
 ## First user
 

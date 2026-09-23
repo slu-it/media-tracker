@@ -13,6 +13,7 @@ Browser ──GET /────────────▶ Ktor ── no valid 
         ──GET / (+cookie)──▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
         ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MariaDB
+        ──GET /api/games/{id}/cover-options▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
         ──POST /logout─────▶ sessions row deleted, cookie cleared ─▶ 302 /login
 Agent   ──POST /mcp (X-API-Key)▶ authenticate("api-key") ─▶ ApiKeyService ─▶ users row ─▶ MCP Server ─▶ tools/call add_game ─▶ GameService
 ```
@@ -75,13 +76,15 @@ de.sluit.mediatracker
 │                       404 catch-all), mcpRoutes (API-key-gated /mcp with every feature's tools) and webRoutes
 │                       (/health, session-gated SPA from classpath /app)
 ├── Schema.kt           allTables: every Exposed table object, for the schema drift check
-├── config/             AppConfig, DatabaseConfig, SessionConfig (typed application.yaml)
+├── config/             AppConfig, DatabaseConfig, SessionConfig, CoverSourceConfig/SteamGridDbConfig (typed
+│                       application.yaml; the SteamGridDB key is optional, absent = no cover source)
 ├── common/             shared code in the same three layers as a feature; knows no feature:
 │   ├── api/            shared DTOs (ErrorResponse, HealthResponse, PageResponse<T>; mirrored in
 │   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing),
 │   │                   Search (?search parsing)
 │   ├── domain/         InvalidValueException/NotFoundException/requireValid,
-│   │                   PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm
+│   │                   ExternalSourceUnavailableException/ExternalSourceException (an outbound source's
+│   │                   503/502, coded by source name), PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm
 │   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery()
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
@@ -98,22 +101,28 @@ de.sluit.mediatracker
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
-    │                   game's /{id} block), GameMcpTools (MCP tools list_game_platforms, add_game,
+    │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/{id}/cover-options,
+    │                   same block), GameMcpTools (MCP tools list_game_platforms, add_game,
     │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
     │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
     │                   GameRepository and GamePlatformRepository (interfaces), GameService,
     │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
-    │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence)
-    └── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable (Exposed),
-                        ExposedExpansionRepository, ExposedGameRepository
-                        (findPage by title, search by fulltext score and filters, findUsedFilterValues),
-                        FulltextQuery (boolean-mode text),
-                        FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository
+    │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
+    │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate/
+    │                   CoverOption/CoverOptions, CoverMatchRanking (selectBestMatch), CoverOptionsService
+    ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable (Exposed),
+    │                   ExposedExpansionRepository, ExposedGameRepository
+    │                   (findPage by title, search by fulltext score and filters, findUsedFilterValues),
+    │                   FulltextQuery (boolean-mode text),
+    │                   FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository
+    └── integration/    outbound adapters (decision record 0024): SteamGridDbCoverSource (Ktor client, Java
+                        engine) + SteamGridDbDtos (the provider's wire JSON)
 ```
 
-Layer rule inside a feature: `api -> domain <- persistence`; the domain imports neither Ktor nor Exposed nor
+Layer rule inside a feature: `api -> domain <- persistence`, and `integration -> domain` (plus `config` for its own
+settings) for outbound adapters (HTTP clients to third-party services, decision record 0024); the domain imports neither Ktor nor Exposed nor
 kotlinx.serialization (pure libraries such as Bouncy Castle or slf4j are fine). Only domain objects and value
 classes cross a layer boundary; constructing a value class is the validation. The shared top-level packages
 (`common`, `plugins`, `config`) never import a feature package. The files that know every feature live in the
@@ -136,13 +145,15 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `POST /api/games/{id}/expansions` | 201 `ExpansionResponse` + `Location` | body `CreateExpansionRequest`: `title` required, `ownership` and `progress` optional with the game's own defaults; appended at the end of the order; 404 if the game is unknown |
 | `PATCH /api/games/{id}/expansions/{expansionId}` | 200 `ExpansionResponse` | body `UpdateExpansionRequest`: every field optional, `null` never clears (nothing on an expansion is clearable), so no `PatchField`. A `sequence` is a move: the expansion is reinserted at that index and the whole order is renumbered; outside `0..n-1` it is a 400. 404 for an unknown expansion or one belonging to another game |
 | `DELETE /api/games/{id}/expansions/{expansionId}` | 204 | idempotent, also for unknown ids; the remaining sequences are re-packed. Deleting the game takes its expansions with it (`ON DELETE CASCADE`) |
+| `GET /api/games/{id}/cover-options[?query=hades][&match=5245]` | 200 `CoverOptionsResponse {query, matches, selectedMatchId, covers}` | cover suggestions from SteamGridDB for the cover picker (decision record 0024): `matches` are the provider's games for the search term (`query`, default the game's title, same 1..200 limits as `?search`), `selectedMatchId` the one the ranking picked (exact title, then same year, then first; `null` when nothing matched) and `covers` (`thumbnailUrl`, `imageUrl`, `width`, `height`) only for that one; `match` picks another candidate instead (empty = absent, anything but a positive integer is a 400); 404 for an unknown game; `503 cover_source_unavailable` when no `STEAMGRIDDB_API_KEY` is configured, `502 cover_source_error` when the provider fails |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 
 Errors are `ErrorResponse {error, message?}` with codes `validation_error` (400, a value class rejected a field:
 `"title: must not be blank"`), `invalid_body` (400, malformed or ill-typed JSON, missing body), `not_found` (404),
 `unauthorized` (401), `method_not_allowed` (405, GET/DELETE on `/mcp`, answered by `mcp/api/McpEndpoint.kt` itself),
-`internal_error` (500). The exception mapping lives in `plugins/StatusPages.kt` and also applies to `/mcp`.
+`<source>_unavailable` (503, an outbound source such as `cover_source` is not configured) and `<source>_error` (502,
+it failed; the upstream status and error list are logged, never returned), `internal_error` (500). The exception mapping lives in `plugins/StatusPages.kt` and also applies to `/mcp`.
 
 `POST /mcp` speaks JSON-RPC 2.0 per the MCP specification (`initialize`, `tools/list`, `tools/call`); authentication
 failures are the same JSON `401` plus `WWW-Authenticate: Bearer`. Tool validation failures are returned as tool
@@ -161,17 +172,19 @@ frontend/src
 ├── hooks/                useLocalStorageState, useStoredTab (selected media tab), useDebouncedValue (search fields)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, mediaKinds), dialog/ (BaseDialog, ConfirmDialog,
-│                         DialogActionButton), CoverImage, ComingSoon
+│                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
+│                         ComingSoon
 ├── features/settings/    UserSettingsDialog (tab bar; "API Keys" tab) + api/ (settingsApi), hooks/ (useApiKeys),
 │                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
 └── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
-                          ?search and the filter parameters, games.meta; expansionsApi), hooks/ (useGamesPage,
-                          useGamesMeta, useExpansions), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS,
+                          ?search and the filter parameters, games.meta, cover-options; expansionsApi), hooks/
+                          (useGamesPage, useGamesMeta, useExpansions, useCoverOptions), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS,
                           gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
                           ownership/progress values and defaults), components/ (grid, cards, GameSearchField,
                           GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:
-                          the sortable DLC stack inside the detail dialog, ExpansionDialog)
+                          the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
+                          SteamGridDB thumbnails behind the clickable cover of the detail dialog)
 ```
 
 @dnd-kit (`core`, `sortable`, `utilities`) is the frontend's only runtime dependency beyond React, MUI and
@@ -224,6 +237,9 @@ ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + l
   projects: if the application starts first, the pool fails to initialise, the JVM exits and the restart policy
   retries until the database answers. The systemd path cannot resolve `mariadb` and needs the published port
   instead. Decision record 0018.
+- `STEAMGRIDDB_API_KEY` is the only optional secret: with it the cover picker queries SteamGridDB through
+  `games/integration/SteamGridDbCoverSource` (Ktor client, JDK `HttpClient` engine, 10 s timeout); without it
+  the endpoint answers `503 cover_source_unavailable` and the picker says so. Decision record 0024.
 - `deploy/jvm.options`: 192 MB heap, SerialGC, C1 only, auto-created CDS archive for faster restarts.
 - HikariCP: `maximumPoolSize=3`, `minimumIdle=1`, `keepaliveTime=300000`, `maxLifetime=1500000`. The
   keepalive dates from the web-host era, where idle connections were killed from the other side; against the
@@ -265,7 +281,7 @@ Rules:
 |---|---|
 | Everything (lint, format check, tests, fat JAR) | `./gradlew build` |
 | Dev loop with live reload (backend + frontend) | `./start-dev.sh`: Docker MariaDB, `:backend:run` in Ktor development mode, `:backend:classes -t`, `pnpm dev`; see decision record 0006 |
-| Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment; add `-Pmt.dev=true` for auto-reload without the SPA) |
+| Backend only | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET` in the environment, optionally `STEAMGRIDDB_API_KEY` for the cover picker; add `-Pmt.dev=true` for auto-reload without the SPA) |
 | Frontend hot reload only | `cd frontend && pnpm dev` (proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
 | Backend tests (handler tests without a database, smoke/repository/drift tests on a Testcontainers MariaDB, needs Docker; ADR 0011, 0015) | `./gradlew :backend:test` |
 | Backend coverage report (Kover, informational, decision record 0011) | `./gradlew :backend:koverHtmlReport` |

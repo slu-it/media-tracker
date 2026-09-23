@@ -7,6 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
@@ -142,5 +143,67 @@ class AppConfigTest {
         assertEquals("MT_SESSION", appConfig.session.cookieName)
         assertTrue(appConfig.session.secret.length >= 16)
         assertEquals(false, appConfig.session.secureCookie)
+        // Pinned blank in application-test.yaml so a developer's exported STEAMGRIDDB_API_KEY cannot flip tests.
+        assertNull(appConfig.coverSource.steamGridDb)
+    }
+
+    @Test
+    fun `reads the steam grid db api key and base url when configured`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "coverSource.steamGridDb.apiKey" to "sgdb-key",
+            "coverSource.steamGridDb.baseUrl" to "https://example.org/api/v2",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertEquals("sgdb-key", appConfig.coverSource.steamGridDb?.apiKey)
+        assertEquals("https://example.org/api/v2", appConfig.coverSource.steamGridDb?.baseUrl)
+    }
+
+    @Test
+    fun `a blank steam grid db api key is read as an unconfigured cover source`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "coverSource.steamGridDb.apiKey" to "",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertNull(appConfig.coverSource.steamGridDb)
+    }
+
+    @Test
+    fun `an absent steam grid db configuration is read as an unconfigured cover source`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertNull(appConfig.coverSource.steamGridDb)
+    }
+
+    @Test
+    fun `the steam grid db config toString masks the api key`() {
+        val config = SteamGridDbConfig(apiKey = "sgdb-secret", baseUrl = "https://example.org/api/v2")
+
+        assertFalse(config.toString().contains("sgdb-secret"))
+    }
+
+    @Test
+    fun `defaults the steam grid db base url when absent`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "coverSource.steamGridDb.apiKey" to "sgdb-key",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertEquals("https://www.steamgriddb.com/api/v2", appConfig.coverSource.steamGridDb?.baseUrl)
     }
 }

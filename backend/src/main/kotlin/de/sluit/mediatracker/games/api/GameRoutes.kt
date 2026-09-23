@@ -4,6 +4,7 @@ import de.sluit.mediatracker.common.api.pageRequest
 import de.sluit.mediatracker.common.api.searchTerm
 import de.sluit.mediatracker.common.api.toResponse
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameId
@@ -24,9 +25,14 @@ import io.ktor.server.routing.route
 /**
  * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [GameService]; they never touch persistence.
- * A game's expansions ([expansionRoutes]) are mounted inside its `/{id}` block.
+ * A game's expansions ([expansionRoutes]) and cover image search ([coverOptionRoutes]) are mounted inside its
+ * `/{id}` block.
  */
-fun Route.gameRoutes(gameService: GameService, expansionService: ExpansionService) {
+fun Route.gameRoutes(
+    gameService: GameService,
+    expansionService: ExpansionService,
+    coverOptionsService: CoverOptionsService,
+) {
     route("/games") {
         post {
             val game = gameService.create(call.receive<CreateGameRequest>().toNewGame())
@@ -53,6 +59,7 @@ fun Route.gameRoutes(gameService: GameService, expansionService: ExpansionServic
                 call.respond(HttpStatusCode.NoContent)
             }
             expansionRoutes(expansionService)
+            coverOptionRoutes(coverOptionsService)
         }
     }
     route("/game-platforms") {

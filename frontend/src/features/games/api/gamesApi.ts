@@ -1,5 +1,6 @@
 import { apiFetch } from "../../../api/client";
 import type {
+  CoverOptionsResponse,
   CreateGameRequest,
   GameMetaResponse,
   GamePlatformResponse,
@@ -46,4 +47,14 @@ export function updateGame(id: string, body: UpdateGameRequest): Promise<GameRes
 /** 204 for existing and unknown ids alike. */
 export function deleteGame(id: string): Promise<void> {
   return apiFetch<void>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** `query` and `match` are appended only when set; the backend defaults `query` to the game's title. */
+export function getCoverOptions(id: string, params: { query?: string; match?: number }): Promise<CoverOptionsResponse> {
+  const query = new URLSearchParams();
+  const term = params.query?.trim();
+  if (term) query.set("query", term);
+  if (params.match !== undefined) query.set("match", String(params.match));
+  const suffix = query.toString();
+  return apiFetch<CoverOptionsResponse>(`${BASE}/${encodeURIComponent(id)}/cover-options${suffix ? `?${suffix}` : ""}`);
 }

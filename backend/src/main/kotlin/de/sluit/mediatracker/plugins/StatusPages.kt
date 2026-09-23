@@ -1,6 +1,8 @@
 package de.sluit.mediatracker.plugins
 
 import de.sluit.mediatracker.common.api.ErrorResponse
+import de.sluit.mediatracker.common.domain.ExternalSourceException
+import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import io.ktor.http.HttpStatusCode
@@ -26,6 +28,8 @@ import io.ktor.server.response.respondText
  * | [BadRequestException] (malformed/ill-typed body) | 400 | `invalid_body`     |
  * | [ContentTransformationException] (no/unsupported body) | 400 | `invalid_body` |
  * | [NotFoundException]                           | 404    | `not_found`        |
+ * | [ExternalSourceUnavailableException] (integration not configured) | 503 | `"${source}_unavailable"` |
+ * | [ExternalSourceException] (integration call failed, logged at warn) | 502 | `"${source}_error"` |
  * | anything else                                 | 500    | `internal_error`   |
  */
 fun Application.configureStatusPages() {
@@ -35,6 +39,17 @@ fun Application.configureStatusPages() {
         }
         exception<NotFoundException> { call, _ ->
             call.respondError(HttpStatusCode.NotFound, "not_found")
+        }
+        exception<ExternalSourceUnavailableException> { call, cause ->
+            call.respondError(HttpStatusCode.ServiceUnavailable, "${cause.source}_unavailable", cause.message)
+        }
+        exception<ExternalSourceException> { call, cause ->
+            call.application.log.warn("External source '${cause.source}' call failed", cause)
+            call.respondError(
+                HttpStatusCode.BadGateway,
+                "${cause.source}_error",
+                "${cause.source} is currently unavailable",
+            )
         }
         exception<BadRequestException> { call, cause ->
             // Ktor wraps the kotlinx.serialization failure; its message carries the offending field but also

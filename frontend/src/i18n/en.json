@@ -106,6 +106,18 @@
       "abandoned": "Abandoned"
     },
     "notRated": "Not rated yet",
+    "coverPicker": {
+      "open": "Choose a cover image",
+      "title": "Choose a cover",
+      "search": "Search term",
+      "match": "Matching game",
+      "pick": "Use cover {{index}}",
+      "noMatches": "No games found for \"{{term}}\"",
+      "noCovers": "No covers available for this game.",
+      "unavailable": "Cover search is not configured on this server (STEAMGRIDDB_API_KEY).",
+      "loadFailed": "Could not load cover suggestions.",
+      "attribution": "Covers from SteamGridDB"
+    },
     "expansions": {
       "heading": "Expansions",
       "add": "Add expansion",

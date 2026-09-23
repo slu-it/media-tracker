@@ -12,8 +12,11 @@ import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.config.SessionConfig
+import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.integration.SteamGridDbCoverSource
+import de.sluit.mediatracker.games.integration.steamGridDbHttpClient
 import de.sluit.mediatracker.games.persistence.ExposedExpansionRepository
 import de.sluit.mediatracker.games.persistence.ExposedGamePlatformRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameRepository
@@ -34,6 +37,7 @@ class Services(
     val games: GameService,
     val apiKeys: ApiKeyService,
     val expansions: ExpansionService,
+    val coverOptions: CoverOptionsService,
 )
 
 /**
@@ -81,7 +85,20 @@ fun Application.module() {
     val gameService = GameService(gameRepository, ExposedGamePlatformRepository())
     val apiKeyService = ApiKeyService(userRepository)
     val expansionService = ExpansionService(gameRepository, ExposedExpansionRepository())
-    val services = Services(authService, gameService, apiKeyService, expansionService)
+
+    val coverSource = config.coverSource.steamGridDb?.let { steamGridDbConfig ->
+        val client = steamGridDbHttpClient()
+        coroutineContext.job.invokeOnCompletion { client.close() }
+        SteamGridDbCoverSource(client, steamGridDbConfig)
+    }
+    if (coverSource != null) {
+        log.info("cover source: steamgriddb configured")
+    } else {
+        log.info("cover source: not configured (STEAMGRIDDB_API_KEY unset)")
+    }
+    val coverOptionsService = CoverOptionsService(gameRepository, coverSource)
+
+    val services = Services(authService, gameService, apiKeyService, expansionService, coverOptionsService)
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))
 

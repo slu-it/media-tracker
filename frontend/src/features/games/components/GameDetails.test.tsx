@@ -107,4 +107,51 @@ describe("GameDetails", () => {
     await user.click(screen.getByRole("button", { name: hadesExpansion1.title }));
     expect(onSelectExpansion).toHaveBeenCalledExactlyOnceWith(hadesExpansion1);
   });
+
+  it("shows the choose-cover button for a game without a cover and forwards a click", async () => {
+    const user = userEvent.setup();
+    const onPickCover = vi.fn();
+    renderWithProviders(
+      <GameDetails
+        game={hades}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+        onPickCover={onPickCover}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Choose a cover image" }));
+    expect(onPickCover).toHaveBeenCalledOnce();
+  });
+
+  it("shows the choose-cover button for a game with a cover and forwards a click", async () => {
+    const user = userEvent.setup();
+    const onPickCover = vi.fn();
+    renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+        onPickCover={onPickCover}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Choose a cover image" }));
+    expect(onPickCover).toHaveBeenCalledOnce();
+  });
+
+  it("shows no choose-cover button when onPickCover is not given", () => {
+    renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Choose a cover image" })).not.toBeInTheDocument();
+  });
 });

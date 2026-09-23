@@ -1,4 +1,10 @@
-import type { ExpansionResponse, GameMetaResponse, GamePlatformResponse, GameResponse } from "../../types/api";
+import type {
+  CoverOptionsResponse,
+  ExpansionResponse,
+  GameMetaResponse,
+  GamePlatformResponse,
+  GameResponse,
+} from "../../types/api";
 
 export const pc: GamePlatformResponse = { id: "platform-pc", label: "PC", associatedColor: "757575" };
 export const playstation: GamePlatformResponse = {
@@ -59,6 +65,36 @@ export const hadesExpansion2: ExpansionResponse = {
 };
 
 export const hadesExpansions: ExpansionResponse[] = [hadesExpansion1, hadesExpansion2];
+
+export const hadesCoverOptions: CoverOptionsResponse = {
+  query: "Hades",
+  matches: [
+    { id: 5245, name: "Hades", releaseYear: 2020, verified: true },
+    { id: 9999, name: "Hades II", releaseYear: 2024, verified: false },
+  ],
+  selectedMatchId: 5245,
+  covers: [
+    {
+      thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/a.jpg",
+      imageUrl: "https://cdn2.steamgriddb.com/grid/a.png",
+      width: 600,
+      height: 900,
+    },
+    {
+      thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/b.jpg",
+      imageUrl: "https://cdn2.steamgriddb.com/grid/b.png",
+      width: 600,
+      height: 900,
+    },
+  ],
+};
+
+export const emptyCoverOptions: CoverOptionsResponse = {
+  query: "Nonexistent Game",
+  matches: [],
+  selectedMatchId: null,
+  covers: [],
+};
 
 export const meta: GameMetaResponse = {
   platforms: [nintendo, pc],

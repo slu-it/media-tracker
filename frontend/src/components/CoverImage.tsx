@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Box, type SxProps, type Theme } from "@mui/material";
+import { Box, ButtonBase, type SxProps, type Theme } from "@mui/material";
 import ImageNotSupportedIcon from "@mui/icons-material/ImageNotSupported";
 import { useTranslation } from "react-i18next";
+import { focusVisibleRingSx } from "../theme/focusRing";
 
 interface CoverImageProps {
   /** Image URL; `null`/empty shows the placeholder. */
@@ -10,15 +11,24 @@ interface CoverImageProps {
   width: number | string;
   height: number | string;
   sx?: SxProps<Theme>;
+  /** Together with `actionLabel`, makes the whole frame clickable (opens the cover picker), image or placeholder. */
+  onClick?: () => void;
+  actionLabel?: string;
 }
 
 /**
  * Fixed-size frame for cover art. The image keeps its own aspect ratio and fills whichever dimension it hits
  * first (`object-fit: contain`), so covers of different shapes still line up in a grid.
  */
-export function CoverImage({ src, alt, width, height, sx }: CoverImageProps) {
+export function CoverImage({ src, alt, width, height, sx, onClick, actionLabel }: CoverImageProps) {
   const { t } = useTranslation();
   const url = src?.trim() ?? "";
+  const content = url ? (
+    // Keyed by URL so a failed load is forgotten when the URL changes.
+    <Img key={url} src={url} alt={alt} placeholderLabel={t("games.noCover")} />
+  ) : (
+    <Placeholder label={t("games.noCover")} />
+  );
   return (
     <Box
       sx={{
@@ -34,11 +44,25 @@ export function CoverImage({ src, alt, width, height, sx }: CoverImageProps) {
         ...sx,
       }}
     >
-      {url ? (
-        // Keyed by URL so a failed load is forgotten when the URL changes.
-        <Img key={url} src={url} alt={alt} placeholderLabel={t("games.noCover")} />
+      {onClick && actionLabel ? (
+        <ButtonBase
+          onClick={onClick}
+          aria-label={actionLabel}
+          sx={{
+            width: "100%",
+            height: "100%",
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 1,
+            transition: (theme) => theme.transitions.create("filter"),
+            "&:hover": { filter: "brightness(0.85)" },
+            ...focusVisibleRingSx,
+          }}
+        >
+          {content}
+        </ButtonBase>
       ) : (
-        <Placeholder label={t("games.noCover")} />
+        content
       )}
     </Box>
   );

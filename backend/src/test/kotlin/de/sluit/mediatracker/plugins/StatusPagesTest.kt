@@ -1,5 +1,7 @@
 package de.sluit.mediatracker.plugins
 
+import de.sluit.mediatracker.common.domain.ExternalSourceException
+import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import io.ktor.client.request.get
@@ -30,6 +32,10 @@ class StatusPagesTest {
                 get("/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/api/missing") { throw NotFoundException("game", "42") }
                 get("/api/bad-body") { throw BadRequestException("x", IllegalArgumentException("first line\nsecond")) }
+                get("/api/cover-unavailable") { throw ExternalSourceUnavailableException("cover_source") }
+                get("/api/cover-error") {
+                    throw ExternalSourceException("cover_source", "upstream said something secret")
+                }
             }
         }
         client.block()
@@ -95,6 +101,26 @@ class StatusPagesTest {
         val response = get("/api/bad-body")
         assertEquals(HttpStatusCode.BadRequest, response.status)
         assertEquals("""{"error":"invalid_body","message":"first line"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `external source unavailable exception is a json 503 named after the source`() = testApp {
+        val response = get("/api/cover-unavailable")
+        assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
+        assertEquals(
+            """{"error":"cover_source_unavailable","message":"cover_source is not configured"}""",
+            response.bodyAsText(),
+        )
+    }
+
+    @Test
+    fun `external source exception is a json 502 named after the source without the upstream message`() = testApp {
+        val response = get("/api/cover-error")
+        assertEquals(HttpStatusCode.BadGateway, response.status)
+        assertEquals(
+            """{"error":"cover_source_error","message":"cover_source is currently unavailable"}""",
+            response.bodyAsText(),
+        )
     }
 
     @Test

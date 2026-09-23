@@ -8,6 +8,7 @@ import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.common.persistence.sharedTestDatabase
 import de.sluit.mediatracker.common.persistence.testDatabaseConfig
 import de.sluit.mediatracker.config.SessionConfig
+import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.client.HttpClient
@@ -101,9 +102,14 @@ fun ApplicationTestBuilder.handlerApp(
     games: GameService = mockk(),
     apiKeys: ApiKeyService = mockk(),
     expansions: ExpansionService = mockk(),
+    coverOptions: CoverOptionsService = mockk(),
 ): HttpClient {
     application {
-        configureHttp(Services(auth, games, apiKeys, expansions), testSessionConfig, SessionStorageMemory())
+        configureHttp(
+            Services(auth, games, apiKeys, expansions, coverOptions),
+            testSessionConfig,
+            SessionStorageMemory(),
+        )
     }
     return createClient {
         followRedirects = false

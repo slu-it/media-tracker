@@ -69,6 +69,9 @@ dependencies {
     implementation(libs.ktor.server.call.logging)
     implementation(libs.ktor.server.config.yaml)
     implementation(libs.ktor.server.sse)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.java)
+    implementation(libs.ktor.client.content.negotiation)
     implementation(libs.mcp.sdk.server)
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
@@ -82,6 +85,7 @@ dependencies {
     implementation(libs.bouncycastle)
 
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(kotlin("test"))
     // mocks only above the repository interfaces, see ADR 0011
     testImplementation(libs.mockk)

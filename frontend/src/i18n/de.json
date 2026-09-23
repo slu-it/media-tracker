@@ -106,6 +106,18 @@
       "abandoned": "Abgebrochen"
     },
     "notRated": "Noch nicht bewertet",
+    "coverPicker": {
+      "open": "Coverbild auswählen",
+      "title": "Cover auswählen",
+      "search": "Suchbegriff",
+      "match": "Passendes Spiel",
+      "pick": "Cover {{index}} verwenden",
+      "noMatches": "Keine Spiele für „{{term}}“ gefunden",
+      "noCovers": "Für dieses Spiel sind keine Cover verfügbar.",
+      "unavailable": "Die Coversuche ist auf diesem Server nicht konfiguriert (STEAMGRIDDB_API_KEY).",
+      "loadFailed": "Covervorschläge konnten nicht geladen werden.",
+      "attribution": "Cover von SteamGridDB"
+    },
     "expansions": {
       "heading": "Erweiterungen",
       "add": "Erweiterung hinzufügen",
