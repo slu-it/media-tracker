@@ -1,5 +1,7 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.api.PageResponse
+import de.sluit.mediatracker.common.api.toResponse
 import de.sluit.mediatracker.games.domain.CoverOptions
 import kotlinx.serialization.Serializable
 
@@ -17,9 +19,11 @@ data class CoverOptionResponse(val thumbnailUrl: String, val imageUrl: String, v
 @Serializable
 data class CoverOptionsResponse(
     val query: String,
+    /** Empty on pages after the first when `match` is given. */
     val matches: List<CoverMatchResponse>,
     val selectedMatchId: Long?,
-    val covers: List<CoverOptionResponse>,
+    val type: String,
+    val covers: PageResponse<CoverOptionResponse>,
 )
 
 fun CoverOptions.toResponse() = CoverOptionsResponse(
@@ -33,7 +37,8 @@ fun CoverOptions.toResponse() = CoverOptionsResponse(
         )
     },
     selectedMatchId = selectedMatchId?.value,
-    covers = covers.map {
+    type = type.wire,
+    covers = covers.toResponse {
         CoverOptionResponse(
             thumbnailUrl = it.thumbnailUrl.value,
             imageUrl = it.imageUrl.value,

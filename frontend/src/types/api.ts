@@ -117,15 +117,20 @@ export interface CoverOptionResponse {
   height: number;
 }
 
+/** Mirrors the Kotlin `CoverType` enum in games/domain/CoverSource.kt. */
+export type CoverType = "static" | "animated";
+
 /**
- * Response of `GET /api/games/{id}/cover-options`; mirrors `CoverOptionsResponse`. `covers` holds candidates for
- * `selectedMatchId` only; `selectedMatchId` is `null` (never absent) and `covers` empty when nothing matched.
+ * Response of `GET /api/games/{id}/cover-options`; mirrors `CoverOptionsResponse`. `covers` holds one page of
+ * candidates for `selectedMatchId` only; `selectedMatchId` is `null` (never absent) and `covers` empty when
+ * nothing matched.
  */
 export interface CoverOptionsResponse {
   query: string;
   matches: CoverMatchResponse[];
   selectedMatchId: number | null;
-  covers: CoverOptionResponse[];
+  type: CoverType;
+  covers: PageResponse<CoverOptionResponse>;
 }
 
 export interface ExpansionResponse {

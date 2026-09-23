@@ -73,27 +73,80 @@ export const hadesCoverOptions: CoverOptionsResponse = {
     { id: 9999, name: "Hades II", releaseYear: 2024, verified: false },
   ],
   selectedMatchId: 5245,
-  covers: [
-    {
-      thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/a.jpg",
-      imageUrl: "https://cdn2.steamgriddb.com/grid/a.png",
-      width: 600,
-      height: 900,
-    },
-    {
-      thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/b.jpg",
-      imageUrl: "https://cdn2.steamgriddb.com/grid/b.png",
-      width: 600,
-      height: 900,
-    },
-  ],
+  type: "static",
+  covers: {
+    items: [
+      {
+        thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/a.jpg",
+        imageUrl: "https://cdn2.steamgriddb.com/grid/a.png",
+        width: 600,
+        height: 900,
+      },
+      {
+        thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/b.jpg",
+        imageUrl: "https://cdn2.steamgriddb.com/grid/b.png",
+        width: 600,
+        height: 900,
+      },
+    ],
+    page: 1,
+    pageSize: 50,
+    totalItems: 120,
+    totalPages: 3,
+  },
+};
+
+export const hadesCoverOptionsPage2: CoverOptionsResponse = {
+  ...hadesCoverOptions,
+  covers: {
+    items: [
+      {
+        thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/c.jpg",
+        imageUrl: "https://cdn2.steamgriddb.com/grid/c.png",
+        width: 600,
+        height: 900,
+      },
+      {
+        thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/d.jpg",
+        imageUrl: "https://cdn2.steamgriddb.com/grid/d.png",
+        width: 600,
+        height: 900,
+      },
+    ],
+    page: 2,
+    pageSize: 50,
+    totalItems: 120,
+    totalPages: 3,
+  },
+};
+
+export const hadesAnimatedCoverOptions: CoverOptionsResponse = {
+  query: "Hades",
+  matches: hadesCoverOptions.matches,
+  selectedMatchId: 5245,
+  type: "animated",
+  covers: {
+    items: [
+      {
+        thumbnailUrl: "https://cdn2.steamgriddb.com/thumb/anim-a.webm",
+        imageUrl: "https://cdn2.steamgriddb.com/grid/anim-a.png",
+        width: 600,
+        height: 900,
+      },
+    ],
+    page: 1,
+    pageSize: 50,
+    totalItems: 1,
+    totalPages: 1,
+  },
 };
 
 export const emptyCoverOptions: CoverOptionsResponse = {
   query: "Nonexistent Game",
   matches: [],
   selectedMatchId: null,
-  covers: [],
+  type: "static",
+  covers: { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
 };
 
 export const meta: GameMetaResponse = {

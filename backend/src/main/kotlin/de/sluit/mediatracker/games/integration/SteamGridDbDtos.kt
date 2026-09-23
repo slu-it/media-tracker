@@ -10,7 +10,13 @@ import kotlinx.serialization.json.Json
  * the frontend: the SPA only ever sees `games/api/CoverOptionDtos.kt`.
  */
 @Serializable
-internal data class SgdbEnvelope<T>(val success: Boolean, val data: T? = null, val errors: List<String> = emptyList())
+internal data class SgdbEnvelope<T>(
+    val success: Boolean,
+    val data: T? = null,
+    val errors: List<String> = emptyList(),
+    val total: Long? = null,
+    val limit: Int? = null,
+)
 
 @Serializable
 internal data class SgdbGame(

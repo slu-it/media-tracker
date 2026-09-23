@@ -46,7 +46,7 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
   call `/api/me` at startup, `.meta` is filter lookup data, and a flag is a second code path to keep in sync. A
   single owner clicking once and reading "not configured" is the cheaper failure.
 - **Outbound adapters get a fourth onion layer, `integration`.** `CoverSource` is a port in `games/domain`
-  (`searchGames(term)`, `findCovers(id)`), `CoverOptionsService` orchestrates repository, ranking and port, and
+  (`searchGames(term)`, `findCovers(id, type, page)`), `CoverOptionsService` orchestrates repository, ranking and port, and
   `games/integration/SteamGridDbCoverSource` is the only class that knows SteamGridDB's URLs and JSON. The
   dependency direction is `integration -> domain` (plus `config`, for its own settings), exactly like
   `persistence` (record 0007); `api` and the frontend see only the service and the DTOs, so a second provider is
@@ -63,9 +63,26 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
   from the application's coroutine job, the same rule the database follows under auto-reload. Ten-second request
   timeout, `expectSuccess = false` so status codes are handled explicitly, `ignoreUnknownKeys` so SteamGridDB can
   add fields.
-- **Grids are requested as `600x900,660x930`, static, no NSFW, no humor.** Those are the two portrait sizes;
-  animated, joke and adult grids are not covers for this collection. The thumbnail SteamGridDB serves next to
-  each grid is what the picker shows, the full grid URL is what gets saved.
+- **Grids are requested as `600x900,660x930`, no NSFW, no humor, and one type at a time.** Those are the two
+  portrait sizes; joke and adult grids are not covers for this collection. SteamGridDB knows two types, `static`
+  and `animated` (APNG and animated WebP), and the picker has a toggle for them, static by default and not
+  persisted: an animated cover is a deliberate choice per game, since a grid page full of them is heavy to load
+  and keeps moving. The two types are separate requests because the type filter is the only reliable way to
+  tell them apart - a grid's `mime` is `image/webp` for a static and an animated WebP alike, so a mixed list
+  could not mark which thumbnails animate. The picker shows the thumbnail SteamGridDB serves next to each grid
+  and saves the full grid URL. For a static grid the thumbnail is a JPEG; for an animated grid it is a short
+  **WebM clip**, which an `<img>` cannot decode, so `CoverThumbnail` renders a `.webm` thumbnail as a muted,
+  looping `<video>` and falls back to the full image (APNG or animated WebP, which `<img>` plays) if the browser
+  cannot play it. The saved full-size URL is always an image, so the grid card needs no video handling.
+- **Covers page like everything else: 50 per page in score order, appended with "load more".** SteamGridDB
+  caps a request at 50 grids (`limit`) and answers with `page`, `total` and `limit`, so the endpoint takes a
+  1-based `page` (the `PageNumber` of record 0007's `common/domain`, translated to SteamGridDB's 0-based page in
+  the adapter) and
+  returns `covers` as the shared `Page<T>`/`PageResponse<T>`. The picker shows "n of total", and a load-more
+  button appends the next page for the already selected match instead of paginating: the score order puts the
+  likely picks on the first page, and the owner scans thumbnails rather than jumping to page 7. A later page
+  always names its `match`, and the service then skips the upstream search: `matches` comes back empty and the
+  picker keeps the list it got with page 1, so a load-more costs one SteamGridDB call, not two.
 
 ## Alternatives not taken
 
@@ -84,7 +101,11 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
   every environment the tests can reach; the configured path can only be verified by hand against SteamGridDB.
   The adapter is tested with Ktor's `MockEngine` instead, at the level a repository test would occupy.
 - `Services`, `gameRoutes` and `handlerApp` gained a `coverOptions` parameter.
+- Every cover frame in the SPA (detail dialog, edit preview, grid card, picker thumbnails) is now 22:31, the
+  shape of the 660x930 grids the owner picks, derived from one `COVER_ASPECT_RATIO` in
+  `frontend/src/components/coverFrame.ts` instead of the former 3:4 width/height pairs. Covers of another shape
+  still letterbox inside the frame (`object-fit: contain`); the ratio follows the dominant source, not a standard.
 - The `MissingField` filter of record 0022 already lets an agent find games without a cover; an MCP tool that
   returns cover options (`find_cover_options`) would complete that loop and is deferred until asked for.
-- SteamGridDB's rate limits are undocumented. The 500 ms debounce on the search field plus two upstream calls
-  per query keeps the traffic small; a 429 surfaces as `502 cover_source_error` like any other upstream failure.
+- SteamGridDB's rate limits are undocumented. The 500 ms debounce on the search field, two upstream calls
+  per query and one per further page keep the traffic small; a 429 surfaces as `502 cover_source_error` like any other upstream failure.

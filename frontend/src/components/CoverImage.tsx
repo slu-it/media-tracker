@@ -3,13 +3,18 @@ import { Box, ButtonBase, type SxProps, type Theme } from "@mui/material";
 import ImageNotSupportedIcon from "@mui/icons-material/ImageNotSupported";
 import { useTranslation } from "react-i18next";
 import { focusVisibleRingSx } from "../theme/focusRing";
+import { COVER_ASPECT_RATIO, coverHeight } from "./coverFrame";
 
 interface CoverImageProps {
   /** Image URL; `null`/empty shows the placeholder. */
   src: string | null;
   alt: string;
   width: number | string;
-  height: number | string;
+  /**
+   * Omit to use the collection's standard 22:31 cover ratio ({@link COVER_ASPECT_RATIO}): derived from `width`
+   * when it is a number, or via CSS `aspect-ratio` when it is a string.
+   */
+  height?: number | string;
   sx?: SxProps<Theme>;
   /** Together with `actionLabel`, makes the whole frame clickable (opens the cover picker), image or placeholder. */
   onClick?: () => void;
@@ -17,12 +22,14 @@ interface CoverImageProps {
 }
 
 /**
- * Fixed-size frame for cover art. The image keeps its own aspect ratio and fills whichever dimension it hits
- * first (`object-fit: contain`), so covers of different shapes still line up in a grid.
+ * Frame for cover art, sized to the collection's standard 22:31 cover shape. A cover image of a different shape
+ * still keeps its own aspect ratio and fills whichever dimension it hits first (`object-fit: contain`), so it
+ * letterboxes inside the frame instead of stretching.
  */
 export function CoverImage({ src, alt, width, height, sx, onClick, actionLabel }: CoverImageProps) {
   const { t } = useTranslation();
   const url = src?.trim() ?? "";
+  const resolvedHeight = height ?? (typeof width === "number" ? coverHeight(width) : undefined);
   const content = url ? (
     // Keyed by URL so a failed load is forgotten when the URL changes.
     <Img key={url} src={url} alt={alt} placeholderLabel={t("games.noCover")} />
@@ -33,7 +40,7 @@ export function CoverImage({ src, alt, width, height, sx, onClick, actionLabel }
     <Box
       sx={{
         width,
-        height,
+        ...(resolvedHeight === undefined ? { aspectRatio: String(COVER_ASPECT_RATIO) } : { height: resolvedHeight }),
         maxWidth: "100%",
         flexShrink: 0,
         display: "grid",

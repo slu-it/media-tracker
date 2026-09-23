@@ -8,16 +8,19 @@ import {
   MenuItem,
   Stack,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { errorMessage } from "../../../api/client";
-import { CoverImage } from "../../../components/CoverImage";
 import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { focusVisibleRingSx } from "../../../theme/focusRing";
 import type { CoverMatchResponse, CoverOptionResponse, GameResponse } from "../../../types/api";
 import { updateGame } from "../api/gamesApi";
+import { CoverThumbnail } from "./CoverThumbnail";
+import { COVER_TYPES, DEFAULT_COVER_TYPE, type CoverType } from "../domain/coverTypes";
 import { SEARCH_DEBOUNCE_MS, SEARCH_MAX_LENGTH } from "../domain/gameValues";
 import { useCoverOptions } from "../hooks/useCoverOptions";
 
@@ -46,12 +49,20 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
   // trick GamesView uses for its page reset.
   const [matchOverride, setMatchOverride] = useState<{ match: number; forQuery: string } | null>(null);
   const match = matchOverride && matchOverride.forQuery === debouncedQuery ? matchOverride.match : null;
-  const { data, loading, error, unavailable, reload } = useCoverOptions(
-    game.id,
-    debouncedQuery,
-    match,
-    t("games.coverPicker.loadFailed"),
-  );
+  const [coverType, setCoverType] = useState<CoverType>(DEFAULT_COVER_TYPE);
+  const {
+    data,
+    covers,
+    totalCovers,
+    hasMore,
+    loading,
+    loadingMore,
+    error,
+    errorSource,
+    unavailable,
+    reload,
+    loadMore,
+  } = useCoverOptions(game.id, debouncedQuery, match, coverType, t("games.coverPicker.loadFailed"));
   const selectedMatchId = match ?? data?.selectedMatchId ?? null;
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -90,21 +101,41 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
           fullWidth
           autoFocus
         />
-        {!loading && !unavailable && !error && data && data.matches.length > 0 && (
-          <TextField
-            select
-            label={t("games.coverPicker.match")}
-            value={selectedMatchId ?? ""}
-            onChange={(event) => setMatchOverride({ match: Number(event.target.value), forQuery: debouncedQuery })}
-            fullWidth
-          >
-            {data.matches.map((candidate) => (
-              <MenuItem key={candidate.id} value={candidate.id}>
-                {matchLabel(candidate)}
-              </MenuItem>
-            ))}
-          </TextField>
-        )}
+        <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+          {!loading && !unavailable && !error && data && data.matches.length > 0 && (
+            <TextField
+              select
+              label={t("games.coverPicker.match")}
+              value={selectedMatchId ?? ""}
+              onChange={(event) => setMatchOverride({ match: Number(event.target.value), forQuery: debouncedQuery })}
+              fullWidth
+              sx={{ flex: 1 }}
+            >
+              {data.matches.map((candidate) => (
+                <MenuItem key={candidate.id} value={candidate.id}>
+                  {matchLabel(candidate)}
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+          {!unavailable && (
+            <ToggleButtonGroup
+              exclusive
+              size="small"
+              value={coverType}
+              onChange={(_event, value: CoverType | null) => {
+                if (value) setCoverType(value);
+              }}
+              aria-label={t("games.coverPicker.type")}
+            >
+              {COVER_TYPES.map((value) => (
+                <ToggleButton key={value} value={value}>
+                  {t(value === "static" ? "games.coverPicker.typeStatic" : "games.coverPicker.typeAnimated")}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          )}
+        </Stack>
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress aria-label={t("common.loading")} />
@@ -114,10 +145,15 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
         {!loading && !unavailable && error && (
           <Alert
             severity="error"
+            // A load-more failure keeps the already-loaded pages visible below, with the "Load more" button
+            // itself as the retry; only an initial-load failure (which leaves no covers to show) gets its own
+            // Retry action here.
             action={
-              <Button color="inherit" size="small" onClick={reload}>
-                {t("common.retry")}
-              </Button>
+              errorSource === "initial" ? (
+                <Button color="inherit" size="small" onClick={reload}>
+                  {t("common.retry")}
+                </Button>
+              ) : undefined
             }
           >
             {error}
@@ -126,17 +162,27 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
         {!loading && !unavailable && !error && data && data.matches.length === 0 && (
           <Typography color="text.secondary">{t("games.coverPicker.noMatches", { term: data.query })}</Typography>
         )}
-        {!loading && !unavailable && !error && data && data.matches.length > 0 && data.covers.length === 0 && (
+        {!loading && !error && !unavailable && selectedMatchId !== null && covers.length === 0 && !hasMore && (
           <Typography color="text.secondary">{t("games.coverPicker.noCovers")}</Typography>
         )}
-        {!loading && !unavailable && !error && data && data.covers.length > 0 && (
+        {/*
+         * Not gated on `!error`: an error here can only mean a `loadMore()` failure once earlier pages already
+         * loaded (an initial-load failure leaves `covers` empty, so these sections stay hidden regardless). The
+         * blocking alert above still reports the failure; these keep the already-loaded pages visible next to it.
+         */}
+        {!loading && !unavailable && totalCovers > 0 && (
+          <Typography variant="body2" color="text.secondary">
+            {t("games.coverPicker.shownOfTotal", { shown: covers.length, count: totalCovers })}
+          </Typography>
+        )}
+        {!loading && !unavailable && covers.length > 0 && (
           <Box
             role="group"
             aria-label={t("games.coverPicker.title")}
             aria-busy={busy}
             sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}
           >
-            {data.covers.map((option, index) => {
+            {covers.map((option, index) => {
               const isCurrent = option.imageUrl === game.coverImageUrl;
               return (
                 <ButtonBase
@@ -152,10 +198,21 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
                     ...focusVisibleRingSx,
                   }}
                 >
-                  <CoverImage src={option.thumbnailUrl} alt="" width={120} height={160} />
+                  <CoverThumbnail thumbnailUrl={option.thumbnailUrl} imageUrl={option.imageUrl} width={120} />
                 </ButtonBase>
               );
             })}
+          </Box>
+        )}
+        {!loading && !unavailable && hasMore && (
+          <Box sx={{ display: "flex", justifyContent: "center" }}>
+            <Button
+              onClick={loadMore}
+              disabled={loadingMore || busy}
+              startIcon={loadingMore ? <CircularProgress size={16} aria-hidden /> : undefined}
+            >
+              {t("games.coverPicker.loadMore")}
+            </Button>
           </Box>
         )}
         <Typography variant="caption" color="text.secondary">

@@ -61,6 +61,14 @@ describe("CoverImage", () => {
     expect(onClick).toHaveBeenCalledOnce();
   });
 
+  it("derives the height from the width when height is omitted", () => {
+    renderWithProviders(<CoverImage src={null} alt="Celeste" width={100} />);
+    // The frame itself carries no accessible role of its own; only its child (the placeholder icon) is queryable.
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    const frame = screen.getByTitle("No cover image").closest("div");
+    expect(frame).toHaveStyle({ width: "100px", height: "141px" });
+  });
+
   it("renders the image and falls back to the placeholder when it fails to load", () => {
     renderWithProviders(<CoverImage src="https://img.example/c.png" alt="Celeste" width={100} height={140} />);
     const img = screen.getByRole("img", { name: "Celeste" });

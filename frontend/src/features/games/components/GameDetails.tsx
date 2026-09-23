@@ -36,7 +36,6 @@ export function GameDetails({
           src={game.coverImageUrl}
           alt={game.title}
           width={240}
-          height={320}
           onClick={onPickCover}
           actionLabel={t("games.coverPicker.open")}
         />

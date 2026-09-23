@@ -47,10 +47,16 @@ game's `/{id}` block (`/api/games/{id}/expansions[/{expansionId}]`, `games/api/E
 and the MCP tools `list_expansions` and `add_expansion` cover the agent side. The frontend shows them as a
 drag-sortable card stack inside the game detail dialog (@dnd-kit, keyboard sensor for the tested path).
 MT-017 added the **cover picker** (ADR 0024): in the detail dialog the cover (image or empty placeholder) is a button that opens
-`CoverPickerDialog`, which shows SteamGridDB thumbnails from `GET /api/games/{id}/cover-options[?query=&match=]`
+`CoverPickerDialog`, which shows SteamGridDB thumbnails from `GET /api/games/{id}/cover-options[?query=&match=&type=&page=]`
 and PATCHes `coverImageUrl` with the full-size URL on click. The endpoint returns the provider's `matches` for the
 search term (default: the title), the `selectedMatchId` a pure domain ranking picked (exact title, same year,
-first) and `covers` only for that match; `match` overrides the pick, `query` the term. `games/domain/CoverSource.kt`
+first) and `covers` only for that match as a `PageResponse` (50 per page in score order, 1-based `page`, the picker
+appends pages with "load more"); `match` overrides the pick, `query` the term, `type` (`static` default, `animated`)
+picks the grid type, a toggle in the picker; animated grids come with WebM clips as thumbnails, which
+`CoverThumbnail` renders as a muted looping `<video>` (the saved full-size URL is always an image). All cover frames
+are 22:31 (the 660x930 grid shape) via `COVER_ASPECT_RATIO`/`coverHeight()` in `src/components/coverFrame.ts`;
+call sites pass a width only. Later pages with a `match` skip the upstream search and return
+`matches` empty; the picker keeps page 1's list. `games/domain/CoverSource.kt`
 is the port, `CoverOptionsService` the orchestrator, and `games/integration/SteamGridDbCoverSource.kt` the only
 class that knows SteamGridDB (Ktor client, `ktor-client-java` engine) - `integration` is the fourth onion layer for
 outbound adapters (`integration -> domain`). `STEAMGRIDDB_API_KEY` is optional: without it `module()` wires no

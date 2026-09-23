@@ -5,6 +5,9 @@ import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.domain.CoverCandidate
@@ -13,6 +16,7 @@ import de.sluit.mediatracker.games.domain.CoverOption
 import de.sluit.mediatracker.games.domain.CoverOptions
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSourceGameId
+import de.sluit.mediatracker.games.domain.CoverType
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.handlerApp
 import de.sluit.mediatracker.loginAsMocked
@@ -68,6 +72,8 @@ class CoverOptionRoutesTest {
         height = 900,
     )
 
+    private fun emptyCoverPage() = Page<CoverOption>(emptyList(), PageNumber.FIRST, PageSize(50), 0)
+
     // ---- happy path ----
 
     @Test
@@ -75,12 +81,13 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } returns
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
             CoverOptions(
                 query = SearchTerm("Hades"),
                 matches = emptyList(),
                 selectedMatchId = null,
-                covers = emptyList(),
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
             )
 
         val response = client.get("/api/games/$gameId/cover-options")
@@ -94,12 +101,13 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } returns
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
             CoverOptions(
                 query = SearchTerm("Hades"),
                 matches = listOf(candidate(1, "Hades"), candidate(2, "Hades II")),
                 selectedMatchId = CoverSourceGameId(1),
-                covers = listOf(cover(1)),
+                type = CoverType.STATIC,
+                covers = Page(listOf(cover(1)), PageNumber.FIRST, PageSize(50), 1),
             )
 
         val response = client.get("/api/games/$gameId/cover-options").decodeBody<CoverOptionsResponse>()
@@ -108,9 +116,10 @@ class CoverOptionRoutesTest {
         assertEquals(listOf(1L, 2L), response.matches.map { it.id })
         assertEquals(listOf("Hades", "Hades II"), response.matches.map { it.name })
         assertEquals(1L, response.selectedMatchId)
-        assertEquals(1, response.covers.size)
-        assertEquals("https://example.org/thumb-1.png", response.covers.single().thumbnailUrl)
-        assertEquals("https://example.org/full-1.png", response.covers.single().imageUrl)
+        assertEquals("static", response.type)
+        assertEquals(1, response.covers.items.size)
+        assertEquals("https://example.org/thumb-1.png", response.covers.items.single().thumbnailUrl)
+        assertEquals("https://example.org/full-1.png", response.covers.items.single().imageUrl)
     }
 
     // ---- query parameter mapping ----
@@ -120,17 +129,22 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, SearchTerm("zelda"), CoverSourceGameId(5)) } returns
+        coEvery {
+            coverOptions.find(gameId, SearchTerm("zelda"), CoverSourceGameId(5), CoverType.STATIC, PageNumber.FIRST)
+        } returns
             CoverOptions(
                 query = SearchTerm("zelda"),
                 matches = emptyList(),
                 selectedMatchId = null,
-                covers = emptyList(),
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
             )
 
         client.get("/api/games/$gameId/cover-options?query=zelda&match=5")
 
-        coVerify { coverOptions.find(gameId, SearchTerm("zelda"), CoverSourceGameId(5)) }
+        coVerify {
+            coverOptions.find(gameId, SearchTerm("zelda"), CoverSourceGameId(5), CoverType.STATIC, PageNumber.FIRST)
+        }
     }
 
     @Test
@@ -138,17 +152,18 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } returns
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
             CoverOptions(
                 query = SearchTerm("game"),
                 matches = emptyList(),
                 selectedMatchId = null,
-                covers = emptyList(),
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
             )
 
         client.get("/api/games/$gameId/cover-options")
 
-        coVerify { coverOptions.find(gameId, null, null) }
+        coVerify { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) }
     }
 
     @Test
@@ -156,17 +171,18 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } returns
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
             CoverOptions(
                 query = SearchTerm("game"),
                 matches = emptyList(),
                 selectedMatchId = null,
-                covers = emptyList(),
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
             )
 
         client.get("/api/games/$gameId/cover-options?query=%20%20")
 
-        coVerify { coverOptions.find(gameId, null, null) }
+        coVerify { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) }
     }
 
     @Test
@@ -174,17 +190,118 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } returns
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
             CoverOptions(
                 query = SearchTerm("game"),
                 matches = emptyList(),
                 selectedMatchId = null,
-                covers = emptyList(),
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
             )
 
         client.get("/api/games/$gameId/cover-options?match=")
 
-        coVerify { coverOptions.find(gameId, null, null) }
+        coVerify { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) }
+    }
+
+    @Test
+    fun `type and page default to static and page one when absent`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
+            CoverOptions(
+                query = SearchTerm("game"),
+                matches = emptyList(),
+                selectedMatchId = null,
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
+            )
+
+        client.get("/api/games/$gameId/cover-options")
+
+        coVerify { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) }
+    }
+
+    @Test
+    fun `an explicit type and page reach the service`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+        coEvery { coverOptions.find(gameId, null, null, CoverType.ANIMATED, PageNumber(3)) } returns
+            CoverOptions(
+                query = SearchTerm("game"),
+                matches = emptyList(),
+                selectedMatchId = null,
+                type = CoverType.ANIMATED,
+                covers = emptyCoverPage(),
+            )
+
+        client.get("/api/games/$gameId/cover-options?type=animated&page=3")
+
+        coVerify { coverOptions.find(gameId, null, null, CoverType.ANIMATED, PageNumber(3)) }
+    }
+
+    @Test
+    fun `a blank type reaches the service as the default type`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
+            CoverOptions(
+                query = SearchTerm("game"),
+                matches = emptyList(),
+                selectedMatchId = null,
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
+            )
+
+        client.get("/api/games/$gameId/cover-options?type=%20%20")
+
+        coVerify { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) }
+    }
+
+    @Test
+    fun `a pageSize query parameter is ignored`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
+            CoverOptions(
+                query = SearchTerm("game"),
+                matches = emptyList(),
+                selectedMatchId = null,
+                type = CoverType.STATIC,
+                covers = emptyCoverPage(),
+            )
+
+        client.get("/api/games/$gameId/cover-options?pageSize=5")
+
+        coVerify { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) }
+    }
+
+    @Test
+    fun `the 200 body carries the cover type and the covers page shape`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } returns
+            CoverOptions(
+                query = SearchTerm("Hades"),
+                matches = emptyList(),
+                selectedMatchId = null,
+                type = CoverType.STATIC,
+                covers = Page(listOf(cover(1)), PageNumber.FIRST, PageSize(50), 1),
+            )
+
+        val response = client.get("/api/games/$gameId/cover-options").decodeBody<CoverOptionsResponse>()
+
+        assertEquals("static", response.type)
+        assertEquals(1, response.covers.items.size)
+        assertEquals(1, response.covers.page)
+        assertEquals(50, response.covers.pageSize)
+        assertEquals(1L, response.covers.totalItems)
+        assertEquals(1, response.covers.totalPages)
     }
 
     // ---- validation ----
@@ -212,6 +329,45 @@ class CoverOptionRoutesTest {
 
         val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
         assertTrue(error.message!!.startsWith("match"), error.message)
+        coVerify { coverOptions wasNot Called }
+    }
+
+    @Test
+    fun `an unknown type is 400 validation_error naming the field`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+
+        val response = client.get("/api/games/$gameId/cover-options?type=gif")
+
+        val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
+        assertTrue(error.message!!.startsWith(CoverType.FIELD), error.message)
+        coVerify { coverOptions wasNot Called }
+    }
+
+    @Test
+    fun `a zero page is 400 validation_error naming the field`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+
+        val response = client.get("/api/games/$gameId/cover-options?page=0")
+
+        val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
+        assertTrue(error.message!!.startsWith(PageNumber.FIELD), error.message)
+        coVerify { coverOptions wasNot Called }
+    }
+
+    @Test
+    fun `a non-numeric page is 400 validation_error naming the field`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val gameId = GameId.new()
+
+        val response = client.get("/api/games/$gameId/cover-options?page=x")
+
+        val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
+        assertTrue(error.message!!.startsWith(PageNumber.FIELD), error.message)
         coVerify { coverOptions wasNot Called }
     }
 
@@ -248,7 +404,8 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } throws NotFoundException("game", gameId.toString())
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } throws
+            NotFoundException("game", gameId.toString())
 
         client.get("/api/games/$gameId/cover-options").assertError(HttpStatusCode.NotFound, "not_found")
     }
@@ -258,7 +415,7 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } throws
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } throws
             ExternalSourceUnavailableException(CoverOptionsService.SOURCE)
 
         client.get("/api/games/$gameId/cover-options")
@@ -270,7 +427,7 @@ class CoverOptionRoutesTest {
         val coverOptions = mockk<CoverOptionsService>()
         val client = loggedInHandlerClient(coverOptions)
         val gameId = GameId.new()
-        coEvery { coverOptions.find(gameId, null, null) } throws
+        coEvery { coverOptions.find(gameId, null, null, CoverType.STATIC, PageNumber.FIRST) } throws
             ExternalSourceException(CoverOptionsService.SOURCE, "upstream boom")
 
         client.get("/api/games/$gameId/cover-options")

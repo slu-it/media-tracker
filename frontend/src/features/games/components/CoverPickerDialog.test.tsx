@@ -2,7 +2,14 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
-import { celeste, emptyCoverOptions, hades, hadesCoverOptions } from "../../../test/fixtures/games";
+import {
+  celeste,
+  emptyCoverOptions,
+  hades,
+  hadesAnimatedCoverOptions,
+  hadesCoverOptions,
+  hadesCoverOptionsPage2,
+} from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { CoverPickerDialog } from "./CoverPickerDialog";
 
@@ -36,15 +43,21 @@ describe("CoverPickerDialog", () => {
     const first = await screen.findByRole("button", { name: "Use cover 1" });
     const second = screen.getByRole("button", { name: "Use cover 2" });
     // The thumbnails are decorative (empty alt), so their implicit role is "presentation", not "img".
-    expect(within(first).getByRole("presentation")).toHaveAttribute("src", hadesCoverOptions.covers[0].thumbnailUrl);
-    expect(within(second).getByRole("presentation")).toHaveAttribute("src", hadesCoverOptions.covers[1].thumbnailUrl);
+    expect(within(first).getByRole("presentation")).toHaveAttribute(
+      "src",
+      hadesCoverOptions.covers.items[0].thumbnailUrl,
+    );
+    expect(within(second).getByRole("presentation")).toHaveAttribute(
+      "src",
+      hadesCoverOptions.covers.items[1].thumbnailUrl,
+    );
   });
 
   it("marks the game's current cover as pressed among the thumbnails", async () => {
     mockApi({ "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions) });
     renderWithProviders(
       <CoverPickerDialog
-        game={{ ...celeste, coverImageUrl: hadesCoverOptions.covers[1].imageUrl }}
+        game={{ ...celeste, coverImageUrl: hadesCoverOptions.covers.items[1].imageUrl }}
         open
         onClose={() => {}}
         onSaved={() => {}}
@@ -60,7 +73,7 @@ describe("CoverPickerDialog", () => {
   it("PATCHes the chosen cover and reports the saved game", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
-    const updated = { ...hades, coverImageUrl: hadesCoverOptions.covers[0].imageUrl };
+    const updated = { ...hades, coverImageUrl: hadesCoverOptions.covers.items[0].imageUrl };
     const calls = mockApi({
       "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions),
       "PATCH /api/games/:id": () => jsonResponse(updated),
@@ -72,7 +85,7 @@ describe("CoverPickerDialog", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledExactlyOnceWith(updated));
     expect(calls.find((c) => c.method === "PATCH")).toMatchObject({
       url: `/api/games/${hades.id}`,
-      body: { coverImageUrl: hadesCoverOptions.covers[0].imageUrl },
+      body: { coverImageUrl: hadesCoverOptions.covers.items[0].imageUrl },
     });
   });
 
@@ -111,7 +124,11 @@ describe("CoverPickerDialog", () => {
     const user = userEvent.setup();
     const calls = mockApi({
       "GET /api/games/:id/cover-options": (_call, url) =>
-        jsonResponse(url.searchParams.has("match") ? { ...hadesCoverOptions, covers: [] } : hadesCoverOptions),
+        jsonResponse(
+          url.searchParams.has("match")
+            ? { ...hadesCoverOptions, covers: { ...hadesCoverOptions.covers, items: [], totalItems: 0, totalPages: 0 } }
+            : hadesCoverOptions,
+        ),
     });
     renderWithProviders(<CoverPickerDialog game={hades} open onClose={() => {}} onSaved={() => {}} />);
 
@@ -121,6 +138,89 @@ describe("CoverPickerDialog", () => {
     await waitFor(() =>
       expect(calls.some((c) => c.url === `/api/games/${hades.id}/cover-options?query=Hades&match=9999`)).toBe(true),
     );
+  });
+
+  it("requests animated covers via the type toggle and renders the animated thumbnail", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games/:id/cover-options": (_call, url) =>
+        jsonResponse(url.searchParams.get("type") === "animated" ? hadesAnimatedCoverOptions : hadesCoverOptions),
+    });
+    renderWithProviders(<CoverPickerDialog game={hades} open onClose={() => {}} onSaved={() => {}} />);
+    await waitFor(() => expect(calls).toHaveLength(1));
+
+    await user.click(screen.getByRole("button", { name: "Animated" }));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.url === `/api/games/${hades.id}/cover-options?query=Hades&type=animated`)).toBe(true),
+    );
+    const cover = await screen.findByRole("button", { name: "Use cover 1" });
+    // SteamGridDB serves animated grids' thumbnails as WebM clips, which render as an `aria-hidden` <video>
+    // (the button carries the label), so it needs `hidden: true` to be found.
+    expect(within(cover).getByRole("presentation", { hidden: true })).toHaveAttribute(
+      "src",
+      hadesAnimatedCoverOptions.covers.items[0].thumbnailUrl,
+    );
+  });
+
+  it("shows how many of the total covers are shown", async () => {
+    mockApi({ "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions) });
+    renderWithProviders(<CoverPickerDialog game={hades} open onClose={() => {}} onSaved={() => {}} />);
+
+    expect(await screen.findByText("2 of 120 covers")).toBeInTheDocument();
+  });
+
+  it("loads and appends the next page on Load more", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games/:id/cover-options": (_call, url) =>
+        jsonResponse(url.searchParams.has("page") ? hadesCoverOptionsPage2 : hadesCoverOptions),
+    });
+    renderWithProviders(<CoverPickerDialog game={hades} open onClose={() => {}} onSaved={() => {}} />);
+    await screen.findByRole("button", { name: "Use cover 1" });
+
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.url === `/api/games/${hades.id}/cover-options?query=Hades&match=5245&page=2`)).toBe(
+        true,
+      ),
+    );
+    await waitFor(() => expect(screen.getAllByRole("button", { name: /Use cover/ })).toHaveLength(4));
+    expect(screen.getByText("4 of 120 covers")).toBeInTheDocument();
+  });
+
+  it("shows no Load more button once every page has been loaded", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games/:id/cover-options": (_call, url) =>
+        jsonResponse(url.searchParams.get("type") === "animated" ? hadesAnimatedCoverOptions : hadesCoverOptions),
+    });
+    renderWithProviders(<CoverPickerDialog game={hades} open onClose={() => {}} onSaved={() => {}} />);
+    await screen.findByRole("button", { name: "Use cover 1" });
+
+    await user.click(screen.getByRole("button", { name: "Animated" }));
+
+    await screen.findByText("1 of 1 cover");
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the first page's thumbnails and shows the load-failed message when Load more fails", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games/:id/cover-options": (_call, url) =>
+        url.searchParams.has("page") ? jsonResponse({ error: "internal_error" }, 500) : jsonResponse(hadesCoverOptions),
+    });
+    renderWithProviders(<CoverPickerDialog game={hades} open onClose={() => {}} onSaved={() => {}} />);
+    await screen.findByRole("button", { name: "Use cover 1" });
+
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(await screen.findByText("Could not load cover suggestions.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use cover 1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Use cover 2" })).toBeInTheDocument();
+    // The "Load more" button is the retry for this failure; a separate Retry action would duplicate it.
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("requests covers for a new search term after the debounce", async () => {

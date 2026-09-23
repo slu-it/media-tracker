@@ -5,7 +5,6 @@ import { GameStatusIcons } from "./GameStatusIcons";
 import { PlatformChips } from "./PlatformChips";
 
 export const CARD_COVER_WIDTH = 168;
-export const CARD_COVER_HEIGHT = 224;
 
 /** Cover with the title centered underneath; the whole card opens the detail dialog. */
 export function GameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: GameResponse) => void }) {
@@ -13,7 +12,7 @@ export function GameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: 
     <Card variant="outlined">
       <CardActionArea onClick={() => onOpen(game)} aria-label={game.title} sx={{ height: "100%" }}>
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
-          <CoverImage src={game.coverImageUrl} alt="" width={CARD_COVER_WIDTH} height={CARD_COVER_HEIGHT} />
+          <CoverImage src={game.coverImageUrl} alt="" width={CARD_COVER_WIDTH} />
           <Typography
             variant="subtitle1"
             component="h3"
