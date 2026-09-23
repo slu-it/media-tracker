@@ -96,7 +96,7 @@ fun Application.module() {
     } else {
         log.info("cover source: not configured (STEAMGRIDDB_API_KEY unset)")
     }
-    val coverOptionsService = CoverOptionsService(gameRepository, coverSource)
+    val coverOptionsService = CoverOptionsService(coverSource)
 
     val services = Services(authService, gameService, apiKeyService, expansionService, coverOptionsService)
 

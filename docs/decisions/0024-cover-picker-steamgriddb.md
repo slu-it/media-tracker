@@ -22,10 +22,16 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
 ## Decision
 
 - **SteamGridDB is the one provider, behind a backend endpoint.** The API key must not reach the browser, so
-  the backend does the calls: `GET /api/games/{id}/cover-options` nested in the game's `/{id}` block like the
-  expansions (record 0023). The picker is reachable from the detail dialog by clicking the cover, whether it is
-  still the empty placeholder or an image that should be replaced; the edit form's URL field stays for pasting a
-  link by hand.
+  the backend does the calls: `GET /api/games/cover-options?query=<term>[&releaseYear=]`, a game-independent
+  lookup next to the `/{id}` block rather than inside it. It started out nested (`/api/games/{id}/cover-options`,
+  the stored game supplying the default term and the year for the ranking), but the add dialog has no game yet,
+  so the SPA now always sends the term and year it has in hand - the game's in the detail dialog, the draft's in
+  the forms - and the service needs no repository. The picker is reachable by clicking the cover, empty
+  placeholder or image alike, in three places: the detail dialog's view mode, where a pick is PATCHed
+  immediately, and the add dialog and the edit mode of the detail dialog, where a pick only fills the "Cover image
+  URL" field and the form's Save persists it (the game may not exist yet, or an edit is in flight). The dialog
+  itself is persistence-agnostic: it hands the picked URL to an `onPick` callback and the host decides. The URL
+  field stays for pasting a link by hand.
 - **Cover URLs stay external.** The picked image's CDN URL goes into `coverImageUrl`, nothing is downloaded or
   stored. That is the model the field has always had, and every cover so far is a hotlink anyway. Storing
   images on the Pi would be a decision of its own (blob column or volume, serving route, migration of the
@@ -33,10 +39,11 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
 - **Ambiguity is resolved by ranking plus a user override, not by fetching everything.** The endpoint returns
   every SteamGridDB game matching the search term (`matches`), the id the domain ranking picked
   (`selectedMatchId`), and covers **only for that one**. The ranking is a pure function: normalise (trim,
-  lowercase, collapse whitespace), an exact title match wins, among exact matches the same release year, then
-  the first; without an exact match the first result; no results means `null` and no covers. `?match=<id>`
-  fetches covers for another candidate (ranking skipped, `matches` still returned so the dropdown stays
-  populated), `?query=<term>` replaces the search term, which defaults to the game's title. The alternative,
+  lowercase, collapse whitespace), an exact match of the search term wins, among exact matches the same release
+  year when one is given, then the first; without an exact match the first result; no results means `null` and
+  no covers. `?match=<id>` fetches covers for another candidate (ranking skipped, `matches` still returned so the
+  dropdown stays populated), `?query=<term>` (required) is the search term and `?releaseYear=` the optional
+  tiebreak; the SPA fills both from the game or the draft. The alternative,
   covers for every match grouped in one response, is N+1 upstream calls per click against an undocumented rate
   limit, for candidates the owner will mostly never look at, and the UI would show one group at a time anyway.
 - **The key is optional, and the endpoint says so with a 503.** Without `STEAMGRIDDB_API_KEY` the service is
@@ -46,7 +53,7 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
   call `/api/me` at startup, `.meta` is filter lookup data, and a flag is a second code path to keep in sync. A
   single owner clicking once and reading "not configured" is the cheaper failure.
 - **Outbound adapters get a fourth onion layer, `integration`.** `CoverSource` is a port in `games/domain`
-  (`searchGames(term)`, `findCovers(id, type, page)`), `CoverOptionsService` orchestrates repository, ranking and port, and
+  (`searchGames(term)`, `findCovers(id, type, page)`), `CoverOptionsService` orchestrates ranking and port, and
   `games/integration/SteamGridDbCoverSource` is the only class that knows SteamGridDB's URLs and JSON. The
   dependency direction is `integration -> domain` (plus `config`, for its own settings), exactly like
   `persistence` (record 0007); `api` and the frontend see only the service and the DTOs, so a second provider is
@@ -100,7 +107,8 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
   which record 0011 reserves smoke tests for, but it is the documented behaviour of the wired application in
   every environment the tests can reach; the configured path can only be verified by hand against SteamGridDB.
   The adapter is tested with Ktor's `MockEngine` instead, at the level a repository test would occupy.
-- `Services`, `gameRoutes` and `handlerApp` gained a `coverOptions` parameter.
+- `Services`, `gameRoutes` and `handlerApp` gained a `coverOptions` parameter. `CoverOptionsService` takes only
+  the `CoverSource`; there is no 404 path, a missing or blank `query` is a 400.
 - Every cover frame in the SPA (detail dialog, edit preview, grid card, picker thumbnails) is now 22:31, the
   shape of the 660x930 grids the owner picks, derived from one `COVER_ASPECT_RATIO` in
   `frontend/src/components/coverFrame.ts` instead of the former 3:4 width/height pairs. Covers of another shape

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GamePlatformResponse } from "../../../types/api";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
-import { pc, playstation } from "../../../test/fixtures/games";
+import { hadesCoverOptions, pc, playstation } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddGameDialog } from "./AddGameDialog";
 
@@ -133,5 +133,68 @@ describe("AddGameDialog", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("title: nope");
     expect(onCreated).not.toHaveBeenCalled();
     expect(save).toBeEnabled();
+  });
+
+  it("while saving the cover preview is not a button", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "POST /api/games": () => new Promise<Response>(() => {}),
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
+    await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+    await user.click(screen.getByRole("option", { name: "2020" }));
+    await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(screen.queryByRole("button", { name: "Choose a cover image" })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("img", { name: "No cover image" })).toBeInTheDocument();
+  });
+
+  it("the cover preview opens the picker and a pick fills the url field", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
+
+    await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
+    await screen.findByText("Choose a cover");
+    await waitFor(() => expect(calls.some((c) => c.url === "/api/games/cover-options?query=Hades")).toBe(true));
+
+    await user.click(await screen.findByRole("button", { name: "Use cover 1" }));
+
+    const coverImageUrl = within(dialog).getByRole("textbox", { name: /cover image url/i });
+    expect(coverImageUrl).toHaveValue(hadesCoverOptions.covers.items[0].imageUrl);
+    expect(within(dialog).getByRole("img", { name: "Cover preview" })).toHaveAttribute(
+      "src",
+      hadesCoverOptions.covers.items[0].imageUrl,
+    );
+  });
+
+  it("with an empty title the picker shows the hint and requests nothing", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
+
+    expect(await screen.findByText("Enter a search term to look for covers.")).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls).toHaveLength(0);
   });
 });

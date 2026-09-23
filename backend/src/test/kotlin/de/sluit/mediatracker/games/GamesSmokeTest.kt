@@ -315,9 +315,8 @@ class GamesSmokeTest {
     @Test
     fun `cover options answer 503 cover_source_unavailable while no api key is configured`() = testApplication {
         val client = loggedInClient()
-        val game = client.createdGame(CELESTE_BODY)
 
-        val response = client.get("/api/games/${game.id}/cover-options")
+        val response = client.get("/api/games/cover-options?query=x")
 
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status, response.bodyAsText())
         assertEquals("cover_source_unavailable", response.decodeBody<ErrorResponse>().error)

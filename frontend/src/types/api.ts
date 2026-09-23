@@ -121,7 +121,7 @@ export interface CoverOptionResponse {
 export type CoverType = "static" | "animated";
 
 /**
- * Response of `GET /api/games/{id}/cover-options`; mirrors `CoverOptionsResponse`. `covers` holds one page of
+ * Response of `GET /api/games/cover-options`; mirrors `CoverOptionsResponse`. `covers` holds one page of
  * candidates for `selectedMatchId` only; `selectedMatchId` is `null` (never absent) and `covers` empty when
  * nothing matched.
  */

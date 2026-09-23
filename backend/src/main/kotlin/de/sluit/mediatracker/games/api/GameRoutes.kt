@@ -25,8 +25,8 @@ import io.ktor.server.routing.route
 /**
  * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [GameService]; they never touch persistence.
- * A game's expansions ([expansionRoutes]) and cover image search ([coverOptionRoutes]) are mounted inside its
- * `/{id}` block.
+ * A game's expansions ([expansionRoutes]) are mounted inside its `/{id}` block; cover image search
+ * ([coverOptionRoutes]) is game-independent and mounted directly under `/games`.
  */
 fun Route.gameRoutes(
     gameService: GameService,
@@ -48,6 +48,7 @@ fun Route.gameRoutes(
                     .toResponse(Game::toResponse),
             )
         }
+        coverOptionRoutes(coverOptionsService)
         route("/{id}") {
             patch {
                 val id = call.gameId()
@@ -59,7 +60,6 @@ fun Route.gameRoutes(
                 call.respond(HttpStatusCode.NoContent)
             }
             expansionRoutes(expansionService)
-            coverOptionRoutes(coverOptionsService)
         }
     }
     route("/game-platforms") {

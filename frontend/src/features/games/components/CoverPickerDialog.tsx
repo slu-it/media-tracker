@@ -17,32 +17,59 @@ import { errorMessage } from "../../../api/client";
 import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { focusVisibleRingSx } from "../../../theme/focusRing";
-import type { CoverMatchResponse, CoverOptionResponse, GameResponse } from "../../../types/api";
-import { updateGame } from "../api/gamesApi";
+import type { CoverMatchResponse, CoverOptionResponse } from "../../../types/api";
 import { CoverThumbnail } from "./CoverThumbnail";
 import { COVER_TYPES, DEFAULT_COVER_TYPE, type CoverType } from "../domain/coverTypes";
 import { SEARCH_DEBOUNCE_MS, SEARCH_MAX_LENGTH } from "../domain/gameValues";
 import { useCoverOptions } from "../hooks/useCoverOptions";
 
 interface CoverPickerDialogProps {
-  game: GameResponse;
   open: boolean;
   onClose: () => void;
-  /** Called after a cover was picked and saved; the dialog does not close itself. */
-  onSaved: (updated: GameResponse) => void;
+  /** Pre-fills the search field (the game's or the draft's title, may be empty). */
+  initialQuery: string;
+  releaseYear: number | null;
+  /** The cover that is highlighted as current (`aria-pressed`), null for none. */
+  currentCoverUrl: string | null;
+  /**
+   * Receives the full-size URL; the host persists or fills a field and closes the dialog. A rejection shows the
+   * pick error.
+   */
+  onPick: (imageUrl: string) => Promise<void> | void;
 }
 
-/** Search SteamGridDB for cover art and PATCH the chosen one onto the game. */
-export function CoverPickerDialog({ game, open, onClose, onSaved }: CoverPickerDialogProps) {
+/** Search SteamGridDB for cover art; persistence is entirely up to the host via `onPick`. */
+export function CoverPickerDialog({
+  open,
+  onClose,
+  initialQuery,
+  releaseYear,
+  currentCoverUrl,
+  onPick,
+}: CoverPickerDialogProps) {
   if (!open) return null;
-  return <CoverPickerDialogContent key={game.id} game={game} onClose={onClose} onSaved={onSaved} />;
+  return (
+    <CoverPickerDialogContent
+      onClose={onClose}
+      initialQuery={initialQuery}
+      releaseYear={releaseYear}
+      currentCoverUrl={currentCoverUrl}
+      onPick={onPick}
+    />
+  );
 }
 
 const TITLE_ID = "cover-picker-title";
 
-function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDialogProps, "open">) {
+function CoverPickerDialogContent({
+  onClose,
+  initialQuery,
+  releaseYear,
+  currentCoverUrl,
+  onPick,
+}: Omit<CoverPickerDialogProps, "open">) {
   const { t } = useTranslation();
-  const [searchInput, setSearchInput] = useState(game.title.slice(0, SEARCH_MAX_LENGTH));
+  const [searchInput, setSearchInput] = useState(initialQuery.slice(0, SEARCH_MAX_LENGTH));
   const [debouncedQuery, flushQuery] = useDebouncedValue(searchInput.trim(), SEARCH_DEBOUNCE_MS);
   // The picked match is remembered together with the query it was picked for, so a new search term evaluates to
   // "no override" (server ranking applies) in the same render instead of a reset effect - the same state-pairing
@@ -62,19 +89,20 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
     unavailable,
     reload,
     loadMore,
-  } = useCoverOptions(game.id, debouncedQuery, match, coverType, t("games.coverPicker.loadFailed"));
+  } = useCoverOptions(debouncedQuery, releaseYear, match, coverType, t("games.coverPicker.loadFailed"));
   const selectedMatchId = match ?? data?.selectedMatchId ?? null;
+  const hasQuery = debouncedQuery.trim().length > 0;
   const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   const pick = async (option: CoverOptionResponse) => {
     setBusy(true);
-    setSaveError(null);
+    setPickError(null);
     try {
-      const updated = await updateGame(game.id, { coverImageUrl: option.imageUrl });
-      onSaved(updated);
+      await onPick(option.imageUrl);
     } catch (cause: unknown) {
-      setSaveError(errorMessage(cause, t("errors.saveFailed")));
+      setPickError(errorMessage(cause, t("errors.saveFailed")));
+    } finally {
       setBusy(false);
     }
   };
@@ -84,9 +112,9 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
       <Typography id={TITLE_ID} variant="h6" component="h2" sx={{ mb: 2 }}>
         {t("games.coverPicker.title")}
       </Typography>
-      {saveError && (
+      {pickError && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          {saveError}
+          {pickError}
         </Alert>
       )}
       <Stack spacing={2}>
@@ -102,7 +130,7 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
           autoFocus
         />
         <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
-          {!loading && !unavailable && !error && data && data.matches.length > 0 && (
+          {hasQuery && !loading && !unavailable && !error && data && data.matches.length > 0 && (
             <TextField
               select
               label={t("games.coverPicker.match")}
@@ -136,13 +164,14 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
             </ToggleButtonGroup>
           )}
         </Stack>
-        {loading && (
+        {!hasQuery && <Typography color="text.secondary">{t("games.coverPicker.enterTerm")}</Typography>}
+        {hasQuery && loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress aria-label={t("common.loading")} />
           </Box>
         )}
-        {!loading && unavailable && <Alert severity="warning">{t("games.coverPicker.unavailable")}</Alert>}
-        {!loading && !unavailable && error && (
+        {hasQuery && !loading && unavailable && <Alert severity="warning">{t("games.coverPicker.unavailable")}</Alert>}
+        {hasQuery && !loading && !unavailable && error && (
           <Alert
             severity="error"
             // A load-more failure keeps the already-loaded pages visible below, with the "Load more" button
@@ -159,23 +188,27 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
             {error}
           </Alert>
         )}
-        {!loading && !unavailable && !error && data && data.matches.length === 0 && (
+        {hasQuery && !loading && !unavailable && !error && data && data.matches.length === 0 && (
           <Typography color="text.secondary">{t("games.coverPicker.noMatches", { term: data.query })}</Typography>
         )}
-        {!loading && !error && !unavailable && selectedMatchId !== null && covers.length === 0 && !hasMore && (
-          <Typography color="text.secondary">{t("games.coverPicker.noCovers")}</Typography>
-        )}
+        {hasQuery &&
+          !loading &&
+          !error &&
+          !unavailable &&
+          selectedMatchId !== null &&
+          covers.length === 0 &&
+          !hasMore && <Typography color="text.secondary">{t("games.coverPicker.noCovers")}</Typography>}
         {/*
          * Not gated on `!error`: an error here can only mean a `loadMore()` failure once earlier pages already
          * loaded (an initial-load failure leaves `covers` empty, so these sections stay hidden regardless). The
          * blocking alert above still reports the failure; these keep the already-loaded pages visible next to it.
          */}
-        {!loading && !unavailable && totalCovers > 0 && (
+        {hasQuery && !loading && !unavailable && totalCovers > 0 && (
           <Typography variant="body2" color="text.secondary">
             {t("games.coverPicker.shownOfTotal", { shown: covers.length, count: totalCovers })}
           </Typography>
         )}
-        {!loading && !unavailable && covers.length > 0 && (
+        {hasQuery && !loading && !unavailable && covers.length > 0 && (
           <Box
             role="group"
             aria-label={t("games.coverPicker.title")}
@@ -183,7 +216,7 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
             sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}
           >
             {covers.map((option, index) => {
-              const isCurrent = option.imageUrl === game.coverImageUrl;
+              const isCurrent = option.imageUrl === currentCoverUrl;
               return (
                 <ButtonBase
                   key={option.imageUrl}
@@ -204,7 +237,7 @@ function CoverPickerDialogContent({ game, onClose, onSaved }: Omit<CoverPickerDi
             })}
           </Box>
         )}
-        {!loading && !unavailable && hasMore && (
+        {hasQuery && !loading && !unavailable && hasMore && (
           <Box sx={{ display: "flex", justifyContent: "center" }}>
             <Button
               onClick={loadMore}

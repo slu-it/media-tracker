@@ -10,7 +10,7 @@ function typeParam(type: CoverType): CoverType | undefined {
 }
 
 interface Loaded {
-  /** Which (gameId, query, match, type, reload) request this result belongs to. */
+  /** Which (query, releaseYear, match, type, reload) request this result belongs to. */
   key: string;
   /**
    * Bumped on every first-page ("initial") load, independent of `key` (which can repeat, e.g. switching the
@@ -68,26 +68,31 @@ export interface CoverOptionsState {
 }
 
 /**
- * Loads cover suggestions for a game; `reload()` retries after a failure, `loadMore()` appends the next page.
- * Modelled on `useExpansions`, except the dialog that owns this hook only ever mounts its content for an
- * already-open game, so `gameId` is never `null`.
+ * Loads cover suggestions for a search term; `reload()` retries after a failure, `loadMore()` appends the next
+ * page. Modelled on `useExpansions`. A blank `query` makes no request (the backend 400s on it): the picker shows
+ * its own hint instead, so this stays a fixed `EMPTY` state.
  */
 export function useCoverOptions(
-  gameId: string,
   query: string,
+  releaseYear: number | null,
   match: number | null,
   type: CoverType,
   loadErrorText: string,
 ): CoverOptionsState {
   const [reloadToken, setReloadToken] = useState(0);
-  const key = `${gameId}:${query}:${match ?? ""}:${type}:${reloadToken}`;
+  const trimmedQuery = query.trim();
+  const isBlank = trimmedQuery.length === 0;
+  const key = `${trimmedQuery}:${releaseYear ?? ""}:${match ?? ""}:${type}:${reloadToken}`;
   const [loaded, setLoaded] = useState<Loaded>(EMPTY);
   const generationRef = useRef(0);
 
   useEffect(() => {
+    // The backend 400s on a blank query; the picker shows its own hint instead, so this makes no request. `current`
+    // below is derived straight from `isBlank`, so no state update is needed here to reflect that.
+    if (isBlank) return;
     let cancelled = false;
     const generation = ++generationRef.current;
-    getCoverOptions(gameId, { query, match: match ?? undefined, type: typeParam(type) })
+    getCoverOptions({ query: trimmedQuery, releaseYear, match: match ?? undefined, type: typeParam(type) })
       .then((data) => {
         if (!cancelled) {
           setLoaded({
@@ -126,11 +131,13 @@ export function useCoverOptions(
     return () => {
       cancelled = true;
     };
-  }, [key, gameId, query, match, type, loadErrorText]);
+  }, [isBlank, key, trimmedQuery, releaseYear, match, type, loadErrorText]);
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 
-  const current = loaded.key === key;
+  // A blank query never issued a request, so it is never "current": loading/data/etc. all resolve to their
+  // empty defaults below without needing a state update to get there.
+  const current = !isBlank && loaded.key === key;
 
   const loadMore = useCallback(() => {
     if (!current || loaded.data === null || loaded.data.selectedMatchId === null) return;
@@ -139,7 +146,7 @@ export function useCoverOptions(
     const nextPage = loaded.lastPage + 1;
     const selectedMatchId = loaded.data.selectedMatchId;
     setLoaded((prev) => (prev.generation === requestGeneration ? { ...prev, loadingMore: true } : prev));
-    getCoverOptions(gameId, { query, match: selectedMatchId, type: typeParam(type), page: nextPage })
+    getCoverOptions({ query: trimmedQuery, releaseYear, match: selectedMatchId, type: typeParam(type), page: nextPage })
       .then((data) => {
         // Only apply while still on the same generation and picking up right after the page this request
         // asked for: a page response arriving after the type/query/match changed and changed back (a repeated
@@ -165,14 +172,14 @@ export function useCoverOptions(
             : prev,
         );
       });
-  }, [current, loaded, gameId, query, type, loadErrorText]);
+  }, [current, loaded, trimmedQuery, releaseYear, type, loadErrorText]);
 
   return {
     data: current ? loaded.data : null,
     covers: current ? loaded.covers : [],
     totalCovers: current ? (loaded.data?.covers.totalItems ?? 0) : 0,
     hasMore: current && loaded.data !== null && loaded.lastPage < loaded.totalPages,
-    loading: !current,
+    loading: !isBlank && !current,
     loadingMore: current && loaded.loadingMore,
     error: current ? loaded.error : null,
     errorSource: current ? loaded.errorSource : null,
