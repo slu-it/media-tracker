@@ -13,7 +13,8 @@ fun ApplicationCall.pageRequest(): PageRequest = PageRequest(
     size = intQueryParameter(PageSize.FIELD)?.let(::PageSize) ?: PageSize.DEFAULT,
 )
 
-private fun ApplicationCall.intQueryParameter(name: String): Int? = request.queryParameters[name]?.let {
+/** Reused by other features' hand-rolled query parameter parsing (e.g. `games/api/CoverOptionRoutes.kt`). */
+internal fun ApplicationCall.intQueryParameter(name: String): Int? = request.queryParameters[name]?.let {
     it.toIntOrNull() ?: throw InvalidValueException(name, "must be an integer")
 }
 

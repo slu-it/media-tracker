@@ -116,7 +116,13 @@
       "noCovers": "No covers available for this game.",
       "unavailable": "Cover search is not configured on this server (STEAMGRIDDB_API_KEY).",
       "loadFailed": "Could not load cover suggestions.",
-      "attribution": "Covers from SteamGridDB"
+      "attribution": "Covers from SteamGridDB",
+      "type": "Cover type",
+      "typeStatic": "Static",
+      "typeAnimated": "Animated",
+      "shownOfTotal_one": "{{shown}} of {{count}} cover",
+      "shownOfTotal_other": "{{shown}} of {{count}} covers",
+      "loadMore": "Load more"
     },
     "expansions": {
       "heading": "Expansions",

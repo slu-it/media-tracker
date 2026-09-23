@@ -1,6 +1,8 @@
 package de.sluit.mediatracker.games.domain
 
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
 
@@ -37,17 +39,39 @@ data class CoverCandidate(
 /** One selectable cover image, in both a thumbnail and its full-size form. */
 data class CoverOption(val thumbnailUrl: CoverImageUrl, val imageUrl: CoverImageUrl, val width: Int, val height: Int)
 
+/** Whether the cover picker asks SteamGridDB for static or animated (APNG/animated WebP) grids. */
+enum class CoverType {
+    STATIC,
+    ANIMATED,
+    ;
+
+    val wire: String get() = name.lowercase()
+
+    companion object {
+        const val FIELD = "type"
+        val DEFAULT = STATIC
+
+        fun from(wire: String): CoverType = entries.firstOrNull { it.wire == wire }
+            ?: throw InvalidValueException(FIELD, "must be one of ${entries.joinToString { it.wire }}")
+    }
+}
+
+/** The [CoverSource] port's page size for [CoverSource.findCovers]; every adapter honours it verbatim. */
+const val COVER_PAGE_SIZE = 50
+
 /** Outward port to an external cover image provider. Implemented in `games.integration`. */
 interface CoverSource {
     suspend fun searchGames(term: SearchTerm): List<CoverCandidate>
 
-    suspend fun findCovers(id: CoverSourceGameId): List<CoverOption>
+    suspend fun findCovers(id: CoverSourceGameId, type: CoverType, page: PageNumber): Page<CoverOption>
 }
 
 /** Result of [CoverOptionsService.find]: the candidates for [query], the chosen one, and its covers. */
 data class CoverOptions(
     val query: SearchTerm,
+    /** The candidates for [query]. Empty on pages after the first when `match` is given. */
     val matches: List<CoverCandidate>,
     val selectedMatchId: CoverSourceGameId?,
-    val covers: List<CoverOption>,
+    val type: CoverType,
+    val covers: Page<CoverOption>,
 )

@@ -569,7 +569,7 @@ describe("GameDetailDialog", () => {
   it("closes the cover picker and reports the patched game after picking a cover", async () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
-    const updated = { ...hades, coverImageUrl: hadesCoverOptions.covers[0].imageUrl };
+    const updated = { ...hades, coverImageUrl: hadesCoverOptions.covers.items[0].imageUrl };
     mockApi({
       "GET /api/games/:id/expansions": () => jsonResponse([]),
       "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions),

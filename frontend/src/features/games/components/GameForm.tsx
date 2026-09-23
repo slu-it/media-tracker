@@ -33,7 +33,7 @@ export function GameForm({ value, onChange, platforms, disabled, showErrors }: G
   return (
     <CoverAndInfoLayout
       scrollInfo
-      cover={<CoverImage src={previewUrl} alt={t("games.coverPreview")} width={240} height={320} />}
+      cover={<CoverImage src={previewUrl} alt={t("games.coverPreview")} width={240} />}
       underCover={
         <RatingField
           value={value.rating}

@@ -2,6 +2,9 @@ package de.sluit.mediatracker.games.domain
 
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -48,7 +51,13 @@ class CoverOptionsServiceTest {
         val serviceWithoutSource = CoverOptionsService(games, source = null)
 
         val exception = assertFailsWith<ExternalSourceUnavailableException> {
-            serviceWithoutSource.find(GameId.new(), query = null, match = null)
+            serviceWithoutSource.find(
+                GameId.new(),
+                query = null,
+                match = null,
+                type = CoverType.STATIC,
+                page = PageNumber.FIRST,
+            )
         }
 
         assertEquals(CoverOptionsService.SOURCE, exception.source)
@@ -61,7 +70,7 @@ class CoverOptionsServiceTest {
         coEvery { games.findById(gameId) } returns null
 
         val exception = assertFailsWith<NotFoundException> {
-            service.find(gameId, query = null, match = null)
+            service.find(gameId, query = null, match = null, type = CoverType.STATIC, page = PageNumber.FIRST)
         }
 
         assertEquals(gameId.toString(), exception.id)
@@ -73,7 +82,13 @@ class CoverOptionsServiceTest {
         coEvery { games.findById(theGame.id) } returns theGame
         coEvery { source.searchGames(SearchTerm("Hades")) } returns emptyList()
 
-        val result = service.find(theGame.id, query = null, match = null)
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = null,
+            type = CoverType.STATIC,
+            page = PageNumber.FIRST,
+        )
 
         assertEquals(SearchTerm("Hades"), result.query)
         coVerify { source.searchGames(SearchTerm("Hades")) }
@@ -87,7 +102,13 @@ class CoverOptionsServiceTest {
         coEvery { games.findById(theGame.id) } returns theGame
         coEvery { source.searchGames(expectedTerm) } returns emptyList()
 
-        val result = service.find(theGame.id, query = null, match = null)
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = null,
+            type = CoverType.STATIC,
+            page = PageNumber.FIRST,
+        )
 
         assertEquals(expectedTerm, result.query)
     }
@@ -99,7 +120,13 @@ class CoverOptionsServiceTest {
         coEvery { games.findById(theGame.id) } returns theGame
         coEvery { source.searchGames(query) } returns emptyList()
 
-        val result = service.find(theGame.id, query = query, match = null)
+        val result = service.find(
+            theGame.id,
+            query = query,
+            match = null,
+            type = CoverType.STATIC,
+            page = PageNumber.FIRST,
+        )
 
         assertEquals(query, result.query)
         coVerify { source.searchGames(query) }
@@ -112,14 +139,43 @@ class CoverOptionsServiceTest {
         val chosen = CoverSourceGameId(2)
         coEvery { games.findById(theGame.id) } returns theGame
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(chosen) } returns listOf(cover(2))
+        coEvery { source.findCovers(chosen, CoverType.STATIC, PageNumber.FIRST) } returns
+            Page(listOf(cover(2)), PageNumber.FIRST, PageSize(1), 1)
 
-        val result = service.find(theGame.id, query = null, match = chosen)
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = chosen,
+            type = CoverType.STATIC,
+            page = PageNumber.FIRST,
+        )
 
         assertEquals(chosen, result.selectedMatchId)
         assertEquals(matches, result.matches)
         coVerify { source.searchGames(SearchTerm("Hades")) }
-        coVerify { source.findCovers(chosen) }
+        coVerify { source.findCovers(chosen, CoverType.STATIC, PageNumber.FIRST) }
+        confirmVerified(source)
+    }
+
+    @Test
+    fun `an explicit match on a later page skips the search and fetches covers for that page`() = runBlocking {
+        val theGame = game("Hades")
+        val chosen = CoverSourceGameId(2)
+        coEvery { games.findById(theGame.id) } returns theGame
+        coEvery { source.findCovers(chosen, CoverType.STATIC, PageNumber(2)) } returns
+            Page(listOf(cover(2)), PageNumber(2), PageSize(1), 1)
+
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = chosen,
+            type = CoverType.STATIC,
+            page = PageNumber(2),
+        )
+
+        assertEquals(chosen, result.selectedMatchId)
+        assertEquals(emptyList(), result.matches)
+        coVerify { source.findCovers(chosen, CoverType.STATIC, PageNumber(2)) }
         confirmVerified(source)
     }
 
@@ -129,13 +185,72 @@ class CoverOptionsServiceTest {
         val matches = listOf(candidate("Hades", id = 1))
         coEvery { games.findById(theGame.id) } returns theGame
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(CoverSourceGameId(1)) } returns listOf(cover(1))
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST) } returns
+            Page(listOf(cover(1)), PageNumber.FIRST, PageSize(1), 1)
 
-        val result = service.find(theGame.id, query = null, match = null)
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = null,
+            type = CoverType.STATIC,
+            page = PageNumber.FIRST,
+        )
 
         assertEquals(CoverSourceGameId(1), result.selectedMatchId)
-        assertEquals(listOf(cover(1)), result.covers)
-        coVerify { source.findCovers(CoverSourceGameId(1)) }
+        assertEquals(listOf(cover(1)), result.covers.items)
+        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST) }
+    }
+
+    @Test
+    fun `type and page are passed unchanged to findCovers for the selected match`() = runBlocking {
+        val theGame = game("Hades")
+        val matches = listOf(candidate("Hades", id = 1))
+        coEvery { games.findById(theGame.id) } returns theGame
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber(3)) } returns
+            Page(listOf(cover(1)), PageNumber(3), PageSize(1), 1)
+
+        service.find(theGame.id, query = null, match = null, type = CoverType.ANIMATED, page = PageNumber(3))
+
+        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber(3)) }
+    }
+
+    @Test
+    fun `no selected match returns an empty page at the requested page number`() = runBlocking {
+        val theGame = game("Hades")
+        coEvery { games.findById(theGame.id) } returns theGame
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns emptyList()
+
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = null,
+            type = CoverType.ANIMATED,
+            page = PageNumber(3),
+        )
+
+        assertEquals(0, result.covers.totalItems)
+        assertEquals(PageNumber(3), result.covers.page)
+    }
+
+    @Test
+    fun `the returned type echoes the requested type`() = runBlocking {
+        val theGame = game("Hades")
+        val matches = listOf(candidate("Hades", id = 1))
+        coEvery { games.findById(theGame.id) } returns theGame
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber.FIRST) } returns
+            Page(listOf(cover(1)), PageNumber.FIRST, PageSize(1), 1)
+
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = null,
+            type = CoverType.ANIMATED,
+            page = PageNumber.FIRST,
+        )
+
+        assertEquals(CoverType.ANIMATED, result.type)
     }
 
     @Test
@@ -144,10 +259,16 @@ class CoverOptionsServiceTest {
         coEvery { games.findById(theGame.id) } returns theGame
         coEvery { source.searchGames(SearchTerm("Hades")) } returns emptyList()
 
-        val result = service.find(theGame.id, query = null, match = null)
+        val result = service.find(
+            theGame.id,
+            query = null,
+            match = null,
+            type = CoverType.STATIC,
+            page = PageNumber.FIRST,
+        )
 
         assertNull(result.selectedMatchId)
-        assertEquals(emptyList(), result.covers)
+        assertEquals(emptyList(), result.covers.items)
         // confirmVerified after verifying the one expected call, rather than coVerify(exactly = 0) with a
         // matcher: MockK's any()/isNull() witness generation for a value class always constructs a real instance
         // and would trip CoverSourceGameId's `value > 0` check about half the time.
