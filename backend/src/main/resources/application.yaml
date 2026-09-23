@@ -27,3 +27,10 @@ session:
   secureCookie: "$SESSION_SECURE:true"
   # HMAC key used to sign the session id cookie. Any long random string (>= 32 chars).
   secret: "$SESSION_SECRET"
+
+coverSource:
+  steamGridDb:
+    # Optional. Without it, GET /api/games/{id}/cover-options answers 503 and the cover picker is unavailable.
+    # Set it to enable searching SteamGridDB for cover art (MT-017).
+    apiKey: "$STEAMGRIDDB_API_KEY:"
+    baseUrl: "https://www.steamgriddb.com/api/v2"

@@ -1,0 +1,266 @@
+package de.sluit.mediatracker.games.integration
+
+import de.sluit.mediatracker.common.domain.ExternalSourceException
+import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.config.SteamGridDbConfig
+import de.sluit.mediatracker.games.domain.CoverOptionsService
+import de.sluit.mediatracker.games.domain.CoverSourceGameId
+import de.sluit.mediatracker.games.domain.ReleaseYear
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.MockRequestHandleScope
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.HttpRequestData
+import io.ktor.client.request.HttpResponseData
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.runBlocking
+import java.io.IOException
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * Adapter-level tests for [SteamGridDbCoverSource]: this is the games domain's equivalent of a repository test,
+ * exercised against [MockEngine] instead of a real SteamGridDB. Business behaviour (ranking, default terms) lives
+ * in [de.sluit.mediatracker.games.domain.CoverOptionsServiceTest].
+ */
+class SteamGridDbCoverSourceTest {
+    private val config = SteamGridDbConfig(apiKey = "secret-key", baseUrl = "https://sgdb.example/api/v2")
+
+    private fun sourceWith(
+        handler: MockRequestHandleScope.(HttpRequestData) -> HttpResponseData,
+    ): SteamGridDbCoverSource {
+        val client = HttpClient(MockEngine(handler)) {
+            expectSuccess = false
+            install(ContentNegotiation) {
+                json(steamGridDbJson)
+            }
+        }
+        return SteamGridDbCoverSource(client, config)
+    }
+
+    private fun MockRequestHandleScope.jsonResponse(status: HttpStatusCode, body: String): HttpResponseData =
+        respond(content = body, status = status, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+
+    // ---- request shape ----
+
+    @Test
+    fun `search sends the bearer header and url-encodes the search term`() = runBlocking {
+        var seenAuth: String? = null
+        var seenPath: String? = null
+        val source = sourceWith { request ->
+            seenAuth = request.headers[HttpHeaders.Authorization]
+            seenPath = request.url.encodedPath
+            jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[]}""")
+        }
+
+        source.searchGames(SearchTerm("Hades II"))
+
+        assertEquals("Bearer secret-key", seenAuth)
+        assertTrue(seenPath!!.endsWith("/search/autocomplete/Hades%20II"), seenPath)
+    }
+
+    @Test
+    fun `findCovers sends the fixed grid query parameters`() = runBlocking {
+        var dimensions: String? = null
+        var types: String? = null
+        var nsfw: String? = null
+        var humor: String? = null
+        val source = sourceWith { request ->
+            dimensions = request.url.parameters["dimensions"]
+            types = request.url.parameters["types"]
+            nsfw = request.url.parameters["nsfw"]
+            humor = request.url.parameters["humor"]
+            jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[]}""")
+        }
+
+        source.findCovers(CoverSourceGameId(42))
+
+        assertEquals("600x900,660x930", dimensions)
+        assertEquals("static", types)
+        assertEquals("false", nsfw)
+        assertEquals("false", humor)
+    }
+
+    // ---- release year mapping ----
+
+    @Test
+    fun `search maps a present release_date to its utc year`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(
+                HttpStatusCode.OK,
+                """{"success":true,"data":[{"id":1,"name":"Hades","verified":true,"release_date":1608076800}]}""",
+            )
+        }
+
+        val candidates = source.searchGames(SearchTerm("Hades"))
+
+        assertEquals(ReleaseYear(2020), candidates.single().releaseYear)
+    }
+
+    @Test
+    fun `search maps an absent release_date to a null year`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[{"id":1,"name":"Hades"}]}""")
+        }
+
+        val candidates = source.searchGames(SearchTerm("Hades"))
+
+        assertNull(candidates.single().releaseYear)
+    }
+
+    // ---- grids not found ----
+
+    @Test
+    fun `findCovers on a 404 with success false returns an empty list`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.NotFound, """{"success":false,"errors":["Game not found"]}""")
+        }
+
+        val covers = source.findCovers(CoverSourceGameId(1))
+
+        assertEquals(emptyList(), covers)
+    }
+
+    // ---- invalid candidate ids ----
+
+    @Test
+    fun `search skips a game with a non-positive id and keeps the others`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(
+                HttpStatusCode.OK,
+                """{"success":true,"data":[{"id":0,"name":"Bad"},{"id":1,"name":"Hades"}]}""",
+            )
+        }
+
+        val candidates = source.searchGames(SearchTerm("Hades"))
+
+        assertEquals(1, candidates.size)
+        assertEquals("Hades", candidates.single().name)
+    }
+
+    // ---- upstream failures ----
+
+    @Test
+    fun `search on a 401 response throws an external source exception`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.Unauthorized, """{"success":false,"errors":["Invalid API Key"]}""")
+        }
+
+        val exception = assertFailsWith<ExternalSourceException> {
+            source.searchGames(SearchTerm("Hades"))
+        }
+
+        assertEquals(CoverOptionsService.SOURCE, exception.source)
+        assertFalse(exception.message!!.contains("secret-key"))
+    }
+
+    @Test
+    fun `search on a 403 response throws an external source exception`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.Forbidden, """{"success":false,"errors":["Forbidden"]}""")
+        }
+
+        val exception = assertFailsWith<ExternalSourceException> {
+            source.searchGames(SearchTerm("Hades"))
+        }
+
+        assertEquals(CoverOptionsService.SOURCE, exception.source)
+    }
+
+    @Test
+    fun `search on a 500 response with a success true envelope still throws an external source exception`() =
+        runBlocking {
+            val source = sourceWith {
+                jsonResponse(HttpStatusCode.InternalServerError, """{"success":true,"data":[]}""")
+            }
+
+            val exception = assertFailsWith<ExternalSourceException> {
+                source.searchGames(SearchTerm("Hades"))
+            }
+
+            assertEquals(CoverOptionsService.SOURCE, exception.source)
+        }
+
+    @Test
+    fun `search on a 500 response throws an external source exception`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.InternalServerError, "Internal Server Error")
+        }
+
+        val exception = assertFailsWith<ExternalSourceException> {
+            source.searchGames(SearchTerm("Hades"))
+        }
+
+        assertEquals(CoverOptionsService.SOURCE, exception.source)
+    }
+
+    @Test
+    fun `search with a success false envelope on an otherwise ok status throws an external source exception`() =
+        runBlocking {
+            val source = sourceWith {
+                jsonResponse(HttpStatusCode.OK, """{"success":false,"errors":["nope"]}""")
+            }
+
+            val exception = assertFailsWith<ExternalSourceException> {
+                source.searchGames(SearchTerm("Hades"))
+            }
+
+            assertEquals(CoverOptionsService.SOURCE, exception.source)
+        }
+
+    @Test
+    fun `search with a malformed json body throws an external source exception`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.OK, "not json at all")
+        }
+
+        val exception = assertFailsWith<ExternalSourceException> {
+            source.searchGames(SearchTerm("Hades"))
+        }
+
+        assertEquals(CoverOptionsService.SOURCE, exception.source)
+    }
+
+    @Test
+    fun `search wraps an io exception thrown while talking to the upstream`() = runBlocking {
+        val source = sourceWith {
+            throw IOException("connection reset")
+        }
+
+        val exception = assertFailsWith<ExternalSourceException> {
+            source.searchGames(SearchTerm("Hades"))
+        }
+
+        assertEquals(CoverOptionsService.SOURCE, exception.source)
+    }
+
+    // ---- invalid grid urls ----
+
+    @Test
+    fun `findCovers skips a grid with an invalid url`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(
+                HttpStatusCode.OK,
+                """{"success":true,"data":[
+                    |{"url":"not-a-url","thumb":"https://cdn.example/thumb-bad.png","width":600,"height":900},
+                    |{"url":"https://cdn.example/full-good.png","thumb":"https://cdn.example/thumb-good.png",
+                    |"width":600,"height":900}
+                    |]}
+                """.trimMargin(),
+            )
+        }
+
+        val covers = source.findCovers(CoverSourceGameId(1))
+
+        assertEquals(1, covers.size)
+        assertEquals("https://cdn.example/full-good.png", covers.single().imageUrl.value)
+    }
+}

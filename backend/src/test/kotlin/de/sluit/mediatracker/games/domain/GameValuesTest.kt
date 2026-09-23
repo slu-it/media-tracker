@@ -105,6 +105,16 @@ class GameValuesTest {
     }
 
     @Test
+    fun `cover source game id parses only positive integers`() {
+        assertEquals(42L, CoverSourceGameId.parse("42").value)
+        rejects("match") { CoverSourceGameId.parse("abc") }
+        rejects("match") { CoverSourceGameId.parse("0") }
+        rejects("match") { CoverSourceGameId.parse("-1") }
+        rejects("match") { CoverSourceGameId(0) }
+        rejects("match") { CoverSourceGameId(-1) }
+    }
+
+    @Test
     fun `a game requires at least one platform`() {
         rejects("platformIds") {
             Game(id = GameId.new(), title = Title("Old"), releaseYear = ReleaseYear(1999), platforms = emptyList())

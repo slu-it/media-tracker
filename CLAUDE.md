@@ -46,6 +46,17 @@ game's `/{id}` block (`/api/games/{id}/expansions[/{expansionId}]`, `games/api/E
 `gameId()`), `UpdateExpansionRequest` uses plain nullable fields because nothing on an expansion is clearable,
 and the MCP tools `list_expansions` and `add_expansion` cover the agent side. The frontend shows them as a
 drag-sortable card stack inside the game detail dialog (@dnd-kit, keyboard sensor for the tested path).
+MT-017 added the **cover picker** (ADR 0024): in the detail dialog the cover (image or empty placeholder) is a button that opens
+`CoverPickerDialog`, which shows SteamGridDB thumbnails from `GET /api/games/{id}/cover-options[?query=&match=]`
+and PATCHes `coverImageUrl` with the full-size URL on click. The endpoint returns the provider's `matches` for the
+search term (default: the title), the `selectedMatchId` a pure domain ranking picked (exact title, same year,
+first) and `covers` only for that match; `match` overrides the pick, `query` the term. `games/domain/CoverSource.kt`
+is the port, `CoverOptionsService` the orchestrator, and `games/integration/SteamGridDbCoverSource.kt` the only
+class that knows SteamGridDB (Ktor client, `ktor-client-java` engine) - `integration` is the fourth onion layer for
+outbound adapters (`integration -> domain`). `STEAMGRIDDB_API_KEY` is optional: without it `module()` wires no
+source and the endpoint answers `503 cover_source_unavailable` (`ExternalSourceUnavailableException` /
+`ExternalSourceException` in `common/domain`, mapped by StatusPages to `<source>_unavailable` / `<source>_error`);
+`application-test.yaml` pins the key empty so the smoke test always sees that path. Cover URLs stay external.
 
 Detailed docs already exist and are kept current; read them before larger changes:
 `README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
@@ -67,7 +78,7 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Kotlin lint / auto-format | `./gradlew :backend:ktlintCheck` / `./gradlew :backend:ktlintFormat` |
 | Frontend lint / format | `cd frontend && pnpm lint` / `pnpm format:check`; fix with `pnpm lint:fix` / `pnpm format` (Gradle: `:frontend:pnpmLint`, `pnpmFormatCheck`, `pnpmLintFix`, `pnpmFormat`) |
 | Dev loop with live reload (backend auto-reload + Vite HMR) | `./start-dev.sh` (Docker MariaDB, `:backend:run -Pmt.dev=true`, `:backend:classes -t -Pmt.dev=true`, `pnpm dev`; open :5173) |
-| Backend dev run (serves last built frontend) | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`) |
+| Backend dev run (serves last built frontend) | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`; optional `STEAMGRIDDB_API_KEY` enables the cover picker) |
 | Frontend hot reload | `cd frontend && pnpm dev` (port 5173, proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
 | Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MariaDB, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
 | Release JAR | `./gradlew :backend:buildFatJar` then `backend/build/libs/media-tracker.jar` |
@@ -117,12 +128,13 @@ Shutdown hooks in `module()` must hang off the application's coroutine job, not 
 with Ktor auto-reload the new instance starts before the old one stops and would close the new instance's resources.
 
 **Backend wiring** (`Application.kt`): `module()` does config → `DatabaseFactory.connect` →
-`DatabaseFactory.warnOnSchemaDrift(database, allTables)` → `Services(auth, games, apiKeys)` from Exposed
-repositories → `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
+`DatabaseFactory.warnOnSchemaDrift(database, allTables)` → `Services(auth, games, apiKeys, expansions, coverOptions)`
+from Exposed repositories (and the SteamGridDB client, only when its key is configured) →
+`configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
 persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) → routes
 (`loginRoutes`, `apiRoutes(services)`, `mcpRoutes(services)`, `webRoutes`). Handler tests boot `configureHttp` with
-MockK services (`handlerApp(auth, games, apiKeys)`) and an in-memory session storage; a new media kind adds its
-service to `Services`.
+MockK services (`handlerApp(auth, games, apiKeys, expansions, coverOptions)`, every parameter defaulted to a MockK)
+and an in-memory session storage; a new media kind adds its service to `Services`.
 Config is typed in `config/AppConfig.kt` from `application.yaml`, where every secret is an env-var reference
 (`"$VAR"` required, `"$VAR:default"` optional).
 
@@ -150,7 +162,8 @@ in `<feature>/api/*Routes.kt` (`Route.gameRoutes(service)`) and `apiRoutes` in t
 inside that `authenticate` block, before the catch-all.
 
 **Feature packages are onion-layered** (ADR 0007): `de.sluit.mediatracker.<feature>.{api,domain,persistence}`,
-dependencies `api → domain ← persistence`, the domain imports no Ktor/Exposed/kotlinx. Each layer has its own types
+dependencies `api → domain ← persistence`, plus `integration → domain` (and `config`, for its own settings) for
+outbound HTTP adapters to third-party services (ADR 0024, `games/integration/`); the domain imports no Ktor/Exposed/kotlinx. Each layer has its own types
 (DTOs / entities + `@JvmInline value class`es / Exposed tables); only domain types cross layers. Value classes
 validate in `init` via `requireValid(field, cond) { reason }` → `InvalidValueException` → HTTP 400
 `validation_error` (`plugins/StatusPages.kt` also maps `NotFoundException` → 404, Ktor body failures → 400

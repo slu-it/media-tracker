@@ -14,15 +14,33 @@ interface GameDetailsProps {
   expansions: ExpansionResponse[];
   onSelectExpansion: (expansion: ExpansionResponse) => void;
   onMoveExpansion: (expansionId: string, targetIndex: number) => void;
+  /** Opens the cover picker; the cover is clickable whenever this is set, whether or not it has a URL. */
+  onPickCover?: () => void;
 }
 
 /** Read-only view of one game (the detail dialog's view mode). */
-export function GameDetails({ game, titleId, expansions, onSelectExpansion, onMoveExpansion }: GameDetailsProps) {
+export function GameDetails({
+  game,
+  titleId,
+  expansions,
+  onSelectExpansion,
+  onMoveExpansion,
+  onPickCover,
+}: GameDetailsProps) {
   const { t } = useTranslation();
   return (
     <CoverAndInfoLayout
       scrollInfo
-      cover={<CoverImage src={game.coverImageUrl} alt={game.title} width={240} height={320} />}
+      cover={
+        <CoverImage
+          src={game.coverImageUrl}
+          alt={game.title}
+          width={240}
+          height={320}
+          onClick={onPickCover}
+          actionLabel={t("games.coverPicker.open")}
+        />
+      }
       underCover={
         <Box
           role="group"

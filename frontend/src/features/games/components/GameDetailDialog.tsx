@@ -15,6 +15,7 @@ import { updateExpansion } from "../api/expansionsApi";
 import { deleteGame, updateGame } from "../api/gamesApi";
 import { draftFromGame, isDraftDirty, isDraftValid, toUpdateRequest } from "../domain/gameDraft";
 import { useExpansions } from "../hooks/useExpansions";
+import { CoverPickerDialog } from "./CoverPickerDialog";
 import { ExpansionDialog } from "./ExpansionDialog";
 import { GAME_DIALOG_HEIGHT } from "./gameDialogLayout";
 import { GameDetails } from "./GameDetails";
@@ -62,6 +63,7 @@ function GameDetailDialogContent({
   const expansions = useExpansions(game.id, t("errors.loadFailed"));
   const [selectedExpansion, setSelectedExpansion] = useState<ExpansionResponse | null>(null);
   const [addExpansionOpen, setAddExpansionOpen] = useState(false);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   // Optimistic reorder, applied on top of the loaded expansions until a fresh fetch lands. `source` remembers the
   // exact fetched array the ids were derived from (useExpansions hands back a new array per fetch), so the
   // optimistic order is dropped by reference comparison as soon as any newer fetch - a reload after this move, or
@@ -212,6 +214,7 @@ function GameDetailDialogContent({
           expansions={displayedExpansions}
           onSelectExpansion={setSelectedExpansion}
           onMoveExpansion={(expansionId, targetIndex) => void moveExpansion(expansionId, targetIndex)}
+          onPickCover={() => setCoverPickerOpen(true)}
         />
       ) : (
         <>
@@ -230,6 +233,15 @@ function GameDetailDialogContent({
           setSelectedExpansion(null);
         }}
         onChanged={expansions.reload}
+      />
+      <CoverPickerDialog
+        game={game}
+        open={coverPickerOpen}
+        onClose={() => setCoverPickerOpen(false)}
+        onSaved={(updated) => {
+          setCoverPickerOpen(false);
+          onSaved(updated);
+        }}
       />
       <ConfirmDialog
         open={confirmOpen}

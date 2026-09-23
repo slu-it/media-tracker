@@ -1,6 +1,6 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
-// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse), .../games/api/GameDtos.kt and
-// .../games/api/ExpansionDtos.kt. Keep them in sync.
+// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse), .../games/api/GameDtos.kt,
+// .../games/api/ExpansionDtos.kt and .../games/api/CoverOptionDtos.kt. Keep them in sync.
 
 /** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
 export type Ownership = "watchlist" | "owned";
@@ -99,6 +99,33 @@ export interface UpdateGameRequest {
   progress?: Progress;
   /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
   hidden?: boolean;
+}
+
+/** One SteamGridDB game matching a search term; mirrors `CoverMatchResponse` in games/api/CoverOptionDtos.kt. */
+export interface CoverMatchResponse {
+  id: number;
+  name: string;
+  releaseYear: number | null;
+  verified: boolean;
+}
+
+/** One candidate cover image for the selected match; mirrors `CoverOptionResponse`. */
+export interface CoverOptionResponse {
+  thumbnailUrl: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+}
+
+/**
+ * Response of `GET /api/games/{id}/cover-options`; mirrors `CoverOptionsResponse`. `covers` holds candidates for
+ * `selectedMatchId` only; `selectedMatchId` is `null` (never absent) and `covers` empty when nothing matched.
+ */
+export interface CoverOptionsResponse {
+  query: string;
+  matches: CoverMatchResponse[];
+  selectedMatchId: number | null;
+  covers: CoverOptionResponse[];
 }
 
 export interface ExpansionResponse {

@@ -21,3 +21,9 @@ session:
   maxAgeSeconds: 3600
   secureCookie: false
   secret: "test-secret-test-secret-test-secret"
+
+coverSource:
+  steamGridDb:
+    # Pinned empty so a developer's exported STEAMGRIDDB_API_KEY cannot flip the cover-source-unavailable smoke test.
+    apiKey: ""
+    baseUrl: "https://www.steamgriddb.com/api/v2"
