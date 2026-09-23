@@ -51,19 +51,21 @@ export function deleteGame(id: string): Promise<void> {
 }
 
 /**
- * `query`, `match`, `type` and `page` are appended only when set; the backend defaults `query` to the game's
- * title, `type` to `"static"` and `page` to `1`.
+ * Game-independent: the cover picker is reachable from the add form too, before a game exists. `query` is
+ * required by the backend (400 when missing/blank); `releaseYear`, `match`, `type` and `page` are appended only
+ * when given, and the backend defaults `type` to `"static"` and `page` to `1`.
  */
-export function getCoverOptions(
-  id: string,
-  params: { query?: string; match?: number; type?: CoverType; page?: number },
-): Promise<CoverOptionsResponse> {
-  const query = new URLSearchParams();
-  const term = params.query?.trim();
-  if (term) query.set("query", term);
+export function getCoverOptions(params: {
+  query: string;
+  releaseYear?: number | null;
+  match?: number;
+  type?: CoverType;
+  page?: number;
+}): Promise<CoverOptionsResponse> {
+  const query = new URLSearchParams({ query: params.query.trim() });
+  if (typeof params.releaseYear === "number") query.set("releaseYear", String(params.releaseYear));
   if (params.match !== undefined) query.set("match", String(params.match));
   if (params.type !== undefined) query.set("type", params.type);
   if (params.page !== undefined) query.set("page", String(params.page));
-  const suffix = query.toString();
-  return apiFetch<CoverOptionsResponse>(`${BASE}/${encodeURIComponent(id)}/cover-options${suffix ? `?${suffix}` : ""}`);
+  return apiFetch<CoverOptionsResponse>(`${BASE}/cover-options?${query}`);
 }

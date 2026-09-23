@@ -46,12 +46,16 @@ game's `/{id}` block (`/api/games/{id}/expansions[/{expansionId}]`, `games/api/E
 `gameId()`), `UpdateExpansionRequest` uses plain nullable fields because nothing on an expansion is clearable,
 and the MCP tools `list_expansions` and `add_expansion` cover the agent side. The frontend shows them as a
 drag-sortable card stack inside the game detail dialog (@dnd-kit, keyboard sensor for the tested path).
-MT-017 added the **cover picker** (ADR 0024): in the detail dialog the cover (image or empty placeholder) is a button that opens
-`CoverPickerDialog`, which shows SteamGridDB thumbnails from `GET /api/games/{id}/cover-options[?query=&match=&type=&page=]`
-and PATCHes `coverImageUrl` with the full-size URL on click. The endpoint returns the provider's `matches` for the
-search term (default: the title), the `selectedMatchId` a pure domain ranking picked (exact title, same year,
+MT-017 added the **cover picker** (ADR 0024): the cover (image or empty placeholder) is a button that opens
+`CoverPickerDialog` with SteamGridDB thumbnails from the game-independent
+`GET /api/games/cover-options?query=[&releaseYear=&match=&type=&page=]` (`query` required, sibling of the `/{id}`
+block, `CoverOptionsService` needs no repository). The dialog is persistence-agnostic (`onPick(imageUrl)`): in the
+detail dialog's view mode the host PATCHes `coverImageUrl` with the full-size URL; in `GameForm` (add dialog and
+edit mode) the pick only fills the "Cover image URL" field and Save persists it. The endpoint returns the provider's
+`matches` for the term (the SPA sends the game's or the draft's title and year), the `selectedMatchId` a pure
+domain ranking picked (exact title, same year when given,
 first) and `covers` only for that match as a `PageResponse` (50 per page in score order, 1-based `page`, the picker
-appends pages with "load more"); `match` overrides the pick, `query` the term, `type` (`static` default, `animated`)
+appends pages with "load more"); `match` overrides the pick, `type` (`static` default, `animated`)
 picks the grid type, a toggle in the picker; animated grids come with WebM clips as thumbnails, which
 `CoverThumbnail` renders as a muted looping `<video>` (the saved full-size URL is always an image). All cover frames
 are 22:31 (the 660x930 grid shape) via `COVER_ASPECT_RATIO`/`coverHeight()` in `src/components/coverFrame.ts`;

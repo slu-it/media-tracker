@@ -13,7 +13,7 @@ Browser ──GET /────────────▶ Ktor ── no valid 
         ──GET / (+cookie)──▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
         ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MariaDB
-        ──GET /api/games/{id}/cover-options▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
+        ──GET /api/games/cover-options▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
         ──POST /logout─────▶ sessions row deleted, cookie cleared ─▶ 302 /login
 Agent   ──POST /mcp (X-API-Key)▶ authenticate("api-key") ─▶ ApiKeyService ─▶ users row ─▶ MCP Server ─▶ tools/call add_game ─▶ GameService
 ```
@@ -101,8 +101,8 @@ de.sluit.mediatracker
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
-    │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/{id}/cover-options,
-    │                   same block), GameMcpTools (MCP tools list_game_platforms, add_game,
+    │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options,
+    │                   game-independent), GameMcpTools (MCP tools list_game_platforms, add_game,
     │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
@@ -145,7 +145,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `POST /api/games/{id}/expansions` | 201 `ExpansionResponse` + `Location` | body `CreateExpansionRequest`: `title` required, `ownership` and `progress` optional with the game's own defaults; appended at the end of the order; 404 if the game is unknown |
 | `PATCH /api/games/{id}/expansions/{expansionId}` | 200 `ExpansionResponse` | body `UpdateExpansionRequest`: every field optional, `null` never clears (nothing on an expansion is clearable), so no `PatchField`. A `sequence` is a move: the expansion is reinserted at that index and the whole order is renumbered; outside `0..n-1` it is a 400. 404 for an unknown expansion or one belonging to another game |
 | `DELETE /api/games/{id}/expansions/{expansionId}` | 204 | idempotent, also for unknown ids; the remaining sequences are re-packed. Deleting the game takes its expansions with it (`ON DELETE CASCADE`) |
-| `GET /api/games/{id}/cover-options[?query=hades][&match=5245][&type=animated][&page=2]` | 200 `CoverOptionsResponse {query, matches, selectedMatchId, type, covers}` | cover suggestions from SteamGridDB for the cover picker (decision record 0024): `matches` are the provider's games for the search term (`query`, default the game's title, same 1..200 limits as `?search`), `selectedMatchId` the one the ranking picked (exact title, then same year, then first; `null` when nothing matched) and `covers` (`thumbnailUrl`, `imageUrl`, `width`, `height`) only for that one; `match` picks another candidate instead (empty = absent, anything but a positive integer is a 400); `type` is `static` (default) or `animated`, `page` is 1-based (default 1) and `covers` is a `PageResponse` of at most 50 per page in SteamGridDB's score order (`totalItems`/`totalPages` from the provider; `pageSize` is not accepted); an unknown `type`, `page=0` or a non-integer `page` is a 400 naming the field; a page after the first with `match` given skips the upstream search and returns `matches` empty; 404 for an unknown game; `503 cover_source_unavailable` when no `STEAMGRIDDB_API_KEY` is configured, `502 cover_source_error` when the provider fails |
+| `GET /api/games/cover-options?query=hades[&releaseYear=2020][&match=5245][&type=animated][&page=2]` | 200 `CoverOptionsResponse {query, matches, selectedMatchId, type, covers}` | cover suggestions from SteamGridDB for the cover picker (decision record 0024), independent of any stored game so the add dialog can use it: `matches` are the provider's games for the required search term (`query`, same 1..200 limits as `?search`; missing or blank is a 400), `selectedMatchId` the one the ranking picked (exact title, then the same `releaseYear` when one is given, then first; `null` when nothing matched) and `covers` (`thumbnailUrl`, `imageUrl`, `width`, `height`) only for that one; `match` picks another candidate instead (empty = absent, anything but a positive integer is a 400); `releaseYear` is optional (blank = absent, a non-integer or a year outside 1000..9999 is a 400); `type` is `static` (default) or `animated`, `page` is 1-based (default 1) and `covers` is a `PageResponse` of at most 50 per page in SteamGridDB's score order (`totalItems`/`totalPages` from the provider; `pageSize` is not accepted); an unknown `type`, `page=0` or a non-integer `page` is a 400 naming the field; a page after the first with `match` given skips the upstream search and returns `matches` empty; `503 cover_source_unavailable` when no `STEAMGRIDDB_API_KEY` is configured, `502 cover_source_error` when the provider fails |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 
@@ -184,8 +184,10 @@ frontend/src
                           ownership/progress values and defaults), components/ (grid, cards, GameSearchField,
                           GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
-                          SteamGridDB thumbnails behind the clickable cover of the detail dialog, with a
-                          static/animated toggle and a load-more button over the paged result;
+                          SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the
+                          add/edit form (persistence-agnostic: the detail dialog PATCHes the pick, the form
+                          fills its URL field), with a static/animated toggle and a load-more button over the
+                          paged result;
                           CoverThumbnail: <video> for the WebM clips SteamGridDB uses as animated thumbnails)
 ```
 

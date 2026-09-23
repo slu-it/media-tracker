@@ -122,7 +122,8 @@
       "typeAnimated": "Animated",
       "shownOfTotal_one": "{{shown}} of {{count}} cover",
       "shownOfTotal_other": "{{shown}} of {{count}} covers",
-      "loadMore": "Load more"
+      "loadMore": "Load more",
+      "enterTerm": "Enter a search term to look for covers."
     },
     "expansions": {
       "heading": "Expansions",

@@ -76,8 +76,10 @@ describe("GameDetailDialog", () => {
 
     const cover = within(dialog).getByRole("img", { name: "Cover preview" });
     const rating = within(dialog).getByRole("group", { name: "Rating" });
+    // The cover preview is now clickable (opens the cover picker), so it sits inside its own button, one level
+    // deeper than before.
     // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
-    expect(rating.parentElement).toBe(cover.parentElement!.parentElement);
+    expect(rating.parentElement).toBe(cover.parentElement!.parentElement!.parentElement);
   });
 
   it("shows the description under the title and platform chips in view mode", async () => {
@@ -545,7 +547,7 @@ describe("GameDetailDialog", () => {
     const user = userEvent.setup();
     const calls = mockApi({
       "GET /api/games/:id/expansions": () => jsonResponse([]),
-      "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions),
+      "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
     });
     renderWithProviders(
       <GameDetailDialog
@@ -562,7 +564,9 @@ describe("GameDetailDialog", () => {
 
     expect(await screen.findByText("Choose a cover")).toBeInTheDocument();
     await waitFor(() =>
-      expect(calls.some((c) => c.url === `/api/games/${hades.id}/cover-options?query=${hades.title}`)).toBe(true),
+      expect(
+        calls.some((c) => c.url === `/api/games/cover-options?query=${hades.title}&releaseYear=${hades.releaseYear}`),
+      ).toBe(true),
     );
   });
 
@@ -572,7 +576,7 @@ describe("GameDetailDialog", () => {
     const updated = { ...hades, coverImageUrl: hadesCoverOptions.covers.items[0].imageUrl };
     mockApi({
       "GET /api/games/:id/expansions": () => jsonResponse([]),
-      "GET /api/games/:id/cover-options": () => jsonResponse(hadesCoverOptions),
+      "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
       "PATCH /api/games/:id": () => jsonResponse(updated),
     });
     renderWithProviders(
@@ -586,5 +590,55 @@ describe("GameDetailDialog", () => {
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledExactlyOnceWith(updated));
     await waitFor(() => expect(screen.queryByText("Choose a cover")).not.toBeInTheDocument());
+  });
+
+  it("a failed cover save keeps the picker open and does not call onSaved", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    mockApi({
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
+      "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
+      "PATCH /api/games/:id": () => jsonResponse({ error: "internal_error" }, 500),
+    });
+    renderWithProviders(
+      <GameDetailDialog game={hades} onClose={() => {}} onSaved={onSaved} onDeleted={() => {}} platforms={platforms} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
+    await screen.findByText("Choose a cover");
+    await user.click(await screen.findByRole("button", { name: "Use cover 1" }));
+
+    expect(await screen.findByText("Saving failed.")).toBeInTheDocument();
+    expect(screen.getByText("Choose a cover")).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("in edit mode picking a cover fills the url field without saving", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games/:id/expansions": () => jsonResponse([]),
+      "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
+    });
+    renderWithProviders(
+      <GameDetailDialog
+        game={hades}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
+    await screen.findByText("Choose a cover");
+    await user.click(await screen.findByRole("button", { name: "Use cover 1" }));
+
+    expect(within(dialog).getByRole("textbox", { name: /cover image url/i })).toHaveValue(
+      hadesCoverOptions.covers.items[0].imageUrl,
+    );
+    expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
   });
 });

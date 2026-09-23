@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.SearchTerm
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -18,7 +19,7 @@ class CoverMatchRankingTest {
         val first = candidate("Hades II", id = 1)
         val exact = candidate("Hades", id = 2)
 
-        val result = selectBestMatch(listOf(first, exact), Title("Hades"), ReleaseYear(2020))
+        val result = selectBestMatch(listOf(first, exact), SearchTerm("Hades"), ReleaseYear(2020))
 
         assertEquals(exact, result)
     }
@@ -27,7 +28,7 @@ class CoverMatchRankingTest {
     fun `exact matching is case and whitespace insensitive`() {
         val exact = candidate("  hades   the  game  ", id = 1)
 
-        val result = selectBestMatch(listOf(exact), Title("Hades the game"), ReleaseYear(2020))
+        val result = selectBestMatch(listOf(exact), SearchTerm("Hades the game"), ReleaseYear(2020))
 
         assertEquals(exact, result)
     }
@@ -37,7 +38,7 @@ class CoverMatchRankingTest {
         val wrongYear = candidate("Hades", releaseYear = 2018, id = 1)
         val rightYear = candidate("Hades", releaseYear = 2020, id = 2)
 
-        val result = selectBestMatch(listOf(wrongYear, rightYear), Title("Hades"), ReleaseYear(2020))
+        val result = selectBestMatch(listOf(wrongYear, rightYear), SearchTerm("Hades"), ReleaseYear(2020))
 
         assertEquals(rightYear, result)
     }
@@ -47,7 +48,17 @@ class CoverMatchRankingTest {
         val first = candidate("Hades", releaseYear = 2018, id = 1)
         val second = candidate("Hades", releaseYear = 2019, id = 2)
 
-        val result = selectBestMatch(listOf(first, second), Title("Hades"), ReleaseYear(2020))
+        val result = selectBestMatch(listOf(first, second), SearchTerm("Hades"), ReleaseYear(2020))
+
+        assertEquals(first, result)
+    }
+
+    @Test
+    fun `without a release year the first exact title match wins`() {
+        val first = candidate("Hades", releaseYear = 2018, id = 1)
+        val second = candidate("Hades", releaseYear = 2019, id = 2)
+
+        val result = selectBestMatch(listOf(first, second), SearchTerm("Hades"), releaseYear = null)
 
         assertEquals(first, result)
     }
@@ -57,14 +68,14 @@ class CoverMatchRankingTest {
         val first = candidate("Hades II", id = 1)
         val second = candidate("Hades: Battle Out of Hell", id = 2)
 
-        val result = selectBestMatch(listOf(first, second), Title("Hades"), ReleaseYear(2020))
+        val result = selectBestMatch(listOf(first, second), SearchTerm("Hades"), ReleaseYear(2020))
 
         assertEquals(first, result)
     }
 
     @Test
     fun `no candidates means no match`() {
-        val result = selectBestMatch(emptyList(), Title("Hades"), ReleaseYear(2020))
+        val result = selectBestMatch(emptyList(), SearchTerm("Hades"), ReleaseYear(2020))
 
         assertNull(result)
     }

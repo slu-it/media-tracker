@@ -30,7 +30,7 @@ session:
 
 coverSource:
   steamGridDb:
-    # Optional. Without it, GET /api/games/{id}/cover-options answers 503 and the cover picker is unavailable.
+    # Optional. Without it, GET /api/games/cover-options answers 503 and the cover picker is unavailable.
     # Set it to enable searching SteamGridDB for cover art (MT-017).
     apiKey: "$STEAMGRIDDB_API_KEY:"
     baseUrl: "https://www.steamgriddb.com/api/v2"

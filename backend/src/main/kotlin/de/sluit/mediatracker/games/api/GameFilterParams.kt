@@ -35,5 +35,5 @@ private fun ApplicationCall.queryValues(name: String): List<String> {
     return values
 }
 
-private fun parseReleaseYear(raw: String): ReleaseYear =
+internal fun parseReleaseYear(raw: String): ReleaseYear =
     ReleaseYear(raw.toIntOrNull() ?: throw InvalidValueException(ReleaseYear.FIELD, "must be an integer"))

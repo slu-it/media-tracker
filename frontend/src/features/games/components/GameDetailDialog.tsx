@@ -235,10 +235,13 @@ function GameDetailDialogContent({
         onChanged={expansions.reload}
       />
       <CoverPickerDialog
-        game={game}
         open={coverPickerOpen}
         onClose={() => setCoverPickerOpen(false)}
-        onSaved={(updated) => {
+        initialQuery={game.title}
+        releaseYear={game.releaseYear}
+        currentCoverUrl={game.coverImageUrl}
+        onPick={async (coverImageUrl) => {
+          const updated = await updateGame(game.id, { coverImageUrl });
           setCoverPickerOpen(false);
           onSaved(updated);
         }}

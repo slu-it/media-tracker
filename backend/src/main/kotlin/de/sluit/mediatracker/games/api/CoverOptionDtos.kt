@@ -15,7 +15,7 @@ data class CoverMatchResponse(val id: Long, val name: String, val releaseYear: I
 @Serializable
 data class CoverOptionResponse(val thumbnailUrl: String, val imageUrl: String, val width: Int, val height: Int)
 
-/** GET /api/games/{id}/cover-options */
+/** GET /api/games/cover-options */
 @Serializable
 data class CoverOptionsResponse(
     val query: String,
