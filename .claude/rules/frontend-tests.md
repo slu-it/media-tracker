@@ -14,6 +14,9 @@ via `screen` (dialogs are portals); no `data-testid`.
   `mockApi({"GET /api/games": ...})` records calls, and an unmocked request throws. Shared fixtures live in
   `src/test/fixtures/`; mirrored DTO changes must be reflected there.
 - Any `console.error` during a test fails it.
+- Never `await new Promise((r) => setTimeout(r, 0))` in a React test; use `await flushAsync()` from
+  `src/test/flushAsync.ts`. The bare await is a gap outside `act`, and MUI Fade transition timers (~225ms) firing
+  in it produce the CI-only "update to Transition was not wrapped in act" failure that passes locally.
 - Open MUI selects with `user.click` on the combobox. Enter multi-character text with `user.click(field)` then
   `user.paste("...")`; per-keystroke `user.type` is about 10x slower and hit the CI timeout, keep it for single
   characters whose keystroke behaviour is under test.

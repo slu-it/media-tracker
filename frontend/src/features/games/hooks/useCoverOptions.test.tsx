@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
+import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { hadesAnimatedCoverOptions, hadesCoverOptions, hadesCoverOptionsPage2 } from "../../../test/fixtures/games";
 import type { CoverOptionsResponse, CoverType } from "../../../types/api";
@@ -11,7 +12,7 @@ describe("useCoverOptions", () => {
     const calls = mockApi({ "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions) });
     const { result } = renderHook(() => useCoverOptions("  ", null, null, "static", "load failed"));
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushAsync();
     expect(calls).toHaveLength(0);
     expect(result.current.data).toBeNull();
     expect(result.current.covers).toEqual([]);
@@ -151,10 +152,8 @@ describe("useCoverOptions", () => {
     rerender({ type: "static" });
     await waitFor(() => expect(result.current.covers).toHaveLength(2));
 
-    await act(async () => {
-      resolvePage2(jsonResponse(hadesCoverOptionsPage2));
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    });
+    resolvePage2(jsonResponse(hadesCoverOptionsPage2));
+    await flushAsync();
 
     expect(result.current.covers).toHaveLength(2);
   });
@@ -188,7 +187,7 @@ describe("useCoverOptions", () => {
 
     act(() => result.current.loadMore());
 
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushAsync();
     expect(calls).toHaveLength(1);
   });
 });
