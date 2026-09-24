@@ -24,5 +24,8 @@ Connecting an agent as a client is described in the README section "MCP server".
     `null` clears a clearable field; empty or unknown arguments are rejected explicitly because `McpJson` would
     otherwise swallow them silently.
   - `list_expansions`, `add_expansion` (MT-016, [expansions](game-expansions.md)).
+  - `find_game_cover` (`title` required, `releaseYear` optional): the first static SteamGridDB cover of the
+    best-ranked match plus that match, for `coverImageUrl` in `update_game`/`add_game`
+    ([cover picker](cover-picker.md)). Registered only when `STEAMGRIDDB_API_KEY` is set.
 - Tools reuse the REST request DTOs and their `toNew<Kind>()` mappers and turn domain exceptions into
   `CallToolResult(isError = true)`.

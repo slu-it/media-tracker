@@ -60,7 +60,8 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   the required `id`, which an agent looks up with `search_games`; only the fields passed are changed;
   `description`, `rating` and `coverImageUrl` accept `null` to clear, every other field rejects an explicit `null`
   rather than silently ignoring it), plus `list_expansions` and `add_expansion` for a game's DLC (both take the `gameId` an agent got from
-  `search_games`; `add_expansion` appends), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
+  `search_games`; `add_expansion` appends) and `find_game_cover` (`title`, optional `releaseYear`: the first static
+  SteamGridDB cover of the best match, only registered when `STEAMGRIDDB_API_KEY` is set), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
   advertise their allowed values as a JSON-schema `enum` built from the domain enums, so the tool contract cannot
   drift from the code (decision record 0017). The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
@@ -103,7 +104,8 @@ de.sluit.mediatracker
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
     │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options,
     │                   game-independent), GameMcpTools (MCP tools list_game_platforms, add_game,
-    │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion)
+    │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion,
+    │                   find_game_cover)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
     │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
     │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
@@ -111,7 +113,8 @@ de.sluit.mediatracker
     │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
     │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
     │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate/
-    │                   CoverOption/CoverOptions, CoverMatchRanking (selectBestMatch), CoverOptionsService
+    │                   CoverOption/CoverOptions/CoverLookup (findCovers takes the page size), CoverMatchRanking
+    │                   (selectBestMatch), CoverOptionsService (find for the picker, findFirstCover for MCP)
     ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable (Exposed),
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by fulltext score and filters, findUsedFilterValues),

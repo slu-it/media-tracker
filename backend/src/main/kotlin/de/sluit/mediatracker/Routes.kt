@@ -54,7 +54,9 @@ fun Route.apiRoutes(services: Services) {
  */
 fun Route.mcpRoutes(services: Services) {
     authenticate(API_KEY_AUTH) {
-        mcpEndpoint { newMcpServer().apply { addGameTools(services.games, services.expansions) } }
+        mcpEndpoint {
+            newMcpServer().apply { addGameTools(services.games, services.expansions, services.coverOptions) }
+        }
     }
 }
 

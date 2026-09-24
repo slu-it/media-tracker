@@ -2,6 +2,7 @@ package de.sluit.mediatracker.games.api
 
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.common.api.toResponse
+import de.sluit.mediatracker.games.domain.CoverCandidate
 import de.sluit.mediatracker.games.domain.CoverOptions
 import kotlinx.serialization.Serializable
 
@@ -26,16 +27,17 @@ data class CoverOptionsResponse(
     val covers: PageResponse<CoverOptionResponse>,
 )
 
+/** Also used by the MCP `find_game_cover` tool's structured content. */
+fun CoverCandidate.toResponse() = CoverMatchResponse(
+    id = id.value,
+    name = name,
+    releaseYear = releaseYear?.value,
+    verified = verified,
+)
+
 fun CoverOptions.toResponse() = CoverOptionsResponse(
     query = query.value,
-    matches = matches.map {
-        CoverMatchResponse(
-            id = it.id.value,
-            name = it.name,
-            releaseYear = it.releaseYear?.value,
-            verified = it.verified,
-        )
-    },
+    matches = matches.map { it.toResponse() },
     selectedMatchId = selectedMatchId?.value,
     type = type.wire,
     covers = covers.toResponse {

@@ -2,6 +2,7 @@ package de.sluit.mediatracker.games.integration
 
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.config.SteamGridDbConfig
 import de.sluit.mediatracker.games.domain.COVER_PAGE_SIZE
@@ -88,7 +89,7 @@ class SteamGridDbCoverSourceTest {
             jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[]}""")
         }
 
-        source.findCovers(CoverSourceGameId(42), CoverType.STATIC, PageNumber.FIRST)
+        source.findCovers(CoverSourceGameId(42), CoverType.STATIC, PageNumber.FIRST, PageSize(COVER_PAGE_SIZE))
 
         assertEquals("600x900,660x930", dimensions)
         assertEquals("static", types)
@@ -106,7 +107,7 @@ class SteamGridDbCoverSourceTest {
             jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[]}""")
         }
 
-        source.findCovers(CoverSourceGameId(42), CoverType.ANIMATED, PageNumber.FIRST)
+        source.findCovers(CoverSourceGameId(42), CoverType.ANIMATED, PageNumber.FIRST, PageSize(COVER_PAGE_SIZE))
 
         assertEquals("animated", types)
     }
@@ -121,10 +122,23 @@ class SteamGridDbCoverSourceTest {
             jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[]}""")
         }
 
-        source.findCovers(CoverSourceGameId(42), CoverType.STATIC, PageNumber(2))
+        source.findCovers(CoverSourceGameId(42), CoverType.STATIC, PageNumber(2), PageSize(COVER_PAGE_SIZE))
 
         assertEquals("1", page)
         assertEquals("50", limit)
+    }
+
+    @Test
+    fun `findCovers sends the requested page size as the limit`() = runBlocking {
+        var limit: String? = null
+        val source = sourceWith { request ->
+            limit = request.url.parameters["limit"]
+            jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[]}""")
+        }
+
+        source.findCovers(CoverSourceGameId(42), CoverType.STATIC, PageNumber.FIRST, PageSize(1))
+
+        assertEquals("1", limit)
     }
 
     // ---- envelope paging mapping ----
@@ -135,7 +149,7 @@ class SteamGridDbCoverSourceTest {
             jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[],"page":0,"total":120,"limit":50}""")
         }
 
-        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber(1))
+        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber(1), PageSize(COVER_PAGE_SIZE))
 
         assertEquals(120L, covers.totalItems)
         assertEquals(3, covers.totalPages)
@@ -143,7 +157,7 @@ class SteamGridDbCoverSourceTest {
     }
 
     @Test
-    fun `findCovers falls back to the item count and default page size when total and limit are absent`() =
+    fun `findCovers falls back to the item count and requested page size when total and limit are absent`() =
         runBlocking {
             val source = sourceWith {
                 jsonResponse(
@@ -158,10 +172,10 @@ class SteamGridDbCoverSourceTest {
                 )
             }
 
-            val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST)
+            val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(30))
 
             assertEquals(2L, covers.totalItems)
-            assertEquals(COVER_PAGE_SIZE, covers.size.value)
+            assertEquals(30, covers.size.value)
         }
 
     @Test
@@ -179,31 +193,31 @@ class SteamGridDbCoverSourceTest {
             )
         }
 
-        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber(2))
+        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber(2), PageSize(COVER_PAGE_SIZE))
 
         assertEquals(52L, covers.totalItems)
     }
 
     @Test
-    fun `findCovers falls back to the default page size when the envelope limit is zero`() = runBlocking {
+    fun `findCovers falls back to the requested page size when the envelope limit is zero`() = runBlocking {
         val source = sourceWith {
             jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[],"limit":0}""")
         }
 
-        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST)
+        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(30))
 
-        assertEquals(COVER_PAGE_SIZE, covers.size.value)
+        assertEquals(30, covers.size.value)
     }
 
     @Test
-    fun `findCovers falls back to the default page size when the envelope limit is too large`() = runBlocking {
+    fun `findCovers falls back to the requested page size when the envelope limit is too large`() = runBlocking {
         val source = sourceWith {
             jsonResponse(HttpStatusCode.OK, """{"success":true,"data":[],"limit":100000}""")
         }
 
-        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST)
+        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(30))
 
-        assertEquals(COVER_PAGE_SIZE, covers.size.value)
+        assertEquals(30, covers.size.value)
     }
 
     // ---- release year mapping ----
@@ -241,10 +255,26 @@ class SteamGridDbCoverSourceTest {
             jsonResponse(HttpStatusCode.NotFound, """{"success":false,"errors":["Game not found"]}""")
         }
 
-        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST)
+        val covers = source.findCovers(
+            CoverSourceGameId(1),
+            CoverType.STATIC,
+            PageNumber.FIRST,
+            PageSize(COVER_PAGE_SIZE),
+        )
 
         assertEquals(emptyList(), covers.items)
         assertEquals(0, covers.totalItems)
+    }
+
+    @Test
+    fun `findCovers on a 404 returns an empty page carrying the requested page size`() = runBlocking {
+        val source = sourceWith {
+            jsonResponse(HttpStatusCode.NotFound, """{"success":false,"errors":["Game not found"]}""")
+        }
+
+        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(1))
+
+        assertEquals(1, covers.size.value)
     }
 
     // ---- invalid candidate ids ----
@@ -376,7 +406,12 @@ class SteamGridDbCoverSourceTest {
             )
         }
 
-        val covers = source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST)
+        val covers = source.findCovers(
+            CoverSourceGameId(1),
+            CoverType.STATIC,
+            PageNumber.FIRST,
+            PageSize(COVER_PAGE_SIZE),
+        )
 
         assertEquals(1, covers.items.size)
         assertEquals("https://cdn.example/full-good.png", covers.items.single().imageUrl.value)

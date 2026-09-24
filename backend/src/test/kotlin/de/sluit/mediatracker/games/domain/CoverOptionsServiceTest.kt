@@ -13,7 +13,9 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * Mocks only [CoverSource] (the integration port); everything else is real, so these tests exercise the actual
@@ -60,7 +62,7 @@ class CoverOptionsServiceTest {
         val matches = listOf(candidate("Hades", id = 1), candidate("Hades II", id = 2))
         val chosen = CoverSourceGameId(2)
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(chosen, CoverType.STATIC, PageNumber.FIRST) } returns
+        coEvery { source.findCovers(chosen, CoverType.STATIC, PageNumber.FIRST, PageSize(50)) } returns
             Page(listOf(cover(2)), PageNumber.FIRST, PageSize(1), 1)
 
         val result = service.find(
@@ -74,14 +76,14 @@ class CoverOptionsServiceTest {
         assertEquals(chosen, result.selectedMatchId)
         assertEquals(matches, result.matches)
         coVerify { source.searchGames(SearchTerm("Hades")) }
-        coVerify { source.findCovers(chosen, CoverType.STATIC, PageNumber.FIRST) }
+        coVerify { source.findCovers(chosen, CoverType.STATIC, PageNumber.FIRST, PageSize(50)) }
         confirmVerified(source)
     }
 
     @Test
     fun `an explicit match on a later page skips the search and fetches covers for that page`() = runBlocking {
         val chosen = CoverSourceGameId(2)
-        coEvery { source.findCovers(chosen, CoverType.STATIC, PageNumber(2)) } returns
+        coEvery { source.findCovers(chosen, CoverType.STATIC, PageNumber(2), PageSize(50)) } returns
             Page(listOf(cover(2)), PageNumber(2), PageSize(1), 1)
 
         val result = service.find(
@@ -94,7 +96,7 @@ class CoverOptionsServiceTest {
 
         assertEquals(chosen, result.selectedMatchId)
         assertEquals(emptyList(), result.matches)
-        coVerify { source.findCovers(chosen, CoverType.STATIC, PageNumber(2)) }
+        coVerify { source.findCovers(chosen, CoverType.STATIC, PageNumber(2), PageSize(50)) }
         confirmVerified(source)
     }
 
@@ -102,7 +104,7 @@ class CoverOptionsServiceTest {
     fun `covers are fetched only for the selected match`() = runBlocking {
         val matches = listOf(candidate("Hades", id = 1))
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST) } returns
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(50)) } returns
             Page(listOf(cover(1)), PageNumber.FIRST, PageSize(1), 1)
 
         val result = service.find(
@@ -115,14 +117,14 @@ class CoverOptionsServiceTest {
 
         assertEquals(CoverSourceGameId(1), result.selectedMatchId)
         assertEquals(listOf(cover(1)), result.covers.items)
-        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST) }
+        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(50)) }
     }
 
     @Test
     fun `type and page are passed unchanged to findCovers for the selected match`() = runBlocking {
         val matches = listOf(candidate("Hades", id = 1))
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber(3)) } returns
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber(3), PageSize(50)) } returns
             Page(listOf(cover(1)), PageNumber(3), PageSize(1), 1)
 
         service.find(
@@ -133,7 +135,7 @@ class CoverOptionsServiceTest {
             page = PageNumber(3),
         )
 
-        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber(3)) }
+        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber(3), PageSize(50)) }
     }
 
     @Test
@@ -156,7 +158,7 @@ class CoverOptionsServiceTest {
     fun `the returned type echoes the requested type`() = runBlocking {
         val matches = listOf(candidate("Hades", id = 1))
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber.FIRST) } returns
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.ANIMATED, PageNumber.FIRST, PageSize(50)) } returns
             Page(listOf(cover(1)), PageNumber.FIRST, PageSize(1), 1)
 
         val result = service.find(
@@ -195,7 +197,7 @@ class CoverOptionsServiceTest {
     fun `a null release year still ranks by title`() = runBlocking {
         val matches = listOf(candidate("Hades II", id = 1), candidate("Hades", id = 2))
         coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
-        coEvery { source.findCovers(CoverSourceGameId(2), CoverType.STATIC, PageNumber.FIRST) } returns
+        coEvery { source.findCovers(CoverSourceGameId(2), CoverType.STATIC, PageNumber.FIRST, PageSize(50)) } returns
             Page(listOf(cover(2)), PageNumber.FIRST, PageSize(1), 1)
 
         val result = service.find(
@@ -214,7 +216,7 @@ class CoverOptionsServiceTest {
         val wrongYear = candidate("Hades", id = 1, releaseYear = 2018)
         val rightYear = candidate("Hades", id = 2, releaseYear = 2020)
         coEvery { source.searchGames(SearchTerm("Hades")) } returns listOf(wrongYear, rightYear)
-        coEvery { source.findCovers(CoverSourceGameId(2), CoverType.STATIC, PageNumber.FIRST) } returns
+        coEvery { source.findCovers(CoverSourceGameId(2), CoverType.STATIC, PageNumber.FIRST, PageSize(50)) } returns
             Page(listOf(cover(2)), PageNumber.FIRST, PageSize(1), 1)
 
         val result = service.find(
@@ -226,5 +228,79 @@ class CoverOptionsServiceTest {
         )
 
         assertEquals(CoverSourceGameId(2), result.selectedMatchId)
+    }
+
+    @Test
+    fun `isAvailable is true when a source is configured`() {
+        assertTrue(service.isAvailable)
+    }
+
+    @Test
+    fun `isAvailable is false when no source is configured`() {
+        val serviceWithoutSource = CoverOptionsService(source = null)
+
+        assertFalse(serviceWithoutSource.isAvailable)
+    }
+
+    @Test
+    fun `findFirstCover throws unavailable without touching the source when no source is configured`() = runBlocking {
+        val serviceWithoutSource = CoverOptionsService(source = null)
+
+        val exception = assertFailsWith<ExternalSourceUnavailableException> {
+            serviceWithoutSource.findFirstCover(SearchTerm("Hades"), null)
+        }
+
+        assertEquals(CoverOptionsService.SOURCE, exception.source)
+        confirmVerified(source)
+    }
+
+    @Test
+    fun `findFirstCover requests a single static cover on the first page for the best match`() = runBlocking {
+        val matches = listOf(candidate("Hades", id = 1))
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(1)) } returns
+            Page(listOf(cover(1)), PageNumber.FIRST, PageSize(1), 1)
+
+        val result = service.findFirstCover(SearchTerm("Hades"), null)
+
+        assertEquals(matches.single(), result?.match)
+        assertEquals(cover(1), result?.cover)
+        coVerify { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(1)) }
+    }
+
+    @Test
+    fun `findFirstCover uses the release year to break a tie between same-title candidates`() = runBlocking {
+        val wrongYear = candidate("Hades", id = 1, releaseYear = 2018)
+        val rightYear = candidate("Hades", id = 2, releaseYear = 2020)
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns listOf(wrongYear, rightYear)
+        coEvery { source.findCovers(CoverSourceGameId(2), CoverType.STATIC, PageNumber.FIRST, PageSize(1)) } returns
+            Page(listOf(cover(2)), PageNumber.FIRST, PageSize(1), 1)
+
+        val result = service.findFirstCover(SearchTerm("Hades"), ReleaseYear(2020))
+
+        assertEquals(rightYear, result?.match)
+    }
+
+    @Test
+    fun `findFirstCover returns null and never calls findCovers when nothing matches`() = runBlocking {
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns emptyList()
+
+        val result = service.findFirstCover(SearchTerm("Hades"), null)
+
+        assertNull(result)
+        coVerify { source.searchGames(SearchTerm("Hades")) }
+        confirmVerified(source)
+    }
+
+    @Test
+    fun `findFirstCover returns null when the match has no covers`() = runBlocking {
+        val matches = listOf(candidate("Hades", id = 1))
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
+        coEvery { source.findCovers(CoverSourceGameId(1), CoverType.STATIC, PageNumber.FIRST, PageSize(1)) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize(1), 0)
+
+        val result = service.findFirstCover(SearchTerm("Hades"), null)
+
+        assertNull(result)
     }
 }

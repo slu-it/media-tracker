@@ -3,6 +3,7 @@ package de.sluit.mediatracker.games.domain
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
 
@@ -56,14 +57,14 @@ enum class CoverType {
     }
 }
 
-/** The [CoverSource] port's page size for [CoverSource.findCovers]; every adapter honours it verbatim. */
+/** The cover picker's page size, and SteamGridDB's per-page cap; callers of [CoverSource.findCovers] pick a size. */
 const val COVER_PAGE_SIZE = 50
 
 /** Outward port to an external cover image provider. Implemented in `games.integration`. */
 interface CoverSource {
     suspend fun searchGames(term: SearchTerm): List<CoverCandidate>
 
-    suspend fun findCovers(id: CoverSourceGameId, type: CoverType, page: PageNumber): Page<CoverOption>
+    suspend fun findCovers(id: CoverSourceGameId, type: CoverType, page: PageNumber, size: PageSize): Page<CoverOption>
 }
 
 /** Result of [CoverOptionsService.find]: the candidates for [query], the chosen one, and its covers. */
@@ -75,3 +76,6 @@ data class CoverOptions(
     val type: CoverType,
     val covers: Page<CoverOption>,
 )
+
+/** Result of [CoverOptionsService.findFirstCover]: the matched candidate and its first cover. */
+data class CoverLookup(val match: CoverCandidate, val cover: CoverOption)

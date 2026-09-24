@@ -30,3 +30,8 @@ ADR: [0024](../decisions/0024-cover-picker-steamgriddb.md). Code: `games/domain/
   `503 cover_source_unavailable` (`ExternalSourceUnavailableException` / `ExternalSourceException` in
   `common/domain`, mapped by StatusPages to `<source>_unavailable` / `<source>_error`).
   `application-test.yaml` pins the key empty so the smoke test always sees that path.
+- `CoverSource.findCovers` takes the page size; the picker asks for `COVER_PAGE_SIZE` (50, SteamGridDB's cap).
+- MCP tool `find_game_cover` (`games/api/GameMcpTools.kt`) uses `CoverOptionsService.findFirstCover`: same search
+  and ranking, then one static cover with page size 1. It returns the image URL and the matched game (name, year,
+  verified) so an agent can reject a wrong match; no match or no cover is a plain "not found" result. The tool is
+  only registered when a cover source is configured (`CoverOptionsService.isAvailable`).
