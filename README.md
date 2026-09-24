@@ -4,6 +4,8 @@ A small, self-hosted tracker for media lists (books, films, series, games) with 
 One fat JAR (Ktor + React) on a Raspberry Pi, next to the central MariaDB that machine shares between its
 applications, Gradle as the only build tool you touch.
 
+Feature and decision documentation starts at [docs/index.md](docs/index.md).
+
 | Layer | Stack |
 |---|---|
 | Build | Gradle 9.7 wrapper, JDK 25 toolchain, Gradle-managed Node 24 + pnpm 10 |

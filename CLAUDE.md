@@ -1,77 +1,24 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code in this repository. Only what holds for every task lives here.
 
 ## What this is
 
-Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA + hand-written login page)
-running on a Raspberry Pi (systemd unit or docker compose, ADR 0016) against a MariaDB 11.8. Two Gradle
-projects, `backend` and `frontend`; Gradle is the only tool you need installed besides JDK 25 (Node 24 and pnpm 10
-are downloaded by Gradle).
+Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA + hand-written login page) on a
+Raspberry Pi against MariaDB 11.8. Two Gradle projects, `backend` and `frontend`; JDK 25 and Docker (backend
+tests) are the only local requirements, Node 24 and pnpm 10 are downloaded by Gradle. Games is the only
+implemented media kind (`backend/.../games/`, `frontend/src/features/games/`) and the template for Books, Movies
+and Series.
 
-Phase 1 (build, login gate, sessions) is done. Phase 2 is the media domain, one media kind at a time: Games
-(MT-001: title, year, optional description and quarter-step rating, many-to-many platforms from a seeded
-`game_platforms` table, ADR 0009) is implemented end to end (`backend/.../games/`, `frontend/src/features/games/`)
-and is the template for Books, Movies and Series, which are "coming soon" tabs
-(`frontend/src/features/{books,movies,series}/`). MT-002 added per-user API keys (two slots, settings dialog in
-`frontend/src/features/settings/`) and an MCP server at `POST /mcp` (ADR 0013) whose tools each feature
-contributes. The games tools live in `games/api/GameMcpTools.kt`: `list_game_platforms` and `add_game` (MT-002),
-`search_games` (MT-003) and `update_game`, the latter two being one flow - search by title for the id, then patch
-only the fields passed. MT-003 added fulltext search over
-title and description (`GET /api/games?search=`, debounced field above the games grid, MCP tool `search_games`;
-ADR 0015: MariaDB FULLTEXT; the same ADR replaced H2 with a Testcontainers MariaDB for every backend test, so Docker
-is a development requirement). MT-007 added three status fields to a game - `ownership` (watchlist, owned),
-`progress` (not_started, playing, finished, completed, paused, abandoned) and the boolean `hidden` - as Kotlin enums
-in `games/domain/GameStatus.kt` whose `wire` value (`name.lowercase()`) is what the `VARCHAR(32)` column, the DTOs
-and the MCP tool schemas all use (ADR 0017: closed sets are enums, extensible vocabulary is a seeded table as in
-ADR 0009). They are set on create and edit, shown as icons after the title in the detail dialog and on the grid
-card, and do not affect search, listing or paging. The game list is filterable by platform, ownership, progress
-and release year (ADR 0021): four repeatable query parameters on `GET /api/games` that OR within one filter and
-AND across filters, any of which takes the same repository branch as a search; the values to offer come from
-`GET /api/games.meta` (`.meta` is the convention for a resource's lookup data) and are only the ones that occur
-in a stored game; `search_games` takes the same filters and its `query` is now optional. `V007` indexes the three
-filterable `games` columns. MT-013 gave `search_games` two agent-only extras (ADR 0022): `hasMissing`, a fifth
-`GameFilters` category (`MissingField`, wire values `description`/`coverImageUrl` - the DTO field names, not the
-`name.lowercase()` of ADR 0017) that ORs `IS NULL` checks so an agent can find incomplete games, and an optional
-`pageSize` (default 10, maximum 100) next to `totalMatches`/`truncated` in the result. The filter never reaches
-REST - `GameFilterParams.kt` does not parse it and `.meta` does not offer it - and needed no migration or index;
-`pageSize` is the tool's own ceiling, below the 1..200 that `GET /api/games?pageSize=` has always taken.
-MT-016 added **expansions** (DLC), the games domain's second aggregate (ADR 0023): `game_expansions` (V008) with a
-cascading FK to `games`, a `title` plus the game's own `Ownership`/`Progress` types reused verbatim, and a
-`sequence` the owner arranges by hand. `ExpansionService` is the sole owner of that sequence: it is dense and
-zero-based per game (0..n-1), create appends, delete re-packs, and a `PATCH` carrying a `sequence` is a *move*
-(reinsert at that index, renumber the rest; outside the range it is a 400). There is deliberately no
-`UNIQUE (game_id, sequence)` - a move rewrites several rows in one transaction. The routes nest inside the
-game's `/{id}` block (`/api/games/{id}/expansions[/{expansionId}]`, `games/api/ExpansionRoutes.kt`, reusing
-`gameId()`), `UpdateExpansionRequest` uses plain nullable fields because nothing on an expansion is clearable,
-and the MCP tools `list_expansions` and `add_expansion` cover the agent side. The frontend shows them as a
-drag-sortable card stack inside the game detail dialog (@dnd-kit, keyboard sensor for the tested path).
-MT-017 added the **cover picker** (ADR 0024): the cover (image or empty placeholder) is a button that opens
-`CoverPickerDialog` with SteamGridDB thumbnails from the game-independent
-`GET /api/games/cover-options?query=[&releaseYear=&match=&type=&page=]` (`query` required, sibling of the `/{id}`
-block, `CoverOptionsService` needs no repository). The dialog is persistence-agnostic (`onPick(imageUrl)`): in the
-detail dialog's view mode the host PATCHes `coverImageUrl` with the full-size URL; in `GameForm` (add dialog and
-edit mode) the pick only fills the "Cover image URL" field and Save persists it. The endpoint returns the provider's
-`matches` for the term (the SPA sends the game's or the draft's title and year), the `selectedMatchId` a pure
-domain ranking picked (exact title, same year when given,
-first) and `covers` only for that match as a `PageResponse` (50 per page in score order, 1-based `page`, the picker
-appends pages with "load more"); `match` overrides the pick, `type` (`static` default, `animated`)
-picks the grid type, a toggle in the picker; animated grids come with WebM clips as thumbnails, which
-`CoverThumbnail` renders as a muted looping `<video>` (the saved full-size URL is always an image). All cover frames
-are 22:31 (the 660x930 grid shape) via `COVER_ASPECT_RATIO`/`coverHeight()` in `src/components/coverFrame.ts`;
-call sites pass a width only. Later pages with a `match` skip the upstream search and return
-`matches` empty; the picker keeps page 1's list. `games/domain/CoverSource.kt`
-is the port, `CoverOptionsService` the orchestrator, and `games/integration/SteamGridDbCoverSource.kt` the only
-class that knows SteamGridDB (Ktor client, `ktor-client-java` engine) - `integration` is the fourth onion layer for
-outbound adapters (`integration -> domain`). `STEAMGRIDDB_API_KEY` is optional: without it `module()` wires no
-source and the endpoint answers `503 cover_source_unavailable` (`ExternalSourceUnavailableException` /
-`ExternalSourceException` in `common/domain`, mapped by StatusPages to `<source>_unavailable` / `<source>_error`);
-`application-test.yaml` pins the key empty so the smoke test always sees that path. Cover URLs stay external.
+## Where to read more
 
-Detailed docs already exist and are kept current; read them before larger changes:
-`README.md` (setup/run), `docs/architecture.md` (request flow, module map, build pipeline, migration
-rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decision of similar weight.
-`tmp/` is gitignored scratch (contains the original project description).
+- `docs/index.md` is the entry point: a table of features with their pages under `docs/features/`, and a table of
+  every ADR in `docs/decisions/`. Read it before touching a feature you do not know.
+- `docs/architecture.md` (request flow, module maps, API table, build pipeline, runtime) and `README.md`
+  (setup, run, deploy, MCP client).
+- Add a numbered ADR for any decision of weight; find the next free number across all git refs, numbers are
+  claimed on branches. A feature ticket adds a row to `docs/index.md` and a page in `docs/features/`, not prose
+  here.
 
 ## Commands
 
@@ -96,220 +43,35 @@ rules), `docs/decisions/000N-*.md` (ADRs). Add a new numbered ADR for any decisi
 | Run that image against the local MariaDB | `source local-env.sh && docker compose up -d --wait mariadb && docker run --rm --network host -e DB_URL -e DB_USER -e DB_PASSWORD -e SESSION_SECRET -e SESSION_SECURE media-tracker:local` |
 | Create/reset a user (no self-registration) | `java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <name> [--reset-password]` |
 
-**Lint and format checks fail the build.** `./gradlew build` runs ktlint (`:backend:ktlintCheck`), ESLint
-(`:frontend:pnpmLint`) and a Prettier check (`:frontend:pnpmFormatCheck`) via each project's `check` task.
-Before committing, auto-fix with `./gradlew :backend:ktlintFormat` and `cd frontend && pnpm format && pnpm lint:fix`.
-ktlint uses the `intellij_idea` code style from `.editorconfig` (4 spaces, 120 columns) with `no-unused-imports`
-explicitly enabled (it is off by default in ktlint 1.x); Prettier uses
-`printWidth: 120` with 2-space indentation. ESLint config is `frontend/eslint.config.js` (flat config,
-typescript-eslint non-type-aware recommended, react-hooks, react-refresh, eslint-config-prettier).
-detekt is intentionally absent until detekt 2.0 (Kotlin 2.4 support) is GA, see `docs/decisions/0005-linting.md`.
-The ktlint plugin is only applied in `:backend`; the root and frontend Gradle scripts are not linted by the build.
+## Rules that apply everywhere
 
-**CI.** `.github/workflows/pr.yml` (pull requests to `master`) and `master.yml` (push to `master`) both run
-`./gradlew build` on JDK 25 with Gradle and Node/pnpm caches; `master.yml` uploads `backend/build/libs/media-tracker.jar`
-as the `media-tracker-jar` artifact. pnpm runs with a frozen lockfile in CI, so commit `pnpm-lock.yaml` changes.
-CI passes `--max-workers=2` to Gradle and Vitest caps itself to 3 workers when `CI` is set (few-core hosted runner,
-backend build and frontend tests overlap); locally both use their core-based defaults.
-`master.yml` additionally builds the root `Dockerfile` (one `COPY` of the JAR onto
-`gcr.io/distroless/java25-debian13:nonroot`) with buildx for linux/arm64+amd64 and pushes
-`ghcr.io/slu-it/media-tracker:{latest,sha-<short>}` (`permissions: packages: write`, `GITHUB_TOKEN`); `pr.yml` only
-`docker build`s it and boots it against the root-compose MariaDB (`/health`). Never publish from `pr.yml`. The JVM
-flags live as `JAVA_TOOL_OPTIONS` in the Dockerfile and are mirrored from `deploy/jvm.options`: change both.
-Pi deployment via `deploy/docker-compose.yml` is documented in the README next to the systemd path (ADR 0016).
-The database it talks to is the Pi's central MariaDB, `deploy/database/` as its own compose project: it
-publishes no port, owns the Docker network `pi-db` that the app's compose file joins as external and addresses
-as `mariadb`, and its databases plus owning users come from `deploy/database/create-database.sh` (ADR 0018).
-Media Tracker uses the database and user `media-tracker` there; local development keeps `mediatracker` from the
-repository-root `docker-compose.yml`.
-
-Gradle runs with configuration cache, build cache and parallel on. `frontend/build.gradle.kts` must keep
-`node.version` and `pnpmVersion` as literal strings (node-gradle 7.1.0 configuration-cache bug).
-
-## Architecture essentials
-
-**Frontend → backend handoff.** `:frontend` exposes Vite's output (`frontend/build/dist`) as a consumable
-Gradle configuration `frontendDist`; `:backend` resolves it as a dependency and copies it into
-`build/resources/main/app/` during `processResources`. Never reference `:frontend` tasks from `:backend`,
-and never write into `backend/src/main/resources/app/` (gitignored, must stay empty).
-`-Pmt.dev=true` drops that copy and puts `run` into Ktor development mode (dev loop only, Vite serves the SPA);
-never pass it to `build`/`buildFatJar`.
-Shutdown hooks in `module()` must hang off the application's coroutine job, not `monitor.subscribe(ApplicationStopped)`:
-with Ktor auto-reload the new instance starts before the old one stops and would close the new instance's resources.
-
-**Backend wiring** (`Application.kt`): `module()` does config → `DatabaseFactory.connect` →
-`DatabaseFactory.warnOnSchemaDrift(database, allTables)` → `Services(auth, games, apiKeys, expansions, coverOptions)`
-from Exposed repositories (and the SteamGridDB client, only when its key is configured) →
-`configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
-persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) → routes
-(`loginRoutes`, `apiRoutes(services)`, `mcpRoutes(services)`, `webRoutes`). Handler tests boot `configureHttp` with
-MockK services (`handlerApp(auth, games, apiKeys, expansions, coverOptions)`, every parameter defaulted to a MockK)
-and an in-memory session storage; a new media kind adds its service to `Services`.
-Config is typed in `config/AppConfig.kt` from `application.yaml`, where every secret is an env-var reference
-(`"$VAR"` required, `"$VAR:default"` optional).
-
-**Top-level packages are domains** (ADR 0010): business domains (`games`, later books/movies/series), the
-technical domain `auth` and the shared `common` are onion modules `{api,domain,persistence}`; `CreateUser`
-(bootstrap CLI) sits at the `auth` root. `mcp` is a technical domain with an `api` layer only (`McpEndpoint`,
-`McpServer`) and imports no feature; the root `Routes.kt#mcpRoutes` is what registers every feature's tools.
-`common/domain` holds framework-free primitives (`Page*`, `Patch`, `SearchTerm`, exceptions), `common/api` the shared
-DTOs, paging, `?search` parsing (`Search.kt`) and `PatchField`, `common/persistence` HikariCP/Flyway/`dbQuery`.
-`common/`, `plugins/` (Serialization, Monitoring, StatusPages) and `config/` never import a feature package. The
-composition root is the package root: `Application.kt` (wiring), `Routes.kt` (`apiRoutes` mounts `meRoutes()`,
-`apiKeyRoutes()` and `gameRoutes()` under the authenticated `/api` prefix with the JSON 404 catch-all; `mcpRoutes`
-mounts the MCP endpoint under `authenticate(API_KEY_AUTH)`; `webRoutes` serves `/health` and the session-gated SPA)
-and `Schema.kt` (`allTables`).
-
-**Three auth tiers on one port.** Public: `/login`, `/login/static/*`, `/logout`, `/health`. The SPA (with
-`index.html` fallback) and `/api/**` sit inside `authenticate(SESSION_AUTH)`; `POST /mcp` sits inside
-`authenticate(API_KEY_AUTH)` (header `X-API-Key: <key>`, alias `Authorization: Bearer <key>`). Both providers and
-their challenges live in `auth/api/Security.kt`: JSON 401 for `/api/*` and `/mcp`, a 302 to `/login` otherwise.
-`authenticate(name)` only consults the named provider, so cookies never open `/mcp` and keys never open `/api`.
-`/api/me` is `auth/api/MeRoutes.kt`; `/api/me/api-keys` (GET, `POST /{primary|secondary}`) is `auth/api/ApiKeyRoutes.kt`,
-backed by `auth/domain/ApiKeyService` over two nullable unique `CHAR(36)` columns on `users` (V3). `apiRoutes` ends
-with a `{...}` catch-all so unknown API paths are JSON 404s instead of the SPA. Each feature defines its routes
-in `<feature>/api/*Routes.kt` (`Route.gameRoutes(service)`) and `apiRoutes` in the root `Routes.kt` mounts them
-inside that `authenticate` block, before the catch-all.
-
-**Feature packages are onion-layered** (ADR 0007): `de.sluit.mediatracker.<feature>.{api,domain,persistence}`,
-dependencies `api → domain ← persistence`, plus `integration → domain` (and `config`, for its own settings) for
-outbound HTTP adapters to third-party services (ADR 0024, `games/integration/`); the domain imports no Ktor/Exposed/kotlinx. Each layer has its own types
-(DTOs / entities + `@JvmInline value class`es / Exposed tables); only domain types cross layers. Value classes
-validate in `init` via `requireValid(field, cond) { reason }` → `InvalidValueException` → HTTP 400
-`validation_error` (`plugins/StatusPages.kt` also maps `NotFoundException` → 404, Ktor body failures → 400
-`invalid_body`). Shared primitives (`Page*`, `Patch`, exceptions) live in `common/domain`; optional PATCH fields use
-`common/api/PatchField.kt` (absent / null / value). Copy the `games` package for the next media kind; `auth` follows the
-same three layers (`AuthService.login` returns the domain `User`, `auth/api/LoginRoutes.kt` maps it to `UserSession`).
-
-**Sessions** live in the `sessions` table; the cookie `MT_SESSION` holds only an HMAC-signed id.
-`DbSessionStorage` rebuilds the `UserSession` principal per request and lazily deletes expired rows.
-Passwords are Argon2id PHC strings (`auth/domain/PasswordHasher.kt`).
-
-**MCP endpoint** (`mcp/api/McpEndpoint.kt`, ADR 0013): stateless Streamable HTTP, a fresh SDK `Server` per POST,
-built by hand from the SDK's public transport pieces because the SDK's `mcpStreamableHttp` helpers open their own
-`routing {}` and cannot sit inside `authenticate`. The route pre-encodes JSON-RPC replies with the SDK's `McpJson`
-in an `ApplicationSendPipeline.Before` interceptor; never let them reach the app-wide `ContentNegotiation`
-(`explicitNulls` would emit `"isError": null` and break clients), and never switch the global Json to
-`explicitNulls = false` (drops REST `null`s the TS types mirror). Tools live in the owning feature
-(`<kind>/api/<Kind>McpTools.kt`, `fun Server.add<Kind>Tools(service)`), reuse the REST request DTO and its
-`toNew<Kind>()` mapper, and turn domain exceptions into `CallToolResult(isError = true)`. Requests need
-`Accept: application/json, text/event-stream` and `Content-Type: application/json` (SDK returns 406/415 otherwise).
-
-**Database access.** Exposed 1.5 with `org.jetbrains.exposed.v1.*` package roots; timestamps are
-`kotlin.time.Instant`. JDBC is blocking, so route code must call `dbQuery { }`
-(`common/persistence/DatabaseFactory.kt`), which runs the transaction on `Dispatchers.IO`. Repository interfaces
-live in a feature's `domain`; the Exposed
-implementations (`auth/persistence/ExposedUserRepository`) additionally expose `*Blocking` variants for use inside
-an existing transaction (tests, `CreateUser`).
-
-**Schema changes are a two-file commit.** Flyway SQL in `backend/src/main/resources/db/migration/` is
-the source of truth; an Exposed table object mirrors it (`<feature>/persistence/*Table.kt`, e.g.
-`auth/persistence/UsersTable.kt`, `games/persistence/GamesTable.kt`) and must be listed in `allTables` in
-`Schema.kt` (package root). `SchemaDriftTest` compares the migrated test MariaDB with the Kotlin tables and fails
-if Exposed would still want to change anything. Rules:
-- Name scripts `V<nnn>__<snake_case>.sql`; never edit an applied script, add `V<nnn+1>`.
-- SQL targets MariaDB 11.8 only (the tests run the same engine, ADR 0015). Timestamp columns are `DATETIME(6)`;
-  the `${timestamp_type}` placeholder in V001 is a leftover from the H2 era and always resolves to `DATETIME(6)`.
-- Every FK column gets an explicit `INDEX` in SQL and `.index()` in Kotlin, or the drift test fails.
-- Declare every index on the table object (`index(name, false, cols, indexType = "FULLTEXT")` for fulltext); Exposed
-  compares indexes by name, columns and uniqueness and treats two indexes over the identical column list as excess,
-  hence `idx_games_title (title, id)` next to the fulltext `ft_games_title (title)`.
-- A new column with a default adds it as `NOT NULL DEFAULT <x>` to backfill the existing rows and then drops the
-  default again (`ALTER TABLE t ALTER COLUMN c DROP DEFAULT`), and the Exposed column declares no `.default()`: the
-  drift test compares defaults in both directions, and the domain owns them (ADR 0017). Raw Exposed inserts in
-  tests must therefore write every column.
-- Migrations run at startup; the app never alters the schema itself.
-- UUID ids are `CHAR(36)` text (Exposed `char("id", 36)`), never `uuid()`.
-
-**DTO mirroring.** `@Serializable` DTOs in `backend/.../common/api/Dtos.kt` (shared) and
-`backend/.../<feature>/api/*Dtos.kt` (`auth/api/AuthDtos.kt` incl. `ApiKeysResponse`, `games/api/GameDtos.kt`) are
-hand-mirrored in `frontend/src/types/api.ts`. Change both together. `frontend/src/api/client.ts` (`apiFetch`)
-redirects to `/login` on 401, resolves `undefined` for 204, and throws `ApiError` (with the parsed `ErrorResponse`
-as `body`) on other non-2xx.
-
-**Frontend stack** (ADR 0008): MUI 9 (`sx` prop, `slotProps.*`, icons imported by path `@mui/icons-material/<Name>`;
-the barrel import is an ESLint error), theme in `src/theme/theme.ts` (no `index.css`), i18next with typed keys: every
-UI string goes through `t()` and must exist in both `src/i18n/en.json` and `de.json` (a test compares key sets;
-platform labels come from the database via `/api/game-platforms`, not from the bundles). Hooks/constants/validators
-live in non-component files (react-refresh rule). Light/dark is a two-state header toggle (ADR 0020):
-`theme.ts` uses `colorSchemeSelector: "class"`, `components/layout/ThemeModeToggle.tsx` drives MUI's `useColorScheme`,
-and `AppProviders` lets `ThemeProvider` persist the mode (`defaultMode="system"`, `noSsr`) under the localStorage key
-`mt.mode` from `src/theme/mode.ts`. That key is hard-coded in three places - `mode.ts`, the pre-paint script in
-`frontend/index.html`, and the one in `backend/src/main/resources/login/login.html`, whose CSS uses `light-dark()` so
-the login page follows the same choice; a test pins each of the three copies (ADR 0020 lists them).
-`theme.ts` also caps every dropdown at `MENU_MAX_ITEMS` (6) rows - `MuiSelect.defaultProps.MenuProps` for selects,
-`MuiAutocomplete.styleOverrides.listbox` for autocompletes - so feature code sets no menu height itself and menu rows
-stay a uniform height (hence the compact `Checkbox` in `GameFilterBar`); jsdom has no layout engine, so it is
-verified by eye.
-Feature layout `src/features/<kind>/{api,domain,hooks,components}`
-+ `<Kind>View.tsx`; domain constraints are mirrored as validators returning i18n codes and wrapped in
-self-validating field components. Common dialogs: `components/dialog/BaseDialog` (round protruding close button,
-optional left action column with top and bottom slots, optional fixed height, and `contentScroll="children"`) and
-`ConfirmDialog` (which builds on MUI `Dialog` directly, not on `BaseDialog`). `contentScroll="children"` needs a
-fixed `height` and hands the scrolling to a child: the games dialogs pair it with `scrollInfo` on
-`CoverAndInfoLayout` so that from the `sm` breakpoint up the headline, cover and rating stay frozen and only the
-field column scrolls, while at `xs` the layout stacks and scrolls as one. A media kind copying the games dialogs
-copies both flags. The responsive `sx` behind this is invisible to jsdom (it evaluates no MUI breakpoint, not even
-`xs`) and jsdom has no layout engine, so the frozen layout is verified by eye, not by a test.
-The frontend sends `pageSize=36` explicitly (`GAMES_PAGE_SIZE` in `games/domain/gameValues.ts`, independent of
-the backend's default of 50); the games tests derive their expected URLs from that constant instead of pinning it. Above the games grid sit the search field, the four
-`-all-` filter multi-selects of `components/GameFilterBar.tsx` (fed by `hooks/useGamesMeta.ts`) and a
-`PaginationBar` capped to five page buttons via MUI's `boundaryCount`/`siblingCount`. The games search field
-debounces through `src/hooks/useDebouncedValue.ts` (`SEARCH_DEBOUNCE_MS`, 500 ms), `listGames` appends `search=` only
-when non-blank, and `GamesView` derives the page-1 reset from state (the stored page is paired with the search term
-and the filter key it was chosen for) instead of an effect: the react-hooks preset in `eslint.config.js` makes
-`set-state-in-effect` an error.
-
-**Backend tests** (levels and rules in ADR 0011; one behaviour per method, backtick names that read as a sentence,
-no `. / < > : [ ] ; \`). Domain unit tests (no framework); service unit tests with MockK (`coEvery`/`coVerify` on
-the repository interfaces); repository tests via `withFreshDatabase {}` / `countStatements {}`
-(`test/.../common/persistence/TestDatabase.kt`: one Testcontainers `mariadb:11.8` and one migrated database
-`media_tracker_test` per test JVM, `withFreshDatabase` truncates every table in `allTables` except the seeded
-`game_platforms` first, and Exposed's default database is pinned to that shared pool; Docker is required, nothing is
-skipped without it); **handler tests** (`<feature>/api/<Feature>RoutesTest`,
-`auth/api/AuthRoutesTest`, root `RoutesTest`) through `testApplication` + `handlerApp(auth, games, apiKeys)` from
-`test/.../TestApp.kt`, which boots `configureHttp` with MockK services and `SessionStorageMemory`, no database
-(`loginAsMocked(auth)` logs in through the real `/login`); they own status codes, headers, (de)serialization,
-`PatchField` mapping (`coVerify` the domain value the service receives) and every negative path; **smoke tests**
-(`<feature>/<Feature>SmokeTest`, root `ApplicationSmokeTest`) through `testApplication` + `appWithUser` (real
-`module()` on the shared test MariaDB, `application-test.yaml` merged with the container coordinates, cheap `PasswordHasher(memoryKb = 1024, iterations = 1)`
-for the seeded user, `loginAs`, `decodeBody`, `jsonBody`), happy paths only, at least one valid request per
-operation; and infrastructure edge cases (`DbSessionStorage`, `StatusPages` in an isolated app, `AppConfig` via
-`MapApplicationConfig`, `CreateUser.run()`). MCP handler tests (`mcp/api/McpRoutesTest`) post raw JSON-RPC with the two
-headers named above; the smoke test (`mcp/McpSmokeTest`) drives the real module through the SDK's `kotlin-sdk-client`.
-Mocks only above the repository interfaces (services in handler
-tests, repositories in service tests). The shared test database survives between tests in a JVM, so seed idempotently
-or clean up (`GamesTable.deleteAll()`); `appWithUser` upserts its user's password hash because repository tests may
-have inserted the same username with a fake hash. Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage
-is informational, there is no threshold. Frontend tests use Vitest + Testing Library + user-event with
-MUI rendered in jsdom (`pnpm test` runs `vitest run --coverage`; the V8 report lands in `frontend/build/coverage/`,
-also informational): `src/test/renderWithProviders.tsx` and `src/test/mockFetch.ts` (`mockApi({"GET /api/games": ...})`
-records calls; an unmocked request throws); any `console.error` during a test fails it; shared fixtures live in
-`src/test/fixtures/`; dialogs are portals, query via `screen`; open MUI selects with `user.click` on the combobox.
-Enter multi-character text with `user.click(field)` then `user.paste("...")`; per-keystroke `user.type` is ~10x slower and
-hit the CI timeout, keep it for single characters whose keystroke behaviour is under test.
-Vitest runs with `testTimeout: 10_000` and `isolate: false` (one jsdom shared across files; `test-setup.ts` runs per
-file and does the lifecycle itself: explicit `afterEach(cleanup)`, a `beforeAll` setting `IS_REACT_ACT_ENVIRONMENT`, then
-mocks (incl. `matchMedia` and an `Element.prototype.scrollIntoView` stub that @dnd-kit's keyboard sensor needs),
-language and `localStorage`; never rely on state from another file and never remove those hooks). Conventions and known
-jsdom limits (MUI Rating clicks) are in ADR 0012.
-
-## Version policy
-
-`gradle/libs.versions.toml` is the single source for JVM versions; npm packages are pinned exactly in
-`frontend/package.json` (no `^` ranges). Stay on the current majors and take the newest release within
-each (current: MUI 9, Emotion 11, i18next 26, react-i18next 17, @dnd-kit/core 6 + /sortable 10 + /utilities 3
-on the npm side; `utilities` is a direct dependency because the page imports `CSS` from it and pnpm does not hoist); do not bump majors
-(e.g. pnpm 12, TypeScript 7, Logback 1.6) without asking. `@vitest/coverage-v8` declares the exact Vitest version as
-a peer dependency, so bump it together with `vitest` to the same version.
+- **Lint and format checks fail the build** (ktlint, ESLint, Prettier via each project's `check`). Before handing
+  over, auto-fix with `./gradlew :backend:ktlintFormat` and `cd frontend && pnpm format && pnpm lint:fix`.
+- **Paired changes, finish both halves** or say which is open:
+  - `*Dtos.kt` <-> `frontend/src/types/api.ts` (hand-mirrored DTOs)
+  - new migration `V<nnn+1>__*.sql` (never edit an applied one) <-> `*Table.kt` + entry in `allTables` (`Schema.kt`)
+  - `frontend/src/i18n/en.json` <-> `de.json` (same key set)
+  - new `<feature>/api/*Routes.kt` <-> mounted in `apiRoutes` (root `Routes.kt`) inside `authenticate`, before the catch-all
+  - backend value class rule (`requireValid`) <-> frontend validator in `features/<kind>/domain/` + self-validating field component
+- **Onion layers**: `api -> domain <- persistence` (+ `integration -> domain`); the domain imports no
+  Ktor/Exposed/kotlinx and only domain types cross layers. Copy the `games` package for a new media kind.
+- **Backend tests need Docker** and are never skipped. The test MariaDB is shared per JVM: seed idempotently or
+  clean up.
+- Never write into `backend/src/main/resources/app/` (Gradle copies the built SPA there); never pass
+  `-Pmt.dev=true` to `build` or `buildFatJar`.
+- **Versions**: stay on the current majors, take the newest release within each, no major bumps without asking;
+  npm packages are pinned exactly. Details in `.claude/rules/build-ci-deploy.md`.
 
 ## Git
+
 - Never commit, amend or push on your own. The owner decides how, when and how often to commit; finish a work
   package with a verified working tree and a summary, and commit only when explicitly asked, in the form asked.
 
 ## Delegation
-- Main session: planning, decisions, synthesis. Do not read whole files or run tests directly.
-- Use Explore for any codebase search, implementer for scoped edits, test-runner for verification, reviewer before finishing
-  (definitions in `.claude/agents/`).
-- Prefer several parallel subagents for independent investigations, but only one subagent that runs Gradle at a time:
-  concurrent Gradle invocations contend on the daemon lock and the configuration cache.
+
+- Main session: planning, decisions, synthesis, and every edit to `CLAUDE.md`, `docs/`, `README.md` and
+  `.claude/` (the implementer hook denies those). Do not read whole source files or run tests directly.
+- Use Explore for any codebase search, implementer for scoped edits, test-runner for verification, reviewer
+  before finishing (definitions in `.claude/agents/`).
+- Prefer several parallel subagents for independent investigations, but only one subagent that runs Gradle at a
+  time: concurrent Gradle invocations contend on the daemon lock and the configuration cache.
