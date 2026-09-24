@@ -2,6 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GamePlatformResponse } from "../../../types/api";
+import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { hadesCoverOptions, pc, playstation } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
@@ -194,7 +195,7 @@ describe("AddGameDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Choose a cover image" }));
 
     expect(await screen.findByText("Enter a search term to look for covers.")).toBeInTheDocument();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushAsync();
     expect(calls).toHaveLength(0);
   });
 });

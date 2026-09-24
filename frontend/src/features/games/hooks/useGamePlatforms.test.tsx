@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
+import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { pc as platform } from "../../../test/fixtures/games";
 import { useGamePlatforms } from "./useGamePlatforms";
@@ -41,7 +42,7 @@ describe("useGamePlatforms", () => {
 
     // ...and the stale initial response must not overwrite it once it eventually resolves.
     resolvers[0](jsonResponse([platform]));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushAsync();
     expect(result.current.platforms).toEqual([reloaded]);
   });
 });

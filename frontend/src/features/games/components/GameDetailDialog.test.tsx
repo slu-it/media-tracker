@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ExpansionResponse, GameResponse } from "../../../types/api";
+import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
 import {
   celeste,
@@ -26,23 +27,13 @@ const game: GameResponse = {
 
 const noExpansions = { "GET /api/games/:id/expansions": () => jsonResponse([]) };
 
-/**
- * Lets the mocked expansions fetch (fired unconditionally on mount) resolve and land its `setState` inside an
- * act scope, for tests whose assertions do not otherwise wait on it.
- */
-async function flushExpansionsLoad() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
-  });
-}
-
 describe("GameDetailDialog", () => {
   it("shows the cover image but not the cover image URL as text in view mode", async () => {
     mockApi(noExpansions);
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
-    await flushExpansionsLoad();
+    await flushAsync();
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByRole("img", { name: "Celeste" })).toHaveAttribute("src", game.coverImageUrl);
@@ -54,7 +45,7 @@ describe("GameDetailDialog", () => {
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
-    await flushExpansionsLoad();
+    await flushAsync();
     const dialog = screen.getByRole("dialog");
 
     const cover = within(dialog).getByRole("img", { name: "Celeste" });
@@ -87,7 +78,7 @@ describe("GameDetailDialog", () => {
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
-    await flushExpansionsLoad();
+    await flushAsync();
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByText(game.description!)).toBeInTheDocument();
@@ -99,7 +90,7 @@ describe("GameDetailDialog", () => {
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
-    await flushExpansionsLoad();
+    await flushAsync();
     expect(screen.getByRole("dialog")).toHaveAccessibleName(game.title);
   });
 
@@ -114,7 +105,7 @@ describe("GameDetailDialog", () => {
         platforms={platforms}
       />,
     );
-    await flushExpansionsLoad();
+    await flushAsync();
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByRole("img", { name: "Watchlist" })).toBeInTheDocument();
@@ -132,7 +123,7 @@ describe("GameDetailDialog", () => {
         platforms={platforms}
       />,
     );
-    await flushExpansionsLoad();
+    await flushAsync();
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByRole("img", { name: "Playing" })).toBeInTheDocument();

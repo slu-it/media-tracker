@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
+import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
 import { useGamesPage } from "./useGamesPage";
@@ -87,7 +88,7 @@ describe("useGamesPage", () => {
     expect(result.current.loading).toBe(false);
 
     resolvers.get(1)!(jsonResponse(page(1)));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await flushAsync();
     expect(result.current.data?.page).toBe(2);
     expect(result.current.loading).toBe(false);
   });
