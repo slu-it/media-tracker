@@ -118,9 +118,21 @@ tasks.named<JavaExec>("run") {
     }
 }
 
+// Inside Claude Code (CLAUDECODE=1, set by the CLI in every shell it runs, subagents included), :backend:test
+// logs only failed and skipped tests; agents take the totals from .claude/scripts/test-summary.py instead. A
+// human's terminal/IDE build prints every test. -Pmt.agent=true|false overrides the detection in either direction.
+val mtAgent = providers.gradleProperty("mt.agent").map(String::toBoolean)
+    .orElse(providers.environmentVariable("CLAUDECODE").map { it == "1" })
+    .getOrElse(false)
+
 tasks.test {
     useJUnitPlatform()
     testLogging {
-        events("passed", "skipped", "failed")
+        if (mtAgent) {
+            events("failed", "skipped")
+            exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.SHORT
+        } else {
+            events("passed", "skipped", "failed")
+        }
     }
 }

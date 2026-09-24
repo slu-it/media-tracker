@@ -17,6 +17,9 @@ configuration `frontendDist`; `:backend` resolves it as a dependency and copies 
 during `processResources`. Never reference `:frontend` tasks from `:backend`, and never write into
 `backend/src/main/resources/app/` (gitignored, must stay empty). `-Pmt.dev=true` drops that copy and puts `run`
 into Ktor development mode (dev loop only, Vite serves the SPA, ADR 0006); never pass it to `build`/`buildFatJar`.
+Inside Claude Code (`CLAUDECODE=1`, set in every agent shell) `:backend:test` logs only failed and skipped tests.
+Agents take their totals from `.claude/scripts/test-summary.py`, while a terminal or IDE build prints every test.
+`-Pmt.agent=true|false` overrides the detection. Switching between the two environments costs one configuration-cache miss.
 Gradle runs with configuration cache, build cache and parallel on. `frontend/build.gradle.kts` must keep
 `node.version` and `pnpmVersion` as literal strings (node-gradle 7.1.0 configuration-cache bug).
 
