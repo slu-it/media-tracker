@@ -91,7 +91,8 @@
       "coverImageUrlHint": "Optional. Leer lassen für kein Cover.",
       "ownership": "Besitzstatus",
       "progress": "Fortschritt",
-      "hidden": "Ausgeblendet"
+      "hidden": "Ausgeblendet",
+      "titleSuggestionVerified": "Verifiziert"
     },
     "ownership": {
       "watchlist": "Merkliste",

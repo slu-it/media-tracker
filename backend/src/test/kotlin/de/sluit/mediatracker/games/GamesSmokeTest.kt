@@ -323,6 +323,16 @@ class GamesSmokeTest {
     }
 
     @Test
+    fun `title suggestions answer 200 with an empty list while no api key is configured`() = testApplication {
+        val client = loggedInClient()
+
+        val response = client.get("/api/games/title-suggestions?query=Hades")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals("""{"suggestions":[]}""", response.bodyAsText())
+    }
+
+    @Test
     fun `games meta lists only the filter values actually in use`() = testApplication {
         val client = loggedInClient()
         client.createGame(

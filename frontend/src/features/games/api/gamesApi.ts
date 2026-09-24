@@ -7,6 +7,7 @@ import type {
   GamePlatformResponse,
   GameResponse,
   PageResponse,
+  TitleSuggestionsResponse,
   UpdateGameRequest,
 } from "../../../types/api";
 import type { GameFilters } from "../domain/gameFilters";
@@ -68,4 +69,10 @@ export function getCoverOptions(params: {
   if (params.type !== undefined) query.set("type", params.type);
   if (params.page !== undefined) query.set("page", String(params.page));
   return apiFetch<CoverOptionsResponse>(`${BASE}/cover-options?${query}`);
+}
+
+/** Title-only, SteamGridDB-backed suggestions for the add/edit form; `query` is required by the backend. */
+export function getTitleSuggestions(query: string): Promise<TitleSuggestionsResponse> {
+  const params = new URLSearchParams({ query: query.trim() });
+  return apiFetch<TitleSuggestionsResponse>(`${BASE}/title-suggestions?${params}`);
 }

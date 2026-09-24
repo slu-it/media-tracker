@@ -27,6 +27,10 @@ data class CoverOptionsResponse(
     val covers: PageResponse<CoverOptionResponse>,
 )
 
+/** GET /api/games/title-suggestions */
+@Serializable
+data class TitleSuggestionsResponse(val suggestions: List<CoverMatchResponse>)
+
 /** Also used by the MCP `find_game_cover` tool's structured content. */
 fun CoverCandidate.toResponse() = CoverMatchResponse(
     id = id.value,

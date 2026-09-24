@@ -23,13 +23,22 @@ interface GameFormProps {
   platforms: GamePlatformResponse[] | null;
   disabled?: boolean;
   showErrors?: boolean;
+  /** Debounce before a title-suggestion request fires; tests pass a short value to stay on real timers. */
+  titleSuggestionDebounceMs?: number;
 }
 
 /**
  * The editable fields of a game plus a live cover preview. Validity is not owned here: parents derive it with
  * `isDraftValid(value)` so the save button and the field errors share one source of truth.
  */
-export function GameForm({ value, onChange, platforms, disabled, showErrors }: GameFormProps) {
+export function GameForm({
+  value,
+  onChange,
+  platforms,
+  disabled,
+  showErrors,
+  titleSuggestionDebounceMs,
+}: GameFormProps) {
   const { t } = useTranslation();
   const previewUrl = validateCoverImageUrl(value.coverImageUrl) === null ? value.coverImageUrl : null;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -59,9 +68,17 @@ export function GameForm({ value, onChange, platforms, disabled, showErrors }: G
           <GameTitleField
             value={value.title}
             onChange={(title) => onChange({ ...value, title })}
+            onSuggestionPick={(suggestion) =>
+              onChange({
+                ...value,
+                title: suggestion.name,
+                ...(suggestion.releaseYear !== null ? { releaseYear: suggestion.releaseYear } : {}),
+              })
+            }
             disabled={disabled}
             showErrors={showErrors}
             autoFocus
+            suggestionDebounceMs={titleSuggestionDebounceMs}
           />
           <DescriptionField
             value={value.description}

@@ -10,12 +10,16 @@ import { AddGameDialog } from "./AddGameDialog";
 
 const platforms: GamePlatformResponse[] = [pc, playstation];
 
+/** Typing a 5+ character title (below fires no request) triggers a debounced suggestion request; kept empty here. */
+const noTitleSuggestions = { "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) };
+
 describe("AddGameDialog", () => {
   it("posts the filled form and reports the created game", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     const calls = mockApi({
       "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+      ...noTitleSuggestions,
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -23,7 +27,7 @@ describe("AddGameDialog", () => {
     expect(save).toBeDisabled();
 
     // user.paste avoids per-keystroke user.type, which is ~10x slower and hit the CI timeout.
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Hades");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
@@ -45,7 +49,8 @@ describe("AddGameDialog", () => {
 
     await user.click(save);
     await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(calls).toEqual([
+    // A debounced title-suggestions request may also have fired by now; only the actual save matters here.
+    expect(calls.filter((c) => c.method === "POST")).toEqual([
       {
         method: "POST",
         url: "/api/games",
@@ -70,11 +75,12 @@ describe("AddGameDialog", () => {
     const onCreated = vi.fn();
     const calls = mockApi({
       "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+      ...noTitleSuggestions,
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Hades");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
@@ -91,24 +97,30 @@ describe("AddGameDialog", () => {
     const save = within(dialog).getByRole("button", { name: "Save" });
     await user.click(save);
     await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
-    expect(calls[0].body).toMatchObject({ ownership: "owned", progress: "playing", hidden: true });
+    // A debounced title-suggestions GET (mocked via `noTitleSuggestions`) may also be in `calls` by now; filter
+    // to the POST that actually created the game.
+    expect(calls.find((c) => c.method === "POST")?.body).toMatchObject({
+      ownership: "owned",
+      progress: "playing",
+      hidden: true,
+    });
   });
 
   it("has no delete action and resets when reopened", async () => {
-    mockApi({});
+    mockApi(noTitleSuggestions);
     const { rerender } = renderWithProviders(
       <AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />,
     );
     expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
     const user = userEvent.setup();
-    const title = screen.getByRole("textbox", { name: /title/i });
+    const title = screen.getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Draft");
 
     rerender(<AddGameDialog open={false} onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     rerender(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
-    expect(screen.getByRole("textbox", { name: /title/i })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: /title/i })).toHaveValue("");
   });
 
   it("shows the backend error and stays open when creating fails", async () => {
@@ -116,11 +128,12 @@ describe("AddGameDialog", () => {
     const onCreated = vi.fn();
     mockApi({
       "POST /api/games": () => jsonResponse({ error: "validation_error", message: "title: nope" }, 400),
+      ...noTitleSuggestions,
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Hades");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
@@ -140,11 +153,12 @@ describe("AddGameDialog", () => {
     const user = userEvent.setup();
     mockApi({
       "POST /api/games": () => new Promise<Response>(() => {}),
+      ...noTitleSuggestions,
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Hades");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
@@ -162,11 +176,12 @@ describe("AddGameDialog", () => {
     const user = userEvent.setup();
     const calls = mockApi({
       "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
+      ...noTitleSuggestions,
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Hades");
 

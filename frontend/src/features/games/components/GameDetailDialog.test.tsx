@@ -25,7 +25,14 @@ const game: GameResponse = {
   rating: 4.5,
 };
 
-const noExpansions = { "GET /api/games/:id/expansions": () => jsonResponse([]) };
+const noExpansions = {
+  "GET /api/games/:id/expansions": () => jsonResponse([]),
+};
+
+// A 5+ character title edit debounces a title-suggestions request; added only to the tests that actually edit
+// the title that far, so elsewhere `mockApi`'s "unmocked request throws" guard stays meaningful (e.g. it would
+// catch `ExpansionDialog`'s title field wrongly requesting suggestions too).
+const titleSuggestionsEmpty = { "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
 describe("GameDetailDialog", () => {
   it("shows the cover image but not the cover image URL as text in view mode", async () => {
@@ -266,6 +273,8 @@ describe("GameDetailDialog", () => {
       "PATCH /api/games/:id/expansions/:expansionId": () => jsonResponse({ ...hadesExpansion2, sequence: 0 }),
       "POST /api/games/:gameId/expansions": (call) =>
         jsonResponse({ id: newExpansion.id, gameId: hades.id, sequence: 2, ...(call.body as object) }, 201),
+      // No title-suggestions mock: the add-expansion dialog renders `GameTitleField` without `onSuggestionPick`,
+      // so it must never request suggestions; `mockApi`'s "unmocked request throws" guard would catch it if it did.
     });
     renderWithProviders(
       <GameDetailDialog
@@ -376,6 +385,7 @@ describe("GameDetailDialog", () => {
     const onSaved = vi.fn();
     const calls = mockApi({
       ...noExpansions,
+      ...titleSuggestionsEmpty, // the title below is edited to 5+ characters
       "PATCH /api/games/:id": (call) => jsonResponse({ ...game, ...(call.body as object) }),
     });
     renderWithProviders(
@@ -388,7 +398,7 @@ describe("GameDetailDialog", () => {
     const save = within(dialog).getByRole("button", { name: "Save" });
     expect(save).toBeDisabled(); // nothing changed yet
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Celeste (Switch)");
     await user.clear(within(dialog).getByRole("textbox", { name: /cover image url/i }));
@@ -456,14 +466,14 @@ describe("GameDetailDialog", () => {
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
 
     await user.type(title, "X");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("title: nope");
-    expect(within(dialog).getByRole("textbox", { name: /title/i })).toBeInTheDocument(); // still editing
+    expect(within(dialog).getByRole("combobox", { name: /title/i })).toBeInTheDocument(); // still editing
   });
 
   it("asks for confirmation before deleting, in view and in edit mode", async () => {
@@ -501,14 +511,15 @@ describe("GameDetailDialog", () => {
 
   it("cancel discards the edits and returns to view mode", async () => {
     const user = userEvent.setup();
-    const calls = mockApi(noExpansions);
+    // The title below is edited to 5+ characters.
+    const calls = mockApi({ ...noExpansions, ...titleSuggestionsEmpty });
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
     const dialog = screen.getByRole("dialog");
 
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Celeste (changed)");
 
@@ -523,12 +534,13 @@ describe("GameDetailDialog", () => {
   it("closes without saving", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const calls = mockApi(noExpansions);
+    // The title below is edited (appended to), staying at 5+ characters.
+    const calls = mockApi({ ...noExpansions, ...titleSuggestionsEmpty });
     renderWithProviders(
       <GameDetailDialog game={game} onClose={onClose} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
     await user.click(screen.getByRole("button", { name: "Edit" }));
-    await user.type(screen.getByRole("textbox", { name: /title/i }), "!");
+    await user.type(screen.getByRole("combobox", { name: /title/i }), "!");
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(calls.filter((c) => c.method !== "GET")).toEqual([]);

@@ -18,6 +18,7 @@ a decision was taken), never prose in `CLAUDE.md` ([ADR 0025](decisions/0025-age
 | Theme mode toggle | MT-010 | Light/dark toggle in the header, stored per browser under `mt.mode`, honoured by the login page too. | [theme-mode.md](features/theme-mode.md) | 0020 |
 | Game expansions | MT-016 | DLC as a nested sub-resource with an owner-arranged dense sequence; drag-sortable stack in the detail dialog; `list_expansions`/`add_expansion` MCP tools. | [game-expansions.md](features/game-expansions.md) | 0023 |
 | Cover picker | MT-017 | Click the cover in the detail dialog to pick a SteamGridDB grid through a backend adapter; `STEAMGRIDDB_API_KEY` is optional; `find_game_cover` MCP tool. | [cover-picker.md](features/cover-picker.md) | 0024 |
+| Title suggestions | MT-019 | SteamGridDB matches suggested while typing a title in the add/edit form; a pick also sets the year; empty without a key or on failure. | [title-suggestions.md](features/title-suggestions.md) | 0026 |
 
 ## Decisions
 
@@ -52,6 +53,7 @@ the checked-out directory:
 | [0023](decisions/0023-game-expansions.md) | Game expansions as a nested sub-resource, with an owner-defined order | Second aggregate of the games domain under `/api/games/{id}/expansions`; the service owns a dense zero-based sequence. |
 | [0024](decisions/0024-cover-picker-steamgriddb.md) | Cover image picker backed by SteamGridDB, through a backend adapter | `GET /api/games/cover-options` behind a `CoverSource` port; key optional; URLs stay external. |
 | [0025](decisions/0025-agent-instruction-layout.md) | Layout of agent instructions and documentation | Short `CLAUDE.md`, this index as lazy entry point, feature pages, path-scoped rules, role-only agents. |
+| [0026](decisions/0026-title-suggestions-degrade-to-empty.md) | Title suggestions from SteamGridDB degrade to an empty list | `GET /api/games/title-suggestions` returns `[]` when the source is unconfigured or failing, unlike the picker's 503/502. |
 
 ## Other documents
 

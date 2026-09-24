@@ -14,11 +14,13 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 
 /**
- * `/cover-options`, mounted directly under `/games` by [gameRoutes] (game-independent since MT-017's follow-up:
- * there is no game id here). `?query=` (required) is the SteamGridDB search term, `?releaseYear=` (optional)
- * breaks ties between exact title matches, `?match=` picks a specific candidate instead of the one the domain
- * ranking would choose, `?type=` selects static (default) or animated grids and `?page=` selects a 1-based page
- * of the selected match's covers; there is no `?pageSize=` (the adapter always asks SteamGridDB for its maximum).
+ * `/cover-options` and `/title-suggestions`, mounted directly under `/games` by [gameRoutes] (game-independent
+ * since MT-017's follow-up: there is no game id here). `?query=` (required) is the SteamGridDB search term,
+ * `?releaseYear=` (optional) breaks ties between exact title matches, `?match=` picks a specific candidate
+ * instead of the one the domain ranking would choose, `?type=` selects static (default) or animated grids and
+ * `?page=` selects a 1-based page of the selected match's covers; there is no `?pageSize=` (the adapter always
+ * asks SteamGridDB for its maximum). `/title-suggestions` (MT-019) only takes `?query=` and never fails: an
+ * unconfigured or failing source answers `200 { suggestions: [] }` (see [CoverOptionsService.suggestTitles]).
  * Handlers only translate HTTP <-> domain and delegate to [CoverOptionsService]; they never touch the SteamGridDB
  * adapter directly.
  */
@@ -30,6 +32,12 @@ fun Route.coverOptionRoutes(service: CoverOptionsService) {
         val type = call.coverType()
         val page = call.coverPage()
         call.respond(service.find(query, releaseYear, match, type, page).toResponse())
+    }
+
+    get("/title-suggestions") {
+        val query = call.coverQuery()
+        val suggestions = service.suggestTitles(query)
+        call.respond(TitleSuggestionsResponse(suggestions = suggestions.map { it.toResponse() }))
     }
 }
 

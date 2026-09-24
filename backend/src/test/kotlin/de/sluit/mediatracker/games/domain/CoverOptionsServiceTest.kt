@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
@@ -302,5 +303,48 @@ class CoverOptionsServiceTest {
         val result = service.findFirstCover(SearchTerm("Hades"), null)
 
         assertNull(result)
+    }
+
+    @Test
+    fun `suggestTitles returns candidates in the upstream order`() = runBlocking {
+        val matches = listOf(candidate("Hades", id = 1), candidate("Hades II", id = 2))
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
+
+        val result = service.suggestTitles(SearchTerm("Hades"))
+
+        assertEquals(matches, result)
+        coVerify { source.searchGames(SearchTerm("Hades")) }
+        confirmVerified(source)
+    }
+
+    @Test
+    fun `suggestTitles caps the result at the title suggestion limit`() = runBlocking {
+        val matches = (1..10L).map { candidate("Hades $it", id = it) }
+        coEvery { source.searchGames(SearchTerm("Hades")) } returns matches
+
+        val result = service.suggestTitles(SearchTerm("Hades"))
+
+        assertEquals(CoverOptionsService.TITLE_SUGGESTION_LIMIT, result.size)
+        assertEquals(matches.take(CoverOptionsService.TITLE_SUGGESTION_LIMIT), result)
+    }
+
+    @Test
+    fun `suggestTitles returns an empty list without touching the source when no source is configured`() = runBlocking {
+        val serviceWithoutSource = CoverOptionsService(source = null)
+
+        val result = serviceWithoutSource.suggestTitles(SearchTerm("Hades"))
+
+        assertEquals(emptyList(), result)
+        confirmVerified(source)
+    }
+
+    @Test
+    fun `suggestTitles returns an empty list when the source throws an ExternalSourceException`() = runBlocking {
+        coEvery { source.searchGames(SearchTerm("Hades")) } throws
+            ExternalSourceException(CoverOptionsService.SOURCE, "upstream boom")
+
+        val result = service.suggestTitles(SearchTerm("Hades"))
+
+        assertEquals(emptyList(), result)
     }
 }
