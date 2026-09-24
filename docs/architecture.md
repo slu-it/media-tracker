@@ -2,7 +2,7 @@
 
 Media Tracker is a single JAR: a Ktor server that hosts a JSON API, a hand-written login page, and the
 compiled React single-page app. It runs on a Raspberry Pi and talks to the central MariaDB on that same Pi
-(decision record 0018).
+(decision record 0018). The documentation index with every feature page and ADR is [index.md](index.md).
 
 ## Request flow
 

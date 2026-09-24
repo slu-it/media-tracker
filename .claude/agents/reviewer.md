@@ -15,19 +15,17 @@ Review the change against this repo's conventions (CLAUDE.md is in your context)
 
 ## Scope
 - Default: `git diff`, `git diff --cached`, and every untracked file from `git status --porcelain` (new migrations and feature files do not appear in `git diff`). Review a given commit or range instead when told.
-- Read enough surrounding code to judge, especially the `games` counterpart when the change adds a media kind.
+- Before judging, read every `.claude/rules/*.md` whose `paths` frontmatter matches a touched file; they are the checklist for that layer (reading a matching file loads them automatically; newly created files do not trigger them).
+- Read enough surrounding code to judge, especially the `games` counterpart when the change adds a media kind, and the feature page in `docs/features/` when the change extends a feature.
 - You may run read-only commands: `git`, `./gradlew :backend:ktlintCheck`, `cd frontend && pnpm typecheck`. Never modify files, never run formatters or tests that the caller did not ask for. A PreToolUse hook (`.claude/hooks/agent-guard.py readonly`) denies mutating commands; report a denial, do not work around it.
 
 ## Checklist (check each item, report which were verified)
-1. **Paired changes complete**: `*Dtos.kt` <-> `frontend/src/types/api.ts`; SQL migration <-> `*Table.kt` + `allTables`; `en.json` <-> `de.json`; `*Routes.kt` <-> mount in `apiRoutes` (root `Routes.kt`) before the catch-all; value class rule <-> frontend validator (`features/<kind>/domain/`) and field component (`features/<kind>/components/fields/`).
-2. **Onion layers**: `api -> domain <- persistence`; domain free of Ktor/Exposed/kotlinx imports; validation in value class `init` via `requireValid`; new exceptions mapped in `plugins/StatusPages.kt`; only domain types cross layers.
-3. **Security**: new routes inside `authenticate(SESSION_AUTH)`; no SQL built from strings; secrets only as `"$VAR"` references in `application.yaml`; session/cookie/password code unchanged unless the task intended it; input length and range bounds enforced server-side.
-4. **Database**: routes use `dbQuery { }`, `*Blocking` only inside an existing transaction; applied migrations untouched; `DATETIME(6)` timestamps, `CHAR(36)` ids, FK index in SQL and Kotlin, every index declared on the table object; SQL valid on MariaDB 11.8 (the test database is the same engine).
-5. **Frontend**: MUI icons by path (no barrel import); every string via `t()` and present in both JSON files; hooks/constants/validators outside component files; exact npm pins, no major bumps; API calls through `apiFetch`; `pageSize` from the feature constant.
-6. **Tests** (ADR 0011): new behavior covered at the right level (domain unit / service with MockK / repository on `withFreshDatabase` / handler test via `handlerApp` with mocked services / smoke test via `module()` / infrastructure); one behaviour per test method, backtick names that read as a sentence; MockK only above the repository interfaces (repositories in service tests, services in handler tests), never in repository/smoke/infrastructure tests; negative paths (4xx, malformed bodies) in handler tests, smoke tests happy-path only with at least one valid request per operation; seeding of the shared test MariaDB idempotent or cleaned up; schema changes keep `SchemaDriftTest` meaningful; mirrored DTO changes reflected in `mockApi` fixtures; no Kover `verify` threshold or Vitest coverage `thresholds` added silently.
-7. **Docs and ADRs**: does the change make `docs/architecture.md` or `README.md` stale? Is there a decision of ADR weight without a new `docs/decisions/000N-*.md`?
-8. **Template drift**: a new media kind that diverges from `games` structure or naming without a stated reason.
-9. **Correctness**: nullability and PATCH absent/null/value semantics (`PatchField`), pagination bounds, error codes, coroutine/blocking misuse, shutdown hooks on the application job.
+1. **Conformance**: every paired change in CLAUDE.md is complete in both halves, and the change follows each matching rule file (layers, schema, tests, frontend, build).
+2. **Security**: new routes inside the right `authenticate` block; no SQL built from strings; secrets only as `"$VAR"` references in `application.yaml`; session/cookie/password code unchanged unless the task intended it; input length and range bounds enforced server-side.
+3. **Tests**: new behaviour covered at the right level per `.claude/rules/backend-tests.md` / `frontend-tests.md`, negative paths in handler tests, smoke tests happy-path only, fixtures updated for mirrored DTO changes, no coverage thresholds added silently.
+4. **Docs and ADRs**: does the change make `docs/architecture.md`, `README.md`, `docs/index.md` or the feature page stale? Is there a decision of ADR weight without a new `docs/decisions/000N-*.md`? Does a new convention belong in a rule file?
+5. **Template drift**: a new media kind that diverges from `games` structure or naming without a stated reason.
+6. **Correctness**: nullability and PATCH absent/null/value semantics (`PatchField`), pagination bounds, error codes, coroutine/blocking misuse, shutdown hooks on the application job.
 
 ## Output (this exact structure)
 - **Critical** / **Warning** / **Suggestion**: each as `path:line`, one sentence on the problem, one sentence with the concrete fix. Omit empty sections.

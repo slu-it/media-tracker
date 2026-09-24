@@ -58,7 +58,7 @@ RULES = {
 PROTECTED_PATHS = {
     "implementer": [
         (r"(^|/)backend/src/main/resources/app(/|$)", "backend/src/main/resources/app/ must stay empty (built frontend is copied by Gradle)"),
-        (r"(^|/)(README\.md|CLAUDE\.md)$|(^|/)docs/", "implementer does not edit docs; report doc/ADR impact in the summary"),
+        (r"(^|/)(README\.md|CLAUDE\.md)$|(^|/)docs/|(^|/)\.claude/", "implementer does not edit docs, CLAUDE.md or .claude/; report doc/ADR/rule impact in the summary"),
         (r"(^|/)frontend/pnpm-lock\.yaml$", "edit pnpm-lock.yaml only through pnpm install, not by hand"),
     ],
 }
