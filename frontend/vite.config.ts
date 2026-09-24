@@ -32,6 +32,10 @@ export default defineConfig({
     // Reuse workers (and their jsdom) across test files instead of spawning one per file (~1.8 s startup each).
     // Safe only because src/test-setup.ts runs per file and does the cleanup itself (see there).
     isolate: false,
+    // Machine-readable totals for .claude/scripts/test-summary.py, the test-runner's counting source, like
+    // Gradle's backend JUnit XML.
+    reporters: ["default", "junit"],
+    outputFile: { junit: "build/test-results/vitest-junit.xml" },
     // GitHub Actions sets CI=true. Its hosted runner has few cores and the backend build runs at the same time
     // (Gradle parallel, --max-workers=2 in the workflows), so cap the Vitest workers there; locally the default
     // is fine.

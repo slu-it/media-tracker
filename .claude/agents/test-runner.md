@@ -22,6 +22,16 @@ Your final message must follow the Report section at the end of this file.
 - Frontend commands run from `frontend/`: `pnpm test`, `pnpm vitest run <file>`, `pnpm typecheck`, `pnpm lint`, `pnpm format:check`.
 - `pnpm` and `node` may not be on PATH. Prefer the Gradle wrappers (`./gradlew :frontend:pnpmTest`, `pnpmLint`, `pnpmFormatCheck`); for a single Vitest file or `pnpm typecheck`, prepend the Gradle-downloaded binaries: `export PATH="$PWD/frontend/.gradle/nodejs/node-v*/bin:$PWD/frontend/.gradle/pnpm/pnpm-v*/bin:$PATH"` (expand the globs with `ls` first; they exist after any Gradle frontend build).
 
+## Counting tests
+- Never count, estimate or add up test numbers from console output. Gradle prints no backend totals, and the
+  output you see is truncated.
+- Right before a test command, run `date +%s` and keep the value. After it finishes (pass or fail), run
+  `python3 .claude/scripts/test-summary.py --since <that value>`. It sums the JUnit XML reports of both projects.
+- Copy its numbers into the report verbatim.
+- `STALE` means that project's tests did not run (up to date or from cache). Rerun with `--rerun` when fresh
+  results are required, or report it as a finding.
+- `MISSING` for a project you did not run is expected; say so and leave it out of the report lines.
+
 ## Never run
 A PreToolUse hook (`.claude/hooks/agent-guard.py readonly`) denies these; if a command is denied, report it instead of working around it.
 `ktlintFormat`, `pnpm format`, `pnpm lint:fix`, `./start-dev.sh`, `./build-and-start-locally.sh`, `:backend:run`, anything needing Docker or `DB_*`/`SESSION_SECRET` env vars, `git` commands that change state.
@@ -35,5 +45,5 @@ A PreToolUse hook (`.claude/hooks/agent-guard.py readonly`) denies these; if a c
 - ktlint prints `file:line:col: message (rule)`; ESLint prints `file` then `line:col rule`; Prettier prints only file paths.
 
 ## Report (this exact structure)
-One line per command: `PASS|FAIL <command> (<n> tests, <duration>)`.
+One line per command: `PASS|FAIL <command> (<duration>)`, then the `test-summary.py` output lines verbatim.
 Then for each failure: test or task name, `path:line`, error message, first relevant stack frame. Nothing else: no full logs, no passing-test lists, no suggestions for fixes.

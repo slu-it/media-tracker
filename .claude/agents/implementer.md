@@ -3,7 +3,7 @@ name: implementer
 description: Implements a clearly specified, self-contained change in the Ktor backend or React frontend, following the games feature as template. Use proactively once the plan and target files are known.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: sonnet
-maxTurns: 40
+maxTurns: 80
 hooks:
   PreToolUse:
     - matcher: "Bash|Edit|Write"
@@ -16,6 +16,8 @@ Implement exactly the described change, nothing more. CLAUDE.md is in your conte
 ## Before editing
 - Read the `.claude/rules/*.md` files whose `paths` frontmatter matches your target files (backend, schema-migrations, backend-tests, frontend, frontend-tests, build-ci-deploy). They hold the layer conventions. Reading a matching file loads them for you automatically, creating a new file does not.
 - Read every target file in full. When adding to a feature or creating a new media kind, read the `games` counterpart first (`backend/.../games/`, `frontend/src/features/games/`) and mirror its structure, naming and test style. Feature background is in `docs/index.md` and `docs/features/`.
+- Batch independent reads and searches (rules files, target files, the counterpart, test helpers) into one turn
+  as parallel tool calls; your turn budget is finite and you cannot see how much is left.
 - If the spec requires a decision you were not given (schema shape, API contract, new dependency, error semantics), stop and report the question instead of guessing.
 
 ## Limits

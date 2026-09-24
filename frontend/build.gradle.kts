@@ -44,6 +44,7 @@ val pnpmTest = tasks.register<PnpmTask>("pnpmTest") {
     inputs.files("package.json", "pnpm-lock.yaml", "vite.config.ts", "tsconfig.json", "tsconfig.app.json")
     inputs.dir("src")
     outputs.dir(layout.buildDirectory.dir("coverage"))
+    outputs.file(layout.buildDirectory.file("test-results/vitest-junit.xml"))
 }
 
 val lintInputs = listOf(
