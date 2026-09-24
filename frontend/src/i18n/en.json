@@ -91,7 +91,8 @@
       "coverImageUrlHint": "Optional. Leave empty for no cover.",
       "ownership": "Ownership",
       "progress": "Progress",
-      "hidden": "Hidden"
+      "hidden": "Hidden",
+      "titleSuggestionVerified": "Verified"
     },
     "ownership": {
       "watchlist": "Watchlist",

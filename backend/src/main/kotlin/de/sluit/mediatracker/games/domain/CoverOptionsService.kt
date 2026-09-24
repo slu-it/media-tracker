@@ -1,10 +1,12 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
+import org.slf4j.LoggerFactory
 
 /**
  * Business use case behind the cover picker (MT-017, ADR 0024). Game-independent: the caller supplies the search
@@ -13,6 +15,8 @@ import de.sluit.mediatracker.common.domain.SearchTerm
  * search runs.
  */
 class CoverOptionsService(private val source: CoverSource?) {
+    private val log = LoggerFactory.getLogger(CoverOptionsService::class.java)
+
     /** Whether SteamGridDB is configured; checked by the MCP tool to decide whether to register itself at all. */
     val isAvailable: Boolean get() = source != null
 
@@ -63,7 +67,24 @@ class CoverOptionsService(private val source: CoverSource?) {
         return CoverLookup(match, cover)
     }
 
+    /**
+     * Backs the title-suggestion autocomplete in the add/edit form (MT-019). Unlike [find] and [findFirstCover],
+     * this deliberately degrades to an empty list instead of surfacing 503/502 (ADR 0026): suggestions are an
+     * optional convenience while typing, not something the form needs to report as a failure.
+     */
+    suspend fun suggestTitles(query: SearchTerm): List<CoverCandidate> {
+        val activeSource = source ?: return emptyList()
+
+        return try {
+            activeSource.searchGames(query).take(TITLE_SUGGESTION_LIMIT)
+        } catch (e: ExternalSourceException) {
+            log.warn("External source '${e.source}' call failed", e)
+            emptyList()
+        }
+    }
+
     companion object {
         const val SOURCE = "cover_source"
+        const val TITLE_SUGGESTION_LIMIT = 8
     }
 }

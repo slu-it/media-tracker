@@ -133,6 +133,11 @@ export interface CoverOptionsResponse {
   covers: PageResponse<CoverOptionResponse>;
 }
 
+/** Response of `GET /api/games/title-suggestions`; mirrors `TitleSuggestionsResponse`. */
+export interface TitleSuggestionsResponse {
+  suggestions: CoverMatchResponse[];
+}
+
 export interface ExpansionResponse {
   id: string;
   gameId: string;

@@ -220,6 +220,7 @@ describe("GamesView", () => {
       "GET /api/games.meta": mockMeta,
       "PATCH /api/games/:id": (call) => jsonResponse({ ...games[0], ...(call.body as object) }),
       "GET /api/games/:id/expansions": () => jsonResponse([]),
+      "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }),
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
@@ -227,7 +228,7 @@ describe("GamesView", () => {
     await user.click(screen.getByRole("button", { name: /Celeste/ }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Celeste (Switch)");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -255,13 +256,14 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
       "POST /api/games": (call) => jsonResponse({ id: "id-3", ...(call.body as object) }, 201),
+      "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }),
     });
     renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
     const dialog = await screen.findByRole("dialog");
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.click(title);
     await user.paste("Hollow Knight");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));

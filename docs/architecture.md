@@ -13,7 +13,7 @@ Browser ──GET /────────────▶ Ktor ── no valid 
         ──GET / (+cookie)──▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
         ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MariaDB
-        ──GET /api/games/cover-options▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
+        ──GET /api/games/cover-options, /title-suggestions▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
         ──POST /logout─────▶ sessions row deleted, cookie cleared ─▶ 302 /login
 Agent   ──POST /mcp (X-API-Key)▶ authenticate("api-key") ─▶ ApiKeyService ─▶ users row ─▶ MCP Server ─▶ tools/call add_game ─▶ GameService
 ```
@@ -102,8 +102,9 @@ de.sluit.mediatracker
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
-    │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options,
-    │                   game-independent), GameMcpTools (MCP tools list_game_platforms, add_game,
+    │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options
+    │                   and /api/games/title-suggestions, game-independent), GameMcpTools (MCP tools
+    │                   list_game_platforms, add_game,
     │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion,
     │                   find_game_cover)
     ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
@@ -114,7 +115,8 @@ de.sluit.mediatracker
     │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
     │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate/
     │                   CoverOption/CoverOptions/CoverLookup (findCovers takes the page size), CoverMatchRanking
-    │                   (selectBestMatch), CoverOptionsService (find for the picker, findFirstCover for MCP)
+    │                   (selectBestMatch), CoverOptionsService (find for the picker, findFirstCover for MCP,
+    │                   suggestTitles for the form, empty on failure)
     ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable (Exposed),
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by fulltext score and filters, findUsedFilterValues),
@@ -149,6 +151,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `PATCH /api/games/{id}/expansions/{expansionId}` | 200 `ExpansionResponse` | body `UpdateExpansionRequest`: every field optional, `null` never clears (nothing on an expansion is clearable), so no `PatchField`. A `sequence` is a move: the expansion is reinserted at that index and the whole order is renumbered; outside `0..n-1` it is a 400. 404 for an unknown expansion or one belonging to another game |
 | `DELETE /api/games/{id}/expansions/{expansionId}` | 204 | idempotent, also for unknown ids; the remaining sequences are re-packed. Deleting the game takes its expansions with it (`ON DELETE CASCADE`) |
 | `GET /api/games/cover-options?query=hades[&releaseYear=2020][&match=5245][&type=animated][&page=2]` | 200 `CoverOptionsResponse {query, matches, selectedMatchId, type, covers}` | cover suggestions from SteamGridDB for the cover picker (decision record 0024), independent of any stored game so the add dialog can use it: `matches` are the provider's games for the required search term (`query`, same 1..200 limits as `?search`; missing or blank is a 400), `selectedMatchId` the one the ranking picked (exact title, then the same `releaseYear` when one is given, then first; `null` when nothing matched) and `covers` (`thumbnailUrl`, `imageUrl`, `width`, `height`) only for that one; `match` picks another candidate instead (empty = absent, anything but a positive integer is a 400); `releaseYear` is optional (blank = absent, a non-integer or a year outside 1000..9999 is a 400); `type` is `static` (default) or `animated`, `page` is 1-based (default 1) and `covers` is a `PageResponse` of at most 50 per page in SteamGridDB's score order (`totalItems`/`totalPages` from the provider; `pageSize` is not accepted); an unknown `type`, `page=0` or a non-integer `page` is a 400 naming the field; a page after the first with `match` given skips the upstream search and returns `matches` empty; `503 cover_source_unavailable` when no `STEAMGRIDDB_API_KEY` is configured, `502 cover_source_error` when the provider fails |
+| `GET /api/games/title-suggestions?query=hollow%20kn` | 200 `TitleSuggestionsResponse {suggestions}` | title suggestions for the add/edit form (decision record 0026): up to 8 `CoverMatchResponse` (`id`, `name`, `releaseYear` or `null`, `verified`) from the SteamGridDB search, in its order; `query` has the same 1..200 limits as `?search`, missing or blank is a 400; an unconfigured or failing SteamGridDB yields an empty list, never 502/503 |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 
@@ -181,8 +184,9 @@ frontend/src
 │                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
 └── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
-                          ?search and the filter parameters, games.meta, cover-options; expansionsApi), hooks/
-                          (useGamesPage, useGamesMeta, useExpansions, useCoverOptions), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS,
+                          ?search and the filter parameters, games.meta, cover-options, title-suggestions;
+                          expansionsApi), hooks/ (useGamesPage, useGamesMeta, useExpansions, useCoverOptions,
+                          useTitleSuggestions), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS,
                           gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
                           ownership/progress values and defaults), components/ (grid, cards, GameSearchField,
                           GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:

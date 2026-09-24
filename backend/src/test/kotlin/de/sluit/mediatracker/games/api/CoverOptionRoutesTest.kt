@@ -476,4 +476,81 @@ class CoverOptionRoutesTest {
 
         coVerify { coverOptions wasNot Called }
     }
+
+    // ---- title-suggestions ----
+
+    @Test
+    fun `title-suggestions answers 200 with the suggestion shape including a null releaseYear`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        coEvery { coverOptions.suggestTitles(SearchTerm("Hades")) } returns
+            listOf(candidate(1, "Hades"), candidate(2, "Hades II"))
+
+        val response = client.get("/api/games/title-suggestions?query=Hades")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertTrue(response.bodyAsText().contains("\"releaseYear\":null"), response.bodyAsText())
+        val body = response.decodeBody<TitleSuggestionsResponse>()
+        assertEquals(listOf(1L, 2L), body.suggestions.map { it.id })
+        assertEquals(listOf("Hades", "Hades II"), body.suggestions.map { it.name })
+    }
+
+    @Test
+    fun `title-suggestions passes the trimmed query to the service`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        coEvery { coverOptions.suggestTitles(SearchTerm("zelda")) } returns emptyList()
+
+        client.get("/api/games/title-suggestions?query=%20zelda%20")
+
+        coVerify { coverOptions.suggestTitles(SearchTerm("zelda")) }
+    }
+
+    @Test
+    fun `title-suggestions with a missing query is 400 validation_error naming the field`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+
+        val response = client.get("/api/games/title-suggestions")
+
+        val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
+        assertTrue(error.message!!.startsWith("query"), error.message)
+        coVerify { coverOptions wasNot Called }
+    }
+
+    @Test
+    fun `title-suggestions with a blank query is 400 validation_error naming the field`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+
+        val response = client.get("/api/games/title-suggestions?query=%20%20")
+
+        val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
+        assertTrue(error.message!!.startsWith("query"), error.message)
+        coVerify { coverOptions wasNot Called }
+    }
+
+    @Test
+    fun `title-suggestions with a 201-character query is 400 validation_error naming the field`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = loggedInHandlerClient(coverOptions)
+        val tooLong = "a".repeat(201)
+
+        val response = client.get("/api/games/title-suggestions?query=$tooLong")
+
+        val error = response.assertError(HttpStatusCode.BadRequest, "validation_error")
+        assertTrue(error.message!!.startsWith("query"), error.message)
+        coVerify { coverOptions wasNot Called }
+    }
+
+    @Test
+    fun `title-suggestions for an anonymous request is a json 401 without reaching the service`() = testApplication {
+        val coverOptions = mockk<CoverOptionsService>()
+        val client = handlerApp(coverOptions = coverOptions)
+
+        client.get("/api/games/title-suggestions?query=Hades")
+            .assertError(HttpStatusCode.Unauthorized, "unauthorized")
+
+        coVerify { coverOptions wasNot Called }
+    }
 }
