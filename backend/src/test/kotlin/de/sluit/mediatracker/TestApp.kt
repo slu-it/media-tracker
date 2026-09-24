@@ -28,6 +28,7 @@ import io.ktor.server.config.mergeWith
 import io.ktor.server.sessions.SessionStorageMemory
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.mockk.coEvery
+import io.mockk.every
 import io.mockk.mockk
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -102,7 +103,9 @@ fun ApplicationTestBuilder.handlerApp(
     games: GameService = mockk(),
     apiKeys: ApiKeyService = mockk(),
     expansions: ExpansionService = mockk(),
-    coverOptions: CoverOptionsService = mockk(),
+    // Every /mcp request re-registers the game tools, which checks isAvailable; default it to false (no
+    // find_game_cover tool) so tests that never touch cover images do not have to stub it themselves.
+    coverOptions: CoverOptionsService = mockk<CoverOptionsService> { every { isAvailable } returns false },
 ): HttpClient {
     application {
         configureHttp(

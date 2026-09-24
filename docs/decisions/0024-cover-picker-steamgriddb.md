@@ -115,5 +115,9 @@ The wanted flow: open a game, click its cover (empty or not), see thumbnails, cl
   still letterbox inside the frame (`object-fit: contain`); the ratio follows the dominant source, not a standard.
 - The `MissingField` filter of record 0022 already lets an agent find games without a cover; an MCP tool that
   returns cover options (`find_cover_options`) would complete that loop and is deferred until asked for.
+  Follow-up: the loop is closed by `find_game_cover`, a deliberately narrower tool. It takes a title and an
+  optional year, reuses the search and ranking, and returns one static cover (fetched with page size 1, so
+  `CoverSource.findCovers` now takes the page size) plus the matched game. Unlike the REST endpoint's 503, the
+  tool is not registered at all when no key is configured, so agents never see a tool that is sure to fail.
 - SteamGridDB's rate limits are undocumented. The 500 ms debounce on the search field, two upstream calls
   per query and one per further page keep the traffic small; a 429 surfaces as `502 cover_source_error` like any other upstream failure.

@@ -7,7 +7,6 @@ import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.config.SteamGridDbConfig
-import de.sluit.mediatracker.games.domain.COVER_PAGE_SIZE
 import de.sluit.mediatracker.games.domain.CoverCandidate
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.CoverOption
@@ -61,29 +60,34 @@ class SteamGridDbCoverSource(private val client: HttpClient, private val config:
         return games.mapNotNull { it.toCandidateOrNull() }
     }
 
-    override suspend fun findCovers(id: CoverSourceGameId, type: CoverType, page: PageNumber): Page<CoverOption> {
+    override suspend fun findCovers(
+        id: CoverSourceGameId,
+        type: CoverType,
+        page: PageNumber,
+        size: PageSize,
+    ): Page<CoverOption> {
         val response = request("${config.baseUrl}/grids/game/${id.value}") {
             parameter("dimensions", "600x900,660x930")
             parameter("types", type.wire)
             parameter("nsfw", "false")
             parameter("humor", "false")
             parameter("page", page.value - 1)
-            parameter("limit", COVER_PAGE_SIZE)
+            parameter("limit", size.value)
         }
         val envelope = decode<List<SgdbGrid>>(response)
         if (!response.status.isSuccess()) {
-            if (response.status == HttpStatusCode.NotFound) return Page(emptyList(), page, PageSize(COVER_PAGE_SIZE), 0)
+            if (response.status == HttpStatusCode.NotFound) return Page(emptyList(), page, size, 0)
             throw upstreamFailure(response, envelope)
         }
         if (!envelope.success) throw upstreamFailure(response, envelope)
         val grids = envelope.data ?: throw missingData(response)
         val items = grids.mapNotNull { it.toOptionOrNull() }
-        val size =
-            envelope.limit?.let { limit -> runCatching { PageSize(limit) }.getOrNull() } ?: PageSize(COVER_PAGE_SIZE)
+        val resolvedSize =
+            envelope.limit?.let { limit -> runCatching { PageSize(limit) }.getOrNull() } ?: size
         // Without a total, fall back to a page-monotone estimate rather than the item count alone: on page 2+ the
         // item count on its own would make the total shrink below the items already seen on earlier pages.
-        val totalItems = envelope.total ?: (page.value - 1L) * size.value + items.size
-        return Page(items, page, size, totalItems)
+        val totalItems = envelope.total ?: (page.value - 1L) * resolvedSize.value + items.size
+        return Page(items, page, resolvedSize, totalItems)
     }
 
     private suspend fun request(url: String, block: HttpRequestBuilder.() -> Unit = {}): HttpResponse = try {

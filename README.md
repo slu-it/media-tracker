@@ -95,7 +95,9 @@ not with the browser session:
    `description` or `coverImageUrl` is still empty; `pageSize` returns up to 100 matches, 10 by default) and
    `update_game` (same fields as `PATCH /api/games/{id}`: `id` required, everything else optional; only the fields
    passed change, and the id comes from `search_games`), `list_expansions` and `add_expansion` (a game's DLC, by
-   the `gameId` from `search_games`; a new expansion is appended to the end of the game's order).
+   the `gameId` from `search_games`; a new expansion is appended to the end of the game's order), and, when
+   `STEAMGRIDDB_API_KEY` is set, `find_game_cover` (`title`, optional `releaseYear`; returns the first static
+   SteamGridDB cover URL and the game it matched, ready for `coverImageUrl`).
 
 Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
 regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in

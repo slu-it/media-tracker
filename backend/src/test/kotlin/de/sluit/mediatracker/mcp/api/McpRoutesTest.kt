@@ -5,6 +5,7 @@ import de.sluit.mediatracker.auth.domain.ApiKeyService
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.common.api.ErrorResponse
+import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
@@ -16,7 +17,12 @@ import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.api.GameResponse
+import de.sluit.mediatracker.games.domain.CoverCandidate
 import de.sluit.mediatracker.games.domain.CoverImageUrl
+import de.sluit.mediatracker.games.domain.CoverLookup
+import de.sluit.mediatracker.games.domain.CoverOption
+import de.sluit.mediatracker.games.domain.CoverOptionsService
+import de.sluit.mediatracker.games.domain.CoverSourceGameId
 import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionId
@@ -55,8 +61,11 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.confirmVerified
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import kotlinx.serialization.descriptors.elementNames
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -109,6 +118,26 @@ class McpRoutesTest {
         ownership = ownership,
         progress = progress,
     )
+
+    private fun coverCandidate(name: String, id: Long = 1, releaseYear: Int? = null, verified: Boolean = true) =
+        CoverCandidate(
+            id = CoverSourceGameId(id),
+            name = name,
+            releaseYear = releaseYear?.let(::ReleaseYear),
+            verified = verified,
+        )
+
+    private fun coverOption(id: Long = 1) = CoverOption(
+        thumbnailUrl = CoverImageUrl("https://example.org/thumb-$id.png"),
+        imageUrl = CoverImageUrl("https://example.org/full-$id.png"),
+        width = 600,
+        height = 900,
+    )
+
+    /** A [CoverOptionsService] mock whose `isAvailable` reports available, so find_game_cover gets registered. */
+    private fun availableCoverOptions(): CoverOptionsService = mockk<CoverOptionsService> {
+        every { isAvailable } returns true
+    }
 
     @Test
     fun `tools call add_game creates the game through the service`() = testApplication {
@@ -1771,4 +1800,368 @@ class McpRoutesTest {
             val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
         }
+
+    // ---- find_game_cover ----
+
+    @Test
+    fun `tools list includes find_game_cover when the cover options service is available`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = availableCoverOptions())
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(key, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
+        assertTrue("find_game_cover" in tools.map { it.jsonObject["name"]!!.jsonPrimitive.content }, body)
+    }
+
+    @Test
+    fun `tools list omits find_game_cover when the cover options service is unavailable`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        // handlerApp's default CoverOptionsService already reports isAvailable = false.
+        val client = handlerApp(apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(key, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
+        assertTrue("find_game_cover" !in tools.map { it.jsonObject["name"]!!.jsonPrimitive.content }, body)
+    }
+
+    @Test
+    fun `tools call find_game_cover returns the cover url and match as text and structured content`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val coverOptions = availableCoverOptions()
+            val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+            val match = coverCandidate("Hades", id = 1, releaseYear = 2020, verified = true)
+            val cover = coverOption(1)
+            coEvery { coverOptions.findFirstCover(SearchTerm("Hades"), ReleaseYear(2020)) } returns
+                CoverLookup(match, cover)
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{"title":"Hades","releaseYear":2020}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertNull(result["isError"], body)
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertEquals("""Cover for "Hades" (2020, verified): ${cover.imageUrl.value}""", text)
+            val structuredContent = result["structuredContent"]!!.jsonObject
+            assertEquals(true, structuredContent["found"]!!.jsonPrimitive.content.toBoolean())
+            assertEquals(cover.imageUrl.value, structuredContent["imageUrl"]!!.jsonPrimitive.content)
+            assertEquals(cover.width, structuredContent["width"]!!.jsonPrimitive.content.toInt())
+            assertEquals(cover.height, structuredContent["height"]!!.jsonPrimitive.content.toInt())
+            val matchJson = structuredContent["match"]!!.jsonObject
+            assertEquals("Hades", matchJson["name"]!!.jsonPrimitive.content)
+            assertEquals(2020, matchJson["releaseYear"]!!.jsonPrimitive.content.toInt())
+            assertEquals(true, matchJson["verified"]!!.jsonPrimitive.content.toBoolean())
+            coVerify { coverOptions.findFirstCover(SearchTerm("Hades"), ReleaseYear(2020)) }
+        }
+
+    @Test
+    fun `tools call find_game_cover without a release year passes a null release year`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val coverOptions = availableCoverOptions()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val match = coverCandidate("Hades", id = 1)
+        coEvery { coverOptions.findFirstCover(SearchTerm("Hades"), null) } returns CoverLookup(match, coverOption(1))
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                |"arguments":{"title":"Hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        coVerify { coverOptions.findFirstCover(SearchTerm("Hades"), null) }
+    }
+
+    @Test
+    fun `tools call find_game_cover without a title is a tool error without calling the service`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val coverOptions = availableCoverOptions()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        // findFirstCover takes a ReleaseYear, a value class whose init validates its range; any()'s witness
+        // generation would construct one from a random Int and fail about half the time (see the MockK
+        // value-class matcher note). Verifying the one call the tool always makes and confirming nothing else
+        // touched the mock proves findFirstCover specifically was never called, without that matcher.
+        verify { coverOptions.isAvailable }
+        confirmVerified(coverOptions)
+    }
+
+    @Test
+    fun `tools call find_game_cover with a blank title is a tool error without calling the service`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val coverOptions = availableCoverOptions()
+            val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{"title":"   "}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            verify { coverOptions.isAvailable }
+            confirmVerified(coverOptions)
+        }
+
+    @Test
+    fun `tools call find_game_cover with an unknown argument name is a tool error without calling the service`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val coverOptions = availableCoverOptions()
+            val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{"tilte":"Hades"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("tilte"), text)
+            verify { coverOptions.isAvailable }
+            confirmVerified(coverOptions)
+        }
+
+    @Test
+    fun `tools call find_game_cover with no match is a non-error result saying so`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val coverOptions = availableCoverOptions()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { coverOptions.findFirstCover(SearchTerm("Hades"), null) } returns null
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                |"arguments":{"title":"Hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertEquals("""No cover found for "Hades".""", text)
+    }
+
+    @Test
+    fun `tools call find_game_cover reports an upstream failure as a fixed generic tool error`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val coverOptions = availableCoverOptions()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { coverOptions.findFirstCover(SearchTerm("Hades"), null) } throws
+            ExternalSourceException("cover_source", "steamgriddb returned status 500 with success=false")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                |"arguments":{"title":"Hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        // Mirrors StatusPages' wording exactly; the upstream detail (status code, "steamgriddb") is logged, not
+        // echoed to the caller.
+        assertEquals("cover_source is currently unavailable", text)
+        assertFalse(text.contains("500"), text)
+        assertFalse(text.contains("steamgriddb"), text)
+    }
+
+    @Test
+    fun `tools call find_game_cover with a releaseYear of 999 is a tool error without calling the service`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val coverOptions = availableCoverOptions()
+            val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{"title":"Hades","releaseYear":999}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("releaseYear"), text)
+            verify { coverOptions.isAvailable }
+            confirmVerified(coverOptions)
+        }
+
+    @Test
+    fun `tools call find_game_cover with a releaseYear of 10000 is a tool error without calling the service`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val coverOptions = availableCoverOptions()
+            val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{"title":"Hades","releaseYear":10000}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("releaseYear"), text)
+            verify { coverOptions.isAvailable }
+            confirmVerified(coverOptions)
+        }
+
+    @Test
+    fun `tools call find_game_cover with a non-integer releaseYear is a tool error without calling the service`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val coverOptions = availableCoverOptions()
+            val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                    |"arguments":{"title":"Hades","releaseYear":2020.5}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains("must be an integer"), text)
+            verify { coverOptions.isAvailable }
+            confirmVerified(coverOptions)
+        }
+
+    @Test
+    fun `tools call find_game_cover with a title longer than the maximum length is a tool error`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val coverOptions = availableCoverOptions()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val tooLong = "a".repeat(SearchTerm.MAX_LENGTH + 1)
+
+        val response = client.postJsonRpc(
+            key,
+            buildJsonObject {
+                put("jsonrpc", "2.0")
+                put("id", 1)
+                put("method", "tools/call")
+                putJsonObject("params") {
+                    put("name", "find_game_cover")
+                    putJsonObject("arguments") { put("title", tooLong) }
+                }
+            }.toString(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("title"), text)
+        verify { coverOptions.isAvailable }
+        confirmVerified(coverOptions)
+    }
+
+    @Test
+    fun `tools call find_game_cover reports an unverified match with no release year as such`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val coverOptions = availableCoverOptions()
+        val client = handlerApp(apiKeys = apiKeys, coverOptions = coverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val match = coverCandidate("Hades Clone", id = 1, releaseYear = null, verified = false)
+        coEvery { coverOptions.findFirstCover(SearchTerm("Hades"), null) } returns CoverLookup(match, coverOption(1))
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_game_cover",
+                |"arguments":{"title":"Hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("year unknown"), text)
+        assertTrue(text.contains("unverified"), text)
+        val matchJson = result["structuredContent"]!!.jsonObject["match"]!!.jsonObject
+        assertFalse("releaseYear" in matchJson, matchJson.toString())
+        assertEquals(false, matchJson["verified"]!!.jsonPrimitive.content.toBoolean())
+    }
 }

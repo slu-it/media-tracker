@@ -13,6 +13,9 @@ import de.sluit.mediatracker.common.domain.SearchTerm
  * search runs.
  */
 class CoverOptionsService(private val source: CoverSource?) {
+    /** Whether SteamGridDB is configured; checked by the MCP tool to decide whether to register itself at all. */
+    val isAvailable: Boolean get() = source != null
+
     suspend fun find(
         query: SearchTerm,
         releaseYear: ReleaseYear?,
@@ -25,7 +28,7 @@ class CoverOptionsService(private val source: CoverSource?) {
         // The frontend only reads `matches` from page 1; every later page of an already-chosen match would
         // otherwise re-run the search for a result it discards.
         if (match != null && page != PageNumber.FIRST) {
-            val covers = activeSource.findCovers(match, type, page)
+            val covers = activeSource.findCovers(match, type, page, PageSize(COVER_PAGE_SIZE))
             return CoverOptions(
                 query = query,
                 matches = emptyList(),
@@ -37,10 +40,27 @@ class CoverOptionsService(private val source: CoverSource?) {
 
         val matches = activeSource.searchGames(query)
         val selected = match ?: selectBestMatch(matches, query, releaseYear)?.id
-        val covers = selected?.let { activeSource.findCovers(it, type, page) }
+        val covers = selected?.let { activeSource.findCovers(it, type, page, PageSize(COVER_PAGE_SIZE)) }
             ?: Page(emptyList(), page, PageSize(COVER_PAGE_SIZE), 0)
 
         return CoverOptions(query = query, matches = matches, selectedMatchId = selected, type = type, covers = covers)
+    }
+
+    /**
+     * Used by the MCP `find_game_cover` tool: ranks [query] the same way [find] does, but only ever fetches one
+     * cover, so a caller that only wants a URL for `coverImageUrl` does not pull (and discard) a whole page of
+     * covers. Returns `null` when nothing matches, or the match has no covers. Accepted trade-off of that single
+     * fetch: if the adapter drops the one grid on that page as invalid, this returns `null` even though a later
+     * page might have held a usable cover.
+     */
+    suspend fun findFirstCover(query: SearchTerm, releaseYear: ReleaseYear?): CoverLookup? {
+        val activeSource = source ?: throw ExternalSourceUnavailableException(SOURCE)
+
+        val matches = activeSource.searchGames(query)
+        val match = selectBestMatch(matches, query, releaseYear) ?: return null
+        val covers = activeSource.findCovers(match.id, CoverType.STATIC, PageNumber.FIRST, PageSize(1))
+        val cover = covers.items.firstOrNull() ?: return null
+        return CoverLookup(match, cover)
     }
 
     companion object {

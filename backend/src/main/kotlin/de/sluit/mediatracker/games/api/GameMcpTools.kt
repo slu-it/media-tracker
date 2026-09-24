@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.PageNumber
@@ -7,6 +8,7 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
+import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
@@ -37,18 +39,31 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import org.slf4j.LoggerFactory
+
+// No enclosing class to hang a member logger off, unlike e.g. auth/domain/ApiKeyService.
+private val log = LoggerFactory.getLogger("de.sluit.mediatracker.games.api.GameMcpTools")
 
 /**
  * Registers the MCP tools this feature offers on [server]: [de.sluit.mediatracker.mcpRoutes] calls this once per
- * request for every media kind, exactly as [gameRoutes] contributes the REST routes.
+ * request for every media kind, exactly as [gameRoutes] contributes the REST routes. `find_game_cover` is only
+ * registered when [coverOptionsService] is available (SteamGridDB is configured); it is silently absent from
+ * `tools/list` otherwise, rather than failing every call.
  */
-fun Server.addGameTools(gameService: GameService, expansionService: ExpansionService) {
+fun Server.addGameTools(
+    gameService: GameService,
+    expansionService: ExpansionService,
+    coverOptionsService: CoverOptionsService,
+) {
     addListGamePlatformsTool(gameService)
     addAddGameTool(gameService)
     addSearchGamesTool(gameService)
     addUpdateGameTool(gameService)
     addListExpansionsTool(expansionService)
     addAddExpansionTool(expansionService)
+    if (coverOptionsService.isAvailable) {
+        addFindGameCoverTool(coverOptionsService)
+    }
 }
 
 private const val LIST_GAME_PLATFORMS_DESCRIPTION =
@@ -83,6 +98,15 @@ private const val ADD_EXPANSION_DESCRIPTION =
         "invent one; if you only have the game's title, look it up with search_games first. title is required. " +
         "ownership and progress are optional: ownership defaults to watchlist, progress defaults to " +
         "not_started (completed means fully finished, 100%)."
+
+private const val FIND_GAME_COVER_DESCRIPTION =
+    "Looks up a cover image for a game on SteamGridDB. Pass the game's full official title; passing the " +
+        "release year as well improves the ranking when several games share a similar title. Returns the " +
+        "first static cover of the best-matching SteamGridDB game, together with that match itself - check " +
+        "match.name (and its year) before trusting the image, since the match can be wrong. On a hit, pass " +
+        "the returned imageUrl as coverImageUrl to add_game or update_game. This tool is only available when " +
+        "SteamGridDB is configured; search_games with hasMissing: [\"coverImageUrl\"] finds tracked games that " +
+        "still need one."
 
 private const val UPDATE_GAME_DESCRIPTION =
     "Updates a game that is already tracked. id is the game's id as returned by search_games - never guess or " +
@@ -380,6 +404,25 @@ private val ADD_EXPANSION_SCHEMA = ToolSchema(
     required = listOf("gameId", "title"),
 )
 
+// Mirrors the constraints SearchTerm and ReleaseYear enforce; find_game_cover has no request DTO of its own.
+private val FIND_GAME_COVER_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("title") {
+            put("type", "string")
+            put("description", "The game's full official title.")
+            put("minLength", 1)
+            put("maxLength", SearchTerm.MAX_LENGTH)
+        }
+        putJsonObject("releaseYear") {
+            put("type", "integer")
+            put("description", "The four-digit release year; improves ranking when several titles are similar.")
+            put("minimum", ReleaseYear.MIN)
+            put("maximum", ReleaseYear.MAX)
+        }
+    },
+    required = listOf("title"),
+)
+
 // McpJson has ignoreUnknownKeys = true and isLenient = true, which would turn a typo'd field name into a silent
 // no-op instead of an error; validate the key set by hand instead. The accepted names are derived from
 // UpdateGameRequest's serial descriptor, so they cannot drift from the DTO.
@@ -399,6 +442,10 @@ private val LIST_EXPANSIONS_FIELDS: Set<String> = LIST_EXPANSIONS_SCHEMA.propert
 // GameFilters), so the accepted names are derived from SEARCH_GAMES_SCHEMA's own property keys instead, which
 // keeps the guard from drifting from the schema an agent actually sees.
 private val SEARCH_GAMES_FIELDS: Set<String> = SEARCH_GAMES_SCHEMA.properties!!.keys
+
+// Same reasoning as SEARCH_GAMES_FIELDS: find_game_cover has no request DTO, so the accepted names are derived
+// from FIND_GAME_COVER_SCHEMA's own property keys.
+private val FIND_GAME_COVER_FIELDS: Set<String> = FIND_GAME_COVER_SCHEMA.properties!!.keys
 
 // The PatchField-backed fields are the only ones that accept null to clear themselves; every other field on
 // UpdateGameRequest is a plain nullable type where null would silently mean "unchanged" instead of "clear", so
@@ -640,6 +687,60 @@ private fun Server.addAddExpansionTool(expansionService: ExpansionService) {
             e.toErrorResult()
         } catch (e: SerializationException) {
             e.toErrorResult()
+        }
+    }
+}
+
+private fun Server.addFindGameCoverTool(coverOptionsService: CoverOptionsService) {
+    addTool(
+        name = "find_game_cover",
+        description = FIND_GAME_COVER_DESCRIPTION,
+        inputSchema = FIND_GAME_COVER_SCHEMA,
+        toolAnnotations = ToolAnnotations(readOnlyHint = true, openWorldHint = true),
+    ) { request ->
+        try {
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            val unknown = arguments.keys - FIND_GAME_COVER_FIELDS
+            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            val title = SearchTerm.parseOrNull(arguments.stringOrNull("title"), field = "title")
+                ?: throw InvalidValueException("title", "is missing")
+            val releaseYear = arguments.intOrNull("releaseYear")?.let(::ReleaseYear)
+            val lookup = coverOptionsService.findFirstCover(title, releaseYear)
+            if (lookup == null) {
+                CallToolResult(
+                    content = listOf(TextContent("No cover found for \"$title\".")),
+                    structuredContent = buildJsonObject { put("found", false) },
+                )
+            } else {
+                val match = lookup.match.toResponse()
+                val year = match.releaseYear?.toString() ?: "year unknown"
+                val verified = if (match.verified) "verified" else "unverified"
+                CallToolResult(
+                    content = listOf(
+                        TextContent(
+                            "Cover for \"${match.name}\" ($year, $verified): ${lookup.cover.imageUrl.value}",
+                        ),
+                    ),
+                    structuredContent = buildJsonObject {
+                        put("found", true)
+                        put("imageUrl", lookup.cover.imageUrl.value)
+                        put("width", lookup.cover.width)
+                        put("height", lookup.cover.height)
+                        put("match", McpJson.encodeToJsonElement(CoverMatchResponse.serializer(), match))
+                    },
+                )
+            }
+        } catch (e: InvalidValueException) {
+            e.toErrorResult()
+        } catch (e: ExternalSourceException) {
+            // Mirrors StatusPages' ExternalSourceException handling: log the real failure at warn, but never
+            // echo it (e.message may carry upstream detail meant for logs, not clients) - a fixed, generic
+            // message instead.
+            log.warn("External source '${e.source}' call failed", e)
+            CallToolResult(
+                content = listOf(TextContent("${e.source} is currently unavailable")),
+                isError = true,
+            )
         }
     }
 }

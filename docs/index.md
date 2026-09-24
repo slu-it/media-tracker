@@ -17,7 +17,7 @@ a decision was taken), never prose in `CLAUDE.md` ([ADR 0025](decisions/0025-age
 | Game status fields | MT-007 | `ownership`, `progress` and `hidden` as Kotlin enums on the game, shown as icons, ignored by search and paging. | [game-status-fields.md](features/game-status-fields.md) | 0017 |
 | Theme mode toggle | MT-010 | Light/dark toggle in the header, stored per browser under `mt.mode`, honoured by the login page too. | [theme-mode.md](features/theme-mode.md) | 0020 |
 | Game expansions | MT-016 | DLC as a nested sub-resource with an owner-arranged dense sequence; drag-sortable stack in the detail dialog; `list_expansions`/`add_expansion` MCP tools. | [game-expansions.md](features/game-expansions.md) | 0023 |
-| Cover picker | MT-017 | Click the cover in the detail dialog to pick a SteamGridDB grid through a backend adapter; `STEAMGRIDDB_API_KEY` is optional. | [cover-picker.md](features/cover-picker.md) | 0024 |
+| Cover picker | MT-017 | Click the cover in the detail dialog to pick a SteamGridDB grid through a backend adapter; `STEAMGRIDDB_API_KEY` is optional; `find_game_cover` MCP tool. | [cover-picker.md](features/cover-picker.md) | 0024 |
 
 ## Decisions
 
@@ -50,7 +50,7 @@ the checked-out directory:
 | [0021](decisions/0021-filterable-game-list.md) | Filtering the game list, and `.meta` endpoints | Four filters OR within and AND across; `.meta` returns the values that occur; platform filter as a semi-join. |
 | [0022](decisions/0022-missing-data-filter-and-mcp-page-size.md) | A `hasMissing` filter and a page size for `search_games` | Agent-only `hasMissing` category over `IS NULL` checks; `pageSize` default 10, maximum 100. |
 | [0023](decisions/0023-game-expansions.md) | Game expansions as a nested sub-resource, with an owner-defined order | Second aggregate of the games domain under `/api/games/{id}/expansions`; the service owns a dense zero-based sequence. |
-| [0024](decisions/0024-cover-picker-steamgriddb.md) | Cover image picker backed by SteamGridDB, through a backend adapter | `GET /api/games/{id}/cover-options` behind a `CoverSource` port; key optional; URLs stay external. |
+| [0024](decisions/0024-cover-picker-steamgriddb.md) | Cover image picker backed by SteamGridDB, through a backend adapter | `GET /api/games/cover-options` behind a `CoverSource` port; key optional; URLs stay external. |
 | [0025](decisions/0025-agent-instruction-layout.md) | Layout of agent instructions and documentation | Short `CLAUDE.md`, this index as lazy entry point, feature pages, path-scoped rules, role-only agents. |
 
 ## Other documents
