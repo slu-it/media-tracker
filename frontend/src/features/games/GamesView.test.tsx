@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
+import { flushAsync } from "../../test/flushAsync";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { GamesView } from "./GamesView";
@@ -427,6 +428,35 @@ describe("GamesView", () => {
     await waitFor(() =>
       expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`),
     );
+  });
+
+  it("reloads without the platform filter once its clear button is clicked", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("listbox")).not.toBeInTheDocument());
+
+    await waitFor(() =>
+      expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Clear Platform" }));
+    await flushAsync();
+
+    expect(screen.getByRole("combobox", { name: "Platform" })).toHaveTextContent("-all-");
+    await waitFor(() => expect(gamesUrls(calls).at(-1)).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`));
   });
 
   it("sends two parameters when two values of one filter are selected", async () => {

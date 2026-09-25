@@ -1,4 +1,6 @@
-import { Checkbox, ListItemText, MenuItem, TextField } from "@mui/material";
+import { useRef } from "react";
+import { Checkbox, IconButton, InputAdornment, ListItemText, MenuItem, TextField } from "@mui/material";
+import ClearIcon from "@mui/icons-material/Clear";
 import { useTranslation } from "react-i18next";
 import type { GameMetaResponse, Ownership, Progress } from "../../../types/api";
 import type { GameFilters } from "../domain/gameFilters";
@@ -33,6 +35,9 @@ function FilterSelect<T extends string | number>({
 }: FilterSelectProps<T>) {
   const { t } = useTranslation();
   const isDisabled = disabled || options.length === 0;
+  // The imperative handle MUI's Select exposes on `inputRef` (`{ focus, node, value }`), used to return focus to
+  // the field once the clear button removes itself.
+  const selectRef = useRef<{ focus: () => void } | null>(null);
 
   return (
     <TextField
@@ -54,6 +59,25 @@ function FilterSelect<T extends string | number>({
           },
         },
         inputLabel: { shrink: true }, // displayEmpty + label would otherwise overlap
+        input: {
+          inputRef: selectRef,
+          endAdornment: selected.length > 0 && !isDisabled && (
+            <InputAdornment position="end">
+              {/* MUI's select positions this adornment itself and only reserves room for a 24px icon. */}
+              <IconButton
+                size="small"
+                aria-label={t("games.filters.clear", { label })}
+                onClick={() => {
+                  onChange([]);
+                  selectRef.current?.focus();
+                }}
+                sx={{ p: "2px" }}
+              >
+                <ClearIcon fontSize="small" />
+              </IconButton>
+            </InputAdornment>
+          ),
+        },
       }}
     >
       {options.map((option) => (

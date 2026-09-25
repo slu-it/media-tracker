@@ -23,7 +23,8 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
 - `GET /api/games.meta` returns the values to offer, and only those that occur in a stored game; `.meta` is the
   convention for a resource's lookup data. Release years are listed newest first (MT-014).
 - Frontend: `components/GameFilterBar.tsx` with four `-all-` multi-selects fed by `hooks/useGamesMeta.ts`
-  (MT-012 resized them and set the page size to 36). `GamesView` derives the page-1 reset from state (the stored
+  (MT-012 resized them and set the page size to 36). Each select with a selection shows a × end adornment
+  that resets it to `-all-` and returns focus to the select; MUI `Select` has no built-in clear. `GamesView` derives the page-1 reset from state (the stored
   page is paired with the search term and the filter key it was chosen for) instead of an effect, because the
   react-hooks preset makes `set-state-in-effect` an error.
 - The MCP tool `search_games` takes the same filters, and its `query` is optional.
