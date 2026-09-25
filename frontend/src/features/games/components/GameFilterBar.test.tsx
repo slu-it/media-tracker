@@ -68,4 +68,63 @@ describe("GameFilterBar", () => {
     expect(screen.getByRole("combobox", { name: "Progress" })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByRole("combobox", { name: "Release year" })).toHaveAttribute("aria-disabled", "true");
   });
+
+  it("shows the clear button only while the platform filter has a selection", () => {
+    const { rerender } = renderWithProviders(<GameFilterBar filters={EMPTY_FILTERS} onChange={() => {}} meta={meta} />);
+    expect(screen.queryByRole("button", { name: "Clear Platform" })).not.toBeInTheDocument();
+
+    rerender(
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={() => {}} meta={meta} />,
+    );
+    expect(screen.getByRole("button", { name: "Clear Platform" })).toBeInTheDocument();
+  });
+
+  it("hides the clear button while the filter is disabled even with a selection", () => {
+    renderWithProviders(
+      <GameFilterBar
+        filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }}
+        onChange={() => {}}
+        meta={meta}
+        disabled
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Clear Platform" })).not.toBeInTheDocument();
+  });
+
+  it("resets the filter and does not open the menu when the clear button is clicked", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithProviders(
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={onChange} meta={meta} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Clear Platform" }));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_FILTERS, platformIds: [] });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+
+    // Positive control: the combobox itself still opens the menu normally, so the assertion above is meaningful.
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+  });
+
+  it("moves focus back to the combobox once the clear button is activated by keyboard", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    renderWithProviders(
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={onChange} meta={meta} />,
+    );
+
+    await user.tab();
+    expect(screen.getByRole("combobox", { name: "Platform" })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole("button", { name: "Clear Platform" })).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+
+    expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_FILTERS, platformIds: [] });
+    expect(screen.getByRole("combobox", { name: "Platform" })).toHaveFocus();
+  });
 });
