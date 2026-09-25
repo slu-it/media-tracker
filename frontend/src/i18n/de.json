@@ -34,7 +34,8 @@
     "open": "Einstellungen",
     "tabs": {
       "label": "Einstellungsbereiche",
-      "apiKeys": "API-Schlüssel"
+      "apiKeys": "API-Schlüssel",
+      "exportImport": "Export / Import"
     },
     "apiKeys": {
       "hint": "API-Schlüssel authentifizieren MCP-Clients: einen davon beim Aufruf von /mcp im Header X-API-Key mitschicken. Den zweiten Schlüssel für die unterbrechungsfreie Rotation aufheben.",
@@ -50,6 +51,18 @@
       "regenerateQuestion": "{{label}}: durch einen neuen Schlüssel ersetzen? Alles, was den alten nutzt, funktioniert danach sofort nicht mehr.",
       "loadFailed": "Die API-Schlüssel konnten nicht geladen werden.",
       "regenerateFailed": "Der neue Schlüssel konnte nicht erzeugt werden."
+    },
+    "exportImport": {
+      "exportTitle": "Export",
+      "exportHint": "Alles als JSON-Datei herunterladen, um es zu sichern oder auf eine andere Instanz zu übertragen.",
+      "exportButton": "Exportieren",
+      "exportFailed": "Der Export konnte nicht erstellt werden.",
+      "importTitle": "Import",
+      "importHint": "Zeilen aus einer Exportdatei hinzufügen, die in dieser Instanz noch fehlen. Vorhandene Zeilen bleiben unverändert.",
+      "importButton": "Datei wählen…",
+      "importFailed": "Die Datei konnte nicht importiert werden.",
+      "fileInputLabel": "Importdatei",
+      "tableResult": "{{table}}: {{inserted}} eingefügt, {{skipped}} übersprungen"
     }
   },
   "tabs": {

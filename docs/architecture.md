@@ -76,7 +76,8 @@ de.sluit.mediatracker
 ├── Routes.kt           apiRoutes (meRoutes, apiKeyRoutes + feature routes under the authenticated /api prefix, JSON
 │                       404 catch-all), mcpRoutes (API-key-gated /mcp with every feature's tools) and webRoutes
 │                       (/health, session-gated SPA from classpath /app)
-├── Schema.kt           allTables: every Exposed table object, for the schema drift check
+├── Schema.kt           allTables: every Exposed table object, for the schema drift check; backupSources:
+│                       every domain's BackupSource (decision record 0027)
 ├── config/             AppConfig, DatabaseConfig, SessionConfig, CoverSourceConfig/SteamGridDbConfig (typed
 │                       application.yaml; the SteamGridDB key is optional, absent = no cover source)
 ├── common/             shared code in the same three layers as a feature; knows no feature:
@@ -85,8 +86,10 @@ de.sluit.mediatracker
 │   │                   Search (?search parsing)
 │   ├── domain/         InvalidValueException/NotFoundException/requireValid,
 │   │                   ExternalSourceUnavailableException/ExternalSourceException (an outbound source's
-│   │                   503/502, coded by source name), PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm
-│   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery()
+│   │                   503/502, coded by source name), PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm,
+│   │                   BackupSource (port: a domain's tables as plain rows, export + insert-if-absent import)
+│   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery(),
+│                       ExposedBackupSource (generic BackupSource over a list of Exposed tables)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
 │   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys) +
@@ -96,6 +99,9 @@ de.sluit.mediatracker
 │   │                   User + UserRepository, StoredSession + SessionRepository
 │   └── persistence/    UsersTable, SessionsTable, ExposedUserRepository (+ *Blocking helpers),
 │                       ExposedSessionRepository
+├── backup/             technical domain, knows only the BackupSource port (decision record 0027):
+│   ├── api/            BackupRoutes (/api/backup/export, /api/backup/import; JSON <-> rows) + BackupDtos
+│   └── domain/         BackupService (merges the sources, rejects unknown tables, dispatches import slices)
 ├── mcp/                technical domain, api layer only, knows no feature:
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
@@ -121,7 +127,8 @@ de.sluit.mediatracker
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by fulltext score and filters, findUsedFilterValues),
     │                   FulltextQuery (boolean-mode text),
-    │                   FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository
+    │                   FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository,
+    │                   GamesBackupSource (the four games tables, parents first)
     └── integration/    outbound adapters (decision record 0024): SteamGridDbCoverSource (Ktor client, Java
                         engine) + SteamGridDbDtos (the provider's wire JSON)
 ```
@@ -154,6 +161,8 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/games/title-suggestions?query=hollow%20kn` | 200 `TitleSuggestionsResponse {suggestions}` | title suggestions for the add/edit form (decision record 0026): up to 8 `CoverMatchResponse` (`id`, `name`, `releaseYear` or `null`, `verified`) from the SteamGridDB search, in its order; `query` has the same 1..200 limits as `?search`, missing or blank is a 400; an unconfigured or failing SteamGridDB yields an empty list, never 502/503 |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
+| `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; `users` and `sessions` are excluded (decision record 0027) |
+| `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, missing column, wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 
 Errors are `ErrorResponse {error, message?}` with codes `validation_error` (400, a value class rejected a field:
 `"title: must not be blank"`), `invalid_body` (400, malformed or ill-typed JSON, missing body), `not_found` (404),
@@ -180,8 +189,10 @@ frontend/src
 │                         LogoutButton, MediaTabs, mediaKinds), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
 │                         ComingSoon
-├── features/settings/    UserSettingsDialog (tab bar; "API Keys" tab) + api/ (settingsApi), hooks/ (useApiKeys),
-│                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate)
+├── features/settings/    UserSettingsDialog (tab bar; "API Keys" and "Export / Import" tabs) + api/ (settingsApi,
+│                         backupApi), hooks/ (useApiKeys, useExportImport), domain/ (downloadJson: Blob download),
+│                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate;
+│                         ExportImportTab: export download, file-picker import with per-table counts)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
 └── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
                           ?search and the filter parameters, games.meta, cover-options, title-suggestions;

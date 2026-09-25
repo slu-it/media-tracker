@@ -7,6 +7,7 @@ import de.sluit.mediatracker.auth.api.API_KEY_AUTH
 import de.sluit.mediatracker.auth.api.SESSION_AUTH
 import de.sluit.mediatracker.auth.api.apiKeyRoutes
 import de.sluit.mediatracker.auth.api.meRoutes
+import de.sluit.mediatracker.backup.api.backupRoutes
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.HealthResponse
 import de.sluit.mediatracker.games.api.addGameTools
@@ -37,6 +38,8 @@ fun Route.apiRoutes(services: Services) {
             apiKeyRoutes(services.apiKeys)
 
             gameRoutes(services.games, services.expansions, services.coverOptions)
+
+            backupRoutes(services.backup)
 
             // Unknown API paths must answer JSON 404 instead of falling through to the SPA's index.html.
             route("{...}") {

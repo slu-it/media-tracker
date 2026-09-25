@@ -3,19 +3,22 @@ import { Box, Tab, Tabs, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { BaseDialog } from "../../components/dialog/BaseDialog";
 import { ApiKeysTab } from "./components/ApiKeysTab";
+import { ExportImportTab } from "./components/ExportImportTab";
 
 interface UserSettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = "apiKeys";
+type SettingsTab = "apiKeys" | "exportImport";
 
 const TITLE_ID = "user-settings-title";
 const API_KEYS_TAB_ID = "settings-tab-apiKeys";
 const API_KEYS_PANEL_ID = "settings-tabpanel-apiKeys";
+const EXPORT_IMPORT_TAB_ID = "settings-tab-exportImport";
+const EXPORT_IMPORT_PANEL_ID = "settings-tabpanel-exportImport";
 
-/** Per-user settings. One tab today (API keys); more media-kind settings tabs will join it later. */
+/** Per-user settings. Two tabs today (API keys, export/import); more media-kind settings tabs will join them later. */
 export function UserSettingsDialog({ open, onClose }: UserSettingsDialogProps) {
   const { t } = useTranslation();
   const [tab, setTab] = useState<SettingsTab>("apiKeys");
@@ -33,10 +36,31 @@ export function UserSettingsDialog({ open, onClose }: UserSettingsDialogProps) {
             id={API_KEYS_TAB_ID}
             aria-controls={API_KEYS_PANEL_ID}
           />
+          <Tab
+            value="exportImport"
+            label={t("settings.tabs.exportImport")}
+            id={EXPORT_IMPORT_TAB_ID}
+            aria-controls={EXPORT_IMPORT_PANEL_ID}
+          />
         </Tabs>
       </Box>
-      <Box role="tabpanel" id={API_KEYS_PANEL_ID} aria-labelledby={API_KEYS_TAB_ID} tabIndex={0}>
+      <Box
+        role="tabpanel"
+        id={API_KEYS_PANEL_ID}
+        aria-labelledby={API_KEYS_TAB_ID}
+        tabIndex={0}
+        hidden={tab !== "apiKeys"}
+      >
         {tab === "apiKeys" && <ApiKeysTab />}
+      </Box>
+      <Box
+        role="tabpanel"
+        id={EXPORT_IMPORT_PANEL_ID}
+        aria-labelledby={EXPORT_IMPORT_TAB_ID}
+        tabIndex={0}
+        hidden={tab !== "exportImport"}
+      >
+        {tab === "exportImport" && <ExportImportTab />}
       </Box>
     </BaseDialog>
   );
