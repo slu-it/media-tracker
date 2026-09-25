@@ -34,7 +34,8 @@
     "open": "Settings",
     "tabs": {
       "label": "Settings sections",
-      "apiKeys": "API Keys"
+      "apiKeys": "API Keys",
+      "exportImport": "Export / Import"
     },
     "apiKeys": {
       "hint": "API keys authenticate MCP clients: send one in the X-API-Key header when calling /mcp. Keep the second key so you can rotate them without downtime.",
@@ -50,6 +51,18 @@
       "regenerateQuestion": "{{label}}: replace it with a new key? Anything using the old one will stop working immediately.",
       "loadFailed": "Could not load the API keys.",
       "regenerateFailed": "Could not generate a new key."
+    },
+    "exportImport": {
+      "exportTitle": "Export",
+      "exportHint": "Download everything as a JSON file, so you can back it up or move it to another instance.",
+      "exportButton": "Export",
+      "exportFailed": "Could not create the export.",
+      "importTitle": "Import",
+      "importHint": "Add the rows from an export file that are not in this instance yet. Existing rows are left untouched.",
+      "importButton": "Choose file…",
+      "importFailed": "Could not import the file.",
+      "fileInputLabel": "Import file",
+      "tableResult": "{{table}}: {{inserted}} inserted, {{skipped}} skipped"
     }
   },
   "tabs": {

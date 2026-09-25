@@ -5,6 +5,7 @@ import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
+import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.common.persistence.sharedTestDatabase
 import de.sluit.mediatracker.common.persistence.testDatabaseConfig
 import de.sluit.mediatracker.config.SessionConfig
@@ -106,10 +107,11 @@ fun ApplicationTestBuilder.handlerApp(
     // Every /mcp request re-registers the game tools, which checks isAvailable; default it to false (no
     // find_game_cover tool) so tests that never touch cover images do not have to stub it themselves.
     coverOptions: CoverOptionsService = mockk<CoverOptionsService> { every { isAvailable } returns false },
+    backup: BackupService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
-            Services(auth, games, apiKeys, expansions, coverOptions),
+            Services(auth, games, apiKeys, expansions, coverOptions, backup),
             testSessionConfig,
             SessionStorageMemory(),
         )

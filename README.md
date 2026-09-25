@@ -224,6 +224,9 @@ every application stack joins. What follows from that:
   uid 999, and belongs on an SSD rather than the SD card.
 - Backups are the Pi's job now that the database is local: `./backup-database.sh [database]` writes a gzipped
   dump into `backups/` and its header has a cron line. Copying those dumps off the Pi is not automated.
+  Independently of that, the settings dialog's **Export / Import** tab downloads a JSON dump of all domain tables
+  (no users or sessions) and imports one again, inserting only rows that are missing
+  ([docs/features/export-import.md](docs/features/export-import.md)).
 
 ### As a systemd service (the fat JAR)
 

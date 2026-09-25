@@ -9,6 +9,7 @@ import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.persistence.ExposedSessionRepository
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
+import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.config.SessionConfig
@@ -38,6 +39,7 @@ class Services(
     val apiKeys: ApiKeyService,
     val expansions: ExpansionService,
     val coverOptions: CoverOptionsService,
+    val backup: BackupService,
 )
 
 /**
@@ -97,8 +99,10 @@ fun Application.module() {
         log.info("cover source: not configured (STEAMGRIDDB_API_KEY unset)")
     }
     val coverOptionsService = CoverOptionsService(coverSource)
+    val backupService = BackupService(backupSources)
 
-    val services = Services(authService, gameService, apiKeyService, expansionService, coverOptionsService)
+    val services =
+        Services(authService, gameService, apiKeyService, expansionService, coverOptionsService, backupService)
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))
 

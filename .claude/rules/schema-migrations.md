@@ -7,7 +7,8 @@ paths:
 # Schema changes are a two-file commit
 
 Flyway SQL in `backend/src/main/resources/db/migration/` is the source of truth; an Exposed table object mirrors
-it (`<feature>/persistence/*Table.kt`) and must be listed in `allTables` in `Schema.kt` (package root).
+it (`<feature>/persistence/*Table.kt`) and must be listed in `allTables` in `Schema.kt` (package root). A new domain table also goes into its domain's
+`BackupSource` in `backupSources` (or `BackupCoverageTest` fails; ADR 0027).
 `SchemaDriftTest` compares the migrated test MariaDB with the Kotlin tables and fails if Exposed would still
 want to change anything (ADR 0004, 0014).
 

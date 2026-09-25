@@ -69,4 +69,16 @@ describe("UserSettingsDialog", () => {
     await screen.findByRole("textbox", { name: "Primary key" });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("switches to the Export / Import tab", async () => {
+    mockApi({ "GET /api/me/api-keys": () => jsonResponse({ primary: PRIMARY_KEY, secondary: null }) });
+    const user = userEvent.setup();
+    renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+    await screen.findByRole("textbox", { name: "Primary key" });
+
+    await user.click(screen.getByRole("tab", { name: "Export / Import" }));
+
+    expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Primary key" })).not.toBeInTheDocument();
+  });
 });

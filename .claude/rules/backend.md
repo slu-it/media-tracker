@@ -9,7 +9,8 @@ the technical domain `auth`, and the shared `common` are onion modules `{api,dom
 dependencies `api -> domain <- persistence`, plus `integration -> domain` (and `config` for its own settings)
 for outbound HTTP adapters to third-party services (ADR 0024, `games/integration/`). `mcp` has an `api` layer only
 and imports no feature. `common/`, `plugins/` and `config/` never import a feature package. The composition root
-is the package root: `Application.kt` (wiring), `Routes.kt` (route mounting), `Schema.kt` (`allTables`).
+is the package root: `Application.kt` (wiring), `Routes.kt` (route mounting), `Schema.kt` (`allTables`,
+`backupSources`). `backup` knows only the `BackupSource` port in `common/domain` and imports no feature (ADR 0027).
 `CreateUser` (bootstrap CLI) sits at the `auth` root.
 
 **Layers.** The domain imports no Ktor, Exposed or kotlinx. Each layer has its own types (DTOs / entities and
@@ -23,11 +24,12 @@ via `requireValid(field, cond) { reason }` -> `InvalidValueException` -> HTTP 40
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,
-coverOptions)` from Exposed repositories (and the SteamGridDB client only when its key is configured) ->
+coverOptions, backup)` from Exposed repositories (and the SteamGridDB client only when its key is configured) ->
 `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
 persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) -> routes
 (`loginRoutes`, `apiRoutes(services)`, `mcpRoutes(services)`, `webRoutes`). A new media kind adds its service to
-`Services` and to `handlerApp` in the tests. Config is typed in `config/AppConfig.kt` from `application.yaml`,
+`Services` and to `handlerApp` in the tests, and an `ExposedBackupSource` of its tables (parents first) to
+`backupSources`. Config is typed in `config/AppConfig.kt` from `application.yaml`,
 where every secret is an env-var reference (`"$VAR"` required, `"$VAR:default"` optional). Shutdown hooks in
 `module()` hang off the application's coroutine job, never `monitor.subscribe(ApplicationStopped)`: with
 auto-reload the new instance starts before the old one stops and would close the new instance's resources.

@@ -1,6 +1,7 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
 // .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse), .../games/api/GameDtos.kt,
-// .../games/api/ExpansionDtos.kt and .../games/api/CoverOptionDtos.kt. Keep them in sync.
+// .../games/api/ExpansionDtos.kt, .../games/api/CoverOptionDtos.kt and .../backup/api/BackupDtos.kt. Keep them
+// in sync.
 
 /** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
 export type Ownership = "watchlist" | "owned";
@@ -165,4 +166,15 @@ export interface UpdateExpansionRequest {
   ownership?: Ownership;
   progress?: Progress;
   sequence?: number;
+}
+
+/** One table's row counts after `POST /api/backup/import`; mirrors `TableImportResultDto` in backup/api/BackupDtos.kt. */
+export interface TableImportResult {
+  inserted: number;
+  skipped: number;
+}
+
+/** Response of `POST /api/backup/import`, one entry per table the payload named; mirrors `ImportResultResponse`. */
+export interface ImportResultResponse {
+  tables: Record<string, TableImportResult>;
 }
