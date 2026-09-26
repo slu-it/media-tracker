@@ -113,13 +113,15 @@ not with the browser session:
    claude mcp add --transport http media-tracker https://<host>/mcp --header "X-API-Key: <key>"
    ```
 3. Tools: `list_game_platforms` (ids and labels of the seeded platforms), `add_game` (same fields as
-   `POST /api/games`: `title`, `releaseYear`, `platformIds` required; `description`, `rating`, `coverImageUrl` optional),
+   `POST /api/games`: `title`, `platformIds` and `releaseYear` required, the year optional when `releaseDate` is given,
+   which overrides it; `description`, `rating`, `coverImageUrl`, `developerIds` optional),
    `search_games` (`query`: words to search for in title and description, optional next to the `platformIds`,
    `ownership`, `progress` and `releaseYears` filter arrays and `hasMissing`, which finds games whose
    `description` or `coverImageUrl` is still empty; `pageSize` returns up to 100 matches, 10 by default) and
    `update_game` (same fields as `PATCH /api/games/{id}`: `id` required, everything else optional; only the fields
    passed change, and the id comes from `search_games`), `list_expansions` and `add_expansion` (a game's DLC, by
-   the `gameId` from `search_games`; a new expansion is appended to the end of the game's order), and, when
+   the `gameId` from `search_games`; a new expansion is appended to the end of the game's order), `search_game_developers` and
+   `create_game_developer` (look up or create the ids for `developerIds`; creating an existing name returns it), and, when
    `STEAMGRIDDB_API_KEY` is set, `find_game_cover` (`title`, optional `releaseYear`; returns the first static
    SteamGridDB cover URL and the game it matched, ready for `coverImageUrl`).
 

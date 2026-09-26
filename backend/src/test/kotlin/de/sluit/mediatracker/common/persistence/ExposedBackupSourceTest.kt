@@ -4,23 +4,29 @@ import de.sluit.mediatracker.common.domain.BackupRow
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.DeveloperName
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionId
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
+import de.sluit.mediatracker.games.domain.ReleaseDate
 import de.sluit.mediatracker.games.domain.SequenceNumber
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import de.sluit.mediatracker.games.persistence.ExposedExpansionRepository
+import de.sluit.mediatracker.games.persistence.ExposedGameDeveloperRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameRepository
 import de.sluit.mediatracker.games.persistence.GamesBackupSource
 import de.sluit.mediatracker.games.persistence.GamesTable
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.uuid.Uuid
 
 /**
@@ -243,6 +249,50 @@ class ExposedBackupSourceTest {
         }
 
         assertEquals(0L, dbQuery { GamesTable.selectAll().count() })
+    }
+
+    // developers and release date (MT-025, ADR 0029)
+
+    @Test
+    fun `export then import reproduces a release date and its developers`() = withFreshDatabase {
+        val games = ExposedGameRepository()
+        val developers = ExposedGameDeveloperRepository()
+        val nintendo = developers.create(DeveloperName("Nintendo EPD")).developer
+        val monolith = developers.create(DeveloperName("Monolith Soft")).developer
+        val withEverything = game(
+            "Chrono Trigger",
+            releaseDate = ReleaseDate(LocalDate.of(1995, 3, 11)),
+            developers = listOf(nintendo, monolith),
+        )
+        games.insert(withEverything)
+
+        val exported = GamesBackupSource.export()
+
+        dbQuery { GamesTable.deleteAll() } // cascades to game_to_platform, game_expansions and game_to_developer
+
+        val result = GamesBackupSource.import(exported)
+
+        assertEquals(1, result.getValue("games").inserted)
+        assertEquals(0, result.getValue("game_developers").inserted) // already there, never truncated by insert
+        assertEquals(2, result.getValue("game_to_developer").inserted)
+        assertEquals(exported, GamesBackupSource.export())
+        assertEquals(ReleaseDate(LocalDate.of(1995, 3, 11)), games.findById(withEverything.id)?.releaseDate)
+    }
+
+    @Test
+    fun `importing a game row without a release_date column defaults it to null`() = withFreshDatabase {
+        // No "release_date" key at all: what a backup taken before V010 added the column would still contain,
+        // and no "game_developers"/"game_to_developer" keys either, as if from before those tables existed.
+        val row = validGameRow()
+
+        val result = GamesBackupSource.import(mapOf("games" to listOf(row)))
+
+        assertEquals(1, result.getValue("games").inserted)
+        val storedReleaseDate = dbQuery {
+            GamesTable.selectAll().where { GamesTable.id eq (row.getValue("id") as String) }
+                .single()[GamesTable.releaseDate]
+        }
+        assertNull(storedReleaseDate)
     }
 
     private fun validGameRow(

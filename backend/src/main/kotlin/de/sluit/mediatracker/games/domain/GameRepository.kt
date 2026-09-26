@@ -51,3 +51,23 @@ interface GamePlatformRepository {
 
     suspend fun findByIds(ids: Set<GamePlatformId>): List<GamePlatform>
 }
+
+/** What [GameDeveloperRepository.create] found: the developer, plus whether it was just inserted. */
+data class GameDeveloperCreation(val developer: GameDeveloper, val created: Boolean)
+
+/**
+ * Persistence port of the user-grown developer vocabulary (MT-025, ADR 0029). Implemented in
+ * `games.persistence`; the domain never imports that package, so dependencies point inward only.
+ */
+interface GameDeveloperRepository {
+    /**
+     * Fulltext prefix search on the name, ordered by score, then name, then id; a blank/`null` [term] lists
+     * developers alphabetically instead. Capped at [limit].
+     */
+    suspend fun search(term: SearchTerm?, limit: DeveloperSearchLimit): List<GameDeveloper>
+
+    suspend fun findByIds(ids: Set<GameDeveloperId>): List<GameDeveloper>
+
+    /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
+    suspend fun create(name: DeveloperName): GameDeveloperCreation
+}

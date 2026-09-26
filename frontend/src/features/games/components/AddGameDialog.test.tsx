@@ -1,10 +1,10 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { GamePlatformResponse } from "../../../types/api";
+import type { GameDeveloperResponse, GamePlatformResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
-import { hadesCoverOptions, pc, playstation } from "../../../test/fixtures/games";
+import { developers, hadesCoverOptions, pc, playstation, teamCherry } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddGameDialog } from "./AddGameDialog";
 
@@ -64,6 +64,7 @@ describe("AddGameDialog", () => {
           ownership: "watchlist",
           progress: "not_started",
           hidden: false,
+          releaseDate: null,
         },
       },
     ]);
@@ -104,6 +105,84 @@ describe("AddGameDialog", () => {
       progress: "playing",
       hidden: true,
     });
+  });
+
+  it("creates a pending developer before creating the game, and sends both ids", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const createdDeveloper: GameDeveloperResponse = { id: "developer-new", name: "New Studio" };
+    const calls = mockApi({
+      "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+      "POST /api/game-developers": () => jsonResponse(createdDeveloper, 201),
+      "GET /api/game-developers": () => jsonResponse(developers),
+      ...noTitleSuggestions,
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
+    await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+    await user.click(screen.getByRole("option", { name: "2020" }));
+    await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    const developersField = within(dialog).getByRole("combobox", { name: /developers/i });
+    await user.click(developersField);
+    await user.paste("New Studio");
+    await user.keyboard("{Enter}");
+
+    await user.click(developersField);
+    await user.paste("team cherry");
+    await waitFor(() => expect(screen.getAllByRole("option").length).toBeGreaterThan(0));
+    await user.keyboard("{Enter}");
+
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(save);
+    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
+
+    const developerPost = calls.find((c) => c.url === "/api/game-developers" && c.method === "POST");
+    const gamePost = calls.find((c) => c.url === "/api/games" && c.method === "POST");
+    expect(developerPost).toBeDefined();
+    expect(gamePost).toBeDefined();
+    expect(calls.indexOf(developerPost!)).toBeLessThan(calls.indexOf(gamePost!));
+    expect(developerPost!.body).toEqual({ name: "New Studio" });
+    expect(gamePost!.body).toMatchObject({ developerIds: [createdDeveloper.id, teamCherry.id] });
+  });
+
+  it("shows the error and does not create the game when creating a developer fails", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const calls = mockApi({
+      "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+      "POST /api/game-developers": () => jsonResponse({ error: "internal_error" }, 500),
+      "GET /api/game-developers": () => jsonResponse([]),
+      ...noTitleSuggestions,
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
+    await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+    await user.click(screen.getByRole("option", { name: "2020" }));
+    await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+
+    const developersField = within(dialog).getByRole("combobox", { name: /developers/i });
+    await user.click(developersField);
+    await user.paste("New Studio");
+    await user.keyboard("{Enter}");
+
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    await user.click(save);
+
+    expect(await within(dialog).findByRole("alert")).toBeInTheDocument();
+    expect(onCreated).not.toHaveBeenCalled();
+    expect(calls.some((c) => c.url === "/api/games" && c.method === "POST")).toBe(false);
+    expect(save).toBeEnabled();
   });
 
   it("has no delete action and resets when reopened", async () => {
@@ -212,5 +291,58 @@ describe("AddGameDialog", () => {
     expect(await screen.findByText("Enter a search term to look for covers.")).toBeInTheDocument();
     await flushAsync();
     expect(calls).toHaveLength(0);
+  });
+
+  it("disables save while a picked release date is invalid, and re-enables it once cleared", async () => {
+    const user = userEvent.setup();
+    mockApi(noTitleSuggestions);
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+    const save = within(dialog).getByRole("button", { name: "Save" });
+
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hades");
+    await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+    await user.click(screen.getByRole("option", { name: "2020" }));
+    await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+    expect(save).toBeEnabled();
+
+    // ArrowUp fills an empty section with a default (today's month/day/year), giving a full valid date without
+    // typing a fresh multi-digit section, which is flaky to drive through jsdom (see ReleaseDateField.test.tsx).
+    const releaseDate = within(dialog).getByRole("group", { name: "Release date" });
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Month" }));
+    await user.keyboard("{ArrowUp}{ArrowRight}{ArrowUp}{ArrowRight}{ArrowUp}");
+    expect(save).toBeEnabled();
+
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Year" }));
+    await user.keyboard("0");
+    expect(save).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(save).toBeEnabled();
+  });
+
+  it("lays out the fields in the documented order", async () => {
+    mockApi(noTitleSuggestions);
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+
+    const order = [
+      within(dialog).getByRole("combobox", { name: /title/i }),
+      within(dialog).getByRole("textbox", { name: /description/i }),
+      within(dialog).getByRole("combobox", { name: /platforms/i }),
+      within(dialog).getByRole("combobox", { name: /release year/i }),
+      within(dialog).getByRole("group", { name: "Release date" }),
+      within(dialog).getByRole("combobox", { name: /developers/i }),
+      within(dialog).getByRole("combobox", { name: "Ownership" }),
+      within(dialog).getByRole("combobox", { name: "Progress" }),
+      within(dialog).getByRole("checkbox", { name: "Hidden" }),
+      within(dialog).getByRole("textbox", { name: /cover image url/i }),
+    ];
+    for (let i = 0; i < order.length - 1; i++) {
+      expect(order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
   });
 });

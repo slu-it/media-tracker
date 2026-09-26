@@ -120,6 +120,7 @@
     "fields": {
       "title": "Title",
       "releaseYear": "Release year",
+      "releaseDate": "Release date",
       "platforms": "Platforms",
       "description": "Description",
       "rating": "Rating",
@@ -128,7 +129,10 @@
       "ownership": "Ownership",
       "progress": "Progress",
       "hidden": "Hidden",
-      "titleSuggestionVerified": "Verified"
+      "titleSuggestionVerified": "Verified",
+      "developers": "Developers",
+      "developersHint": "Type a name and press Enter to add a new developer",
+      "developersAdd": "Add \"{{name}}\""
     },
     "ownership": {
       "watchlist": "Watchlist",
@@ -176,7 +180,8 @@
     "tooLong": "At most {{max}} characters",
     "invalidUrl": "Must be an absolute http(s) URL",
     "invalidYear": "Must be a four-digit year",
-    "invalidRating": "Must be between 0.25 and 5 in steps of 0.25"
+    "invalidRating": "Must be between 0.25 and 5 in steps of 0.25",
+    "invalidDate": "Must be a valid date with a four-digit year"
   },
   "errors": {
     "loadFailed": "Could not load the list.",

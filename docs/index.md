@@ -21,6 +21,7 @@ a decision was taken), never prose in `CLAUDE.md` ([ADR 0025](decisions/0025-age
 | Title suggestions | MT-019 | SteamGridDB matches suggested while typing a title in the add/edit form; a pick also sets the year; empty without a key or on failure. | [title-suggestions.md](features/title-suggestions.md) | 0026 |
 | Export / Import | MT-023 | JSON dump of every domain table (settings tab) and an insert-if-absent import; each domain contributes its tables through `BackupSource`. | [export-import.md](features/export-import.md) | 0027 |
 | Dropbox backup | MT-024 | Connect Dropbox in the Export / Import tab by pasting a code; the export goes daily at 03:00 (and on demand) to `backup/full-export.json` in the App folder; last backup read from Dropbox. | [dropbox-backup.md](features/dropbox-backup.md) | 0028 |
+| Game release date and developers | MT-025 | Optional release date whose year overrides the release year; developers as a user-created vocabulary with prefix fulltext autosuggest, created on save; new add/edit field order; `search_game_developers`/`create_game_developer` MCP tools. | [game-release-date-and-developers.md](features/game-release-date-and-developers.md) | 0029 |
 
 ## Decisions
 
@@ -58,6 +59,7 @@ the checked-out directory:
 | [0026](decisions/0026-title-suggestions-degrade-to-empty.md) | Title suggestions from SteamGridDB degrade to an empty list | `GET /api/games/title-suggestions` returns `[]` when the source is unconfigured or failing, unlike the picker's 503/502. |
 | [0027](decisions/0027-json-backup-per-domain-sources.md) | JSON export and import as a column-level dump contributed by each domain | `BackupSource` per domain over a generic Exposed implementation; import inserts rows whose primary key is absent, one transaction per source. |
 | [0028](decisions/0028-dropbox-backup.md) | Daily backup to Dropbox, connected from the settings dialog | No-redirect OAuth code flow, refresh token in `oauth_connections`, `CloudStorage` port, application-scope scheduler at a fixed time with one retry, status read from Dropbox. |
+| [0029](decisions/0029-game-release-date-and-developers.md) | An optional release date that overrides the year, and developers as user-created vocabulary | `release_date` wins over `release_year` in the domain and is stored; `game_developers` with idempotent case-insensitive create and prefix fulltext lookup; frontend creates new names before saving the game; orphans kept; MUI X DatePicker. |
 
 ## Other documents
 

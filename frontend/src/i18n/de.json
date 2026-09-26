@@ -120,6 +120,7 @@
     "fields": {
       "title": "Titel",
       "releaseYear": "Erscheinungsjahr",
+      "releaseDate": "Erscheinungsdatum",
       "platforms": "Plattformen",
       "description": "Beschreibung",
       "rating": "Bewertung",
@@ -128,7 +129,10 @@
       "ownership": "Besitzstatus",
       "progress": "Fortschritt",
       "hidden": "Ausgeblendet",
-      "titleSuggestionVerified": "Verifiziert"
+      "titleSuggestionVerified": "Verifiziert",
+      "developers": "Entwickler",
+      "developersHint": "Namen eingeben und Enter drücken, um einen neuen Entwickler hinzuzufügen",
+      "developersAdd": "„{{name}}“ hinzufügen"
     },
     "ownership": {
       "watchlist": "Merkliste",
@@ -176,7 +180,8 @@
     "tooLong": "Höchstens {{max}} Zeichen",
     "invalidUrl": "Muss eine absolute http(s)-URL sein",
     "invalidYear": "Muss eine vierstellige Jahreszahl sein",
-    "invalidRating": "Muss zwischen 0,25 und 5 in Schritten von 0,25 liegen"
+    "invalidRating": "Muss zwischen 0,25 und 5 in Schritten von 0,25 liegen",
+    "invalidDate": "Muss ein gültiges Datum mit vierstelliger Jahreszahl sein"
   },
   "errors": {
     "loadFailed": "Die Liste konnte nicht geladen werden.",

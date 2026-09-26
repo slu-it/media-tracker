@@ -3,8 +3,10 @@ import {
   releaseYearOptions,
   validateCoverImageUrl,
   validateDescription,
+  validateDeveloperName,
   validatePlatformIds,
   validateRating,
+  validateReleaseDate,
   validateReleaseYear,
   validateTitle,
 } from "./gameValues";
@@ -63,6 +65,27 @@ describe("gameValues", () => {
     expect(validateCoverImageUrl("ftp://img.example/c.png")).toBe("invalidUrl");
     expect(validateCoverImageUrl("not a url")).toBe("invalidUrl");
     expect(validateCoverImageUrl("https://img.example/" + "x".repeat(2048))).toBe("tooLong");
+  });
+
+  it("validates a developer name like the backend", () => {
+    expect(validateDeveloperName("")).toBe("required");
+    expect(validateDeveloperName("   ")).toBe("required");
+    expect(validateDeveloperName("  Team Cherry  ")).toBeNull();
+    expect(validateDeveloperName("x".repeat(128))).toBeNull();
+    expect(validateDeveloperName("x".repeat(129))).toBe("tooLong");
+  });
+
+  it("validates the release date like the backend", () => {
+    expect(validateReleaseDate(null)).toBeNull();
+    expect(validateReleaseDate("1000-01-01")).toBeNull();
+    expect(validateReleaseDate("9999-12-31")).toBeNull();
+    expect(validateReleaseDate("2024-02-29")).toBeNull(); // 2024 is a leap year
+    expect(validateReleaseDate("1995-02-29")).toBe("invalidDate"); // 1995 is not a leap year
+    expect(validateReleaseDate("1995-02-30")).toBe("invalidDate"); // no such day, regardless of leap years
+    expect(validateReleaseDate("0999-01-01")).toBe("invalidDate"); // year below four digits
+    expect(validateReleaseDate("10000-01-01")).toBe("invalidDate"); // malformed: five-digit year
+    expect(validateReleaseDate("21-11-1995")).toBe("invalidDate"); // malformed: wrong field order
+    expect(validateReleaseDate("not a date")).toBe("invalidDate");
   });
 
   it("generates the year options from the given year down to 1980", () => {

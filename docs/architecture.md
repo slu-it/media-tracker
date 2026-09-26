@@ -58,10 +58,12 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   with `totalMatches` and `truncated` alongside them in the structured result; at least one of query or filter is
   required) and `update_game` (the fields of `PATCH /api/games/{id}` plus
   the required `id`, which an agent looks up with `search_games`; only the fields passed are changed;
-  `description`, `rating` and `coverImageUrl` accept `null` to clear, every other field rejects an explicit `null`
+  `description`, `rating`, `coverImageUrl` and `releaseDate` accept `null` to clear, every other field rejects an explicit `null`
   rather than silently ignoring it), plus `list_expansions` and `add_expansion` for a game's DLC (both take the `gameId` an agent got from
   `search_games`; `add_expansion` appends) and `find_game_cover` (`title`, optional `releaseYear`: the first static
-  SteamGridDB cover of the best match, only registered when `STEAMGRIDDB_API_KEY` is set), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
+  SteamGridDB cover of the best match, only registered when `STEAMGRIDDB_API_KEY` is set), plus
+  `search_game_developers` and `create_game_developer` (idempotent) for the `developerIds` of `add_game`/`update_game`
+  (decision record 0029), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
   advertise their allowed values as a JSON-schema `enum` built from the domain enums, so the tool contract cannot
   drift from the code (decision record 0017). The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
@@ -91,7 +93,8 @@ de.sluit.mediatracker
 │   │                   BackupSource (port: a domain's tables as plain rows, export + insert-if-absent import),
 │   │                   CloudStorage + StoredFile (port: upload a file, find its metadata)
 │   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery(),
-│                       ExposedBackupSource (generic BackupSource over a list of Exposed tables)
+│                       ExposedBackupSource (generic BackupSource over a list of Exposed tables),
+│                       LocalDateColumnType (DATE bound as java.time.LocalDate via JDBC 4.2, zone-free)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
 │   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys) +
@@ -118,29 +121,32 @@ de.sluit.mediatracker
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
-    │                   /api/game-platforms), GameFilterParams (the repeatable filter query parameters),
+    │                   /api/game-platforms, /api/game-developers), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
     │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options
     │                   and /api/games/title-suggestions, game-independent), GameMcpTools (MCP tools
     │                   list_game_platforms, add_game,
     │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion,
-    │                   find_game_cover)
-    ├── domain/         GameValues (GameId, Title, ReleaseYear, Description, Rating, CoverImageUrl,
-    │                   GamePlatformId, PlatformLabel, HexColor), GameStatus (Ownership, Progress,
+    │                   find_game_cover, search_game_developers, create_game_developer)
+    ├── domain/         GameValues (GameId, Title, ReleaseYear, ReleaseDate, Description, Rating, CoverImageUrl,
+    │                   GamePlatformId, PlatformLabel, HexColor, GameDeveloperId, DeveloperName), GameStatus (Ownership, Progress,
     │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
-    │                   GameRepository and GamePlatformRepository (interfaces), GameService,
+    │                   GameRepository, GamePlatformRepository and GameDeveloperRepository (interfaces), GameService,
+    │                   GameDeveloperService,
     │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
     │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
     │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate/
     │                   CoverOption/CoverOptions/CoverLookup (findCovers takes the page size), CoverMatchRanking
     │                   (selectBestMatch), CoverOptionsService (find for the picker, findFirstCover for MCP,
     │                   suggestTitles for the form, empty on failure)
-    ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable (Exposed),
+    ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable,
+    │                   GameDevelopersTable, GameToDeveloperTable (Exposed),
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by fulltext score and filters, findUsedFilterValues),
     │                   FulltextQuery (boolean-mode text),
-    │                   FulltextExpressions (MATCH ... AGAINST predicate and weighted score), ExposedGamePlatformRepository,
-    │                   GamesBackupSource (the four games tables, parents first)
+    │                   FulltextExpressions (MATCH ... AGAINST predicate, weighted score, MatchScore),
+    │                   ExposedGamePlatformRepository, ExposedGameDeveloperRepository (fulltext + LIKE prefix
+    │                   search, idempotent create), GamesBackupSource (the six games tables, parents first)
     └── integration/    outbound adapters (decision record 0024): SteamGridDbCoverSource (Ktor client, Java
                         engine) + SteamGridDbDtos (the provider's wire JSON)
 ```
@@ -162,8 +168,8 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/me/api-keys` | 200 `ApiKeysResponse {primary, secondary}` | each a UUID string or `null` |
 | `POST /api/me/api-keys/{slot}` | 200 `ApiKeysResponse` | `slot` is `primary` or `secondary` (else 400); replaces that key, the old one stops working at once |
 | `GET /api/games?page=1&pageSize=50[&search=zelda][&filters]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty. Four repeatable filter parameters narrow the result: `platformIds`, `ownership`, `progress`, `releaseYear`; repetitions of one parameter mean "any of", different parameters all have to match, and an unknown value is a 400. Any filter takes the same branch as a search, without a term the title order stays (decision record 0021) |
-| `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `platformIds` (at least one seeded platform id), `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional; `ownership` (`watchlist`/`owned`, default `watchlist`), `progress` (`not_started`/`playing`/`finished`/`completed`/`paused`/`abandoned`, default `not_started`) and `hidden` (default `false`) optional, an unknown value is a 400 (decision record 0017) |
-| `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating` or `coverImageUrl`, `platformIds` replaces the whole set; `ownership`, `progress` and `hidden` cannot be cleared, so an explicit `null` on them means unchanged (as for `title`, `releaseYear` and `platformIds`); 404 for unknown ids |
+| `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `releaseYear` required unless `releaseDate` (`YYYY-MM-DD`, optional) is given, whose year then overrides it (decision record 0029); `platformIds` (at least one seeded platform id), `developerIds` optional, `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional; `ownership` (`watchlist`/`owned`, default `watchlist`), `progress` (`not_started`/`playing`/`finished`/`completed`/`paused`/`abandoned`, default `not_started`) and `hidden` (default `false`) optional, an unknown value is a 400 (decision record 0017) |
+| `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating`, `coverImageUrl` or `releaseDate` (clearing the date keeps the year; a set date overrides the year), `platformIds` and `developerIds` replace the whole set; `ownership`, `progress` and `hidden` cannot be cleared, so an explicit `null` on them means unchanged (as for `title`, `releaseYear` and `platformIds`); 404 for unknown ids |
 | `DELETE /api/games/{id}` | 204 | also for unknown ids (idempotent); junction rows go with the game (`ON DELETE CASCADE`) |
 | `GET /api/games/{id}/expansions` | 200 `ExpansionResponse[]` | a game's expansions (DLC), ordered by `sequence`, which is dense and zero-based per game; 404 if the game is unknown (decision record 0023) |
 | `POST /api/games/{id}/expansions` | 201 `ExpansionResponse` + `Location` | body `CreateExpansionRequest`: `title` required, `ownership` and `progress` optional with the game's own defaults; appended at the end of the order; 404 if the game is unknown |
@@ -173,8 +179,10 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/games/title-suggestions?query=hollow%20kn` | 200 `TitleSuggestionsResponse {suggestions}` | title suggestions for the add/edit form (decision record 0026): up to 8 `CoverMatchResponse` (`id`, `name`, `releaseYear` or `null`, `verified`) from the SteamGridDB search, in its order; `query` has the same 1..200 limits as `?search`, missing or blank is a 400; an unconfigured or failing SteamGridDB yields an empty list, never 502/503 |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
+| `GET /api/game-developers?search=nin&limit=10` | 200 `GameDeveloperResponse[]` | `id`, `name`; prefix fulltext match on the name plus `name LIKE 'term%'` for names InnoDB does not index (under three characters, stopwords), with LIKE hits first, `limit` 1..50 (default 10), blank `search` lists by name (decision record 0029) |
+| `POST /api/game-developers` | 201 / 200 `GameDeveloperResponse` | body `{name}` (trimmed, 1..128 chars); 201 when created, 200 with the existing row when the name exists (case-insensitive) |
 | `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
-| `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, missing column, wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
+| `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, a missing non-nullable column (a missing nullable one is `null`), wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 | `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
 | `POST /api/backup/dropbox` | 200 `CloudBackupResponse` | uploads the export (the same bytes as `GET /api/backup/export`) now, overwriting the file; same 503/502 |
 | `GET /api/dropbox` | 200 `DropboxStatusResponse {available, connected, connectedAt}` | `available` = app key and secret configured; `connectedAt` ISO-8601 or `null` |
@@ -196,7 +204,8 @@ results with `isError: true` and the domain message, not as HTTP errors.
 
 ```
 frontend/src
-├── main.tsx / App.tsx / AppProviders.tsx   i18n init, theme + CssBaseline, shell (AppHeader, MediaTabs, active view)
+├── main.tsx / App.tsx / AppProviders.tsx   i18n init, theme + CssBaseline, MUI X LocalizationProvider (dayjs,
+│                                           de/en), shell (AppHeader, MediaTabs, active view)
 ├── theme/                MUI theme: login-page palette, system font stack; light/dark from the header
 │                         toggle (mode.ts: localStorage key mt.mode, default "system" = OS preference)
 ├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
@@ -218,8 +227,9 @@ frontend/src
 └── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
                           ?search and the filter parameters, games.meta, cover-options, title-suggestions;
                           expansionsApi), hooks/ (useGamesPage, useGamesMeta, useExpansions, useCoverOptions,
-                          useTitleSuggestions), domain/ (gameValues validators, SEARCH_DEBOUNCE_MS,
-                          gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
+                          useTitleSuggestions, useDeveloperSuggestions), domain/ (gameValues validators,
+                          SEARCH_DEBOUNCE_MS, gameDraft, developerDraft, releaseDate: browser-locale date
+                          format, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
                           ownership/progress values and defaults), components/ (grid, cards, GameSearchField,
                           GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
@@ -230,9 +240,10 @@ frontend/src
                           CoverThumbnail: <video> for the WebM clips SteamGridDB uses as animated thumbnails)
 ```
 
-@dnd-kit (`core`, `sortable`, `utilities`) is the frontend's only runtime dependency beyond React, MUI and
-i18next; it drags the expansion cards and its keyboard sensor is what the reorder test drives (decision record
-0023).
+Beyond React, MUI and i18next, the frontend has two runtime dependencies:
+- @dnd-kit (`core`, `sortable`, `utilities`) drags the expansion cards, and the reorder test drives its keyboard
+  sensor (decision record 0023).
+- `@mui/x-date-pickers` with `dayjs` renders the release date picker (decision record 0029).
 
 Browser state: `localStorage["mt.language"]` (`en`/`de`) and `localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/
 `series`). The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,

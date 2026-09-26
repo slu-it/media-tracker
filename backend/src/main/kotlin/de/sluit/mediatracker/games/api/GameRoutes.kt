@@ -1,12 +1,16 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.api.intQueryParameter
 import de.sluit.mediatracker.common.api.pageRequest
 import de.sluit.mediatracker.common.api.searchTerm
 import de.sluit.mediatracker.common.api.toResponse
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.games.domain.CoverOptionsService
+import de.sluit.mediatracker.games.domain.DeveloperName
+import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.Game
+import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.http.HttpHeaders
@@ -26,12 +30,14 @@ import io.ktor.server.routing.route
  * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [GameService]; they never touch persistence.
  * A game's expansions ([expansionRoutes]) are mounted inside its `/{id}` block; cover image search
- * ([coverOptionRoutes]) is game-independent and mounted directly under `/games`.
+ * ([coverOptionRoutes]) and the developer vocabulary (`/game-developers`) are game-independent and mounted
+ * directly under `/games`/at the top level.
  */
 fun Route.gameRoutes(
     gameService: GameService,
     expansionService: ExpansionService,
     coverOptionsService: CoverOptionsService,
+    developerService: GameDeveloperService,
 ) {
     route("/games") {
         post {
@@ -70,6 +76,20 @@ fun Route.gameRoutes(
     route("/games.meta") {
         get {
             call.respond(gameService.meta().toResponse())
+        }
+    }
+    route("/game-developers") {
+        get {
+            val term = call.searchTerm()
+            val limit = call.intQueryParameter(DeveloperSearchLimit.FIELD)?.let(::DeveloperSearchLimit)
+                ?: DeveloperSearchLimit.DEFAULT
+            call.respond(developerService.search(term, limit).map { it.toResponse() })
+        }
+        post {
+            val request = call.receive<CreateGameDeveloperRequest>()
+            val result = developerService.create(DeveloperName.parse(request.name))
+            val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
+            call.respond(status, result.developer.toResponse())
         }
     }
 }

@@ -15,12 +15,13 @@ in `apiRoutes`, and copies the games dialogs including both scroll flags describ
 - Platforms are many-to-many from the seeded `game_platforms` table (fixed UUIDs, hex colours, ADR 0009)
   through `game_to_platform`. Labels come from `GET /api/game-platforms`, not from the i18n bundles.
 - Later tickets added [status fields](game-status-fields.md), [search and filters](game-search-and-filters.md),
-  [expansions](game-expansions.md) and the [cover picker](cover-picker.md).
+  [expansions](game-expansions.md), the [cover picker](cover-picker.md) and the
+  [release date and developers](game-release-date-and-developers.md).
 
 ## REST
 
 `GET /api/games?page=&pageSize=&search=&<filters>` (`pageSize` 1..200, backend default 50), `POST /api/games`,
-`GET`/`PATCH`/`DELETE /api/games/{id}`, `GET /api/games.meta`, `GET /api/game-platforms`. Optional PATCH fields
+`GET`/`PATCH`/`DELETE /api/games/{id}`, `GET /api/games.meta`, `GET /api/game-platforms`, `GET`/`POST /api/game-developers`. Optional PATCH fields
 use `PatchField` (absent / null / value). The full endpoint table is in [architecture.md](../architecture.md).
 
 ## Frontend

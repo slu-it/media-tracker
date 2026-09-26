@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { renderWithProviders } from "../../../test/renderWithProviders";
@@ -10,9 +10,17 @@ import type { TitleSuggestionsResponse } from "../../../types/api";
 import { emptyGameDraft, type GameDraft } from "../domain/gameDraft";
 import { GameForm } from "./GameForm";
 
-function Harness({ initial }: { initial: GameDraft }) {
+function Harness({ initial, onValidityChange }: { initial: GameDraft; onValidityChange?: (valid: boolean) => void }) {
   const [draft, setDraft] = useState<GameDraft>(initial);
-  return <GameForm value={draft} onChange={setDraft} platforms={platforms} titleSuggestionDebounceMs={10} />;
+  return (
+    <GameForm
+      value={draft}
+      onChange={setDraft}
+      platforms={platforms}
+      titleSuggestionDebounceMs={10}
+      onValidityChange={onValidityChange}
+    />
+  );
 }
 
 describe("GameForm title suggestions", () => {
@@ -54,6 +62,25 @@ describe("GameForm title suggestions", () => {
     expect(screen.getByRole("combobox", { name: /release year/i })).toHaveTextContent("2020");
   });
 
+  it("does not overwrite the release year when a release date is already set", async () => {
+    const user = userEvent.setup();
+    const response: TitleSuggestionsResponse = {
+      suggestions: [{ id: 5245, name: "Hollow Knight", releaseYear: 2017, verified: true }],
+    };
+    mockApi({ "GET /api/games/title-suggestions": () => jsonResponse(response) });
+    renderWithProviders(<Harness initial={{ ...emptyGameDraft(), releaseYear: 2020, releaseDate: "2020-04-01" }} />);
+
+    const title = screen.getByRole("combobox", { name: /title/i });
+    await user.click(title);
+    await user.paste("Hollow Kn");
+
+    const option = await screen.findByRole("option", { name: /Hollow Knight/ });
+    await user.click(option);
+
+    expect(screen.getByRole("combobox", { name: /title/i })).toHaveValue("Hollow Knight");
+    expect(screen.getByRole("combobox", { name: /release year/i })).toHaveTextContent("2020");
+  });
+
   it("sends no title-suggestions request while the form just opened, before any edit", async () => {
     const calls = mockApi({
       "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] } satisfies TitleSuggestionsResponse),
@@ -63,5 +90,41 @@ describe("GameForm title suggestions", () => {
     await flushAsync();
     expect(screen.getByRole("combobox", { name: /title/i })).toHaveValue("An already long, existing title");
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("GameForm release date/year", () => {
+  it("disables the release year while a release date is set, and clearing it re-enables the year", async () => {
+    const user = userEvent.setup();
+    mockApi({ "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) });
+    renderWithProviders(<Harness initial={{ ...emptyGameDraft(), releaseYear: 2020, releaseDate: "2020-04-01" }} />);
+
+    // MUI's non-native Select renders the combobox as a div, which jest-dom's toBeDisabled() cannot see (it only
+    // recognizes real form elements), so this checks the ARIA state it exposes to assistive tech instead.
+    expect(screen.getByRole("combobox", { name: /release year/i })).toHaveAttribute("aria-disabled", "true");
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+
+    expect(screen.getByRole("combobox", { name: /release year/i })).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("reports the release date as invalid while a typed edit is rejected, and valid again once cleared", async () => {
+    const user = userEvent.setup();
+    const onValidityChange = vi.fn();
+    mockApi({ "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) });
+    renderWithProviders(
+      <Harness
+        initial={{ ...emptyGameDraft(), releaseYear: 2020, releaseDate: "2020-04-01" }}
+        onValidityChange={onValidityChange}
+      />,
+    );
+    const releaseDate = screen.getByRole("group", { name: "Release date" });
+
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Year" }));
+    await user.keyboard("0");
+    expect(onValidityChange).toHaveBeenLastCalledWith(false);
+
+    await user.click(screen.getByRole("button", { name: "Clear" }));
+    expect(onValidityChange).toHaveBeenLastCalledWith(true);
   });
 });

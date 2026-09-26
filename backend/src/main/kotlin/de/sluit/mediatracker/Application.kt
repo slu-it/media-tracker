@@ -22,10 +22,12 @@ import de.sluit.mediatracker.dropbox.integration.dropboxHttpClient
 import de.sluit.mediatracker.dropbox.persistence.ExposedDropboxConnectionRepository
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
+import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.integration.SteamGridDbCoverSource
 import de.sluit.mediatracker.games.integration.steamGridDbHttpClient
 import de.sluit.mediatracker.games.persistence.ExposedExpansionRepository
+import de.sluit.mediatracker.games.persistence.ExposedGameDeveloperRepository
 import de.sluit.mediatracker.games.persistence.ExposedGamePlatformRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameRepository
 import de.sluit.mediatracker.plugins.configureMonitoring
@@ -52,6 +54,7 @@ class Services(
     val backup: BackupService,
     val dropbox: DropboxService,
     val cloudBackup: CloudBackupService,
+    val gameDevelopers: GameDeveloperService,
 )
 
 /**
@@ -96,7 +99,9 @@ fun Application.module() {
     val sessionRepository = ExposedSessionRepository()
     val authService = AuthService(userRepository, passwordHasher)
     val gameRepository = ExposedGameRepository()
-    val gameService = GameService(gameRepository, ExposedGamePlatformRepository())
+    val gameDeveloperRepository = ExposedGameDeveloperRepository()
+    val gameService = GameService(gameRepository, ExposedGamePlatformRepository(), gameDeveloperRepository)
+    val gameDeveloperService = GameDeveloperService(gameDeveloperRepository)
     val apiKeyService = ApiKeyService(userRepository)
     val expansionService = ExpansionService(gameRepository, ExposedExpansionRepository())
 
@@ -138,6 +143,7 @@ fun Application.module() {
         backupService,
         dropboxService,
         cloudBackupService,
+        gameDeveloperService,
     )
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))

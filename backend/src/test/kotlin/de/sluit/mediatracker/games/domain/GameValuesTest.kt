@@ -4,6 +4,9 @@ import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.games.developer
+import de.sluit.mediatracker.games.game
+import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -135,22 +138,23 @@ class GameValuesTest {
             coverImageUrl = CoverImageUrl("https://example.org/old.png"),
         )
 
-        val unchanged = GamePatch().applyTo(game, game.platforms)
+        val unchanged = GamePatch().applyTo(game, game.platforms, game.developers)
         assertEquals(game, unchanged)
 
-        val retitled = GamePatch(title = Title("New")).applyTo(game, game.platforms)
+        val retitled = GamePatch(title = Title("New")).applyTo(game, game.platforms, game.developers)
         assertEquals("New", retitled.title.value)
         assertEquals(game.coverImageUrl, retitled.coverImageUrl)
 
         val xbox = platform("Xbox")
-        val replatformed = GamePatch(platformIds = setOf(xbox.id)).applyTo(game, listOf(xbox))
+        val replatformed =
+            GamePatch(platformIds = setOf(xbox.id)).applyTo(game, listOf(xbox), game.developers)
         assertEquals(listOf(xbox), replatformed.platforms)
 
         val cleared = GamePatch(
             description = Patch.Change(null),
             rating = Patch.Change(null),
             coverImageUrl = Patch.Change(null),
-        ).applyTo(game, game.platforms)
+        ).applyTo(game, game.platforms, game.developers)
         assertNull(cleared.description)
         assertNull(cleared.rating)
         assertNull(cleared.coverImageUrl)
@@ -159,9 +163,140 @@ class GameValuesTest {
             description = Patch.Change(Description("New description")),
             rating = Patch.Change(Rating(4.0)),
             coverImageUrl = Patch.Change(CoverImageUrl("https://example.org/n.png")),
-        ).applyTo(game, game.platforms)
+        ).applyTo(game, game.platforms, game.developers)
         assertEquals("New description", recovered.description?.value)
         assertEquals(4.0, recovered.rating?.value)
         assertEquals("https://example.org/n.png", recovered.coverImageUrl?.value)
+    }
+
+    @Test
+    fun `patch replaces developers only when developerIds is present`() {
+        val nintendo = developer("Nintendo EPD")
+        val game = game("Zelda", developers = listOf(nintendo))
+
+        val unchanged = GamePatch().applyTo(game, game.platforms, game.developers)
+        assertEquals(listOf(nintendo), unchanged.developers)
+
+        val monolith = developer("Monolith Soft")
+        val replaced =
+            GamePatch(developerIds = setOf(monolith.id)).applyTo(game, game.platforms, listOf(monolith))
+        assertEquals(listOf(monolith), replaced.developers)
+
+        val cleared = GamePatch(developerIds = emptySet()).applyTo(game, game.platforms, emptyList())
+        assertEquals(emptyList(), cleared.developers)
+    }
+
+    // release date <-> release year precedence (MT-025, ADR 0029)
+
+    @Test
+    fun `release date must have a four-digit year`() {
+        rejects("releaseDate") { ReleaseDate(LocalDate.of(999, 1, 1)) }
+        rejects("releaseDate") { ReleaseDate(LocalDate.of(10000, 1, 1)) }
+        assertEquals(1995, ReleaseDate(LocalDate.of(1995, 11, 21)).year)
+    }
+
+    @Test
+    fun `release date parses only iso dates`() {
+        assertEquals(LocalDate.of(1995, 11, 21), ReleaseDate.parse("1995-11-21").value)
+        rejects("releaseDate") { ReleaseDate.parse("21-11-1995") }
+        rejects("releaseDate") { ReleaseDate.parse("not a date") }
+    }
+
+    @Test
+    fun `a game with a release date requires releaseYear to match its year`() {
+        rejects("releaseDate") {
+            Game(
+                id = GameId.new(),
+                title = Title("Zelda"),
+                releaseYear = ReleaseYear(2020),
+                platforms = listOf(platform("PC")),
+                releaseDate = ReleaseDate(LocalDate.of(1995, 11, 21)),
+            )
+        }
+    }
+
+    @Test
+    fun `new game effective release year is derived from the date when one is given`() {
+        val platformIds = setOf(GamePlatformId(Uuid.random()))
+        val withoutDate = NewGame(title = Title("Zelda"), releaseYear = ReleaseYear(2020), platformIds = platformIds)
+        assertEquals(ReleaseYear(2020), withoutDate.effectiveReleaseYear)
+
+        val withDate = NewGame(
+            title = Title("Zelda"),
+            releaseYear = ReleaseYear(2020),
+            platformIds = platformIds,
+            releaseDate = ReleaseDate(LocalDate.of(1995, 11, 21)),
+        )
+        assertEquals(ReleaseYear(1995), withDate.effectiveReleaseYear)
+    }
+
+    @Test
+    fun `patch setting a date forces the year even when a contradicting year is also given`() {
+        val game = game("Zelda", releaseYear = 2020)
+
+        val patched = GamePatch(
+            releaseYear = ReleaseYear(1999),
+            releaseDate = Patch.Change(ReleaseDate(LocalDate.of(1995, 11, 21))),
+        ).applyTo(game, game.platforms, game.developers)
+
+        assertEquals(ReleaseYear(1995), patched.releaseYear)
+        assertEquals(ReleaseDate(LocalDate.of(1995, 11, 21)), patched.releaseDate)
+    }
+
+    @Test
+    fun `patch with only a year on a dated game is overridden by the date's year`() {
+        val game = game("Zelda", releaseDate = ReleaseDate(LocalDate.of(1995, 11, 21)))
+
+        val patched = GamePatch(releaseYear = ReleaseYear(2020)).applyTo(game, game.platforms, game.developers)
+
+        assertEquals(ReleaseYear(1995), patched.releaseYear)
+        assertEquals(ReleaseDate(LocalDate.of(1995, 11, 21)), patched.releaseDate)
+    }
+
+    @Test
+    fun `patch clearing the date keeps the current year when no year is given`() {
+        val game = game("Zelda", releaseDate = ReleaseDate(LocalDate.of(1995, 11, 21)))
+
+        val patched = GamePatch(releaseDate = Patch.Change(null)).applyTo(game, game.platforms, game.developers)
+
+        assertEquals(ReleaseYear(1995), patched.releaseYear)
+        assertNull(patched.releaseDate)
+    }
+
+    @Test
+    fun `patch clearing the date applies a given year instead of keeping the old one`() {
+        val game = game("Zelda", releaseDate = ReleaseDate(LocalDate.of(1995, 11, 21)))
+
+        val patched = GamePatch(
+            releaseYear = ReleaseYear(2020),
+            releaseDate = Patch.Change(null),
+        ).applyTo(game, game.platforms, game.developers)
+
+        assertEquals(ReleaseYear(2020), patched.releaseYear)
+        assertNull(patched.releaseDate)
+    }
+
+    @Test
+    fun `game developer id parses only the 36-character hex-dash form`() {
+        val id = GameDeveloperId(Uuid.random())
+        assertEquals(id, GameDeveloperId.parse(id.toString()))
+        rejects("developerIds") { GameDeveloperId.parse("nope") }
+    }
+
+    @Test
+    fun `developer name must be non-blank trimmed and at most 128 characters`() {
+        rejects("name") { DeveloperName("") }
+        rejects("name") { DeveloperName("   ") }
+        rejects("name") { DeveloperName(" Nintendo") }
+        rejects("name") { DeveloperName("x".repeat(129)) }
+        assertEquals("Nintendo", DeveloperName.parse("  Nintendo  ").value)
+    }
+
+    @Test
+    fun `developer search limit is bounded`() {
+        rejects("limit") { DeveloperSearchLimit(0) }
+        rejects("limit") { DeveloperSearchLimit(51) }
+        assertEquals(10, DeveloperSearchLimit.DEFAULT.value)
+        assertEquals(50, DeveloperSearchLimit(50).value)
     }
 }

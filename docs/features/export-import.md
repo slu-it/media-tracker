@@ -13,9 +13,10 @@ ADR: [0027](../decisions/0027-json-backup-per-domain-sources.md). Code: `common/
   exported.
 - The import only inserts rows whose primary key is absent. Nothing is updated or deleted, so re-importing the
   same file skips everything and needs no confirmation. A missing table key counts as empty. An unknown table or
-  column, a missing column, a wrongly typed value or a constraint violation is a `400 validation_error`, and
+  column, a missing non-nullable column, a wrongly typed value or a constraint violation is a `400 validation_error`, and
   that source's transaction is rolled back. All sources are validated before any
-  of them writes.
+  of them writes. A missing nullable column imports as `null`, so older exports survive a new optional
+  column (MT-025, `games.release_date`). `DATE` columns travel as ISO `YYYY-MM-DD` strings.
 - Importing into a non-empty database is supported, but it is row by row. Expansions of a game that already
   exists are appended next to its current ones, which can leave duplicate or gapped `sequence` values.
 - A new media kind adds `object <Kind>BackupSource : ExposedBackupSource(listOf(<its tables, parents first>))` in

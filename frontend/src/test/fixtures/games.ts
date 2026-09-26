@@ -1,6 +1,7 @@
 import type {
   CoverOptionsResponse,
   ExpansionResponse,
+  GameDeveloperResponse,
   GameMetaResponse,
   GamePlatformResponse,
   GameResponse,
@@ -20,6 +21,10 @@ export const nintendo: GamePlatformResponse = {
 };
 export const platforms: GamePlatformResponse[] = [pc, playstation, xbox, nintendo];
 
+export const teamCherry: GameDeveloperResponse = { id: "developer-1", name: "Team Cherry" };
+export const supergiantGames: GameDeveloperResponse = { id: "developer-2", name: "Supergiant Games" };
+export const developers: GameDeveloperResponse[] = [teamCherry, supergiantGames];
+
 export const celeste: GameResponse = {
   id: "id-1",
   title: "Celeste",
@@ -31,6 +36,8 @@ export const celeste: GameResponse = {
   ownership: "owned",
   progress: "playing",
   hidden: false,
+  releaseDate: null,
+  developers: [],
 };
 
 export const hades: GameResponse = {
@@ -44,6 +51,8 @@ export const hades: GameResponse = {
   ownership: "watchlist",
   progress: "completed",
   hidden: true,
+  releaseDate: null,
+  developers: [],
 };
 
 export const hadesExpansion1: ExpansionResponse = {

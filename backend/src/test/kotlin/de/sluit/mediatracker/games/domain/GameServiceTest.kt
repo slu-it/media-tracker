@@ -9,6 +9,7 @@ import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.games.Platforms
+import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.game
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -17,6 +18,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import kotlinx.coroutines.runBlocking
+import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -31,7 +33,8 @@ import kotlin.uuid.Uuid
 class GameServiceTest {
     private val games = mockk<GameRepository>()
     private val platforms = mockk<GamePlatformRepository>()
-    private val service = GameService(games, platforms)
+    private val developers = mockk<GameDeveloperRepository>()
+    private val service = GameService(games, platforms, developers)
 
     @Test
     fun `create assigns a new id and stores the game with its resolved platforms sorted by label`() = runBlocking {
@@ -50,7 +53,67 @@ class GameServiceTest {
         assertEquals(newGame.title, inserted.captured.title)
         assertEquals(newGame.releaseYear, inserted.captured.releaseYear)
         assertEquals(listOf(Platforms.NINTENDO, Platforms.PC), inserted.captured.platforms)
+        assertEquals(emptyList(), inserted.captured.developers)
         assertEquals(inserted.captured, result)
+        coVerify(exactly = 0) { developers.findByIds(any()) }
+    }
+
+    @Test
+    fun `create resolves developer ids and stores them sorted by name`() = runBlocking {
+        val nintendo = developer("Nintendo EPD")
+        val monolith = developer("Monolith Soft")
+        val newGame = NewGame(
+            title = Title("Xenoblade"),
+            releaseYear = ReleaseYear(2010),
+            platformIds = setOf(Platforms.NINTENDO.id),
+            developerIds = setOf(nintendo.id, monolith.id),
+        )
+        coEvery { platforms.findByIds(setOf(Platforms.NINTENDO.id)) } returns listOf(Platforms.NINTENDO)
+        coEvery { developers.findByIds(setOf(nintendo.id, monolith.id)) } returns listOf(nintendo, monolith)
+        val inserted = slot<Game>()
+        coEvery { games.insert(capture(inserted)) } just Runs
+
+        service.create(newGame)
+
+        assertEquals(listOf(monolith, nintendo), inserted.captured.developers)
+    }
+
+    @Test
+    fun `create derives the release year from the release date overriding a contradicting release year`() =
+        runBlocking {
+            val newGame = NewGame(
+                title = Title("Chrono Trigger"),
+                releaseYear = ReleaseYear(2020),
+                platformIds = setOf(Platforms.PC.id),
+                releaseDate = ReleaseDate(LocalDate.of(1995, 3, 11)),
+            )
+            coEvery { platforms.findByIds(setOf(Platforms.PC.id)) } returns listOf(Platforms.PC)
+            val inserted = slot<Game>()
+            coEvery { games.insert(capture(inserted)) } just Runs
+
+            service.create(newGame)
+
+            assertEquals(ReleaseYear(1995), inserted.captured.releaseYear)
+            assertEquals(ReleaseDate(LocalDate.of(1995, 3, 11)), inserted.captured.releaseDate)
+        }
+
+    @Test
+    fun `create rejects an unknown developer id naming the developerIds field`() = runBlocking {
+        val known = developer("Nintendo EPD")
+        val unknown = GameDeveloperId(Uuid.random())
+        val newGame = NewGame(
+            title = Title("Unknown Game"),
+            releaseYear = ReleaseYear(2020),
+            platformIds = setOf(Platforms.PC.id),
+            developerIds = setOf(known.id, unknown),
+        )
+        coEvery { platforms.findByIds(setOf(Platforms.PC.id)) } returns listOf(Platforms.PC)
+        coEvery { developers.findByIds(setOf(known.id, unknown)) } returns listOf(known)
+
+        val exception = assertFailsWith<InvalidValueException> { service.create(newGame) }
+
+        assertEquals(GameDeveloperId.FIELD, exception.field)
+        coVerify(exactly = 0) { games.insert(any()) }
     }
 
     @Test
@@ -180,6 +243,46 @@ class GameServiceTest {
         service.update(id, GamePatch(title = Title("Renamed")))
 
         coVerify(exactly = 0) { platforms.findByIds(any()) }
+    }
+
+    @Test
+    fun `update replaces the developers when the patch carries developer ids`() = runBlocking {
+        val id = GameId.new()
+        val nintendo = developer("Nintendo EPD")
+        val current = game("Some Title", id = id)
+        coEvery { games.findById(id) } returns current
+        coEvery { developers.findByIds(setOf(nintendo.id)) } returns listOf(nintendo)
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(developerIds = setOf(nintendo.id)))
+
+        assertEquals(listOf(nintendo), saved.captured.developers)
+    }
+
+    @Test
+    fun `update leaves the developers alone when the patch has none`() = runBlocking {
+        val id = GameId.new()
+        val current = game("Some Title", id = id)
+        coEvery { games.findById(id) } returns current
+        coEvery { games.update(any()) } returns true
+
+        service.update(id, GamePatch(title = Title("Renamed")))
+
+        coVerify(exactly = 0) { developers.findByIds(any()) }
+    }
+
+    @Test
+    fun `update rejects an unknown developer id before saving`() = runBlocking {
+        val id = GameId.new()
+        val current = game("Some Title", id = id)
+        val unknown = GameDeveloperId(Uuid.random())
+        coEvery { games.findById(id) } returns current
+        coEvery { developers.findByIds(setOf(unknown)) } returns emptyList()
+
+        assertFailsWith<InvalidValueException> { service.update(id, GamePatch(developerIds = setOf(unknown))) }
+
+        coVerify(exactly = 0) { games.update(any()) }
     }
 
     @Test

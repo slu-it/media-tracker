@@ -6,7 +6,7 @@ import { errorMessage } from "../../../api/client";
 import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
 import type { GamePlatformResponse, GameResponse } from "../../../types/api";
-import { createGame } from "../api/gamesApi";
+import { createGame, resolveDeveloperIds } from "../api/gamesApi";
 import { emptyGameDraft, isDraftValid, toCreateRequest } from "../domain/gameDraft";
 import { GAME_DIALOG_HEIGHT } from "./gameDialogLayout";
 import { GameForm } from "./GameForm";
@@ -31,12 +31,16 @@ function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDia
   const [draft, setDraft] = useState(emptyGameDraft);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Not part of `draft`: a rejected mid-edit in the release date picker never reaches `onChange`, so it cannot be
+  // represented there; see `GameForm`'s `onValidityChange`.
+  const [formValid, setFormValid] = useState(true);
 
   const save = async () => {
     setBusy(true);
     setError(null);
     try {
-      onCreated(await createGame(toCreateRequest(draft)));
+      const developerIds = await resolveDeveloperIds(draft.developers);
+      onCreated(await createGame(toCreateRequest(draft, developerIds)));
     } catch (cause: unknown) {
       setError(errorMessage(cause, t("errors.saveFailed")));
       setBusy(false);
@@ -49,7 +53,7 @@ function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDia
       label={t("common.save")}
       color="primary"
       onClick={() => void save()}
-      disabled={busy || !isDraftValid(draft)}
+      disabled={busy || !isDraftValid(draft) || !formValid}
     />
   );
 
@@ -70,7 +74,13 @@ function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDia
           {error}
         </Alert>
       )}
-      <GameForm value={draft} onChange={setDraft} platforms={platforms} disabled={busy} />
+      <GameForm
+        value={draft}
+        onChange={setDraft}
+        platforms={platforms}
+        disabled={busy}
+        onValidityChange={setFormValid}
+      />
     </BaseDialog>
   );
 }

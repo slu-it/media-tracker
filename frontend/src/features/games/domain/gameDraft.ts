@@ -1,10 +1,12 @@
 import type { CreateGameRequest, GameResponse, UpdateGameRequest } from "../../../types/api";
+import { isExistingDeveloper, type DeveloperDraft } from "./developerDraft";
 import { DEFAULT_HIDDEN, DEFAULT_OWNERSHIP, DEFAULT_PROGRESS, type Ownership, type Progress } from "./gameStatus";
 import {
   validateCoverImageUrl,
   validateDescription,
   validatePlatformIds,
   validateRating,
+  validateReleaseDate,
   validateReleaseYear,
   validateTitle,
 } from "./gameValues";
@@ -13,6 +15,8 @@ import {
 export interface GameDraft {
   title: string;
   releaseYear: number | null;
+  /** ISO-8601 `YYYY-MM-DD`; `null` when only the release year is known. Kept in sync via `withReleaseDate`. */
+  releaseDate: string | null;
   platformIds: string[];
   description: string;
   rating: number | null;
@@ -20,12 +24,19 @@ export interface GameDraft {
   ownership: Ownership;
   progress: Progress;
   hidden: boolean;
+  /**
+   * Existing developers and pending free-solo names (see `DeveloperDraft`). The host resolves these into ids via
+   * `resolveDeveloperIds` right before saving; `toCreateRequest`/`toUpdateRequest` take the resolved ids instead
+   * of this field directly.
+   */
+  developers: DeveloperDraft[];
 }
 
 export function emptyGameDraft(): GameDraft {
   return {
     title: "",
     releaseYear: null,
+    releaseDate: null,
     platformIds: [],
     description: "",
     rating: null,
@@ -33,6 +44,7 @@ export function emptyGameDraft(): GameDraft {
     ownership: DEFAULT_OWNERSHIP,
     progress: DEFAULT_PROGRESS,
     hidden: DEFAULT_HIDDEN,
+    developers: [],
   };
 }
 
@@ -40,6 +52,7 @@ export function draftFromGame(game: GameResponse): GameDraft {
   return {
     title: game.title,
     releaseYear: game.releaseYear,
+    releaseDate: game.releaseDate,
     platformIds: game.platforms.map((platform) => platform.id),
     description: game.description ?? "",
     rating: game.rating,
@@ -47,13 +60,25 @@ export function draftFromGame(game: GameResponse): GameDraft {
     ownership: game.ownership,
     progress: game.progress,
     hidden: game.hidden,
+    developers: game.developers,
   };
+}
+
+/**
+ * Sets `releaseDate`; a non-null date also overrides `releaseYear` with the date's year, since the backend
+ * derives the year from the date when both are given. The one place this stays in sync, so every caller (the
+ * form field, tests) goes through it instead of setting both fields separately.
+ */
+export function withReleaseDate(draft: GameDraft, releaseDate: string | null): GameDraft {
+  if (releaseDate === null) return { ...draft, releaseDate };
+  return { ...draft, releaseDate, releaseYear: Number(releaseDate.slice(0, 4)) };
 }
 
 export function isDraftValid(draft: GameDraft): boolean {
   return (
     validateTitle(draft.title) === null &&
     validateReleaseYear(draft.releaseYear) === null &&
+    validateReleaseDate(draft.releaseDate) === null &&
     validatePlatformIds(draft.platformIds) === null &&
     validateDescription(draft.description) === null &&
     validateRating(draft.rating) === null &&
@@ -73,12 +98,29 @@ export function normalizeDescription(value: string): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
-export function isDraftDirty(game: GameResponse, draft: GameDraft): boolean {
-  return Object.keys(toUpdateRequest(game, draft)).length > 0;
+/** The ids of the draft's already-existing developers; pending (not-yet-created) ones have no id yet. */
+function existingDeveloperIds(draft: GameDraft): string[] {
+  return draft.developers.filter(isExistingDeveloper).map((developer) => developer.id);
 }
 
-/** Throws when the draft is invalid; callers keep the save button disabled until `isDraftValid`. */
-export function toCreateRequest(draft: GameDraft): CreateGameRequest {
+/**
+ * A pending developer (typed but not yet created on the backend) always counts as a change: it cannot be
+ * compared to the game's ids until `resolveDeveloperIds` runs, which only happens right before saving.
+ */
+function hasPendingDeveloper(draft: GameDraft): boolean {
+  return draft.developers.some((developer) => !isExistingDeveloper(developer));
+}
+
+export function isDraftDirty(game: GameResponse, draft: GameDraft): boolean {
+  if (hasPendingDeveloper(draft)) return true;
+  return Object.keys(toUpdateRequest(game, draft, existingDeveloperIds(draft))).length > 0;
+}
+
+/**
+ * Throws when the draft is invalid; callers keep the save button disabled until `isDraftValid`. `developerIds` is
+ * the draft's developers already resolved to ids (see `resolveDeveloperIds`); omitted from the request when empty.
+ */
+export function toCreateRequest(draft: GameDraft, developerIds: string[]): CreateGameRequest {
   if (!isDraftValid(draft) || draft.releaseYear === null) {
     throw new Error("draft is not valid");
   }
@@ -92,6 +134,8 @@ export function toCreateRequest(draft: GameDraft): CreateGameRequest {
     ownership: draft.ownership,
     progress: draft.progress,
     hidden: draft.hidden,
+    releaseDate: draft.releaseDate,
+    ...(developerIds.length > 0 ? { developerIds } : {}),
   };
 }
 
@@ -102,8 +146,12 @@ function sameIds(a: string[], b: string[]): boolean {
   return sortedA.every((id, index) => id === sortedB[index]);
 }
 
-/** Only the fields that differ from `game`; `null` clears `description`/`rating`/`coverImageUrl`. */
-export function toUpdateRequest(game: GameResponse, draft: GameDraft): UpdateGameRequest {
+/**
+ * Only the fields that differ from `game`; `null` clears `description`/`rating`/`coverImageUrl`. `developerIds`
+ * is the draft's developers already resolved to ids (see `resolveDeveloperIds`); sent only when the set differs
+ * from the game's, order-insensitive.
+ */
+export function toUpdateRequest(game: GameResponse, draft: GameDraft, developerIds: string[]): UpdateGameRequest {
   const request: UpdateGameRequest = {};
   const title = draft.title.trim();
   if (title !== game.title) request.title = title;
@@ -118,5 +166,8 @@ export function toUpdateRequest(game: GameResponse, draft: GameDraft): UpdateGam
   if (draft.ownership !== game.ownership) request.ownership = draft.ownership;
   if (draft.progress !== game.progress) request.progress = draft.progress;
   if (draft.hidden !== game.hidden) request.hidden = draft.hidden;
+  if (draft.releaseDate !== game.releaseDate) request.releaseDate = draft.releaseDate;
+  const existingGameDeveloperIds = game.developers.map((developer) => developer.id);
+  if (!sameIds(developerIds, existingGameDeveloperIds)) request.developerIds = developerIds;
   return request;
 }

@@ -6,6 +6,7 @@ import de.sluit.mediatracker.auth.api.ApiKeysResponse
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.api.GameResponse
+import de.sluit.mediatracker.games.persistence.GameDevelopersTable
 import de.sluit.mediatracker.games.persistence.GamesTable
 import de.sluit.mediatracker.loginAs
 import io.ktor.client.HttpClient
@@ -75,6 +76,8 @@ class McpSmokeTest {
                     "update_game",
                     "list_expansions",
                     "add_expansion",
+                    "search_game_developers",
+                    "create_game_developer",
                 ),
                 toolNames,
             )
@@ -348,6 +351,93 @@ class McpSmokeTest {
         } finally {
             mcp.close()
             transaction { GamesTable.deleteAll() }
+        }
+    }
+
+    @Test
+    fun `create_game_developer then add_game with its id round trips releaseDate and developers`() = testApplication {
+        val (sessionClient, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val platforms = mcp.callTool("list_game_platforms", emptyMap())
+            val pcId = platforms.structuredContent!!["platforms"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "PC" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            val developer = mcp.callTool("create_game_developer", mapOf("name" to "Supergiant Games"))
+            assertNotEquals(true, developer.isError)
+            val developerId = developer.structuredContent!!["id"]!!.jsonPrimitive.content
+
+            val created = mcp.callTool(
+                "add_game",
+                mapOf(
+                    "title" to "Hades",
+                    "releaseDate" to "2020-09-17",
+                    "platformIds" to listOf(pcId),
+                    "developerIds" to listOf(developerId),
+                ),
+            )
+            assertNotEquals(true, created.isError)
+
+            val listed = sessionClient.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+            val hades = listed.items.single { it.title == "Hades" }
+            assertEquals("2020-09-17", hades.releaseDate)
+            assertEquals(2020, hades.releaseYear)
+            assertEquals(listOf("Supergiant Games"), hades.developers.map { it.name })
+        } finally {
+            mcp.close()
+            transaction {
+                GamesTable.deleteAll()
+                GameDevelopersTable.deleteAll()
+            }
+        }
+    }
+
+    @Test
+    fun `create_game_developer twice with different casing returns the same developer the second time`() =
+        testApplication {
+            val (_, key) = loggedInClientWithApiKey()
+            val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+            mcp.connect(mcpTransport(key))
+
+            try {
+                val first = mcp.callTool("create_game_developer", mapOf("name" to "Team Cherry"))
+                assertNotEquals(true, first.isError)
+                assertEquals(true, first.structuredContent!!["created"]!!.jsonPrimitive.content.toBoolean())
+                val firstId = first.structuredContent!!["id"]!!.jsonPrimitive.content
+
+                val second = mcp.callTool("create_game_developer", mapOf("name" to "team cherry"))
+
+                assertNotEquals(true, second.isError)
+                assertEquals(false, second.structuredContent!!["created"]!!.jsonPrimitive.content.toBoolean())
+                assertEquals(firstId, second.structuredContent!!["id"]!!.jsonPrimitive.content)
+            } finally {
+                mcp.close()
+                transaction { GameDevelopersTable.deleteAll() }
+            }
+        }
+
+    @Test
+    fun `search_game_developers finds a developer created moments before by name prefix`() = testApplication {
+        val (_, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val created = mcp.callTool("create_game_developer", mapOf("name" to "Nintendo EPD"))
+            assertNotEquals(true, created.isError)
+
+            val found = mcp.callTool("search_game_developers", mapOf("query" to "Nin"))
+
+            assertNotEquals(true, found.isError)
+            val names = found.structuredContent!!["developers"]!!.jsonArray
+                .map { it.jsonObject["name"]!!.jsonPrimitive.content }
+            assertContains(names, "Nintendo EPD")
+        } finally {
+            mcp.close()
+            transaction { GameDevelopersTable.deleteAll() }
         }
     }
 }

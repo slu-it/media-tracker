@@ -53,3 +53,12 @@ internal class WeightedFulltextScore(private val booleanQuery: String) : Functio
         +")"
     }
 }
+
+/**
+ * `LEAST(MATCH(col) AGAINST(? IN BOOLEAN MODE), 1000000.0)`, for ranking a single fulltext-indexed column
+ * (e.g. `game_developers.name`) where there is no second column to weigh against, unlike [WeightedFulltextScore].
+ */
+internal class MatchScore(private val column: Column<*>, private val booleanQuery: String) :
+    Function<Double>(DoubleColumnType()) {
+    override fun toQueryBuilder(queryBuilder: QueryBuilder) = queryBuilder { cappedMatchAgainst(column, booleanQuery) }
+}
