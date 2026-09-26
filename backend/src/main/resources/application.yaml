@@ -34,3 +34,16 @@ coverSource:
     # Set it to enable searching SteamGridDB for cover art (MT-017).
     apiKey: "$STEAMGRIDDB_API_KEY:"
     baseUrl: "https://www.steamgriddb.com/api/v2"
+
+dropbox:
+  # Optional; both must be set or both left blank. Enables the in-app Dropbox connection and backup upload
+  # (MT-024). Without them, GET /api/dropbox answers `available: false` and every other /api/dropbox call 503s.
+  appKey: "$DROPBOX_APP_KEY:"
+  appSecret: "$DROPBOX_APP_SECRET:"
+
+backup:
+  # Optional. When Dropbox is connected, the scheduler in backup/api/BackupScheduler.kt uploads the full export
+  # once a day at this local time (HH:mm) in this IANA zone (MT-024). Europe/Berlin, not UTC, because the
+  # distroless container itself runs in UTC.
+  dailyAt: "$BACKUP_DAILY_AT:03:00"
+  zone: "$BACKUP_ZONE:Europe/Berlin"

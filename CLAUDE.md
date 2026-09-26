@@ -54,7 +54,7 @@ and Series.
   - new `<feature>/api/*Routes.kt` <-> mounted in `apiRoutes` (root `Routes.kt`) inside `authenticate`, before the catch-all
   - backend value class rule (`requireValid`) <-> frontend validator in `features/<kind>/domain/` + self-validating field component
 - **Onion layers**: `api -> domain <- persistence` (+ `integration -> domain`); the domain imports no
-  Ktor/Exposed/kotlinx and only domain types cross layers. Copy the `games` package for a new media kind.
+  Ktor/Exposed/kotlinx (`kotlinx.coroutines` primitives excepted) and only domain types cross layers. Copy the `games` package for a new media kind.
 - **Backend tests need Docker** and are never skipped. The test MariaDB is shared per JVM: seed idempotently or
   clean up.
 - Never write into `backend/src/main/resources/app/` (Gradle copies the built SPA there); never pass

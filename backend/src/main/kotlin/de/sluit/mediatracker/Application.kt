@@ -9,10 +9,17 @@ import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.persistence.ExposedSessionRepository
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
+import de.sluit.mediatracker.backup.api.BackupScheduler
+import de.sluit.mediatracker.backup.api.JsonBackupCodec
 import de.sluit.mediatracker.backup.domain.BackupService
+import de.sluit.mediatracker.backup.domain.CloudBackupService
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.config.SessionConfig
+import de.sluit.mediatracker.dropbox.domain.DropboxService
+import de.sluit.mediatracker.dropbox.integration.DropboxHttpApi
+import de.sluit.mediatracker.dropbox.integration.dropboxHttpClient
+import de.sluit.mediatracker.dropbox.persistence.ExposedDropboxConnectionRepository
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameService
@@ -29,6 +36,9 @@ import io.ktor.server.application.log
 import io.ktor.server.routing.routing
 import io.ktor.server.sessions.SessionStorage
 import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
+import kotlin.time.Clock
+import java.time.Clock as JavaClock
 
 /**
  * The services the HTTP layer needs; built from Exposed repositories in [module], from MockK mocks in handler tests.
@@ -40,6 +50,8 @@ class Services(
     val expansions: ExpansionService,
     val coverOptions: CoverOptionsService,
     val backup: BackupService,
+    val dropbox: DropboxService,
+    val cloudBackup: CloudBackupService,
 )
 
 /**
@@ -101,8 +113,32 @@ fun Application.module() {
     val coverOptionsService = CoverOptionsService(coverSource)
     val backupService = BackupService(backupSources)
 
-    val services =
-        Services(authService, gameService, apiKeyService, expansionService, coverOptionsService, backupService)
+    val dropboxBackend = config.dropbox?.let { dropboxConfig ->
+        val client = dropboxHttpClient()
+        coroutineContext.job.invokeOnCompletion { client.close() }
+        DropboxService.Backend(DropboxHttpApi(client, dropboxConfig), dropboxConfig.appKey)
+    }
+    if (dropboxBackend != null) {
+        log.info("dropbox: configured")
+    } else {
+        log.info("dropbox: not configured (DROPBOX_APP_KEY/DROPBOX_APP_SECRET unset)")
+    }
+    val dropboxService = DropboxService(dropboxBackend, ExposedDropboxConnectionRepository(), Clock.System)
+    val cloudBackupService = CloudBackupService(backupService, JsonBackupCodec(), dropboxService)
+
+    log.info("dropbox backup scheduled daily at ${config.backup.dailyAt} ${config.backup.zone}")
+    launch { BackupScheduler(cloudBackupService, config.backup, JavaClock.system(config.backup.zone)).run() }
+
+    val services = Services(
+        authService,
+        gameService,
+        apiKeyService,
+        expansionService,
+        coverOptionsService,
+        backupService,
+        dropboxService,
+        cloudBackupService,
+    )
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))
 

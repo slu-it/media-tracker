@@ -78,8 +78,9 @@ de.sluit.mediatracker
 │                       (/health, session-gated SPA from classpath /app)
 ├── Schema.kt           allTables: every Exposed table object, for the schema drift check; backupSources:
 │                       every domain's BackupSource (decision record 0027)
-├── config/             AppConfig, DatabaseConfig, SessionConfig, CoverSourceConfig/SteamGridDbConfig (typed
-│                       application.yaml; the SteamGridDB key is optional, absent = no cover source)
+├── config/             AppConfig, DatabaseConfig, SessionConfig, CoverSourceConfig/SteamGridDbConfig,
+│                       DropboxConfig, BackupConfig (typed application.yaml; the SteamGridDB key and the Dropbox
+│                       key/secret pair are optional, absent = no cover source / no Dropbox)
 ├── common/             shared code in the same three layers as a feature; knows no feature:
 │   ├── api/            shared DTOs (ErrorResponse, HealthResponse, PageResponse<T>; mirrored in
 │   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing),
@@ -87,7 +88,8 @@ de.sluit.mediatracker
 │   ├── domain/         InvalidValueException/NotFoundException/requireValid,
 │   │                   ExternalSourceUnavailableException/ExternalSourceException (an outbound source's
 │   │                   503/502, coded by source name), PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm,
-│   │                   BackupSource (port: a domain's tables as plain rows, export + insert-if-absent import)
+│   │                   BackupSource (port: a domain's tables as plain rows, export + insert-if-absent import),
+│   │                   CloudStorage + StoredFile (port: upload a file, find its metadata)
 │   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery(),
 │                       ExposedBackupSource (generic BackupSource over a list of Exposed tables)
 ├── plugins/            Serialization, Monitoring, StatusPages
@@ -100,8 +102,18 @@ de.sluit.mediatracker
 │   └── persistence/    UsersTable, SessionsTable, ExposedUserRepository (+ *Blocking helpers),
 │                       ExposedSessionRepository
 ├── backup/             technical domain, knows only the BackupSource port (decision record 0027):
-│   ├── api/            BackupRoutes (/api/backup/export, /api/backup/import; JSON <-> rows) + BackupDtos
-│   └── domain/         BackupService (merges the sources, rejects unknown tables, dispatches import slices)
+│   ├── api/            BackupRoutes (/api/backup/export, /api/backup/import, /api/backup/dropbox) + BackupDtos,
+│   │                   JsonBackupCodec (rows <-> JSON; implements BackupEncoder), BackupScheduler (daily
+│   │                   coroutine launched in module(), nextRun, one retry; decision record 0028)
+│   └── domain/         BackupService (merges the sources, rejects unknown tables, dispatches import slices),
+│                       BackupEncoder (port), CloudBackupService (export -> encode -> CloudStorage upload of
+│                       /backup/full-export.json, lastBackup)
+├── dropbox/            technical domain, knows no feature and not backup (decision record 0028):
+│   ├── api/            DropboxRoutes (/api/dropbox, /authorize-url, /connection) + DropboxDtos
+│   ├── domain/         DropboxService (implements CloudStorage; access-token cache, refresh, connect/disconnect),
+│   │                   DropboxApi and DropboxConnectionRepository (ports), AuthorizationCode, RefreshToken
+│   ├── integration/    DropboxHttpApi (Ktor client: oauth2/token, token/revoke, files/upload, files/get_metadata)
+│   └── persistence/    OAuthConnectionsTable (system table), ExposedDropboxConnectionRepository
 ├── mcp/                technical domain, api layer only, knows no feature:
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 └── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
@@ -161,13 +173,19 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/games/title-suggestions?query=hollow%20kn` | 200 `TitleSuggestionsResponse {suggestions}` | title suggestions for the add/edit form (decision record 0026): up to 8 `CoverMatchResponse` (`id`, `name`, `releaseYear` or `null`, `verified`) from the SteamGridDB search, in its order; `query` has the same 1..200 limits as `?search`, missing or blank is a 400; an unconfigured or failing SteamGridDB yields an empty list, never 502/503 |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first). `.meta` is the convention for a resource's lookup data (decision record 0021) |
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
-| `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; `users` and `sessions` are excluded (decision record 0027) |
+| `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
 | `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, missing column, wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
+| `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
+| `POST /api/backup/dropbox` | 200 `CloudBackupResponse` | uploads the export (the same bytes as `GET /api/backup/export`) now, overwriting the file; same 503/502 |
+| `GET /api/dropbox` | 200 `DropboxStatusResponse {available, connected, connectedAt}` | `available` = app key and secret configured; `connectedAt` ISO-8601 or `null` |
+| `GET /api/dropbox/authorize-url` | 200 `AuthorizeUrlResponse {url}` | the no-redirect OAuth code-flow URL (`token_access_type=offline`); 503 `dropbox_unavailable` when not configured |
+| `POST /api/dropbox/connection` | 200 `DropboxStatusResponse` | body `ConnectDropboxRequest {code}`: exchanges the pasted code for a refresh token stored in `oauth_connections`; a blank, overlong or rejected code is a 400 `validation_error` |
+| `DELETE /api/dropbox/connection` | 204 | revokes the token at Dropbox (best effort) and deletes it; idempotent |
 
 Errors are `ErrorResponse {error, message?}` with codes `validation_error` (400, a value class rejected a field:
 `"title: must not be blank"`), `invalid_body` (400, malformed or ill-typed JSON, missing body), `not_found` (404),
 `unauthorized` (401), `method_not_allowed` (405, GET/DELETE on `/mcp`, answered by `mcp/api/McpEndpoint.kt` itself),
-`<source>_unavailable` (503, an outbound source such as `cover_source` is not configured) and `<source>_error` (502,
+`<source>_unavailable` (503, an outbound source such as `cover_source` is not configured, or `dropbox` is not connected) and `<source>_error` (502,
 it failed; the upstream status and error list are logged, never returned), `internal_error` (500). The exception mapping lives in `plugins/StatusPages.kt` and also applies to `/mcp`.
 
 `POST /mcp` speaks JSON-RPC 2.0 per the MCP specification (`initialize`, `tools/list`, `tools/call`); authentication
@@ -190,9 +208,12 @@ frontend/src
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
 │                         ComingSoon
 ├── features/settings/    UserSettingsDialog (tab bar; "API Keys" and "Export / Import" tabs) + api/ (settingsApi,
-│                         backupApi), hooks/ (useApiKeys, useExportImport), domain/ (downloadJson: Blob download),
-│                         components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal, copy, regenerate;
-│                         ExportImportTab: export download, file-picker import with per-table counts)
+│                         backupApi, dropboxApi), hooks/ (useApiKeys, useExportImport, useDropbox, useCloudBackup),
+│                         domain/ (downloadJson: Blob download, dropboxValues: code validator, cloudBackupFormat:
+│                         Intl date/size), components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal,
+│                         copy, regenerate; ExportImportTab: export download, file-picker import with per-table
+│                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
+│                         disconnect; fields/AuthorizationCodeField)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
 └── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
                           ?search and the filter parameters, games.meta, cover-options, title-suggestions;
@@ -259,9 +280,13 @@ ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + l
   projects: if the application starts first, the pool fails to initialise, the JVM exits and the restart policy
   retries until the database answers. The systemd path cannot resolve `mariadb` and needs the published port
   instead. Decision record 0018.
-- `STEAMGRIDDB_API_KEY` is the only optional secret: with it the cover picker queries SteamGridDB through
+- `STEAMGRIDDB_API_KEY` is optional: with it the cover picker queries SteamGridDB through
   `games/integration/SteamGridDbCoverSource` (Ktor client, JDK `HttpClient` engine, 10 s timeout); without it
   the endpoint answers `503 cover_source_unavailable` and the picker says so. Decision record 0024.
+- `DROPBOX_APP_KEY` and `DROPBOX_APP_SECRET` (a pair) enable the Dropbox backup. The refresh token comes from
+  the in-app connect flow and lives in `oauth_connections`. `BackupScheduler` is a coroutine in the application
+  scope, cancelled with it. It uploads the export daily at `BACKUP_DAILY_AT` (default `03:00`) in `BACKUP_ZONE`
+  (default `Europe/Berlin`, since the image runs in UTC), with one retry after an hour. Decision record 0028.
 - `deploy/jvm.options`: 192 MB heap, SerialGC, C1 only, auto-created CDS archive for faster restarts.
 - HikariCP: `maximumPoolSize=3`, `minimumIdle=1`, `keepaliveTime=300000`, `maxLifetime=1500000`. The
   keepalive dates from the web-host era, where idle connections were killed from the other side; against the

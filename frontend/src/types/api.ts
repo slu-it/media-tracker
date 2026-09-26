@@ -1,7 +1,7 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
 // .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse), .../games/api/GameDtos.kt,
-// .../games/api/ExpansionDtos.kt, .../games/api/CoverOptionDtos.kt and .../backup/api/BackupDtos.kt. Keep them
-// in sync.
+// .../games/api/ExpansionDtos.kt, .../games/api/CoverOptionDtos.kt, .../backup/api/BackupDtos.kt and
+// .../dropbox/api/DropboxDtos.kt. Keep them in sync.
 
 /** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
 export type Ownership = "watchlist" | "owned";
@@ -177,4 +177,38 @@ export interface TableImportResult {
 /** Response of `POST /api/backup/import`, one entry per table the payload named; mirrors `ImportResultResponse`. */
 export interface ImportResultResponse {
   tables: Record<string, TableImportResult>;
+}
+
+/**
+ * Response of `GET /api/dropbox`: whether the app key/secret are configured, whether a connection exists, and
+ * since when (ISO-8601); mirrors `DropboxStatusResponse`.
+ */
+export interface DropboxStatusResponse {
+  available: boolean;
+  connected: boolean;
+  connectedAt: string | null;
+}
+
+/** Response of `GET /api/dropbox/authorize-url`, opened in a new tab to start the in-app code flow. */
+export interface AuthorizeUrlResponse {
+  url: string;
+}
+
+/** Body of `POST /api/dropbox/connection`: the code the user pasted from Dropbox's authorization page. */
+export interface ConnectDropboxRequest {
+  code: string;
+}
+
+/** A single cloud-stored file's metadata; mirrors `StoredFileDto` (backup/api/BackupDtos.kt). */
+export interface StoredFileDto {
+  modifiedAt: string;
+  sizeBytes: number;
+}
+
+/**
+ * Response of `GET`/`POST /api/backup/dropbox`: the latest cloud backup, or `null` when none has been uploaded
+ * yet; mirrors `CloudBackupResponse`.
+ */
+export interface CloudBackupResponse {
+  lastBackup: StoredFileDto | null;
 }

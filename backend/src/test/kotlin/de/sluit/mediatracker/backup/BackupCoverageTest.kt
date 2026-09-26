@@ -13,8 +13,11 @@ import kotlin.test.assertTrue
  * silently missing from every export.
  */
 class BackupCoverageTest {
-    /** Never exported: `users` (API keys live in it) and `sessions` are system tables, not domain data. */
-    private val systemTables = setOf("users", "sessions")
+    /**
+     * Never exported: `users` (API keys live in it) and `sessions` are system tables, not domain data;
+     * `oauth_connections` (MT-024) holds the Dropbox refresh token.
+     */
+    private val systemTables = setOf("users", "sessions", "oauth_connections")
 
     @Test
     fun `every backed-up table name is covered by exactly one source`() {

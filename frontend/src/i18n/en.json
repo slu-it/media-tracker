@@ -62,7 +62,29 @@
       "importButton": "Choose file…",
       "importFailed": "Could not import the file.",
       "fileInputLabel": "Import file",
-      "tableResult": "{{table}}: {{inserted}} inserted, {{skipped}} skipped"
+      "tableResult": "{{table}}: {{inserted}} inserted, {{skipped}} skipped",
+      "dropbox": {
+        "title": "Dropbox backup",
+        "notAvailableHint": "Dropbox backup is not configured on this server. Set the DROPBOX_APP_KEY and DROPBOX_APP_SECRET environment variables to enable it.",
+        "loadFailed": "Could not load the Dropbox connection status.",
+        "openDropbox": "Open Dropbox",
+        "openDropboxFailed": "Could not get the Dropbox authorization link.",
+        "codeLabel": "Authorization code",
+        "codeHint": "Paste the code Dropbox shows after you approve access.",
+        "connect": "Connect",
+        "connectFailed": "Could not connect to Dropbox.",
+        "connectedSince": "Connected since {{date}}",
+        "lastBackupLoadFailed": "Could not load the last backup.",
+        "lastBackup": "Last backup: {{value}}",
+        "noBackupYet": "No backup yet",
+        "backupNow": "Back up to Dropbox now",
+        "backupNowFailed": "Could not back up to Dropbox.",
+        "connectionLost": "The Dropbox connection was lost, probably because access was revoked in the Dropbox app. Reconnect to keep backups running.",
+        "temporarilyUnavailable": "Dropbox is temporarily unavailable. Try again later.",
+        "disconnect": "Disconnect",
+        "disconnectQuestion": "Disconnect Dropbox? Scheduled backups will stop until you reconnect.",
+        "disconnectFailed": "Could not disconnect Dropbox."
+      }
     }
   },
   "tabs": {

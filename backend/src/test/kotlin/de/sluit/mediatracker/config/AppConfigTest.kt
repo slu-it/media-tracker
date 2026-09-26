@@ -3,6 +3,8 @@ package de.sluit.mediatracker.config
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.config.ApplicationConfigurationException
 import io.ktor.server.config.MapApplicationConfig
+import java.time.LocalTime
+import java.time.ZoneId
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -66,6 +68,8 @@ class AppConfigTest {
         assertEquals("MT_SESSION", appConfig.session.cookieName)
         assertEquals(1_209_600.seconds, appConfig.session.maxAge)
         assertEquals(true, appConfig.session.secureCookie)
+        assertEquals(LocalTime.of(3, 0), appConfig.backup.dailyAt)
+        assertEquals(ZoneId.of("Europe/Berlin"), appConfig.backup.zone)
     }
 
     @Test
@@ -145,6 +149,10 @@ class AppConfigTest {
         assertEquals(false, appConfig.session.secureCookie)
         // Pinned blank in application-test.yaml so a developer's exported STEAMGRIDDB_API_KEY cannot flip tests.
         assertNull(appConfig.coverSource.steamGridDb)
+        // Pinned blank in application-test.yaml so a developer's exported DROPBOX_APP_KEY/SECRET cannot flip tests.
+        assertNull(appConfig.dropbox)
+        assertEquals(LocalTime.of(3, 0), appConfig.backup.dailyAt)
+        assertEquals(ZoneId.of("Europe/Berlin"), appConfig.backup.zone)
     }
 
     @Test
@@ -205,5 +213,132 @@ class AppConfigTest {
         val appConfig = AppConfig.from(config)
 
         assertEquals("https://www.steamgriddb.com/api/v2", appConfig.coverSource.steamGridDb?.baseUrl)
+    }
+
+    // ---- dropbox ----
+
+    @Test
+    fun `an absent dropbox configuration is read as unconfigured`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertNull(appConfig.dropbox)
+    }
+
+    @Test
+    fun `blank dropbox app key and secret are read as unconfigured`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "dropbox.appKey" to "",
+            "dropbox.appSecret" to "",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertNull(appConfig.dropbox)
+    }
+
+    @Test
+    fun `reads the dropbox app key and secret when both are configured`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "dropbox.appKey" to "key-1",
+            "dropbox.appSecret" to "secret-1",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertEquals("key-1", appConfig.dropbox?.appKey)
+        assertEquals("secret-1", appConfig.dropbox?.appSecret)
+        assertEquals("https://api.dropboxapi.com", appConfig.dropbox?.apiBaseUrl)
+        assertEquals("https://content.dropboxapi.com", appConfig.dropbox?.contentBaseUrl)
+    }
+
+    @Test
+    fun `rejects a dropbox app key set without a secret`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "dropbox.appKey" to "key-1",
+        )
+
+        assertFailsWith<IllegalArgumentException> { AppConfig.from(config) }
+    }
+
+    @Test
+    fun `rejects a dropbox app secret set without a key`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "dropbox.appSecret" to "secret-1",
+        )
+
+        assertFailsWith<IllegalArgumentException> { AppConfig.from(config) }
+    }
+
+    @Test
+    fun `the dropbox config toString masks the app secret`() {
+        val config = DropboxConfig(appKey = "key-1", appSecret = "dropbox-secret")
+
+        assertFalse(config.toString().contains("dropbox-secret"))
+        assertTrue(config.toString().contains("key-1"))
+    }
+
+    // ---- backup schedule ----
+
+    @Test
+    fun `defaults the backup schedule to 03 00 europe berlin when absent`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertEquals(LocalTime.of(3, 0), appConfig.backup.dailyAt)
+        assertEquals(ZoneId.of("Europe/Berlin"), appConfig.backup.zone)
+    }
+
+    @Test
+    fun `reads a custom backup daily time and zone`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "backup.dailyAt" to "23:45",
+            "backup.zone" to "America/New_York",
+        )
+
+        val appConfig = AppConfig.from(config)
+
+        assertEquals(LocalTime.of(23, 45), appConfig.backup.dailyAt)
+        assertEquals(ZoneId.of("America/New_York"), appConfig.backup.zone)
+    }
+
+    @Test
+    fun `rejects a backup daily time that is not HH mm`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "backup.dailyAt" to "not-a-time",
+        )
+
+        assertFailsWith<IllegalArgumentException> { AppConfig.from(config) }
+    }
+
+    @Test
+    fun `rejects a backup zone that is not a valid time zone id`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "backup.zone" to "Not/A_Zone",
+        )
+
+        assertFailsWith<IllegalArgumentException> { AppConfig.from(config) }
     }
 }

@@ -18,7 +18,7 @@ Testcontainers `mariadb:11.8` per test JVM); nothing is skipped without it.
   `withFreshDatabase` truncates every table in `allTables` except the seeded `game_platforms`, and Exposed's
   default database is pinned to that shared pool.
 - **Handler tests** (`<feature>/api/<Feature>RoutesTest`, `auth/api/AuthRoutesTest`, root `RoutesTest`):
-  `testApplication` + `handlerApp(auth, games, apiKeys, expansions, coverOptions, backup)` from `test/.../TestApp.kt`,
+  `testApplication` + `handlerApp(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup)` from `test/.../TestApp.kt`,
   which boots `configureHttp` with MockK services (every parameter defaulted) and `SessionStorageMemory`, no
   database; `loginAsMocked(auth)` logs in through the real `/login`. They own status codes, headers,
   (de)serialization, `PatchField` mapping (`coVerify` the domain value the service receives) and every negative
@@ -37,6 +37,9 @@ The shared database survives between tests in a JVM: seed idempotently or clean 
 `appWithUser` upserts its user's password hash because repository tests may have inserted the same username
 with a fake hash. Raw inserts write every column (no column defaults, see `schema-migrations.md`).
 
-An expression-bodied test whose last expression is `assertFailsWith` is not discovered by JUnit; use a block
-body. Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage is informational,
+An expression-bodied test whose last expression is `assertFailsWith` is not discovered by JUnit, including when
+it is wrapped: `fun x() = runBlocking { … assertFailsWith { … } }` returns the exception, not `Unit`. A test whose
+body ends in `assertFailsWith` (or any other non-`Unit` value) gets a block body
+(`fun x() { runBlocking { … } }`). Check the `tests=` count in the JUnit XML against the `@Test` count of a new
+class. Kover writes `backend/build/reports/kover/html/index.html` on every `build`; coverage is informational,
 never add a threshold.

@@ -89,6 +89,9 @@ dependencies {
     testImplementation(kotlin("test"))
     // mocks only above the repository interfaces, see ADR 0011
     testImplementation(libs.mockk)
+    // virtual-time coroutine tests (BackupSchedulerTest); same kotlinx-coroutines major as ktor-server-core's
+    // transitive dependency, see gradle/libs.versions.toml
+    testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mcp.sdk.client)
     testImplementation(platform(libs.testcontainers.bom))
     testImplementation(libs.testcontainers.mariadb)

@@ -1,6 +1,7 @@
 package de.sluit.mediatracker
 
 import de.sluit.mediatracker.auth.api.ApiKeysResponse
+import de.sluit.mediatracker.dropbox.api.DropboxStatusResponse
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
@@ -84,4 +85,18 @@ class ApplicationSmokeTest {
         assertEquals(HttpStatusCode.OK, root.status)
         assertContains(root.bodyAsText(), "<div id=\"root\">")
     }
+
+    @Test
+    fun `dropbox status reports unavailable since application-test yaml pins the app key and secret empty`() =
+        testApplication {
+            val client = appWithUser("alice", "wonderland-1")
+            client.loginAs("alice", "wonderland-1")
+
+            val response = client.get("/api/dropbox")
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            val status = response.decodeBody<DropboxStatusResponse>()
+            assertFalse(status.available)
+            assertFalse(status.connected)
+        }
 }

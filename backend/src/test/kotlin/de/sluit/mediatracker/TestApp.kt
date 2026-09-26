@@ -6,9 +6,11 @@ import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.backup.domain.BackupService
+import de.sluit.mediatracker.backup.domain.CloudBackupService
 import de.sluit.mediatracker.common.persistence.sharedTestDatabase
 import de.sluit.mediatracker.common.persistence.testDatabaseConfig
 import de.sluit.mediatracker.config.SessionConfig
+import de.sluit.mediatracker.dropbox.domain.DropboxService
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameService
@@ -108,10 +110,12 @@ fun ApplicationTestBuilder.handlerApp(
     // find_game_cover tool) so tests that never touch cover images do not have to stub it themselves.
     coverOptions: CoverOptionsService = mockk<CoverOptionsService> { every { isAvailable } returns false },
     backup: BackupService = mockk(),
+    dropbox: DropboxService = mockk(),
+    cloudBackup: CloudBackupService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
-            Services(auth, games, apiKeys, expansions, coverOptions, backup),
+            Services(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup),
             testSessionConfig,
             SessionStorageMemory(),
         )

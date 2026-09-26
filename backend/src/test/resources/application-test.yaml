@@ -27,3 +27,14 @@ coverSource:
     # Pinned empty so a developer's exported STEAMGRIDDB_API_KEY cannot flip the cover-source-unavailable smoke test.
     apiKey: ""
     baseUrl: "https://www.steamgriddb.com/api/v2"
+
+dropbox:
+  # Pinned empty so a developer's exported DROPBOX_APP_KEY/SECRET cannot flip the dropbox-unavailable smoke test.
+  appKey: ""
+  appSecret: ""
+
+backup:
+  # Pinned to the production defaults; the scheduler tests build their own BackupConfig instead of going
+  # through this file, so nothing here is time-sensitive.
+  dailyAt: "03:00"
+  zone: "Europe/Berlin"
