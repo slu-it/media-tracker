@@ -53,6 +53,30 @@ SESSION_SECRET=<long random string>
 Optional: `PORT` (default 8080), `SESSION_SECURE=false` for plain-http testing on a LAN, and `STEAMGRIDDB_API_KEY`
 (a free key from your [SteamGridDB profile](https://www.steamgriddb.com/profile/preferences/api)) to enable the cover
 picker in the game dialogs (ADR 0024); without it the picker says it is not configured.
+`DROPBOX_APP_KEY` and `DROPBOX_APP_SECRET` (as a pair) enable the Dropbox backup, and `BACKUP_DAILY_AT` (default
+`03:00`) and `BACKUP_ZONE` (default `Europe/Berlin`) set its daily slot (see [Dropbox backup](#dropbox-backup)).
+
+## Dropbox backup
+
+The JSON export from the settings dialog's **Export / Import** tab is also uploaded daily to
+`Apps/<your app>/backup/full-export.json`, and on demand with "Back up to Dropbox now". Dropbox's version history
+keeps the older copies ([docs/features/dropbox-backup.md](docs/features/dropbox-backup.md), ADR 0028).
+
+1. In the [Dropbox App Console](https://www.dropbox.com/developers/apps), create an app with **Scoped access** and
+   **App folder** access.
+2. On its **Permissions** tab, tick `files.content.write` and `files.metadata.read`, then press **Submit** in the
+   bar at the bottom of the page. Ticking alone saves nothing. Do this before connecting, because a token only
+   carries the scopes the app had when it was granted. If you change the permissions later, disconnect and
+   connect again in the tracker. A missing scope shows up in the log as a Dropbox 400 naming the scope.
+3. Put the app key and secret from the **Settings** tab into `DROPBOX_APP_KEY` and `DROPBOX_APP_SECRET` and
+   restart. No redirect URI is needed. Ignore the console's "Generated access token" button: since Dropbox
+   retired long-lived tokens in 2021 it only creates tokens that expire after about 4 hours. The tracker gets
+   its own non-expiring refresh token in the next step.
+4. In the tracker, open Settings → Export / Import → **Open Dropbox**, allow access, copy the code Dropbox shows,
+   paste it into the code field, and press **Connect**.
+
+Disconnecting in the same tab revokes the token. Removing the app in Dropbox's "Connected apps" has the same
+effect, and the tab then shows "not connected".
 
 ## First user
 

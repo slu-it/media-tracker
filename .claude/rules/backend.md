@@ -10,10 +10,13 @@ dependencies `api -> domain <- persistence`, plus `integration -> domain` (and `
 for outbound HTTP adapters to third-party services (ADR 0024, `games/integration/`). `mcp` has an `api` layer only
 and imports no feature. `common/`, `plugins/` and `config/` never import a feature package. The composition root
 is the package root: `Application.kt` (wiring), `Routes.kt` (route mounting), `Schema.kt` (`allTables`,
-`backupSources`). `backup` knows only the `BackupSource` port in `common/domain` and imports no feature (ADR 0027).
+`backupSources`). `backup` knows only the `BackupSource` and `CloudStorage` ports in `common/domain` and imports no feature (ADR
+0027). `dropbox` is a technical domain with all four layers. It imports no feature and not `backup`, which
+reaches it only through `CloudStorage` (ADR 0028).
 `CreateUser` (bootstrap CLI) sits at the `auth` root.
 
-**Layers.** The domain imports no Ktor, Exposed or kotlinx. Each layer has its own types (DTOs / entities and
+**Layers.** The domain imports no Ktor, Exposed or kotlinx, except `kotlinx.coroutines` primitives such as
+`Mutex` (`DropboxService`'s token cache); kotlinx.serialization stays out. Each layer has its own types (DTOs / entities and
 `@JvmInline value class`es / Exposed tables); only domain types cross layers. Value classes validate in `init`
 via `requireValid(field, cond) { reason }` -> `InvalidValueException` -> HTTP 400 `validation_error`.
 `plugins/StatusPages.kt` also maps `NotFoundException` -> 404, Ktor body failures -> 400 `invalid_body`, and
@@ -24,7 +27,9 @@ via `requireValid(field, cond) { reason }` -> `InvalidValueException` -> HTTP 40
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,
-coverOptions, backup)` from Exposed repositories (and the SteamGridDB client only when its key is configured) ->
+coverOptions, backup, dropbox, cloudBackup)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
+only when their keys are configured) -> `launch { BackupScheduler(...).run() }` on the application scope (ADR
+0028) ->
 `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
 persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) -> routes
 (`loginRoutes`, `apiRoutes(services)`, `mcpRoutes(services)`, `webRoutes`). A new media kind adds its service to

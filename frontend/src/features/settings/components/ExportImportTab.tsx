@@ -2,6 +2,7 @@ import { useRef, type ChangeEvent, type CSSProperties } from "react";
 import { Alert, Box, Button, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useExportImport } from "../hooks/useExportImport";
+import { DropboxBackupSection } from "./DropboxBackupSection";
 
 // Visually hidden but still in the accessibility tree and clickable, so the file input stays reachable via its
 // label while only the button in front of it is seen.
@@ -81,6 +82,7 @@ export function ExportImportTab() {
           />
         </Box>
       </Stack>
+      <DropboxBackupSection />
     </Stack>
   );
 }

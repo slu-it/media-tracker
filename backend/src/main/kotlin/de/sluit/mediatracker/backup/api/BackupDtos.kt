@@ -11,3 +11,11 @@ data class TableImportResultDto(val inserted: Int, val skipped: Int)
 /** Response of POST /api/backup/import, one entry per table the payload named. */
 @Serializable
 data class ImportResultResponse(val tables: Map<String, TableImportResultDto>)
+
+/** GET/POST /api/backup/dropbox: the latest cloud backup, or `null` when none has been uploaded yet. */
+@Serializable
+data class CloudBackupResponse(val lastBackup: StoredFileDto?)
+
+/** A single cloud-stored file's metadata; [modifiedAt] is ISO-8601, same shape as `DropboxStatusResponse.connectedAt`. */
+@Serializable
+data class StoredFileDto(val modifiedAt: String, val sizeBytes: Long)

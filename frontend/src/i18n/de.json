@@ -62,7 +62,29 @@
       "importButton": "Datei wählen…",
       "importFailed": "Die Datei konnte nicht importiert werden.",
       "fileInputLabel": "Importdatei",
-      "tableResult": "{{table}}: {{inserted}} eingefügt, {{skipped}} übersprungen"
+      "tableResult": "{{table}}: {{inserted}} eingefügt, {{skipped}} übersprungen",
+      "dropbox": {
+        "title": "Dropbox-Sicherung",
+        "notAvailableHint": "Die Dropbox-Sicherung ist auf diesem Server nicht eingerichtet. Die Umgebungsvariablen DROPBOX_APP_KEY und DROPBOX_APP_SECRET setzen, um sie zu aktivieren.",
+        "loadFailed": "Der Dropbox-Verbindungsstatus konnte nicht geladen werden.",
+        "openDropbox": "Dropbox öffnen",
+        "openDropboxFailed": "Der Dropbox-Autorisierungslink konnte nicht abgerufen werden.",
+        "codeLabel": "Autorisierungscode",
+        "codeHint": "Den Code einfügen, den Dropbox nach der Freigabe anzeigt.",
+        "connect": "Verbinden",
+        "connectFailed": "Die Verbindung zu Dropbox ist fehlgeschlagen.",
+        "connectedSince": "Verbunden seit {{date}}",
+        "lastBackupLoadFailed": "Die letzte Sicherung konnte nicht geladen werden.",
+        "lastBackup": "Letzte Sicherung: {{value}}",
+        "noBackupYet": "Noch keine Sicherung",
+        "backupNow": "Jetzt auf Dropbox sichern",
+        "backupNowFailed": "Die Sicherung auf Dropbox ist fehlgeschlagen.",
+        "connectionLost": "Die Dropbox-Verbindung ist verloren gegangen, vermutlich weil der Zugriff in der Dropbox-App widerrufen wurde. Erneut verbinden, um Sicherungen fortzusetzen.",
+        "temporarilyUnavailable": "Dropbox ist vorübergehend nicht erreichbar. Bitte später erneut versuchen.",
+        "disconnect": "Trennen",
+        "disconnectQuestion": "Dropbox trennen? Geplante Sicherungen werden gestoppt, bis wieder verbunden wird.",
+        "disconnectFailed": "Dropbox konnte nicht getrennt werden."
+      }
     }
   },
   "tabs": {

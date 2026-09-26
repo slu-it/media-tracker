@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { flushAsync } from "../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../test/mockFetch";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { UserSettingsDialog } from "./UserSettingsDialog";
@@ -71,7 +72,11 @@ describe("UserSettingsDialog", () => {
   });
 
   it("switches to the Export / Import tab", async () => {
-    mockApi({ "GET /api/me/api-keys": () => jsonResponse({ primary: PRIMARY_KEY, secondary: null }) });
+    mockApi({
+      "GET /api/me/api-keys": () => jsonResponse({ primary: PRIMARY_KEY, secondary: null }),
+      // The Export / Import tab's Dropbox section fetches its status once it mounts.
+      "GET /api/dropbox": () => jsonResponse({ available: false, connected: false, connectedAt: null }),
+    });
     const user = userEvent.setup();
     renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
     await screen.findByRole("textbox", { name: "Primary key" });
@@ -80,5 +85,6 @@ describe("UserSettingsDialog", () => {
 
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Primary key" })).not.toBeInTheDocument();
+    await flushAsync(); // settles the newly mounted Dropbox section's own status fetch
   });
 });
