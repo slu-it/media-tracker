@@ -4,8 +4,10 @@ import de.sluit.mediatracker.auth.persistence.SessionsTable
 import de.sluit.mediatracker.auth.persistence.UsersTable
 import de.sluit.mediatracker.common.domain.BackupSource
 import de.sluit.mediatracker.dropbox.persistence.OAuthConnectionsTable
+import de.sluit.mediatracker.games.persistence.GameDevelopersTable
 import de.sluit.mediatracker.games.persistence.GameExpansionsTable
 import de.sluit.mediatracker.games.persistence.GamePlatformsTable
+import de.sluit.mediatracker.games.persistence.GameToDeveloperTable
 import de.sluit.mediatracker.games.persistence.GameToPlatformTable
 import de.sluit.mediatracker.games.persistence.GamesBackupSource
 import de.sluit.mediatracker.games.persistence.GamesTable
@@ -23,6 +25,8 @@ val allTables = arrayOf(
     GamePlatformsTable,
     GameToPlatformTable,
     GameExpansionsTable,
+    GameDevelopersTable,
+    GameToDeveloperTable,
 )
 
 /**

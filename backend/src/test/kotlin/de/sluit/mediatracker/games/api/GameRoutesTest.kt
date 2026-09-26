@@ -14,8 +14,14 @@ import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
+import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.DeveloperName
+import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
+import de.sluit.mediatracker.games.domain.GameDeveloperCreation
+import de.sluit.mediatracker.games.domain.GameDeveloperId
+import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameMeta
@@ -26,6 +32,7 @@ import de.sluit.mediatracker.games.domain.NewGame
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
+import de.sluit.mediatracker.games.domain.ReleaseDate
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
@@ -45,6 +52,7 @@ import io.ktor.server.testing.testApplication
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.confirmVerified
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
@@ -64,6 +72,16 @@ class GameRoutesTest {
     private suspend fun ApplicationTestBuilder.loggedInHandlerClient(games: GameService): HttpClient {
         val auth = mockk<AuthService>()
         val client = handlerApp(auth, games)
+        client.loginAsMocked(auth)
+        return client
+    }
+
+    private suspend fun ApplicationTestBuilder.loggedInHandlerClient(
+        games: GameService,
+        developers: GameDeveloperService,
+    ): HttpClient {
+        val auth = mockk<AuthService>()
+        val client = handlerApp(auth, games, gameDevelopers = developers)
         client.loginAsMocked(auth)
         return client
     }
@@ -888,6 +906,192 @@ class GameRoutesTest {
         assertEquals(listOf("watchlist", "owned"), response.ownership)
         assertEquals(listOf("playing", "completed"), response.progress)
         assertEquals(listOf(2018, 2020), response.releaseYears)
+    }
+
+    // ---- release date and developers ----
+
+    @Test
+    fun `create rejects a body with neither releaseYear nor releaseDate`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.createGame("""{"title":"x","platformIds":["${SeededPlatforms.PC}"]}""")
+            .assertValidationError("releaseYear")
+        coVerify(exactly = 0) { games.create(any()) }
+    }
+
+    @Test
+    fun `create derives the year from a releaseDate given without a releaseYear`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Chrono Trigger")
+
+        client.createGame(
+            """{"title":"Chrono Trigger","platformIds":["${SeededPlatforms.PC}"],"releaseDate":"1995-03-11"}""",
+        )
+
+        assertEquals(ReleaseDate.parse("1995-03-11"), captured.captured.releaseDate)
+        assertEquals(1995, captured.captured.effectiveReleaseYear.value)
+    }
+
+    @Test
+    fun `create rejects a malformed releaseDate`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+
+        client.createGame(
+            """{"title":"x","releaseYear":2018,"platformIds":["${SeededPlatforms.PC}"],"releaseDate":"11-03-1995"}""",
+        ).assertValidationError("releaseDate")
+        coVerify(exactly = 0) { games.create(any()) }
+    }
+
+    @Test
+    fun `create hands developerIds to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Xenoblade")
+        val developerId = GameDeveloperId.new()
+
+        client.createGame(
+            """{"title":"Xenoblade","releaseYear":2010,"platformIds":["${SeededPlatforms.PC}"],
+                |"developerIds":["$developerId"]}
+            """.trimMargin(),
+        )
+
+        assertEquals(setOf(developerId), captured.captured.developerIds)
+    }
+
+    @Test
+    fun `create response includes releaseDate and developers`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val nintendo = developer("Nintendo EPD")
+        coEvery { games.create(any()) } returns game(
+            "Chrono Trigger",
+            releaseDate = ReleaseDate.parse("1995-03-11"),
+            developers = listOf(nintendo),
+        )
+
+        val response = client.createGame(VALID_GAME_BODY).decodeBody<GameResponse>()
+
+        assertEquals("1995-03-11", response.releaseDate)
+        assertEquals(listOf(nintendo.name.value), response.developers.map { it.name })
+    }
+
+    @Test
+    fun `patch maps releaseDate and developerIds to the domain patch`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id)
+        val developerId = GameDeveloperId.new()
+
+        client.patch("/api/games/$id") {
+            jsonBody("""{"releaseDate":"1995-03-11","developerIds":["$developerId"]}""")
+        }
+
+        assertEquals(Patch.Change(ReleaseDate.parse("1995-03-11")), captured.captured.releaseDate)
+        assertEquals(setOf(developerId), captured.captured.developerIds)
+    }
+
+    @Test
+    fun `patch with releaseDate null clears the date`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id)
+
+        client.patch("/api/games/$id") { jsonBody("""{"releaseDate":null}""") }
+
+        assertEquals(Patch.Change(null), captured.captured.releaseDate)
+    }
+
+    @Test
+    fun `game-developers search rejects anonymous access`() = testApplication {
+        val developers = mockk<GameDeveloperService>()
+        val client = handlerApp(gameDevelopers = developers)
+
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/game-developers").status)
+    }
+
+    @Test
+    fun `game-developers search passes the term and default limit to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(games, developers)
+        coEvery { developers.search(SearchTerm("nin"), DeveloperSearchLimit.DEFAULT) } returns emptyList()
+
+        client.get("/api/game-developers?search=nin")
+
+        coVerify {
+            developers.search(SearchTerm("nin"), DeveloperSearchLimit.DEFAULT)
+        }
+    }
+
+    @Test
+    fun `game-developers search passes a given limit to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(games, developers)
+        coEvery { developers.search(null, DeveloperSearchLimit(5)) } returns emptyList()
+
+        client.get("/api/game-developers?limit=5")
+
+        coVerify { developers.search(null, DeveloperSearchLimit(5)) }
+    }
+
+    @Test
+    fun `game-developers search rejects a limit above 50`() = testApplication {
+        val games = mockk<GameService>()
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(games, developers)
+
+        client.get("/api/game-developers?limit=51").assertValidationError("limit")
+    }
+
+    @Test
+    fun `game-developers create returns 201 when a new developer was created`() = testApplication {
+        val games = mockk<GameService>()
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(games, developers)
+        val created = developer("Nintendo EPD")
+        coEvery { developers.create(DeveloperName("Nintendo EPD")) } returns GameDeveloperCreation(created, true)
+
+        val response = client.post("/api/game-developers") { jsonBody("""{"name":"Nintendo EPD"}""") }
+
+        assertEquals(HttpStatusCode.Created, response.status, response.bodyAsText())
+        assertEquals(created.id.toString(), response.decodeBody<GameDeveloperResponse>().id)
+    }
+
+    @Test
+    fun `game-developers create returns 200 when the developer already existed`() = testApplication {
+        val games = mockk<GameService>()
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(games, developers)
+        val existing = developer("Nintendo EPD")
+        coEvery { developers.create(DeveloperName("Nintendo EPD")) } returns GameDeveloperCreation(existing, false)
+
+        val response = client.post("/api/game-developers") { jsonBody("""{"name":"Nintendo EPD"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+    }
+
+    @Test
+    fun `game-developers create rejects a blank name`() = testApplication {
+        val games = mockk<GameService>()
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(games, developers)
+
+        client.post("/api/game-developers") { jsonBody("""{"name":"   "}""") }
+            .assertValidationError("name")
+        // any() would construct a witness DeveloperName from a random string to set up the matcher, which risks
+        // tripping its blank/whitespace/length validation (see the MockK value-class matcher note); confirming
+        // zero interactions on the mock proves the same thing without that risk.
+        confirmVerified(developers)
     }
 
     private companion object {

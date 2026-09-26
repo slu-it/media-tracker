@@ -12,7 +12,7 @@ import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
 import type { ExpansionResponse, GamePlatformResponse, GameResponse } from "../../../types/api";
 import { updateExpansion } from "../api/expansionsApi";
-import { deleteGame, updateGame } from "../api/gamesApi";
+import { deleteGame, resolveDeveloperIds, updateGame } from "../api/gamesApi";
 import { draftFromGame, isDraftDirty, isDraftValid, toUpdateRequest } from "../domain/gameDraft";
 import { useExpansions } from "../hooks/useExpansions";
 import { CoverPickerDialog } from "./CoverPickerDialog";
@@ -59,6 +59,9 @@ function GameDetailDialogContent({
   const [draft, setDraft] = useState(() => draftFromGame(game));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Not part of `draft`: a rejected mid-edit in the release date picker never reaches `onChange`, so it cannot be
+  // represented there; see `GameForm`'s `onValidityChange`.
+  const [formValid, setFormValid] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const expansions = useExpansions(game.id, t("errors.loadFailed"));
   const [selectedExpansion, setSelectedExpansion] = useState<ExpansionResponse | null>(null);
@@ -104,12 +107,14 @@ function GameDetailDialogContent({
   const startEditing = () => {
     setDraft(draftFromGame(game));
     setError(null);
+    setFormValid(true);
     setMode("edit");
   };
 
   const cancelEditing = () => {
     setDraft(draftFromGame(game));
     setError(null);
+    setFormValid(true);
     setMode("view");
   };
 
@@ -117,7 +122,8 @@ function GameDetailDialogContent({
     setBusy(true);
     setError(null);
     try {
-      const updated = await updateGame(game.id, toUpdateRequest(game, draft));
+      const developerIds = await resolveDeveloperIds(draft.developers);
+      const updated = await updateGame(game.id, toUpdateRequest(game, draft, developerIds));
       setDraft(draftFromGame(updated));
       setMode("view");
       onSaved(updated);
@@ -140,7 +146,7 @@ function GameDetailDialogContent({
     }
   };
 
-  const canSave = !busy && isDraftValid(draft) && isDraftDirty(game, draft);
+  const canSave = !busy && isDraftValid(draft) && isDraftDirty(game, draft) && formValid;
 
   const actions = (
     <>
@@ -221,7 +227,13 @@ function GameDetailDialogContent({
           <Typography id={TITLE_ID} variant="h6" component="h2" sx={{ mb: 2 }}>
             {t("games.editGame")}
           </Typography>
-          <GameForm value={draft} onChange={setDraft} platforms={platforms} disabled={busy} />
+          <GameForm
+            value={draft}
+            onChange={setDraft}
+            platforms={platforms}
+            disabled={busy}
+            onValidityChange={setFormValid}
+          />
         </>
       )}
       <ExpansionDialog

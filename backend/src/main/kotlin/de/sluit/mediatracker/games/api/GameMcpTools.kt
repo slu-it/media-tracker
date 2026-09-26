@@ -9,7 +9,10 @@ import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
 import de.sluit.mediatracker.games.domain.CoverOptionsService
+import de.sluit.mediatracker.games.domain.DeveloperName
+import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
 import de.sluit.mediatracker.games.domain.ExpansionService
+import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatformId
@@ -54,6 +57,7 @@ fun Server.addGameTools(
     gameService: GameService,
     expansionService: ExpansionService,
     coverOptionsService: CoverOptionsService,
+    developerService: GameDeveloperService,
 ) {
     addListGamePlatformsTool(gameService)
     addAddGameTool(gameService)
@@ -61,6 +65,8 @@ fun Server.addGameTools(
     addUpdateGameTool(gameService)
     addListExpansionsTool(expansionService)
     addAddExpansionTool(expansionService)
+    addSearchGameDevelopersTool(developerService)
+    addCreateGameDeveloperTool(developerService)
     if (coverOptionsService.isAvailable) {
         addFindGameCoverTool(coverOptionsService)
     }
@@ -70,9 +76,13 @@ private const val LIST_GAME_PLATFORMS_DESCRIPTION =
     "Lists the game platforms this tracker knows, with the ids add_game expects in platformIds."
 
 private const val ADD_GAME_DESCRIPTION =
-    "Adds a game to the tracker. title, releaseYear and platformIds are required. " +
+    "Adds a game to the tracker. title and platformIds are required; releaseYear is required unless " +
+        "releaseDate is given, in which case the date's year is used instead (and overrides a releaseYear " +
+        "that contradicts it), so releaseYear may then be omitted. " +
         "platformIds are game_platforms.id values; call list_game_platforms first to get them. " +
-        "description, rating and coverImageUrl are optional. ownership, progress and hidden are also optional: " +
+        "description, rating and coverImageUrl are optional. developerIds are optional game_developers.id " +
+        "values; call search_game_developers first to look them up, and create_game_developer for any " +
+        "developer that search does not find. ownership, progress and hidden are also optional: " +
         "ownership defaults to watchlist, progress defaults to not_started (completed means fully finished, " +
         "100%), and hidden defaults to false."
 
@@ -113,11 +123,14 @@ private const val UPDATE_GAME_DESCRIPTION =
         "invent one; users refer to games by title, so look the game up with search_games first. If the search " +
         "returns more than one plausible match (sequels and series entries often have nearly identical titles), " +
         "ask the user which one they mean and update nothing until they answer. Pass only the fields that " +
-        "should change; every field you omit keeps its current value. description, rating and coverImageUrl " +
-        "accept null to clear the field; title, releaseYear, platformIds, ownership, progress and hidden " +
-        "cannot be cleared. platformIds, when given, replaces the whole platform list (ids from " +
-        "list_game_platforms), it does not add to it. progress's completed value means fully finished, 100%. " +
-        "Passing nothing but id, or a field name that is not in the schema, is an error."
+        "should change; every field you omit keeps its current value. description, rating, coverImageUrl and " +
+        "releaseDate accept null to clear the field (clearing releaseDate keeps the game's current releaseYear, " +
+        "it does not clear it too); title, releaseYear, platformIds, ownership, progress and hidden cannot be " +
+        "cleared. platformIds, when given, replaces the whole platform list (ids from list_game_platforms), it " +
+        "does not add to it. developerIds, when given, replaces the whole developer list (ids from " +
+        "search_game_developers; create missing ones with create_game_developer first) - an empty array clears " +
+        "it, it does not need null. progress's completed value means fully finished, 100%. Passing nothing but " +
+        "id, or a field name that is not in the schema, is an error."
 
 /** What `search_games` returns when the caller names no `pageSize`; its ceiling is [SEARCH_GAMES_MAX_SIZE]. */
 private val SEARCH_GAMES_DEFAULT_SIZE = PageSize(10)
@@ -136,9 +149,21 @@ private val ADD_GAME_SCHEMA = ToolSchema(
         }
         putJsonObject("releaseYear") {
             put("type", "integer")
-            put("description", "The four-digit release year.")
+            put(
+                "description",
+                "The four-digit release year. Required unless releaseDate is given, whose year then wins.",
+            )
             put("minimum", 1000)
             put("maximum", 9999)
+        }
+        putJsonObject("releaseDate") {
+            put("type", "string")
+            put("format", "date")
+            put(
+                "description",
+                "The game's precise release date (YYYY-MM-DD). Optional; when given, its year overrides " +
+                    "releaseYear, which then may be omitted.",
+            )
         }
         putJsonObject("platformIds") {
             put("type", "array")
@@ -192,8 +217,21 @@ private val ADD_GAME_SCHEMA = ToolSchema(
             put("type", "boolean")
             put("description", "Whether the game is hidden from the default list view. Defaults to false.")
         }
+        putJsonObject("developerIds") {
+            put("type", "array")
+            put(
+                "description",
+                "Ids of the developers who made this game, from search_game_developers (create missing ones " +
+                    "with create_game_developer). Optional.",
+            )
+            putJsonObject("items") {
+                put("type", "string")
+                put("format", "uuid")
+            }
+            put("uniqueItems", true)
+        }
     },
-    required = listOf("title", "releaseYear", "platformIds"),
+    required = listOf("title", "platformIds"),
 )
 
 // Mirrors GameFilters; the enum arrays are built from the domain entries so the schema cannot drift from it.
@@ -293,7 +331,12 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
         }
         putJsonObject("releaseYear") {
             put("type", "integer")
-            put("description", "The four-digit release year.")
+            put(
+                "description",
+                "The four-digit release year. On a game that already has a releaseDate (and this call does " +
+                    "not clear it), that date's year is kept and overrides this value instead; set releaseDate " +
+                    "to change the year of a game that has one.",
+            )
             put("minimum", 1000)
             put("maximum", 9999)
         }
@@ -356,6 +399,31 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
         putJsonObject("hidden") {
             put("type", "boolean")
             put("description", "Whether the game is hidden from the default list view. Cannot be cleared.")
+        }
+        putJsonObject("releaseDate") {
+            putJsonArray("type") {
+                add("string")
+                add("null")
+            }
+            put("format", "date")
+            put(
+                "description",
+                "The game's precise release date (YYYY-MM-DD); its year overrides releaseYear. null clears " +
+                    "the date and keeps the game's current releaseYear.",
+            )
+        }
+        putJsonObject("developerIds") {
+            put("type", "array")
+            put(
+                "description",
+                "Ids of the developers who made this game, from search_game_developers (create missing ones " +
+                    "with create_game_developer). Replaces the full list; an empty array clears it.",
+            )
+            putJsonObject("items") {
+                put("type", "string")
+                put("format", "uuid")
+            }
+            put("uniqueItems", true)
         }
     },
     required = listOf("id"),
@@ -423,6 +491,55 @@ private val FIND_GAME_COVER_SCHEMA = ToolSchema(
     required = listOf("title"),
 )
 
+private const val SEARCH_GAME_DEVELOPERS_DESCRIPTION =
+    "Searches the developer vocabulary (the studios/publishers add_game and update_game's developerIds refer " +
+        "to) by name prefix, best match first (so even a short name like \"EA\" is found by its own prefix) - " +
+        "at most pageSize matches, 10 by default. Leave query empty (or blank) to list every known developer " +
+        "alphabetically instead of searching. Returns each match's name and the id developerIds expects; when " +
+        "the developer you need is not found, create it first with " +
+        "create_game_developer."
+
+private const val CREATE_GAME_DEVELOPER_DESCRIPTION =
+    "Adds a developer to the vocabulary and returns its id for use in developerIds. Idempotent: when a " +
+        "developer with the same name already exists (case-insensitively), that existing developer is " +
+        "returned instead of a duplicate - created is false then. Call search_game_developers first to check " +
+        "whether the developer is already tracked before creating a new one."
+
+// Mirrors the constraint DeveloperSearchLimit enforces; search_game_developers has no request DTO of its own.
+private val SEARCH_GAME_DEVELOPERS_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("query") {
+            put("type", "string")
+            put("description", "Name prefix to search for. Leave empty to list every developer alphabetically.")
+            put("maxLength", SearchTerm.MAX_LENGTH)
+        }
+        putJsonObject("pageSize") {
+            put("type", "integer")
+            put(
+                "description",
+                "How many developers to return at most. Defaults to 10, ${DeveloperSearchLimit.MAX} at most.",
+            )
+            put("minimum", 1)
+            put("maximum", DeveloperSearchLimit.MAX)
+            put("default", DeveloperSearchLimit.DEFAULT.value)
+        }
+    },
+    required = emptyList(),
+)
+
+// Mirrors the constraints DeveloperName enforces in games/domain/GameValues.kt.
+private val CREATE_GAME_DEVELOPER_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("name") {
+            put("type", "string")
+            put("description", "The developer's name.")
+            put("minLength", 1)
+            put("maxLength", DeveloperName.MAX_LENGTH)
+        }
+    },
+    required = listOf("name"),
+)
+
 // McpJson has ignoreUnknownKeys = true and isLenient = true, which would turn a typo'd field name into a silent
 // no-op instead of an error; validate the key set by hand instead. The accepted names are derived from
 // UpdateGameRequest's serial descriptor, so they cannot drift from the DTO.
@@ -447,12 +564,31 @@ private val SEARCH_GAMES_FIELDS: Set<String> = SEARCH_GAMES_SCHEMA.properties!!.
 // from FIND_GAME_COVER_SCHEMA's own property keys.
 private val FIND_GAME_COVER_FIELDS: Set<String> = FIND_GAME_COVER_SCHEMA.properties!!.keys
 
+// Same reasoning as FIND_GAME_COVER_FIELDS: search_game_developers has no request DTO, so the accepted names
+// are derived from SEARCH_GAME_DEVELOPERS_SCHEMA's own property keys.
+private val SEARCH_GAME_DEVELOPERS_FIELDS: Set<String> = SEARCH_GAME_DEVELOPERS_SCHEMA.properties!!.keys
+
+// Same reasoning as ADD_EXPANSION_FIELDS: the accepted names are derived from CreateGameDeveloperRequest's
+// serial descriptor, so they cannot drift from the DTO.
+@OptIn(ExperimentalSerializationApi::class)
+private val CREATE_GAME_DEVELOPER_FIELDS: Set<String> =
+    CreateGameDeveloperRequest.serializer().descriptor.elementNames.toSet()
+
 // The PatchField-backed fields are the only ones that accept null to clear themselves; every other field on
 // UpdateGameRequest is a plain nullable type where null would silently mean "unchanged" instead of "clear", so
 // it is derived as everything else rather than hand-listed - a new plain nullable field is unclearable by
 // default without touching this set.
-private val UPDATE_GAME_CLEARABLE = setOf("description", "rating", "coverImageUrl")
+private val UPDATE_GAME_CLEARABLE = setOf("description", "rating", "coverImageUrl", "releaseDate")
 private val UPDATE_GAME_UNCLEARABLE = UPDATE_GAME_FIELDS - UPDATE_GAME_CLEARABLE
+
+// Prose fragment for a game's year, precise date and known developers, used in add_game/update_game/
+// search_games text output; ids are structured content only, following how list_game_platforms keeps ids out
+// of its own text line.
+private fun GameResponse.yearAndDevelopers(): String {
+    val date = releaseDate?.let { ", $it" } ?: ""
+    val developerNames = if (developers.isEmpty()) "" else " by ${developers.joinToString(", ") { it.name }}"
+    return "$releaseYear$date$developerNames"
+}
 
 private fun Server.addListGamePlatformsTool(gameService: GameService) {
     addTool(
@@ -492,7 +628,8 @@ private fun Server.addAddGameTool(gameService: GameService) {
             CallToolResult(
                 content = listOf(
                     TextContent(
-                        "Created game \"${response.title}\" (${response.releaseYear}) with id ${response.id}.",
+                        "Created game \"${response.title}\" (${response.yearAndDevelopers()}) with id " +
+                            "${response.id}.",
                     ),
                 ),
                 structuredContent = McpJson.encodeToJsonElement(GameResponse.serializer(), response).jsonObject,
@@ -551,7 +688,7 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                             // The tool returns at most pageSize matches without paging: say how many matches exist
                             // so a truncated list is recognisable.
                             "${games.size} of ${page.totalItems} matches for $subject, best first:\n" +
-                                games.joinToString("\n") { "${it.title} (${it.releaseYear}): ${it.id}" }
+                                games.joinToString("\n") { "${it.title} (${it.yearAndDevelopers()}): ${it.id}" }
                         },
                     ),
                 ),
@@ -594,7 +731,8 @@ private fun Server.addUpdateGameTool(gameService: GameService) {
             CallToolResult(
                 content = listOf(
                     TextContent(
-                        "Updated ${fields.keys.sorted().joinToString()} of \"${game.title}\" (${game.releaseYear}).",
+                        "Updated ${fields.keys.sorted().joinToString()} of \"${game.title}\" " +
+                            "(${game.yearAndDevelopers()}).",
                     ),
                 ),
                 structuredContent = McpJson.encodeToJsonElement(GameResponse.serializer(), game).jsonObject,
@@ -684,6 +822,89 @@ private fun Server.addAddExpansionTool(expansionService: ExpansionService) {
         } catch (e: InvalidValueException) {
             e.toErrorResult()
         } catch (e: NotFoundException) {
+            e.toErrorResult()
+        } catch (e: SerializationException) {
+            e.toErrorResult()
+        }
+    }
+}
+
+private fun Server.addSearchGameDevelopersTool(developerService: GameDeveloperService) {
+    addTool(
+        name = "search_game_developers",
+        description = SEARCH_GAME_DEVELOPERS_DESCRIPTION,
+        inputSchema = SEARCH_GAME_DEVELOPERS_SCHEMA,
+        toolAnnotations = ToolAnnotations(readOnlyHint = true),
+    ) { request ->
+        try {
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            val unknown = arguments.keys - SEARCH_GAME_DEVELOPERS_FIELDS
+            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            val term = SearchTerm.parseOrNull(arguments.stringOrNull("query"), field = "query")
+            val limit = arguments.intOrNull("pageSize")?.let { requested ->
+                requireValid("pageSize", requested in 1..DeveloperSearchLimit.MAX) {
+                    "must be between 1 and ${DeveloperSearchLimit.MAX}"
+                }
+                DeveloperSearchLimit(requested)
+            } ?: DeveloperSearchLimit.DEFAULT
+            val developers = developerService.search(term, limit).map { it.toResponse() }
+            CallToolResult(
+                content = listOf(
+                    TextContent(
+                        if (developers.isEmpty()) {
+                            "No developers found."
+                        } else {
+                            developers.joinToString("\n") { "${it.name}: ${it.id}" }
+                        },
+                    ),
+                ),
+                structuredContent = buildJsonObject {
+                    putJsonArray("developers") {
+                        developers.forEach { developer ->
+                            addJsonObject {
+                                put("id", developer.id)
+                                put("name", developer.name)
+                            }
+                        }
+                    }
+                },
+            )
+        } catch (e: InvalidValueException) {
+            e.toErrorResult()
+        }
+    }
+}
+
+private fun Server.addCreateGameDeveloperTool(developerService: GameDeveloperService) {
+    addTool(
+        name = "create_game_developer",
+        description = CREATE_GAME_DEVELOPER_DESCRIPTION,
+        inputSchema = CREATE_GAME_DEVELOPER_SCHEMA,
+    ) { request ->
+        try {
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            val unknown = arguments.keys - CREATE_GAME_DEVELOPER_FIELDS
+            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            val createRequest = McpJson.decodeFromJsonElement(CreateGameDeveloperRequest.serializer(), arguments)
+            val result = developerService.create(DeveloperName.parse(createRequest.name))
+            val response = result.developer.toResponse()
+            CallToolResult(
+                content = listOf(
+                    TextContent(
+                        if (result.created) {
+                            "Created developer \"${response.name}\" with id ${response.id}."
+                        } else {
+                            "Developer \"${response.name}\" already exists with id ${response.id}."
+                        },
+                    ),
+                ),
+                structuredContent = buildJsonObject {
+                    put("id", response.id)
+                    put("name", response.name)
+                    put("created", result.created)
+                },
+            )
+        } catch (e: InvalidValueException) {
             e.toErrorResult()
         } catch (e: SerializationException) {
             e.toErrorResult()

@@ -10,12 +10,14 @@ import de.sluit.mediatracker.common.persistence.withFreshDatabase
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.DeveloperName
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
+import de.sluit.mediatracker.games.domain.ReleaseDate
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
@@ -24,6 +26,8 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.LocalDate
+import java.util.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -200,9 +204,9 @@ class ExposedGameRepositoryTest {
         (3..5).forEach { repo.insert(game("G$it", platforms = twoPlatforms)) }
         val countWithFiveGames = countStatements(db.database) { repo.findPage(PageRequest()) }
 
-        // findPage issues exactly three SELECT statements regardless of page size: the total count,
-        // the page of games, and one join query that loads every game's platforms at once.
-        assertEquals(3, countWithTwoGames)
+        // findPage issues exactly four SELECT statements regardless of page size: the total count, the page of
+        // games, and one join query each that loads every game's platforms and developers at once.
+        assertEquals(4, countWithTwoGames)
         assertEquals(countWithTwoGames, countWithFiveGames)
     }
 
@@ -477,7 +481,7 @@ class ExposedGameRepositoryTest {
             repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
         }
 
-        assertEquals(3, countWithTwoGames)
+        assertEquals(4, countWithTwoGames)
         assertEquals(countWithTwoGames, countWithFiveGames)
     }
 
@@ -668,5 +672,121 @@ class ExposedGameRepositoryTest {
         assertEquals(setOf(Ownership.OWNED, Ownership.WATCHLIST), used.ownership)
         assertEquals(setOf(Progress.PLAYING, Progress.FINISHED), used.progress)
         assertEquals(setOf(ReleaseYear(2010), ReleaseYear(2015)), used.releaseYears)
+    }
+
+    // developers and release date (MT-025, ADR 0029)
+
+    @Test
+    fun `insert then findById returns the game with developers sorted by name`() = withFreshDatabase {
+        val developerRepo = ExposedGameDeveloperRepository()
+        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
+        val monolith = developerRepo.create(DeveloperName("Monolith Soft")).developer
+        val repo = ExposedGameRepository()
+        val inserted = game("Xenoblade", developers = listOf(nintendo, monolith))
+        repo.insert(inserted)
+
+        val found = repo.findById(inserted.id)
+
+        assertEquals(listOf(monolith, nintendo), found?.developers)
+    }
+
+    @Test
+    fun `insert round-trips a release date and stores the matching release year`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val inserted = game("Chrono Trigger", releaseDate = ReleaseDate(LocalDate.of(1995, 3, 11)))
+        repo.insert(inserted)
+
+        val found = repo.findById(inserted.id)
+
+        assertEquals(ReleaseDate(LocalDate.of(1995, 3, 11)), found?.releaseDate)
+        assertEquals(ReleaseYear(1995), found?.releaseYear)
+    }
+
+    @Test
+    fun `insert without a release date stores null`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val inserted = game("Tetris")
+        repo.insert(inserted)
+
+        val found = repo.findById(inserted.id)
+
+        assertNull(found?.releaseDate)
+    }
+
+    @Test
+    fun `release date round-trips regardless of the JVM's default timezone`() {
+        // Pins the pathological case LocalDateColumnType exists for (MT-025, ADR 0029): every JDBC URL fixes the
+        // connection's own session timezone to UTC, but a plain Exposed date column additionally routes through
+        // `TimeZone.currentSystemDefault()` on both write and read. On a JVM whose default timezone disagrees
+        // with UTC, one positive-offset (Pacific/Kiritimati, UTC+14) and one negative-offset zone
+        // (Pacific/Pago_Pago, UTC-11) are enough to shift a calendar date across the day boundary in either
+        // direction; LocalDateColumnType hands java.time.LocalDate straight to the driver and never depends on
+        // any zone, so both must round-trip unchanged.
+        val originalDefault = TimeZone.getDefault()
+        try {
+            listOf("Pacific/Kiritimati", "Pacific/Pago_Pago").forEach { zoneId ->
+                TimeZone.setDefault(TimeZone.getTimeZone(zoneId))
+                withFreshDatabase {
+                    val repo = ExposedGameRepository()
+                    val releaseDate = ReleaseDate(LocalDate.of(1995, 3, 11))
+                    val inserted = game("Chrono Trigger $zoneId", releaseDate = releaseDate)
+                    repo.insert(inserted)
+
+                    val found = repo.findById(inserted.id)
+
+                    assertEquals(releaseDate, found?.releaseDate)
+                }
+            }
+        } finally {
+            TimeZone.setDefault(originalDefault)
+        }
+    }
+
+    @Test
+    fun `update replaces the developer links exactly`() = withFreshDatabase {
+        val developerRepo = ExposedGameDeveloperRepository()
+        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
+        val monolith = developerRepo.create(DeveloperName("Monolith Soft")).developer
+        val repo = ExposedGameRepository()
+        val original = game("Xenoblade", developers = listOf(nintendo))
+        repo.insert(original)
+
+        val updated = original.copy(developers = listOf(monolith))
+        val result = repo.update(updated)
+
+        assertTrue(result)
+        val found = repo.findById(original.id)
+        assertEquals(listOf(monolith), found?.developers)
+        val linkCount = transaction {
+            GameToDeveloperTable.selectAll().where { GameToDeveloperTable.gameId eq original.id.toString() }.count()
+        }
+        assertEquals(1, linkCount)
+    }
+
+    @Test
+    fun `update clears the developer links when the game has none anymore`() = withFreshDatabase {
+        val developerRepo = ExposedGameDeveloperRepository()
+        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
+        val repo = ExposedGameRepository()
+        val original = game("Xenoblade", developers = listOf(nintendo))
+        repo.insert(original)
+
+        val updated = original.copy(developers = emptyList())
+        repo.update(updated)
+
+        val found = repo.findById(original.id)
+        assertEquals(emptyList(), found?.developers)
+    }
+
+    @Test
+    fun `findPage loads the developers of a page with a constant number of queries`() = withFreshDatabase { db ->
+        val developerRepo = ExposedGameDeveloperRepository()
+        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
+        val repo = ExposedGameRepository()
+        (1..2).forEach { repo.insert(game("G$it", developers = listOf(nintendo))) }
+
+        val page = repo.findPage(PageRequest())
+
+        assertEquals(listOf(listOf(nintendo), listOf(nintendo)), page.items.map { it.developers })
     }
 }

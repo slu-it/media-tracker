@@ -1,7 +1,8 @@
-import { Box, Rating, Stack, Typography } from "@mui/material";
+import { Box, Chip, Rating, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { ExpansionResponse, GameResponse } from "../../../types/api";
 import { CoverImage } from "../../../components/CoverImage";
+import { formatReleaseDate } from "../domain/releaseDate";
 import { CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { ExpansionList } from "./ExpansionList";
 import { GameStatusIcons } from "./GameStatusIcons";
@@ -67,10 +68,23 @@ export function GameDetails({
             {game.description}
           </Typography>
         )}
-        <Field label={t("games.fields.releaseYear")}>{game.releaseYear}</Field>
+        {game.releaseDate === null ? (
+          <Field label={t("games.fields.releaseYear")}>{game.releaseYear}</Field>
+        ) : (
+          <Field label={t("games.fields.releaseDate")}>{formatReleaseDate(game.releaseDate)}</Field>
+        )}
         <Field label={t("games.fields.platforms")}>
           <PlatformChips platforms={game.platforms} />
         </Field>
+        {game.developers.length > 0 && (
+          <Field label={t("games.fields.developers")}>
+            <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: "wrap" }}>
+              {game.developers.map((developer) => (
+                <Chip key={developer.id} label={developer.name} variant="outlined" size="small" />
+              ))}
+            </Stack>
+          </Field>
+        )}
         <ExpansionList expansions={expansions} onSelect={onSelectExpansion} onMove={onMoveExpansion} />
       </Stack>
     </CoverAndInfoLayout>

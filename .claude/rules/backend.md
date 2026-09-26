@@ -27,7 +27,7 @@ via `requireValid(field, cond) { reason }` -> `InvalidValueException` -> HTTP 40
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,
-coverOptions, backup, dropbox, cloudBackup)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
+coverOptions, backup, dropbox, cloudBackup, gameDevelopers)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
 only when their keys are configured) -> `launch { BackupScheduler(...).run() }` on the application scope (ADR
 0028) ->
 `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the

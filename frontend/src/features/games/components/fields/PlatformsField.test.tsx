@@ -28,6 +28,8 @@ describe("PlatformsField", () => {
     await user.click(screen.getByRole("combobox", { name: /platforms/i }));
     await user.click(screen.getByRole("option", { name: "Xbox" }));
     expect(onChange).toHaveBeenLastCalledWith(["platform-pc", "platform-xbox"]);
+    // Multi-select keeps the listbox open after a pick; close it so the rerendered chips are the only "Xbox" match.
+    await user.keyboard("{Escape}");
 
     rerender(<PlatformsField value={["platform-pc", "platform-xbox"]} onChange={onChange} options={options} />);
     expect(screen.getByText("PC")).toBeInTheDocument();

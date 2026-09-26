@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.persistence.localDate
 import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.Table
 
@@ -20,6 +21,7 @@ object GamesTable : Table("games") {
     val ownership = varchar("ownership", 32)
     val progress = varchar("progress", 32)
     val hidden = bool("hidden")
+    val releaseDate = localDate("release_date").nullable()
 
     override val primaryKey = PrimaryKey(id)
 
@@ -86,4 +88,35 @@ object GameExpansionsTable : Table("game_expansions") {
     init {
         index("idx_game_expansions_game_sequence", false, gameId, sequence)
     }
+}
+
+/**
+ * Exposed view of the `game_developers` table; the schema itself is db/migration/V010__games_release_date_and_developers.sql
+ * (MT-025, ADR 0029). Registered in [de.sluit.mediatracker.allTables] for the drift check. Unlike
+ * [GamePlatformsTable] no rows are seeded: the user grows this vocabulary on the fly through
+ * `POST /game-developers`. `uq_game_developers_name` (unique, non-fulltext) and `ft_game_developers_name`
+ * (fulltext) both index `name` alone but differ in uniqueness, so the drift check does not treat them as
+ * duplicates of each other (see `idx_games_title`'s comment in [GamesTable]).
+ */
+object GameDevelopersTable : Table("game_developers") {
+    val id = char("id", 36)
+    val name = varchar("name", 128).uniqueIndex("uq_game_developers_name")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("ft_game_developers_name", false, name, indexType = "FULLTEXT")
+    }
+}
+
+/** Junction table for the games <-> game_developers many-to-many relation. */
+object GameToDeveloperTable : Table("game_to_developer") {
+    val gameId = char("game_id", 36)
+        .references(GamesTable.id, onDelete = ReferenceOption.CASCADE, fkName = "fk_game_to_developer_game")
+        .index("idx_game_to_developer_game")
+    val developerId = char("developer_id", 36)
+        .references(GameDevelopersTable.id, fkName = "fk_game_to_developer_developer")
+        .index("idx_game_to_developer_developer")
+
+    override val primaryKey = PrimaryKey(gameId, developerId)
 }

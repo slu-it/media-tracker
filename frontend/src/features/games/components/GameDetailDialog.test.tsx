@@ -2,7 +2,8 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ExpansionResponse, GameResponse } from "../../../types/api";
+import type { ExpansionResponse, GameDeveloperResponse, GameResponse } from "../../../types/api";
+import { formatReleaseDate } from "../domain/releaseDate";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
 import {
@@ -15,6 +16,8 @@ import {
   nintendo,
   pc,
   platforms,
+  supergiantGames,
+  teamCherry,
 } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameDetailDialog } from "./GameDetailDialog";
@@ -90,6 +93,26 @@ describe("GameDetailDialog", () => {
 
     expect(within(dialog).getByText(game.description!)).toBeInTheDocument();
     expect(within(dialog).getByText("Nintendo")).toBeInTheDocument();
+  });
+
+  it("shows developer chips and the formatted release date in view mode", async () => {
+    const withDevelopers = { ...game, developers: [teamCherry, supergiantGames], releaseDate: "2018-01-25" };
+    mockApi(noExpansions);
+    renderWithProviders(
+      <GameDetailDialog
+        game={withDevelopers}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    await flushAsync();
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByText(teamCherry.name)).toBeInTheDocument();
+    expect(within(dialog).getByText(supergiantGames.name)).toBeInTheDocument();
+    expect(within(dialog).getByText(formatReleaseDate("2018-01-25"))).toBeInTheDocument();
   });
 
   it("labels the dialog with the game's title in view mode", async () => {
@@ -436,6 +459,114 @@ describe("GameDetailDialog", () => {
     });
   });
 
+  it("sends the reduced developerIds after removing a developer chip", async () => {
+    const user = userEvent.setup();
+    const withDevelopers = { ...game, developers: [teamCherry, supergiantGames] };
+    const calls = mockApi({
+      ...noExpansions,
+      "PATCH /api/games/:id": (call) => jsonResponse({ ...withDevelopers, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <GameDetailDialog
+        game={withDevelopers}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    // eslint-disable-next-line testing-library/no-node-access -- the chip's delete affordance carries no queryable role
+    const chip = within(dialog).getByText(teamCherry.name).closest(".MuiChip-root");
+    await user.click(within(chip as HTMLElement).getByTestId("CancelIcon"));
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ developerIds: [supergiantGames.id] });
+  });
+
+  it("creates a pending developer before saving and includes its id in developerIds", async () => {
+    const user = userEvent.setup();
+    const createdDeveloper: GameDeveloperResponse = { id: "developer-3", name: "New Studio" };
+    const calls = mockApi({
+      ...noExpansions,
+      "GET /api/game-developers": () => jsonResponse([]),
+      "POST /api/game-developers": (call) => jsonResponse({ ...createdDeveloper, ...(call.body as object) }, 201),
+      "PATCH /api/games/:id": (call) => jsonResponse({ ...game, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    await user.click(within(dialog).getByRole("combobox", { name: /developers/i }));
+    await user.paste("New Studio");
+    await user.keyboard("{Enter}");
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+
+    const postIndex = calls.findIndex((c) => c.method === "POST" && c.url === "/api/game-developers");
+    const patchIndex = calls.findIndex((c) => c.method === "PATCH");
+    expect(postIndex).not.toBe(-1);
+    expect(postIndex).toBeLessThan(patchIndex);
+    expect(calls[postIndex].body).toEqual({ name: "New Studio" });
+    expect(calls[patchIndex].body).toEqual({ developerIds: [createdDeveloper.id] });
+  });
+
+  it("shows an error and sends no PATCH when creating a pending developer fails", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      ...noExpansions,
+      "GET /api/game-developers": () => jsonResponse([]),
+      "POST /api/game-developers": () => jsonResponse({ error: "internal_error" }, 500),
+    });
+    renderWithProviders(
+      <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    await user.click(within(dialog).getByRole("combobox", { name: /developers/i }));
+    await user.paste("New Studio");
+    await user.keyboard("{Enter}");
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Saving failed.");
+    expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
+  });
+
+  it("does not send developerIds when the developer selection is unchanged", async () => {
+    const user = userEvent.setup();
+    const withDevelopers = { ...game, developers: [teamCherry, supergiantGames] };
+    const calls = mockApi({
+      ...noExpansions,
+      "PATCH /api/games/:id": (call) => jsonResponse({ ...withDevelopers, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <GameDetailDialog
+        game={withDevelopers}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    await user.click(within(dialog).getByRole("combobox", { name: "Progress" }));
+    await user.click(screen.getByRole("option", { name: "Finished" }));
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
+    expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ progress: "finished" });
+  });
+
   it("clears the description when emptied", async () => {
     const user = userEvent.setup();
     const calls = mockApi({
@@ -474,6 +605,41 @@ describe("GameDetailDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("title: nope");
     expect(within(dialog).getByRole("combobox", { name: /title/i })).toBeInTheDocument(); // still editing
+  });
+
+  it("disables save while a picked release date is invalid, and re-enables once formValid resets on re-edit", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ ...noExpansions, ...titleSuggestionsEmpty });
+    renderWithProviders(
+      <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+    const save = within(dialog).getByRole("button", { name: "Save" });
+
+    // ArrowUp fills an empty section with a default (today's month/day/year), giving a full valid date without
+    // typing a fresh multi-digit section, which is flaky to drive through jsdom (see ReleaseDateField.test.tsx).
+    const releaseDate = within(dialog).getByRole("group", { name: "Release date" });
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Month" }));
+    await user.keyboard("{ArrowUp}{ArrowRight}{ArrowUp}{ArrowRight}{ArrowUp}");
+    expect(save).toBeEnabled();
+
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Year" }));
+    await user.keyboard("0");
+    expect(save).toBeDisabled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
+    await user.clear(title);
+    await user.paste("Celeste (changed)");
+
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeEnabled();
+    expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
   });
 
   it("asks for confirmation before deleting, in view and in edit mode", async () => {

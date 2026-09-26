@@ -11,12 +11,16 @@ import de.sluit.mediatracker.common.domain.SearchTerm
  * belong to HTTP or SQL (id assignment, existence checks, applying a patch, resolving platform ids) live
  * here and nowhere else.
  */
-class GameService(private val games: GameRepository, private val platforms: GamePlatformRepository) {
+class GameService(
+    private val games: GameRepository,
+    private val platforms: GamePlatformRepository,
+    private val developers: GameDeveloperRepository,
+) {
     suspend fun create(newGame: NewGame): Game {
         val game = Game(
             id = GameId.new(),
             title = newGame.title,
-            releaseYear = newGame.releaseYear,
+            releaseYear = newGame.effectiveReleaseYear,
             platforms = resolvePlatforms(newGame.platformIds),
             description = newGame.description,
             rating = newGame.rating,
@@ -24,6 +28,8 @@ class GameService(private val games: GameRepository, private val platforms: Game
             ownership = newGame.ownership,
             progress = newGame.progress,
             hidden = newGame.hidden,
+            releaseDate = newGame.releaseDate,
+            developers = resolveDevelopers(newGame.developerIds),
         )
         games.insert(game)
         return game
@@ -33,7 +39,8 @@ class GameService(private val games: GameRepository, private val platforms: Game
     suspend fun update(id: GameId, patch: GamePatch): Game {
         val current = games.findById(id) ?: throw NotFoundException(RESOURCE, id.toString())
         val resolvedPlatforms = patch.platformIds?.let { resolvePlatforms(it) } ?: current.platforms
-        val updated = patch.applyTo(current, resolvedPlatforms)
+        val resolvedDevelopers = patch.developerIds?.let { resolveDevelopers(it) } ?: current.developers
+        val updated = patch.applyTo(current, resolvedPlatforms, resolvedDevelopers)
         if (!games.update(updated)) throw NotFoundException(RESOURCE, id.toString())
         return updated
     }
@@ -71,6 +78,17 @@ class GameService(private val games: GameRepository, private val platforms: Game
             throw InvalidValueException(GamePlatformId.FIELD, "unknown platform id ${missing.first()}")
         }
         return found.sortedForGame()
+    }
+
+    private suspend fun resolveDevelopers(ids: Set<GameDeveloperId>): List<GameDeveloper> {
+        if (ids.isEmpty()) return emptyList()
+        val found = developers.findByIds(ids)
+        val foundIds = found.map { it.id }.toSet()
+        val missing = ids - foundIds
+        if (missing.isNotEmpty()) {
+            throw InvalidValueException(GameDeveloperId.FIELD, "unknown developer id ${missing.first()}")
+        }
+        return found.sortedByNameForGame()
     }
 
     companion object {

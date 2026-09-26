@@ -43,6 +43,17 @@ export interface GamePlatformResponse {
   associatedColor: string;
 }
 
+/** A game developer/studio; mirrors `GameDeveloperResponse` in games/api/GameDtos.kt. */
+export interface GameDeveloperResponse {
+  id: string;
+  name: string;
+}
+
+/** Body of `POST /api/game-developers`; mirrors `CreateGameDeveloperRequest` in games/api/GameDtos.kt. */
+export interface CreateGameDeveloperRequest {
+  name: string;
+}
+
 /** The filter values that actually occur in the stored games; mirrors `GameMetaResponse` in games/api/GameDtos.kt. */
 export interface GameMetaResponse {
   /** Only platforms in use, alphabetically by label. */
@@ -69,11 +80,15 @@ export interface GameResponse {
   ownership: Ownership;
   progress: Progress;
   hidden: boolean;
+  /** ISO-8601 `YYYY-MM-DD`; `null` when only the release year is known. */
+  releaseDate: string | null;
+  developers: GameDeveloperResponse[];
 }
 
 export interface CreateGameRequest {
   title: string;
-  releaseYear: number;
+  /** Required unless `releaseDate` is given, in which case the date's year is used instead. */
+  releaseYear?: number | null;
   platformIds: string[];
   description?: string | null;
   rating?: number | null;
@@ -84,9 +99,13 @@ export interface CreateGameRequest {
   progress?: Progress | null;
   /** Omit for the default (`false`); can never be cleared. */
   hidden?: boolean | null;
+  /** ISO-8601 `YYYY-MM-DD`; omit when only the release year is known. */
+  releaseDate?: string | null;
+  /** Omit for the default (no developers). */
+  developerIds?: string[];
 }
 
-/** PATCH body: omit a key to leave the field unchanged; `null` clears `description`/`rating`/`coverImageUrl`. */
+/** PATCH body: omit a key to leave the field unchanged; `null` clears `description`/`rating`/`coverImageUrl`/`releaseDate`. */
 export interface UpdateGameRequest {
   title?: string;
   releaseYear?: number;
@@ -100,6 +119,10 @@ export interface UpdateGameRequest {
   progress?: Progress;
   /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
   hidden?: boolean;
+  /** Omit to leave unchanged; `null` clears it back to "only the release year is known". */
+  releaseDate?: string | null;
+  /** Omit to leave unchanged; replaces the full set (may be empty). */
+  developerIds?: string[];
 }
 
 /** One SteamGridDB game matching a search term; mirrors `CoverMatchResponse` in games/api/CoverOptionDtos.kt. */

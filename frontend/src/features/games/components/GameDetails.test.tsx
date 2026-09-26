@@ -1,7 +1,14 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { celeste, hades, hadesExpansion1, hadesExpansions } from "../../../test/fixtures/games";
+import {
+  celeste,
+  hades,
+  hadesExpansion1,
+  hadesExpansions,
+  supergiantGames,
+  teamCherry,
+} from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameDetails } from "./GameDetails";
 
@@ -73,6 +80,36 @@ describe("GameDetails", () => {
       />,
     );
     expect(screen.queryByRole("img", { name: "Hidden" })).not.toBeInTheDocument();
+  });
+
+  it("shows developer chips after the platforms when the game has developers", () => {
+    const withDevelopers = { ...celeste, developers: [teamCherry, supergiantGames] };
+    renderWithProviders(
+      <GameDetails
+        game={withDevelopers}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    const platformChip = screen.getByText("Nintendo");
+    const developerChip = screen.getByText(teamCherry.name);
+    expect(platformChip.compareDocumentPosition(developerChip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(supergiantGames.name)).toBeInTheDocument();
+  });
+
+  it("shows no developers field for a game without developers", () => {
+    renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    expect(screen.queryByText("Developers")).not.toBeInTheDocument();
   });
 
   it("shows no expansions heading when there are none", () => {

@@ -21,6 +21,8 @@ import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.slf4j.LoggerFactory
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 
 /**
  * Generic [BackupSource] over any list of Exposed [Table]s (MT-023, ADR 0027). A feature only needs
@@ -33,9 +35,11 @@ import org.slf4j.LoggerFactory
  * String/Long/Double/Boolean/null (an `integer` column comes back as [Long], matching the JSON `Any?` union
  * `backup/api` writes numbers as).
  *
- * **Import** validates the whole payload before writing anything ([validate]: unknown or missing column, a value
- * that does not coerce to the column's type, or two rows sharing a primary key, all throw
- * [InvalidValueException]/400 and leave the database untouched), then runs every table's insert in one
+ * **Import** validates the whole payload before writing anything ([validate]: unknown column, a non-nullable
+ * column missing, a value that does not coerce to the column's type, or two rows sharing a primary key, all
+ * throw [InvalidValueException]/400 and leave the database untouched; a *nullable* column missing from a row
+ * defaults to null instead, so a backup taken before a later migration added it still imports), then runs every
+ * table's insert in one
  * transaction: insert-if-absent by primary key ("insert if not exists", which is also what makes re-importing
  * the V002-seeded platforms a no-op), never `INSERT IGNORE` since MariaDB would silently swallow a foreign-key
  * violation along with it. Primary keys are compared case-insensitively and ignoring trailing spaces (both
@@ -92,6 +96,8 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
 
         is Long, is Double, is Boolean, is String -> value
 
+        is LocalDate -> value.toString()
+
         else -> error(
             "Unsupported backup column value type ${value::class} for ${column.table.tableName}.${column.name}",
         )
@@ -104,11 +110,17 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
             if (unknown.isNotEmpty()) {
                 throw InvalidValueException(tableName, "unknown column(s): ${unknown.sorted()}")
             }
+            // A missing nullable column defaults to null instead of being rejected: a backup taken before a
+            // later migration added it (e.g. games.release_date, MT-025) still imports, with that column simply
+            // absent from every row it wrote.
             val missing = byName.keys - row.keys
-            if (missing.isNotEmpty()) {
-                throw InvalidValueException(tableName, "missing column(s): ${missing.sorted()}")
+            val missingRequired = missing.filterNot { byName.getValue(it).columnType.nullable }
+            if (missingRequired.isNotEmpty()) {
+                throw InvalidValueException(tableName, "missing column(s): ${missingRequired.sorted()}")
             }
-            byName.values.associateWith { column -> column.coerce(tableName, row.getValue(column.name)) }
+            byName.values.associateWith { column ->
+                if (column.name in missing) null else column.coerce(tableName, row.getValue(column.name))
+            }
         }
         checkNoDuplicatePrimaryKeys(coerced)
         return coerced
@@ -155,6 +167,15 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
                     .also { it.checkLength(field, type.colLength) }
 
             is TextColumnType -> raw as? String ?: throw InvalidValueException(field, "must be a string")
+
+            is LocalDateColumnType -> {
+                val text = raw as? String ?: throw InvalidValueException(field, "must be a string")
+                try {
+                    LocalDate.parse(text)
+                } catch (e: DateTimeParseException) {
+                    throw InvalidValueException(field, "must be an ISO date (YYYY-MM-DD)")
+                }
+            }
 
             else -> error("Unsupported backup column type ${columnType::class} for $field")
         }
@@ -223,15 +244,14 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
          * `BackupCoverageTest` so a future column type that [coerce] cannot handle (an unsupported type is a
          * 500, not a 400, see [coerce]) fails a test instead of only failing at import time.
          */
-        fun supports(columnType: IColumnType<*>): Boolean = when (columnType) {
-            is BooleanColumnType,
-            is DoubleColumnType,
-            is IntegerColumnType,
-            is CharColumnType,
-            is VarCharColumnType,
-            is TextColumnType,
-            -> true
-
+        fun supports(columnType: IColumnType<*>): Boolean = when {
+            columnType is BooleanColumnType -> true
+            columnType is DoubleColumnType -> true
+            columnType is IntegerColumnType -> true
+            columnType is CharColumnType -> true
+            columnType is VarCharColumnType -> true
+            columnType is TextColumnType -> true
+            columnType is LocalDateColumnType -> true
             else -> false
         }
     }

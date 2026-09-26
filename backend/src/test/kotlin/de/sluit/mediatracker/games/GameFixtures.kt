@@ -2,7 +2,10 @@ package de.sluit.mediatracker.games
 
 import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.Description
+import de.sluit.mediatracker.games.domain.DeveloperName
 import de.sluit.mediatracker.games.domain.Game
+import de.sluit.mediatracker.games.domain.GameDeveloper
+import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
@@ -11,8 +14,10 @@ import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
+import de.sluit.mediatracker.games.domain.ReleaseDate
 import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
+import de.sluit.mediatracker.games.domain.sortedByNameForGame
 import de.sluit.mediatracker.games.domain.sortedForGame
 import kotlin.uuid.Uuid
 
@@ -40,7 +45,14 @@ object Platforms {
     )
 }
 
-/** Builds a valid [Game] for tests, defaulting to a single platform (PC). */
+/** Builds a valid [GameDeveloper] for tests, with a random id unless one is given. */
+fun developer(name: String, id: GameDeveloperId = GameDeveloperId.new()): GameDeveloper =
+    GameDeveloper(id, DeveloperName(name))
+
+/**
+ * Builds a valid [Game] for tests, defaulting to a single platform (PC). When [releaseDate] is given, it
+ * decides the year (like production: [releaseYear] is ignored then), so callers only need one of the two.
+ */
 fun game(
     title: String,
     platforms: List<GamePlatform> = listOf(Platforms.PC),
@@ -52,10 +64,12 @@ fun game(
     ownership: Ownership = Ownership.DEFAULT,
     progress: Progress = Progress.DEFAULT,
     hidden: Boolean = false,
+    releaseDate: ReleaseDate? = null,
+    developers: List<GameDeveloper> = emptyList(),
 ): Game = Game(
     id = id,
     title = Title(title),
-    releaseYear = ReleaseYear(releaseYear),
+    releaseYear = releaseDate?.let { ReleaseYear(it.year) } ?: ReleaseYear(releaseYear),
     platforms = platforms.sortedForGame(),
     description = description,
     rating = rating,
@@ -63,4 +77,6 @@ fun game(
     ownership = ownership,
     progress = progress,
     hidden = hidden,
+    releaseDate = releaseDate,
+    developers = developers.sortedByNameForGame(),
 )

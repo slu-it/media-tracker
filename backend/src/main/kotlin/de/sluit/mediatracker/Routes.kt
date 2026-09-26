@@ -38,7 +38,7 @@ fun Route.apiRoutes(services: Services) {
 
             apiKeyRoutes(services.apiKeys)
 
-            gameRoutes(services.games, services.expansions, services.coverOptions)
+            gameRoutes(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
 
             backupRoutes(services.backup, services.cloudBackup)
 
@@ -61,7 +61,9 @@ fun Route.apiRoutes(services: Services) {
 fun Route.mcpRoutes(services: Services) {
     authenticate(API_KEY_AUTH) {
         mcpEndpoint {
-            newMcpServer().apply { addGameTools(services.games, services.expansions, services.coverOptions) }
+            newMcpServer().apply {
+                addGameTools(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
+            }
         }
     }
 }

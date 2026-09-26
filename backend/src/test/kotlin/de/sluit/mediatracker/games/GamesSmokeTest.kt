@@ -4,6 +4,7 @@ import de.sluit.mediatracker.appWithUser
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
+import de.sluit.mediatracker.games.api.GameDeveloperResponse
 import de.sluit.mediatracker.games.api.GameMetaResponse
 import de.sluit.mediatracker.games.api.GamePlatformResponse
 import de.sluit.mediatracker.games.api.GameResponse
@@ -135,6 +136,40 @@ class GamesSmokeTest {
         assertEquals(true, hades.hidden)
         val listed = client.get("/api/games").decodeBody<PageResponse<GameResponse>>()
         assertEquals(hades, listed.items.first())
+    }
+
+    @Test
+    fun `create with a release date and developer ids stores and returns them`() = testApplication {
+        val client = loggedInClient()
+        val developer = client.post("/api/game-developers") { jsonBody("""{"name":"Nintendo EPD"}""") }
+            .decodeBody<GameDeveloperResponse>()
+
+        val created = client.createGame(
+            """{"title":"Chrono Trigger","platformIds":["${SeededPlatforms.PC}"],
+                |"releaseDate":"1995-03-11","developerIds":["${developer.id}"]}
+            """.trimMargin(),
+        ).decodeBody<GameResponse>()
+
+        assertEquals("1995-03-11", created.releaseDate)
+        assertEquals(1995, created.releaseYear)
+        assertEquals(listOf("Nintendo EPD"), created.developers.map { it.name })
+        val listed = client.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+        assertEquals(created, listed.items.first())
+    }
+
+    @Test
+    fun `game-developers search finds a developer by prefix and create is idempotent`() = testApplication {
+        val client = loggedInClient()
+        val created = client.post("/api/game-developers") { jsonBody("""{"name":"Monolith Soft"}""") }
+        assertEquals(HttpStatusCode.Created, created.status)
+        val monolith = created.decodeBody<GameDeveloperResponse>()
+
+        val again = client.post("/api/game-developers") { jsonBody("""{"name":"monolith soft"}""") }
+        assertEquals(HttpStatusCode.OK, again.status)
+        assertEquals(monolith.id, again.decodeBody<GameDeveloperResponse>().id)
+
+        val found = client.get("/api/game-developers?search=mono").decodeBody<List<GameDeveloperResponse>>()
+        assertEquals(listOf(monolith), found)
     }
 
     @Test

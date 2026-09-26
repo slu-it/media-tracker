@@ -13,6 +13,7 @@ import de.sluit.mediatracker.config.SessionConfig
 import de.sluit.mediatracker.dropbox.domain.DropboxService
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
+import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.cookies.HttpCookies
@@ -112,10 +113,11 @@ fun ApplicationTestBuilder.handlerApp(
     backup: BackupService = mockk(),
     dropbox: DropboxService = mockk(),
     cloudBackup: CloudBackupService = mockk(),
+    gameDevelopers: GameDeveloperService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
-            Services(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup),
+            Services(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup, gameDevelopers),
             testSessionConfig,
             SessionStorageMemory(),
         )
