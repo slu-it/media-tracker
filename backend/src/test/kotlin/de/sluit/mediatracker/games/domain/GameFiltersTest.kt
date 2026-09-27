@@ -33,6 +33,16 @@ class GameFiltersTest {
     }
 
     @Test
+    fun `filters are not empty when only ratedOnly is set`() {
+        assertFalse(GameFilters(ratedOnly = true).isEmpty)
+    }
+
+    @Test
+    fun `filters are empty when ratedOnly is explicitly false`() {
+        assertTrue(GameFilters(ratedOnly = false).isEmpty)
+    }
+
+    @Test
     fun `NONE is empty`() {
         assertTrue(GameFilters.NONE.isEmpty)
     }

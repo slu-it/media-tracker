@@ -13,6 +13,7 @@ import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.DeveloperName
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
@@ -643,6 +644,151 @@ class ExposedGameRepositoryTest {
         assertEquals(listOf(hadesWithoutDescription.id), page.items.map { it.id })
         assertEquals(1, page.totalItems)
     }
+
+    @Test
+    fun `ratedOnly filter matches only games with a rating`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val rated = game("Alpha", rating = Rating(4.0))
+        val unrated = game("Beta")
+        repo.insert(rated)
+        repo.insert(unrated)
+
+        val page = repo.search(null, GameFilters(ratedOnly = true), PageRequest())
+
+        assertEquals(listOf(rated.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
+    fun `ratedOnly combined with ownership filter matches only games satisfying both`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val matchesBoth = game("Alpha", rating = Rating(4.0), ownership = Ownership.OWNED)
+        val ratedButWatchlisted = game("Beta", rating = Rating(3.0), ownership = Ownership.WATCHLIST)
+        val ownedButUnrated = game("Gamma", ownership = Ownership.OWNED)
+        listOf(matchesBoth, ratedButWatchlisted, ownedButUnrated).forEach { repo.insert(it) }
+
+        val filters = GameFilters(ratedOnly = true, ownership = setOf(Ownership.OWNED))
+        val page = repo.search(null, filters, PageRequest())
+
+        assertEquals(listOf(matchesBoth.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    // sort (MT-026)
+
+    @Test
+    fun `RELEASE_ASC orders by year then dated games before year-only games in the same year then title then id`() =
+        withFreshDatabase {
+            val repo = ExposedGameRepository()
+            val old = game("Old", releaseYear = 1999)
+            // Titled to disprove a title-only explanation: "Zulu" sorts after "Alpha" alphabetically, but the
+            // dated game must still come first within 2000 because the (releaseDate IS NULL) column outranks it.
+            val datedInYear2000 = game("Zulu", releaseDate = ReleaseDate(LocalDate.of(2000, 6, 1)))
+            val yearOnlyIn2000 = game("Alpha", releaseYear = 2000)
+            val newer = game("New", releaseYear = 2010)
+            listOf(newer, yearOnlyIn2000, old, datedInYear2000).forEach { repo.insert(it) }
+
+            val page = repo.search(null, GameFilters.NONE, PageRequest(), GameSort.RELEASE_ASC)
+
+            assertEquals(
+                listOf(old.id, datedInYear2000.id, yearOnlyIn2000.id, newer.id),
+                page.items.map { it.id },
+            )
+        }
+
+    @Test
+    fun `RELEASE_DESC orders by year then year-only games before dated games in the same year then title then id`() =
+        withFreshDatabase {
+            val repo = ExposedGameRepository()
+            val old = game("Old", releaseYear = 1999)
+            val datedInYear2000 = game("Zulu", releaseDate = ReleaseDate(LocalDate.of(2000, 6, 1)))
+            val yearOnlyIn2000 = game("Alpha", releaseYear = 2000)
+            val newer = game("New", releaseYear = 2010)
+            listOf(newer, yearOnlyIn2000, old, datedInYear2000).forEach { repo.insert(it) }
+
+            val page = repo.search(null, GameFilters.NONE, PageRequest(), GameSort.RELEASE_DESC)
+
+            assertEquals(
+                listOf(newer.id, yearOnlyIn2000.id, datedInYear2000.id, old.id),
+                page.items.map { it.id },
+            )
+        }
+
+    @Test
+    fun `RELEASE_ASC breaks a tie on year and release date by title then id`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val alphaFirst = game("Alpha", releaseYear = 2000, id = GameId.parse("00000000-0000-0000-0000-000000000001"))
+        val alphaSecond = game("Alpha", releaseYear = 2000, id = GameId.parse("00000000-0000-0000-0000-000000000002"))
+        val beta = game("Beta", releaseYear = 2000)
+        listOf(beta, alphaSecond, alphaFirst).forEach { repo.insert(it) }
+
+        val page = repo.search(null, GameFilters.NONE, PageRequest(), GameSort.RELEASE_ASC)
+
+        assertEquals(listOf(alphaFirst.id, alphaSecond.id, beta.id), page.items.map { it.id })
+    }
+
+    @Test
+    fun `RELEASE_DESC breaks a tie on year and release date by title then id`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val alphaFirst = game("Alpha", releaseYear = 2000, id = GameId.parse("00000000-0000-0000-0000-000000000001"))
+        val alphaSecond = game("Alpha", releaseYear = 2000, id = GameId.parse("00000000-0000-0000-0000-000000000002"))
+        val beta = game("Beta", releaseYear = 2000)
+        listOf(beta, alphaSecond, alphaFirst).forEach { repo.insert(it) }
+
+        val page = repo.search(null, GameFilters.NONE, PageRequest(), GameSort.RELEASE_DESC)
+
+        assertEquals(listOf(alphaFirst.id, alphaSecond.id, beta.id), page.items.map { it.id })
+    }
+
+    @Test
+    fun `RATING_DESC orders by rating descending unrated last then title then id`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val highest = game("Epsilon", rating = Rating(5.0))
+        val tiedRatingA = game("Alpha", rating = Rating(3.0))
+        val tiedRatingB = game("Beta", rating = Rating(3.0))
+        val sameRatingAndTitleFirst = game(
+            "Gamma",
+            rating = Rating(1.0),
+            id = GameId.parse("00000000-0000-0000-0000-000000000001"),
+        )
+        val sameRatingAndTitleSecond = game(
+            "Gamma",
+            rating = Rating(1.0),
+            id = GameId.parse("00000000-0000-0000-0000-000000000002"),
+        )
+        val unrated = game("Zeta")
+        listOf(unrated, sameRatingAndTitleSecond, sameRatingAndTitleFirst, tiedRatingB, tiedRatingA, highest)
+            .forEach { repo.insert(it) }
+
+        val page = repo.search(null, GameFilters.NONE, PageRequest(), GameSort.RATING_DESC)
+
+        assertEquals(
+            listOf(
+                highest.id,
+                tiedRatingA.id,
+                tiedRatingB.id,
+                sameRatingAndTitleFirst.id,
+                sameRatingAndTitleSecond.id,
+                unrated.id,
+            ),
+            page.items.map { it.id },
+        )
+    }
+
+    @Test
+    fun `a non-default sort together with a search term overrides relevance ordering but keeps the match filter`() =
+        withFreshDatabase {
+            val repo = ExposedGameRepository()
+            val hadesLowRating = game("Hades One", rating = Rating(2.0))
+            val hadesHighRating = game("Hades Two", rating = Rating(4.5))
+            val unrelatedHighRating = game("Celeste", rating = Rating(5.0))
+            listOf(unrelatedHighRating, hadesLowRating, hadesHighRating).forEach { repo.insert(it) }
+
+            val page = repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest(), GameSort.RATING_DESC)
+
+            assertEquals(listOf(hadesHighRating.id, hadesLowRating.id), page.items.map { it.id })
+            assertEquals(2, page.totalItems)
+        }
 
     @Test
     fun `findUsedFilterValues returns only the values in use`() = withFreshDatabase {

@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../../api/client";
-import type { GameResponse, PageResponse } from "../../../types/api";
+import type { GameResponse, GameSort, PageResponse } from "../../../types/api";
 import { listGames } from "../api/gamesApi";
 import { filtersKey, type GameFilters } from "../domain/gameFilters";
 
 interface Loaded {
-  /** Which (page, pageSize, reload, search, filters) request this result belongs to. */
+  /** Which (page, pageSize, reload, search, filters, sort, rated) request this result belongs to. */
   key: string;
   data: PageResponse<GameResponse> | null;
   error: string | null;
@@ -19,24 +19,30 @@ export interface GamesPageState {
   reload: () => void;
 }
 
-/** Loads one page of games; `reload()` refetches the same page (after create/update/delete). */
+/**
+ * Loads one page of games; `reload()` refetches the same page (after create/update/delete). `sort` and `rated`
+ * are trailing and optional so existing callers keep working unchanged (`undefined` means the backend default:
+ * title order, no rated-only filter).
+ */
 export function useGamesPage(
   page: number,
   pageSize: number,
   search: string,
   filters: GameFilters,
   loadErrorText: string,
+  sort?: GameSort,
+  rated?: boolean,
 ): GamesPageState {
   const [reloadToken, setReloadToken] = useState(0);
   // `filtersKey` rather than the object, so the same selection made in a different order is the same request.
   const filterKey = filtersKey(filters);
   // `search` and `filterKey` last: they change independently of page/pageSize/reload and should not shadow those.
-  const key = `${page}:${pageSize}:${reloadToken}:${search}:${filterKey}`;
+  const key = `${page}:${pageSize}:${reloadToken}:${search}:${filterKey}:${sort ?? ""}:${rated ? "1" : "0"}`;
   const [loaded, setLoaded] = useState<Loaded>({ key: "", data: null, error: null });
 
   useEffect(() => {
     let cancelled = false;
-    listGames(page, pageSize, search, filters)
+    listGames(page, pageSize, search, filters, sort, rated)
       .then((data) => {
         if (!cancelled) setLoaded({ key, data, error: null });
       })
@@ -46,7 +52,7 @@ export function useGamesPage(
     return () => {
       cancelled = true;
     };
-  }, [key, page, pageSize, search, filters, loadErrorText]);
+  }, [key, page, pageSize, search, filters, sort, rated, loadErrorText]);
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), []);
 

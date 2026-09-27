@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
 import { LANGUAGE_STORAGE_KEY } from "./i18n/language";
+import { GAMES_SUB_PAGE_STORAGE_KEY } from "./hooks/useGamesSubPage";
 import { MEDIA_TAB_STORAGE_KEY } from "./hooks/useStoredTab";
 import { jsonResponse, mockApi } from "./test/mockFetch";
 import { renderWithProviders } from "./test/renderWithProviders";
@@ -95,5 +96,86 @@ describe("App", () => {
     await screen.findByText(/No games yet/);
     await user.click(screen.getByRole("tab", { name: tabName }));
     expect(screen.getByText("Coming soon")).toBeInTheDocument();
+  });
+
+  it("shows the games sub-page tabs only while the games tab is active", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games": () => jsonResponse(emptyPage),
+      "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
+    });
+    renderWithProviders(<App />);
+    expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Games" }));
+    await screen.findByText(/No games yet/);
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Watchlist" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Yearly ranking" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Movies" }));
+    expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
+  });
+
+  it("switches games sub-pages and renders the right view", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(MEDIA_TAB_STORAGE_KEY, "games");
+    mockApi({
+      "GET /api/games": () => jsonResponse(emptyPage),
+      "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
+    });
+    renderWithProviders(<App />);
+    await screen.findByText(/No games yet/);
+
+    await user.click(screen.getByRole("tab", { name: "Watchlist" }));
+    expect(screen.getByRole("tab", { name: "Watchlist" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText("Your watchlist is empty.")).toBeInTheDocument();
+    expect(screen.queryByText(/No games yet/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+    expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
+  });
+
+  it("persists the selected games sub-page in localStorage across remount", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem(MEDIA_TAB_STORAGE_KEY, "games");
+    mockApi({
+      "GET /api/games": () => jsonResponse(emptyPage),
+      "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
+    });
+    const { unmount } = renderWithProviders(<App />);
+    await screen.findByText(/No games yet/);
+
+    await user.click(screen.getByRole("tab", { name: "Yearly ranking" }));
+    expect(localStorage.getItem(GAMES_SUB_PAGE_STORAGE_KEY)).toBe("ranking");
+    // The freshly mounted GamesRankingView starts its own games/meta/platforms fetches; let them settle inside
+    // act before unmounting, or their resolution logs an act warning that fails the test.
+    await screen.findByText(/^No rated games in \d{4}\.$/);
+    unmount();
+
+    mockApi({
+      "GET /api/games": () => jsonResponse(emptyPage),
+      "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
+    });
+    renderWithProviders(<App />);
+    expect(screen.getByRole("tab", { name: "Yearly ranking" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText(/^No rated games in \d{4}\.$/)).toBeInTheDocument();
+  });
+
+  it("falls back to the overview sub-page for an invalid stored value", async () => {
+    localStorage.setItem(MEDIA_TAB_STORAGE_KEY, "games");
+    localStorage.setItem(GAMES_SUB_PAGE_STORAGE_KEY, "bogus");
+    mockApi({
+      "GET /api/games": () => jsonResponse(emptyPage),
+      "GET /api/game-platforms": () => jsonResponse([]),
+      "GET /api/games.meta": () => jsonResponse(emptyMeta),
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
   });
 });

@@ -17,6 +17,7 @@ import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
@@ -36,6 +37,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
@@ -90,12 +92,16 @@ private const val SEARCH_GAMES_DESCRIPTION =
     "Searches the tracked games by title and description and returns the best matches - at most pageSize of " +
         "them, 10 by default - title matches first, " +
         "best match first. Any word may match; each word is treated as a prefix (\"zel\" finds \"Zelda\"). " +
-        "platformIds, ownership, progress and releaseYears narrow the search: several values inside one filter " +
-        "mean \"any of\" (e.g. ownership: [\"owned\",\"watchlist\"] matches either), but every filter that is " +
-        "given has to match. platformIds are game_platforms.id values; call list_game_platforms first to get " +
-        "them. hasMissing finds games whose description or cover image is still empty, so they can be filled in " +
-        "with update_game. At least one of query or a filter is required. Each match carries the id update_game " +
-        "needs to change it. pageSize controls how many matches come back, 10 by default and 100 at most."
+        "platformIds, ownership, progress, releaseYears and rated narrow the search: several values inside one " +
+        "filter mean \"any of\" (e.g. ownership: [\"owned\",\"watchlist\"] matches either), but every filter " +
+        "that is given has to match. rated: true restricts to games that already have a rating. platformIds " +
+        "are game_platforms.id values; call list_game_platforms first to get them. hasMissing finds games " +
+        "whose description or cover image is still empty, so they can be filled in with update_game. sort " +
+        "orders the matches: title (default) alphabetically, release_asc/release_desc by release date (oldest/" +
+        "newest first), rating_desc by rating (highest first) - e.g. sort: \"rating_desc\", rated: true and " +
+        "releaseYears: [2024] together rank 2024's games by rating. At least one of query or a filter is " +
+        "required (sort alone does not count as one). Each match carries the id update_game needs to change " +
+        "it. pageSize controls how many matches come back, 10 by default and 100 at most."
 
 private const val LIST_EXPANSIONS_DESCRIPTION =
     "Lists a game's expansions - DLC that belongs to that game - in their stored order. gameId is the game's " +
@@ -300,6 +306,23 @@ private val SEARCH_GAMES_SCHEMA = ToolSchema(
             }
             put("uniqueItems", true)
             put("maxItems", MissingField.entries.size)
+        }
+        putJsonObject(GameFilters.RATED_FIELD) {
+            put("type", "boolean")
+            put(
+                "description",
+                "true: only games that already have a rating. false or omitted: no filter on rating.",
+            )
+        }
+        putJsonObject(GameSort.FIELD) {
+            put("type", "string")
+            putJsonArray("enum") { GameSort.entries.forEach { add(it.wire) } }
+            put(
+                "description",
+                "How to order the matches. title (default): alphabetically. release_asc/release_desc: by " +
+                    "release date (falling back to releaseYear), oldest/newest first. rating_desc: by rating, " +
+                    "highest first.",
+            )
         }
         putJsonObject(PageSize.FIELD) {
             put("type", "integer")
@@ -590,6 +613,14 @@ private fun GameResponse.yearAndDevelopers(): String {
     return "$releaseYear$date$developerNames"
 }
 
+// Names the ordering search_games' text summary claims, matching what GameSort's own description says it does.
+private fun GameSort.orderingWord(): String = when (this) {
+    GameSort.TITLE -> "best first"
+    GameSort.RELEASE_ASC -> "oldest release first"
+    GameSort.RELEASE_DESC -> "newest release first"
+    GameSort.RATING_DESC -> "highest rated first"
+}
+
 private fun Server.addListGamePlatformsTool(gameService: GameService) {
     addTool(
         name = "list_game_platforms",
@@ -667,6 +698,7 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                     ?.map(::ReleaseYear)?.toSet() ?: emptySet(),
                 missing = arguments.stringArrayOrNull(MissingField.FIELD)
                     ?.map(MissingField::from)?.toSet() ?: emptySet(),
+                ratedOnly = arguments.booleanOrNull(GameFilters.RATED_FIELD) ?: false,
             )
             requireValid("query", term != null || !filters.isEmpty) { "provide a query or at least one filter" }
             val size = arguments.intOrNull(PageSize.FIELD)?.let { requested ->
@@ -675,7 +707,8 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                 }
                 PageSize(requested)
             } ?: SEARCH_GAMES_DEFAULT_SIZE
-            val page = gameService.list(PageRequest(PageNumber.FIRST, size), term, filters)
+            val sort = arguments.stringOrNull(GameSort.FIELD)?.let(GameSort::from) ?: GameSort.DEFAULT
+            val page = gameService.list(PageRequest(PageNumber.FIRST, size), term, filters, sort)
             val games = page.items.map { it.toResponse() }
             // Both a query and filters may be absent from the summary text: describe whichever was given.
             val subject = term?.let { "\"$it\"" } ?: "the given filters"
@@ -687,7 +720,7 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                         } else {
                             // The tool returns at most pageSize matches without paging: say how many matches exist
                             // so a truncated list is recognisable.
-                            "${games.size} of ${page.totalItems} matches for $subject, best first:\n" +
+                            "${games.size} of ${page.totalItems} matches for $subject, ${sort.orderingWord()}:\n" +
                                 games.joinToString("\n") { "${it.title} (${it.yearAndDevelopers()}): ${it.id}" }
                         },
                     ),
@@ -1001,6 +1034,15 @@ private fun JsonObject.intOrNull(field: String): Int? = when (val argument = thi
     null, is JsonNull -> null
     is JsonPrimitive -> argument.intOrNull ?: throw InvalidValueException(field, "must be an integer")
     else -> throw InvalidValueException(field, "must be an integer")
+}
+
+private fun JsonObject.booleanOrNull(field: String): Boolean? = when (val argument = this[field]) {
+    null, is JsonNull -> null
+
+    is JsonPrimitive -> argument.takeIf { !it.isString }?.booleanOrNull
+        ?: throw InvalidValueException(field, "must be a boolean")
+
+    else -> throw InvalidValueException(field, "must be a boolean")
 }
 
 private fun Exception.toErrorResult(): CallToolResult =

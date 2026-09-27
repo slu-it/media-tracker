@@ -15,6 +15,7 @@ import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameRepository
+import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.HexColor
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
@@ -26,6 +27,7 @@ import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.domain.sortedByNameForGame
 import de.sluit.mediatracker.games.domain.sortedForGame
+import org.jetbrains.exposed.v1.core.Expression
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -36,6 +38,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
@@ -100,12 +103,19 @@ class ExposedGameRepository : GameRepository {
      * Three SELECTs like [findPage]: the total match count, the page of games, and one join query that loads
      * every game's platforms at once. [filters] AND across categories, OR (IN) inside one; combined with
      * [term]'s fulltext match, if any, by AND as well. Without a [term] (or one that the fulltext parser strips
-     * down to nothing, e.g. `"+++"`), the ordering is title then id, same as [findPage] - filters must not
-     * silently vanish in that case, so this falls back to the filtered listing rather than [findPage]. With a
-     * term, the ordering is title hit first, then the weighted score, then title, then id, unchanged from before
-     * filters existed. Fulltext entries become visible once the inserting transaction commits.
+     * down to nothing, e.g. `"+++"`), the ordering is [sort] alone, [GameSort.TITLE] being title then id, same
+     * as [findPage] - filters must not silently vanish in that case, so this falls back to the filtered listing
+     * rather than [findPage]. With a term and the default [sort], the ordering is title hit first, then the
+     * weighted score, then title, then id, unchanged from before filters existed; any other [sort] overrides
+     * that relevance ordering entirely, though the fulltext match still filters. Fulltext entries become visible
+     * once the inserting transaction commits.
      */
-    override suspend fun search(term: SearchTerm?, filters: GameFilters, request: PageRequest): Page<Game> {
+    override suspend fun search(
+        term: SearchTerm?,
+        filters: GameFilters,
+        request: PageRequest,
+        sort: GameSort,
+    ): Page<Game> {
         val booleanQuery = term?.let { FulltextQuery.booleanMode(it.value) }
         return dbQuery {
             if (booleanQuery == null) {
@@ -114,7 +124,7 @@ class ExposedGameRepository : GameRepository {
                 val predicate = filterOp(filters) ?: Op.TRUE
                 val total = GamesTable.selectAll().where { predicate }.count()
                 val rows = GamesTable.selectAll().where { predicate }
-                    .orderBy(GamesTable.title to SortOrder.ASC, GamesTable.id to SortOrder.ASC)
+                    .orderBy(*orderingFor(sort))
                     .limit(request.size.value)
                     .offset(request.offset)
                     .toList()
@@ -127,13 +137,18 @@ class ExposedGameRepository : GameRepository {
                 val predicate = listOfNotNull(matches, filterOp(filters)).compoundAnd()
                 val total = GamesTable.selectAll().where { predicate }.count()
                 val score = WeightedFulltextScore(booleanQuery).alias("score")
-                val rows = GamesTable.select(GamesTable.columns + score).where { predicate }
-                    .orderBy(
+                val ordering = if (sort == GameSort.TITLE) {
+                    arrayOf(
                         titleMatch to SortOrder.DESC,
                         score to SortOrder.DESC,
                         GamesTable.title to SortOrder.ASC,
                         GamesTable.id to SortOrder.ASC,
                     )
+                } else {
+                    orderingFor(sort)
+                }
+                val rows = GamesTable.select(GamesTable.columns + score).where { predicate }
+                    .orderBy(*ordering)
                     .limit(request.size.value)
                     .offset(request.offset)
                     .toList()
@@ -143,11 +158,46 @@ class ExposedGameRepository : GameRepository {
     }
 
     /**
+     * The ORDER BY clause for a given [GameSort] (used by both branches of [search] once relevance ordering
+     * does not apply). [GameSort.RELEASE_ASC]/[GameSort.RELEASE_DESC] order dated games ahead of year-only ones
+     * within the same year by ordering on `releaseDate IS NULL` before `releaseDate` itself: MariaDB evaluates
+     * that boolean expression as 0 (false, a dated game) or 1 (true, year-only), so ascending puts dated games
+     * first and descending puts year-only games first, matching the direction of the release ordering as a
+     * whole. `title`/`id` break every remaining tie, as in [findPage].
+     */
+    private fun orderingFor(sort: GameSort): Array<Pair<Expression<*>, SortOrder>> = when (sort) {
+        GameSort.TITLE -> arrayOf(GamesTable.title to SortOrder.ASC, GamesTable.id to SortOrder.ASC)
+
+        GameSort.RELEASE_ASC -> arrayOf(
+            GamesTable.releaseYear to SortOrder.ASC,
+            GamesTable.releaseDate.isNull() to SortOrder.ASC,
+            GamesTable.releaseDate to SortOrder.ASC,
+            GamesTable.title to SortOrder.ASC,
+            GamesTable.id to SortOrder.ASC,
+        )
+
+        GameSort.RELEASE_DESC -> arrayOf(
+            GamesTable.releaseYear to SortOrder.DESC,
+            GamesTable.releaseDate.isNull() to SortOrder.DESC,
+            GamesTable.releaseDate to SortOrder.DESC,
+            GamesTable.title to SortOrder.ASC,
+            GamesTable.id to SortOrder.ASC,
+        )
+
+        GameSort.RATING_DESC -> arrayOf(
+            GamesTable.rating to SortOrder.DESC,
+            GamesTable.title to SortOrder.ASC,
+            GamesTable.id to SortOrder.ASC,
+        )
+    }
+
+    /**
      * `null` when nothing is filtered; AND across the categories, OR (IN) inside one. The platform filter is an
      * uncorrelated `IN` subquery rather than an `innerJoin`: a game on two selected platforms would otherwise
      * come back twice per matching platform row and corrupt both `count()` and the LIMIT/OFFSET window, and
      * MariaDB can still read the inner side straight off `idx_game_to_platform_platform`. The `missing` category
-     * ORs `IS NULL` checks over the listed [MissingField]s instead of an `IN` list.
+     * ORs `IS NULL` checks over the listed [MissingField]s instead of an `IN` list. [GameFilters.ratedOnly] adds
+     * a plain `rating IS NOT NULL` predicate when set.
      */
     private fun filterOp(filters: GameFilters): Op<Boolean>? = buildList {
         filters.platformIds.takeIf { it.isNotEmpty() }?.let { ids ->
@@ -164,6 +214,7 @@ class ExposedGameRepository : GameRepository {
         filters.releaseYears.takeIf { it.isNotEmpty() }
             ?.let { add(GamesTable.releaseYear inList it.map { y -> y.value }) }
         filters.missing.takeIf { it.isNotEmpty() }?.let { fields -> add(fields.map(::missingOp).compoundOr()) }
+        if (filters.ratedOnly) add(GamesTable.rating.isNotNull())
     }.takeIf { it.isNotEmpty() }?.compoundAnd()
 
     /** `IS NULL` is the whole test: `Description` forbids a blank value, so a stored text is never empty. */

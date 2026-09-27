@@ -53,7 +53,8 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   root `Routes.kt#mcpRoutes`); a tool call is one HTTP round trip. Tools so far: `list_game_platforms`,
   `add_game` (same fields and optionality as `POST /api/games`), `search_games` (optional `query` plus the four
   optional filter arrays `platformIds`, `ownership`, `progress`, `releaseYears` and the MCP-only `hasMissing`
-  (`description`, `coverImageUrl`; a game matches when any listed property is `null`, decision record 0022);
+  (`description`, `coverImageUrl`; a game matches when any listed property is `null`, decision record 0022),
+  `rated` and `sort` as on `GET /api/games` (decision record 0030);
   returns the best matches of `GET /api/games` without paging - `pageSize` many, 10 by default and 100 at most,
   with `totalMatches` and `truncated` alongside them in the structured result; at least one of query or filter is
   required) and `update_game` (the fields of `PATCH /api/games/{id}` plus
@@ -167,7 +168,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/me` | 200 `{"username"}` | |
 | `GET /api/me/api-keys` | 200 `ApiKeysResponse {primary, secondary}` | each a UUID string or `null` |
 | `POST /api/me/api-keys/{slot}` | 200 `ApiKeysResponse` | `slot` is `primary` or `secondary` (else 400); replaces that key, the old one stops working at once |
-| `GET /api/games?page=1&pageSize=50[&search=zelda][&filters]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty. Four repeatable filter parameters narrow the result: `platformIds`, `ownership`, `progress`, `releaseYear`; repetitions of one parameter mean "any of", different parameters all have to match, and an unknown value is a 400. Any filter takes the same branch as a search, without a term the title order stays (decision record 0021) |
+| `GET /api/games?page=1&pageSize=50[&search=zelda][&filters]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty. Four repeatable filter parameters narrow the result: `platformIds`, `ownership`, `progress`, `releaseYear`; repetitions of one parameter mean "any of", different parameters all have to match, and an unknown value is a 400. Any filter takes the same branch as a search, without a term the title order stays (decision record 0021). `rated=true` keeps only rated games; `sort` is `title` (default, the order above), `release_asc`/`release_desc` (year, dated before year-only, date, then title, id) or `rating_desc` (then title, id); a non-default `sort` replaces the relevance order of a search; unknown values are a 400 (decision record 0030) |
 | `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `releaseYear` required unless `releaseDate` (`YYYY-MM-DD`, optional) is given, whose year then overrides it (decision record 0029); `platformIds` (at least one seeded platform id), `developerIds` optional, `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional; `ownership` (`watchlist`/`owned`, default `watchlist`), `progress` (`not_started`/`playing`/`finished`/`completed`/`paused`/`abandoned`, default `not_started`) and `hidden` (default `false`) optional, an unknown value is a 400 (decision record 0017) |
 | `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating`, `coverImageUrl` or `releaseDate` (clearing the date keeps the year; a set date overrides the year), `platformIds` and `developerIds` replace the whole set; `ownership`, `progress` and `hidden` cannot be cleared, so an explicit `null` on them means unchanged (as for `title`, `releaseYear` and `platformIds`); 404 for unknown ids |
 | `DELETE /api/games/{id}` | 204 | also for unknown ids (idempotent); junction rows go with the game (`ON DELETE CASCADE`) |
@@ -205,15 +206,16 @@ results with `isError: true` and the domain message, not as HTTP errors.
 ```
 frontend/src
 ├── main.tsx / App.tsx / AppProviders.tsx   i18n init, theme + CssBaseline, MUI X LocalizationProvider (dayjs,
-│                                           de/en), shell (AppHeader, MediaTabs, active view)
+│                                           de/en), shell (AppHeader, MediaTabs, SubPageTabs, active view)
 ├── theme/                MUI theme: login-page palette, system font stack; light/dark from the header
 │                         toggle (mode.ts: localStorage key mt.mode, default "system" = OS preference)
 ├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
 ├── api/client.ts         apiFetch (401 -> /login, 204 -> undefined, ApiError with the parsed ErrorResponse)
 ├── types/api.ts          hand-written mirrors of the backend DTOs
-├── hooks/                useLocalStorageState, useStoredTab (selected media tab), useDebouncedValue (search fields)
+├── hooks/                useLocalStorageState, useStoredChoice (a validated stored choice), useStoredTab (selected
+│                         media tab), useGamesSubPage (mt.gamesPage), useDebouncedValue (search fields)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
-│                         LogoutButton, MediaTabs, mediaKinds), dialog/ (BaseDialog, ConfirmDialog,
+│                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
 │                         ComingSoon
 ├── features/settings/    UserSettingsDialog (tab bar; "API Keys" and "Export / Import" tabs) + api/ (settingsApi,
@@ -224,13 +226,18 @@ frontend/src
 │                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
 │                         disconnect; fields/AuthorizationCodeField)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
-└── features/games/       GamesView (search field + filter bar + pagination bar above the grid) + api/ (gamesApi,
-                          ?search and the filter parameters, games.meta, cover-options, title-suggestions;
-                          expansionsApi), hooks/ (useGamesPage, useGamesMeta, useExpansions, useCoverOptions,
+└── features/games/       GamesView (overview: search field + filter bar + pagination bar above the grid),
+                          GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,
+                          ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
+                          games.meta, cover-options, title-suggestions;
+                          expansionsApi), hooks/ (useGamesPage, useAllGames, usePagedGameActions, useGamesMeta, useExpansions, useCoverOptions,
                           useTitleSuggestions, useDeveloperSuggestions), domain/ (gameValues validators,
                           SEARCH_DEBOUNCE_MS, gameDraft, developerDraft, releaseDate: browser-locale date
                           format, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
-                          ownership/progress values and defaults), components/ (grid, cards, GameSearchField,
+                          ownership/progress values and defaults, rankingYears: the ranking's year list),
+                          components/ (grid with renderCard, GameCardShell + GameCard/WatchlistGameCard/
+                          RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
+                          YearNavigator, GameSearchField,
                           GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
                           SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the

@@ -1,8 +1,10 @@
+import { Fragment, type ReactNode } from "react";
 import { Box, Card, CardContent, Skeleton, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { coverHeight } from "../../../components/coverFrame";
 import type { GameResponse } from "../../../types/api";
-import { CARD_COVER_WIDTH, GameCard } from "./GameCard";
+import { GameCard } from "./GameCard";
+import { CARD_COVER_WIDTH } from "./GameCardShell";
 
 interface GamesGridProps {
   games: GameResponse[] | null;
@@ -13,12 +15,18 @@ interface GamesGridProps {
   searchTerm?: string;
   /** Whether a platform/ownership/progress/release-year filter is narrowing the list; see [searchTerm]. */
   filtered?: boolean;
+  /** Card renderer; defaults to `GameCard`. `onClick` already captures the game a click should open. */
+  renderCard?: (game: GameResponse, onClick: () => void) => ReactNode;
 }
 
 const GRID_SX = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 2, py: 2 };
 
+function defaultRenderCard(game: GameResponse, onClick: () => void) {
+  return <GameCard game={game} onOpen={onClick} />;
+}
+
 /** Responsive grid: as many columns as fit 200px cards. */
-export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm, filtered }: GamesGridProps) {
+export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm, filtered, renderCard }: GamesGridProps) {
   const { t } = useTranslation();
   if (games === null) {
     return (
@@ -52,10 +60,11 @@ export function GamesGrid({ games, skeletons = 8, onOpen, searchTerm, filtered }
       </Typography>
     );
   }
+  const render = renderCard ?? defaultRenderCard;
   return (
     <Box sx={GRID_SX}>
       {games.map((game) => (
-        <GameCard key={game.id} game={game} onOpen={onOpen} />
+        <Fragment key={game.id}>{render(game, () => onOpen(game))}</Fragment>
       ))}
     </Box>
   );

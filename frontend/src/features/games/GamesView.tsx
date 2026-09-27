@@ -1,20 +1,17 @@
 import { useState } from "react";
-import { Alert, Box, Button, Divider, Fab, Stack } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import { Alert, Box, Button, Divider, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-import { AddGameDialog } from "./components/AddGameDialog";
-import { GameDetailDialog } from "./components/GameDetailDialog";
+import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GameFilterBar } from "./components/GameFilterBar";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
-import { PaginationBar } from "./components/PaginationBar";
 import { EMPTY_FILTERS, filtersKey, hasActiveFilters, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
-import { useGamePlatforms } from "./hooks/useGamePlatforms";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
+import { usePagedGameActions } from "./hooks/usePagedGameActions";
 
 interface GamesViewProps {
   /**
@@ -44,30 +41,17 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
     filters,
     t("errors.loadFailed"),
   );
-  const { platforms, error: platformsError, reload: reloadPlatforms } = useGamePlatforms(t("errors.loadFailed"));
   const { meta, error: metaError, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<GameResponse | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-
-  const pagination = data && (
-    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-      <PaginationBar
-        page={data.page}
-        totalItems={data.totalItems}
-        totalPages={data.totalPages}
-        onPageChange={setPage}
-        disabled={loading}
-      />
-    </Box>
-  );
-
-  const onDeleted = () => {
-    setSelected(null);
-    reloadMeta();
-    // Removing the last item of a later page: step back instead of showing an empty page.
-    if (data && data.items.length === 1 && page > 1) setPage(page - 1);
-    else reload();
-  };
+  const { pagination, onDeleted, onUpdated } = usePagedGameActions({
+    data,
+    loading,
+    page,
+    setPage,
+    reload,
+    reloadMeta,
+    setSelected,
+  });
 
   return (
     <Box sx={{ pb: 12 }}>
@@ -87,16 +71,18 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
           {error}
         </Alert>
       )}
-      {platformsError && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reloadPlatforms}>{t("common.retry")}</Button>}>
-          {platformsError}
-        </Alert>
-      )}
       {metaError && (
         <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}>
           {metaError}
         </Alert>
       )}
+      <GameDialogsHost
+        selected={selected}
+        onSelect={setSelected}
+        onCreated={onUpdated}
+        onUpdated={onUpdated}
+        onDeleted={onDeleted}
+      />
       <GamesGrid
         games={data?.items ?? null}
         onOpen={setSelected}
@@ -105,38 +91,6 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
       />
       <Divider />
       {pagination}
-
-      <Fab
-        color="primary"
-        aria-label={t("games.addGame")}
-        onClick={() => setAddOpen(true)}
-        disabled={platforms === null}
-        sx={{ position: "fixed", right: 24, bottom: 24 }}
-      >
-        <AddIcon />
-      </Fab>
-
-      <GameDetailDialog
-        game={selected}
-        onClose={() => setSelected(null)}
-        onSaved={(updated) => {
-          setSelected(updated);
-          reload();
-          reloadMeta();
-        }}
-        onDeleted={onDeleted}
-        platforms={platforms}
-      />
-      <AddGameDialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        onCreated={() => {
-          setAddOpen(false);
-          reload();
-          reloadMeta();
-        }}
-        platforms={platforms}
-      />
     </Box>
   );
 }

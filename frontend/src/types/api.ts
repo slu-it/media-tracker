@@ -9,6 +9,12 @@ export type Ownership = "watchlist" | "owned";
 /** Mirrors the Kotlin `Progress` enum in games/domain/GameStatus.kt. */
 export type Progress = "not_started" | "playing" | "finished" | "completed" | "paused" | "abandoned";
 
+/**
+ * Ordering for `GET /api/games`; mirrors the Kotlin `GameSort` enum in games/domain/GameSort.kt. Absent/`"title"`
+ * is the default and is never sent on the wire (see `listGames` in games/api/gamesApi.ts).
+ */
+export type GameSort = "title" | "release_asc" | "release_desc" | "rating_desc";
+
 export interface MeResponse {
   username: string;
 }

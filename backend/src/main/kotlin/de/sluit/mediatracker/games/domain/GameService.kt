@@ -51,11 +51,19 @@ class GameService(
     }
 
     /**
-     * Decides between the title-ordered page ([search] absent and [filters] empty) and the filtered/search
-     * listing (either one present).
+     * Decides between the title-ordered page ([search] absent, [filters] empty and [sort] the default
+     * [GameSort.TITLE]) and the filtered/search listing (any of the three present).
      */
-    suspend fun list(request: PageRequest, search: SearchTerm?, filters: GameFilters): Page<Game> =
-        if (search == null && filters.isEmpty) games.findPage(request) else games.search(search, filters, request)
+    suspend fun list(
+        request: PageRequest,
+        search: SearchTerm?,
+        filters: GameFilters,
+        sort: GameSort = GameSort.TITLE,
+    ): Page<Game> = if (search == null && filters.isEmpty && sort == GameSort.TITLE) {
+        games.findPage(request)
+    } else {
+        games.search(search, filters, request, sort)
+    }
 
     suspend fun listPlatforms(): List<GamePlatform> = platforms.findAll()
 

@@ -5,8 +5,10 @@ import de.sluit.mediatracker.common.domain.InvalidValueException
 /**
  * Narrows a game listing: empty per-category sets mean "no filter on that category", non-empty sets OR their
  * values within their own category, and the categories AND together. [missing] is one such category: a game
- * matches it when ANY of the listed [MissingField]s is null on that game. [isEmpty] decides whether
- * [GameService.list] takes the filtered ([GameRepository.search]) or the plain ([GameRepository.findPage]) branch.
+ * matches it when ANY of the listed [MissingField]s is null on that game. [ratedOnly] (MT-026) is a plain
+ * boolean category instead of a set: `true` means "only games with a rating", `false` means no filter on it.
+ * [isEmpty] decides whether [GameService.list] takes the filtered ([GameRepository.search]) or the plain
+ * ([GameRepository.findPage]) branch.
  */
 data class GameFilters(
     val platformIds: Set<GamePlatformId> = emptySet(),
@@ -14,12 +16,16 @@ data class GameFilters(
     val progress: Set<Progress> = emptySet(),
     val releaseYears: Set<ReleaseYear> = emptySet(),
     val missing: Set<MissingField> = emptySet(),
+    val ratedOnly: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = platformIds.isEmpty() && ownership.isEmpty() && progress.isEmpty() && releaseYears.isEmpty() &&
-            missing.isEmpty()
+            missing.isEmpty() && !ratedOnly
 
     companion object {
+        /** Wire name for [ratedOnly] on the REST `?rated=` query parameter and the `search_games` MCP tool. */
+        const val RATED_FIELD = "rated"
+
         val NONE = GameFilters()
     }
 }
