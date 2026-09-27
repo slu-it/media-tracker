@@ -13,7 +13,7 @@ interface GameFilterBarProps {
   disabled?: boolean;
 }
 
-interface FilterSelectProps<T extends string | number> {
+export interface FilterSelectProps<T extends string | number> {
   label: string;
   options: T[];
   selected: T[];
@@ -24,7 +24,7 @@ interface FilterSelectProps<T extends string | number> {
 }
 
 /** One multi-select shared by all four filters; shows `-all-` when nothing is selected. */
-function FilterSelect<T extends string | number>({
+export function FilterSelect<T extends string | number>({
   label,
   options,
   selected,

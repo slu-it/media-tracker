@@ -94,6 +94,14 @@
     "movies": "Filme",
     "series": "Serien"
   },
+  "subPages": {
+    "label": "Spiele-Seiten",
+    "games": {
+      "overview": "Übersicht",
+      "watchlist": "Merkliste",
+      "ranking": "Jahresranking"
+    }
+  },
   "games": {
     "addGame": "Spiel hinzufügen",
     "gameDetails": "Spieldetails",
@@ -116,6 +124,23 @@
       "progress": "Fortschritt",
       "releaseYear": "Erscheinungsjahr",
       "noResults": "Keine Spiele passen zu den gewählten Filtern."
+    },
+    "sort": {
+      "label": "Nach Erscheinungsdatum sortieren",
+      "releaseAsc": "Älteste zuerst",
+      "releaseDesc": "Neueste zuerst"
+    },
+    "watchlist": {
+      "empty": "Deine Merkliste ist leer."
+    },
+    "ranking": {
+      "older": "Vorheriges Jahr",
+      "newer": "Nächstes Jahr",
+      "year": "Jahr",
+      "navigatorTop": "Jahresauswahl (oben)",
+      "navigatorBottom": "Jahresauswahl (unten)",
+      "ratingValue": "{{rating}} Sterne",
+      "empty": "Keine bewerteten Spiele aus {{year}}."
     },
     "fields": {
       "title": "Titel",

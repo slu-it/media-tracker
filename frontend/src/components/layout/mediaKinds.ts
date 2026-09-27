@@ -3,6 +3,9 @@ export const MEDIA_KINDS = ["books", "games", "movies", "series"] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
 export const DEFAULT_MEDIA_KIND: MediaKind = "books";
 
-export function isMediaKind(value: string): value is MediaKind {
-  return (MEDIA_KINDS as readonly string[]).includes(value);
-}
+/** Sub-pages within a media kind, in tab order. Kinds without sub-pages have no entry here. */
+export const MEDIA_SUB_PAGES = {
+  games: ["overview", "watchlist", "ranking"],
+} as const satisfies Partial<Record<MediaKind, readonly string[]>>;
+
+export type GameSubPage = (typeof MEDIA_SUB_PAGES.games)[number];

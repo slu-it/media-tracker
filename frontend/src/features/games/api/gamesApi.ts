@@ -8,13 +8,14 @@ import type {
   GameMetaResponse,
   GamePlatformResponse,
   GameResponse,
+  GameSort,
   PageResponse,
   TitleSuggestionsResponse,
   UpdateGameRequest,
 } from "../../../types/api";
 import { isExistingDeveloper, type DeveloperDraft } from "../domain/developerDraft";
 import type { GameFilters } from "../domain/gameFilters";
-import { DEVELOPER_SEARCH_LIMIT } from "../domain/gameValues";
+import { ALL_GAMES_PAGE_SIZE, DEVELOPER_SEARCH_LIMIT } from "../domain/gameValues";
 
 const BASE = "/api/games";
 
@@ -23,6 +24,8 @@ export function listGames(
   pageSize: number,
   search: string,
   filters: GameFilters,
+  sort?: GameSort,
+  rated?: boolean,
 ): Promise<PageResponse<GameResponse>> {
   const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   const term = search.trim();
@@ -31,7 +34,50 @@ export function listGames(
   for (const value of filters.ownership) query.append("ownership", value);
   for (const value of filters.progress) query.append("progress", value);
   for (const year of filters.releaseYears) query.append("releaseYear", String(year));
+  // "title" is the backend default: omitting it keeps existing request URLs (and their tests) unchanged.
+  if (sort !== undefined && sort !== "title") query.set("sort", sort);
+  if (rated === true) query.set("rated", "true");
   return apiFetch<PageResponse<GameResponse>>(`${BASE}?${query}`);
+}
+
+export interface ListAllGamesOptions {
+  /** Checked between page requests; once it reports `true` the loop stops issuing further requests. */
+  isCancelled?: () => boolean;
+}
+
+/**
+ * Fetches every game matching `search`/`filters`/`sort`/`rated` at once, paging through the backend at
+ * {@link ALL_GAMES_PAGE_SIZE} per request (sequentially, so an early failure stops further requests) and
+ * concatenating the pages' items, deduped by `id` (keeping the first occurrence) in case a page shifts between
+ * requests. For a full result set at once (e.g. an export), not the paginated grid. `options.isCancelled` lets a
+ * caller (e.g. `useAllGames`, once its effect is superseded) stop the loop early instead of firing requests whose
+ * result would only be discarded.
+ */
+export async function listAllGames(
+  search: string,
+  filters: GameFilters,
+  sort?: GameSort,
+  rated?: boolean,
+  options?: ListAllGamesOptions,
+): Promise<GameResponse[]> {
+  const first = await listGames(1, ALL_GAMES_PAGE_SIZE, search, filters, sort, rated);
+  const items = [...first.items];
+  for (let page = 2; page <= first.totalPages && !options?.isCancelled?.(); page++) {
+    const next = await listGames(page, ALL_GAMES_PAGE_SIZE, search, filters, sort, rated);
+    items.push(...next.items);
+  }
+  return dedupeById(items);
+}
+
+function dedupeById(items: GameResponse[]): GameResponse[] {
+  const seen = new Set<string>();
+  const deduped: GameResponse[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    deduped.push(item);
+  }
+  return deduped;
 }
 
 export function listGamePlatforms(): Promise<GamePlatformResponse[]> {

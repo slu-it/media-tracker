@@ -45,12 +45,13 @@ fun Route.gameRoutes(
             call.response.header(HttpHeaders.Location, "/api/games/${game.id}")
             call.respond(HttpStatusCode.Created, game.toResponse())
         }
-        // Ordered by title, id; with `?search=` games with a title hit first, then by relevance (see
-        // GameService.list). `?platformIds=`/`?ownership=`/`?progress=`/`?releaseYear=` (each repeatable) narrow
-        // the listing further and take the same branch as a search.
+        // Ordered by title, id, unless `?sort=` (MT-026) asks for release date or rating order instead; with
+        // `?search=` games with a title hit first, then by relevance (see GameService.list).
+        // `?platformIds=`/`?ownership=`/`?progress=`/`?releaseYear=` (each repeatable) and `?rated=` narrow the
+        // listing further and take the same branch as a search.
         get {
             call.respond(
-                gameService.list(call.pageRequest(), call.searchTerm(), call.gameFilters())
+                gameService.list(call.pageRequest(), call.searchTerm(), call.gameFilters(), call.gameSort())
                     .toResponse(Game::toResponse),
             )
         }

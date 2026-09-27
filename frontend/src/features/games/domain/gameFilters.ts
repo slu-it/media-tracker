@@ -1,6 +1,11 @@
 /*
  * Frontend mirror of the backend `GameFilters` (games/domain/GameFilters.kt). An empty array in any field means
  * "no filter on that field"; several values within one field OR together, the four fields AND together.
+ *
+ * `sort` and `rated` (MT-026) are not part of this type: every field here is a multi-value OR-filter with an
+ * empty-array "no filter" default, while `rated` is a single on/off toggle and `sort` picks an ordering, not a
+ * subset. Both are passed as separate, trailing optional arguments to `listGames`/`listAllGames` and the
+ * `useGamesPage`/`useAllGames` hooks instead of being folded into `GameFilters` and `filtersKey`.
  */
 
 import type { Ownership, Progress } from "../../../types/api";

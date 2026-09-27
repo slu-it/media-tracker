@@ -38,6 +38,7 @@ import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameService
+import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.NewExpansion
 import de.sluit.mediatracker.games.domain.NewGame
@@ -711,7 +712,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any(), any()) } returns
+        coEvery { games.list(any(), any(), any(), any()) } returns
             Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
 
         val response = client.postJsonRpc(
@@ -737,7 +738,7 @@ class McpRoutesTest {
             game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020),
             game("Hades II", platforms = listOf(Platforms.PC), releaseYear = 2024),
         )
-        coEvery { games.list(any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 2)
+        coEvery { games.list(any(), any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 2)
 
         val response = client.postJsonRpc(
             key,
@@ -776,7 +777,7 @@ class McpRoutesTest {
                     developers = listOf(supergiant),
                 ),
             )
-            coEvery { games.list(any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 1)
+            coEvery { games.list(any(), any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 1)
 
             val response = client.postJsonRpc(
                 key,
@@ -808,7 +809,7 @@ class McpRoutesTest {
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
         val matches = listOf(game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020))
-        coEvery { games.list(any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(1), 5)
+        coEvery { games.list(any(), any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(1), 5)
 
         val response = client.postJsonRpc(
             key,
@@ -833,7 +834,7 @@ class McpRoutesTest {
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
         val matches = listOf(game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020))
-        coEvery { games.list(any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 1)
+        coEvery { games.list(any(), any(), any(), any()) } returns Page(matches, PageNumber.FIRST, PageSize(10), 1)
 
         val response = client.postJsonRpc(
             key,
@@ -876,7 +877,7 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
     }
 
     @Test
@@ -902,7 +903,7 @@ class McpRoutesTest {
                     "must be a string",
                 ),
             )
-            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
         }
 
     @Test
@@ -922,7 +923,7 @@ class McpRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status, body)
         val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
     }
 
     @Test
@@ -932,7 +933,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any(), any()) } returns
+        coEvery { games.list(any(), any(), any(), any()) } returns
             Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
 
         val response = client.postJsonRpc(
@@ -969,7 +970,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any(), any()) } returns
+        coEvery { games.list(any(), any(), any(), any()) } returns
             Page(
                 listOf(game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)),
                 PageNumber.FIRST,
@@ -1004,7 +1005,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any(), any()) } returns
+        coEvery { games.list(any(), any(), any(), any()) } returns
             Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
 
         val response = client.postJsonRpc(
@@ -1032,7 +1033,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any(), any()) } returns
+        coEvery { games.list(any(), any(), any(), any()) } returns
             Page(
                 listOf(game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020)),
                 PageNumber.FIRST,
@@ -1082,7 +1083,7 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("hasMissing"), text)
-            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
         }
 
     @Test
@@ -1092,7 +1093,7 @@ class McpRoutesTest {
         val client = handlerApp(games = games, apiKeys = apiKeys)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { games.list(any(), any(), any()) } returns
+        coEvery { games.list(any(), any(), any(), any()) } returns
             Page(emptyList(), PageNumber.FIRST, PageSize(25), 0)
 
         val response = client.postJsonRpc(
@@ -1130,7 +1131,7 @@ class McpRoutesTest {
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
         val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
         assertTrue(text.contains("pageSize"), text)
-        coVerify(exactly = 0) { games.list(any(), any(), any()) }
+        coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
     }
 
     @Test
@@ -1155,7 +1156,7 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("pageSize"), text)
-            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
         }
 
     @Test
@@ -1180,7 +1181,7 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("query or at least one filter"), text)
-            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
         }
 
     @Test
@@ -1205,7 +1206,241 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("ownerships"), text)
-            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `tools call search_games with only a sort is a tool error without calling the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"sort":"rating_desc"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `tools call search_games with sort passes it to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { games.list(any(), any(), any(), any()) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"query":"hades","sort":"rating_desc"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        coVerify {
+            games.list(
+                PageRequest(PageNumber.FIRST, PageSize(10)),
+                SearchTerm("hades"),
+                GameFilters.NONE,
+                GameSort.RATING_DESC,
+            )
+        }
+    }
+
+    @Test
+    fun `tools call search_games without sort defaults to title order`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { games.list(any(), any(), any(), any()) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"query":"hades"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        coVerify {
+            games.list(
+                PageRequest(PageNumber.FIRST, PageSize(10)),
+                SearchTerm("hades"),
+                GameFilters.NONE,
+                GameSort.TITLE,
+            )
+        }
+    }
+
+    @Test
+    fun `tools call search_games describes the ordering matching the requested sort`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        val matches = listOf(game("Hades", platforms = listOf(Platforms.PC), releaseYear = 2020))
+        val wordings = mapOf(
+            GameSort.TITLE to "best first",
+            GameSort.RELEASE_ASC to "oldest release first",
+            GameSort.RELEASE_DESC to "newest release first",
+            GameSort.RATING_DESC to "highest rated first",
+        )
+
+        for ((sort, wording) in wordings) {
+            coEvery { games.list(any(), any(), any(), any()) } returns
+                Page(matches, PageNumber.FIRST, PageSize(10), 1)
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"query":"hades","sort":"${sort.wire}"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains(wording), text)
+        }
+    }
+
+    @Test
+    fun `tools call search_games with an unknown sort value is a tool error not a server error`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"query":"hades","sort":"oldest"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains(GameSort.FIELD), text)
+        coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `tools call search_games with rated true passes ratedOnly to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery { games.list(any(), any(), any(), any()) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                |"arguments":{"rated":true}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        coVerify {
+            games.list(PageRequest(PageNumber.FIRST, PageSize(10)), null, GameFilters(ratedOnly = true), GameSort.TITLE)
+        }
+    }
+
+    @Test
+    fun `tools call search_games with rated false without a query or other filter is a tool error`() = testApplication {
+        val games = mockk<GameService>()
+        val apiKeys = mockk<ApiKeyService>()
+        val client = handlerApp(games = games, apiKeys = apiKeys)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"rated":false}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+        coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `tools call search_games with a non boolean rated value is a tool error not a server error`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"query":"hades","rated":"yes"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains(GameFilters.RATED_FIELD), text)
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
+        }
+
+    @Test
+    fun `tools call search_games with rated as a json string true is a tool error not a server error`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(games = games, apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+            val response = client.postJsonRpc(
+                key,
+                """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"search_games",
+                    |"arguments":{"query":"hades","rated":"true"}}}
+                """.trimMargin(),
+            )
+
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+            assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains(GameFilters.RATED_FIELD), text)
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
         }
 
     @Test
@@ -1230,7 +1465,7 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("ownership"), text)
-            coVerify(exactly = 0) { games.list(any(), any(), any()) }
+            coVerify(exactly = 0) { games.list(any(), any(), any(), any()) }
         }
 
     @Test

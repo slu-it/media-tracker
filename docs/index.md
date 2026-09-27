@@ -22,6 +22,7 @@ a decision was taken), never prose in `CLAUDE.md` ([ADR 0025](decisions/0025-age
 | Export / Import | MT-023 | JSON dump of every domain table (settings tab) and an insert-if-absent import; each domain contributes its tables through `BackupSource`. | [export-import.md](features/export-import.md) | 0027 |
 | Dropbox backup | MT-024 | Connect Dropbox in the Export / Import tab by pasting a code; the export goes daily at 03:00 (and on demand) to `backup/full-export.json` in the App folder; last backup read from Dropbox. | [dropbox-backup.md](features/dropbox-backup.md) | 0028 |
 | Game release date and developers | MT-025 | Optional release date whose year overrides the release year; developers as a user-created vocabulary with prefix fulltext autosuggest, created on save; new add/edit field order; `search_game_developers`/`create_game_developer` MCP tools. | [game-release-date-and-developers.md](features/game-release-date-and-developers.md) | 0029 |
+| Game sub-pages | MT-026 | Second tab row for games: overview, watchlist (release sort toggle) and yearly ranking (rated games of one year, year navigator); `sort` and `rated` on `GET /api/games` and `search_games`. | [game-sub-pages.md](features/game-sub-pages.md) | 0030 |
 
 ## Decisions
 
@@ -60,6 +61,7 @@ the checked-out directory:
 | [0027](decisions/0027-json-backup-per-domain-sources.md) | JSON export and import as a column-level dump contributed by each domain | `BackupSource` per domain over a generic Exposed implementation; import inserts rows whose primary key is absent, one transaction per source. |
 | [0028](decisions/0028-dropbox-backup.md) | Daily backup to Dropbox, connected from the settings dialog | No-redirect OAuth code flow, refresh token in `oauth_connections`, `CloudStorage` port, application-scope scheduler at a fixed time with one retry, status read from Dropbox. |
 | [0029](decisions/0029-game-release-date-and-developers.md) | An optional release date that overrides the year, and developers as user-created vocabulary | `release_date` wins over `release_year` in the domain and is stored; `game_developers` with idempotent case-insensitive create and prefix fulltext lookup; frontend creates new names before saving the game; orphans kept; MUI X DatePicker. |
+| [0030](decisions/0030-game-sub-pages-sort-and-rated-filter.md) | Sub-pages per media kind, and a sort and a rated filter on the game list | `sort` and `rated` on the one list endpoint (and `search_games`); release order year, dated first, date; sub-pages as a second localStorage-backed tab row, no router; the ranking loads a whole year. |
 
 ## Other documents
 

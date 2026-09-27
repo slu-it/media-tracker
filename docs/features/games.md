@@ -16,7 +16,8 @@ in `apiRoutes`, and copies the games dialogs including both scroll flags describ
   through `game_to_platform`. Labels come from `GET /api/game-platforms`, not from the i18n bundles.
 - Later tickets added [status fields](game-status-fields.md), [search and filters](game-search-and-filters.md),
   [expansions](game-expansions.md), the [cover picker](cover-picker.md) and the
-  [release date and developers](game-release-date-and-developers.md).
+  [release date and developers](game-release-date-and-developers.md) and the
+  [sub-pages](game-sub-pages.md) (watchlist, yearly ranking).
 
 ## REST
 

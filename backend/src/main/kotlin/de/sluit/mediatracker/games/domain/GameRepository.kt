@@ -26,12 +26,21 @@ interface GameRepository {
     suspend fun findPage(request: PageRequest): Page<Game>
 
     /**
-     * Filtered and/or fulltext-searched listing. With a [term], fulltext matches on title and description order
-     * games with a title hit first, then by the weighted score, then title, then id; without one, the ordering
-     * is title, then id, same as [findPage]. [filters] AND across categories and OR inside one (an `IN` list,
-     * or `IS NULL` checks for the `missing` category); an empty [GameFilters] applies no predicate. A term that contains no searchable word behaves as if it were absent.
+     * Filtered and/or fulltext-searched listing. [sort] (MT-026, default [GameSort.TITLE]) picks the ordering;
+     * with a [term] and the default [GameSort.TITLE], fulltext matches on title and description order games
+     * with a title hit first, then by the weighted score, then title, then id, overridden entirely by any
+     * other [sort] (the fulltext match itself still filters). Without a [term] the ordering is [sort] alone,
+     * [GameSort.TITLE] being title, then id, same as [findPage]. [filters] AND across categories and OR inside
+     * one (an `IN` list, `IS NULL` checks for the `missing` category, or `IS NOT NULL` for [GameFilters.ratedOnly]);
+     * an empty [GameFilters] applies no predicate. A term that contains no searchable word behaves as if it were
+     * absent.
      */
-    suspend fun search(term: SearchTerm?, filters: GameFilters, request: PageRequest): Page<Game>
+    suspend fun search(
+        term: SearchTerm?,
+        filters: GameFilters,
+        request: PageRequest,
+        sort: GameSort = GameSort.TITLE,
+    ): Page<Game>
 
     /**
      * The distinct values each filter category currently has across all games, unordered. Only the four

@@ -14,6 +14,7 @@ import de.sluit.mediatracker.games.game
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.confirmVerified
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
@@ -384,6 +385,31 @@ class GameServiceTest {
         assertEquals(page, result)
         coVerify { games.search(null, filters, request) }
         coVerify(exactly = 0) { games.findPage(any()) }
+    }
+
+    @Test
+    fun `list with a non-default sort but no search term or filters still takes the search branch`() = runBlocking {
+        val request = PageRequest(PageNumber(1), PageSize(10))
+        val page = Page(listOf(game("Hades")), request.page, request.size, totalItems = 1)
+        coEvery { games.search(null, GameFilters.NONE, request, GameSort.RATING_DESC) } returns page
+
+        val result = service.list(request, null, GameFilters.NONE, GameSort.RATING_DESC)
+
+        assertEquals(page, result)
+        coVerify(exactly = 0) { games.findPage(any()) }
+    }
+
+    @Test
+    fun `list with the default sort no filters and no search term asks the repository for the page`() = runBlocking {
+        val request = PageRequest(PageNumber(1), PageSize(10))
+        val page = Page(listOf(game("Hades")), request.page, request.size, totalItems = 1)
+        coEvery { games.findPage(request) } returns page
+
+        val result = service.list(request, null, GameFilters.NONE, GameSort.TITLE)
+
+        assertEquals(page, result)
+        coVerify { games.findPage(request) }
+        confirmVerified(games)
     }
 
     @Test

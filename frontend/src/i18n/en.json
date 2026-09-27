@@ -94,6 +94,14 @@
     "movies": "Movies",
     "series": "Series"
   },
+  "subPages": {
+    "label": "Games pages",
+    "games": {
+      "overview": "Overview",
+      "watchlist": "Watchlist",
+      "ranking": "Yearly ranking"
+    }
+  },
   "games": {
     "addGame": "Add game",
     "gameDetails": "Game details",
@@ -116,6 +124,23 @@
       "progress": "Progress",
       "releaseYear": "Release year",
       "noResults": "No games match the selected filters."
+    },
+    "sort": {
+      "label": "Sort by release date",
+      "releaseAsc": "Oldest first",
+      "releaseDesc": "Newest first"
+    },
+    "watchlist": {
+      "empty": "Your watchlist is empty."
+    },
+    "ranking": {
+      "older": "Previous year",
+      "newer": "Next year",
+      "year": "Year",
+      "navigatorTop": "Year selection (top)",
+      "navigatorBottom": "Year selection (bottom)",
+      "ratingValue": "{{rating}} stars",
+      "empty": "No rated games in {{year}}."
     },
     "fields": {
       "title": "Title",

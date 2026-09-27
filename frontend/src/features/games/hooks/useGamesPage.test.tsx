@@ -3,6 +3,7 @@ import { act } from "react";
 import { describe, expect, it } from "vitest";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
+import type { GameSort } from "../../../types/api";
 import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
 import { useGamesPage } from "./useGamesPage";
 
@@ -149,5 +150,37 @@ describe("useGamesPage", () => {
     expect(calls[1].url).toBe(
       "/api/games?page=1&pageSize=50&platformIds=platform-pc&platformIds=platform-xbox&ownership=owned&releaseYear=2018",
     );
+  });
+
+  it("adds the sort param and refetches when the sort changes", async () => {
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(page(1)),
+    });
+    const { rerender } = renderHook(
+      ({ sort }: { sort?: GameSort }) => useGamesPage(1, 50, "", EMPTY_FILTERS, "load failed", sort),
+      { initialProps: { sort: undefined as GameSort | undefined } },
+    );
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].url).toBe("/api/games?page=1&pageSize=50");
+
+    rerender({ sort: "release_asc" });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].url).toBe("/api/games?page=1&pageSize=50&sort=release_asc");
+  });
+
+  it("adds rated=true only when rated is true and refetches when it changes", async () => {
+    const calls = mockApi({
+      "GET /api/games": () => jsonResponse(page(1)),
+    });
+    const { rerender } = renderHook(
+      ({ rated }: { rated?: boolean }) => useGamesPage(1, 50, "", EMPTY_FILTERS, "load failed", undefined, rated),
+      { initialProps: { rated: undefined as boolean | undefined } },
+    );
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].url).toBe("/api/games?page=1&pageSize=50");
+
+    rerender({ rated: true });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].url).toBe("/api/games?page=1&pageSize=50&rated=true");
   });
 });
