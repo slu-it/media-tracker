@@ -1,4 +1,5 @@
 import { Pagination, Stack } from "@mui/material";
+import { SECTION_GAP } from "./gamesLayout";
 
 interface PaginationBarProps {
   page: number;
@@ -6,13 +7,24 @@ interface PaginationBarProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   disabled?: boolean;
+  /** Drops the vertical padding, for the top bar sharing a row with the results count. */
+  dense?: boolean;
 }
 
-/** Centered page controls, no caption. Renders nothing for an empty list. */
-export function PaginationBar({ page, totalItems, totalPages, onPageChange, disabled }: PaginationBarProps) {
+/** Right-aligned page controls, no caption. Renders nothing for an empty list. */
+export function PaginationBar({ page, totalItems, totalPages, onPageChange, disabled, dense }: PaginationBarProps) {
   if (totalItems === 0) return null;
   return (
-    <Stack direction="row" spacing={2} sx={{ alignItems: "center", justifyContent: "center", py: 1.5 }}>
+    <Stack
+      direction="row"
+      spacing={2}
+      sx={{
+        alignItems: "center",
+        justifyContent: "flex-end",
+        pt: dense ? 0 : SECTION_GAP,
+        pb: 0,
+      }}
+    >
       <Pagination
         count={totalPages}
         page={page}
@@ -21,8 +33,8 @@ export function PaginationBar({ page, totalItems, totalPages, onPageChange, disa
         shape="rounded"
         showFirstButton
         showLastButton
-        // Caps the numbered buttons at 5 (boundaryCount*2 + siblingCount*2 + 3) next to the four arrows,
-        // now that the search field and four filter selects share the row above.
+        // Caps the numbered buttons at 5 (boundaryCount*2 + siblingCount*2 + 3) next to the four arrows: the top
+        // bar shares its row with the result count beside it, and both need to fit on narrow screens.
         boundaryCount={0}
         siblingCount={1}
         disabled={disabled}

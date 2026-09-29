@@ -20,7 +20,8 @@ export interface FilterSelectProps<T extends string | number> {
   onChange: (values: T[]) => void;
   getOptionLabel: (option: T) => string;
   disabled?: boolean;
-  minWidth: number;
+  /** Stretches to the width of the grid cell it sits in (`GamesViewHeader`'s `"fill"`/`"half"` layouts). */
+  fullWidth?: boolean;
 }
 
 /** One multi-select shared by all four filters; shows `-all-` when nothing is selected. */
@@ -31,7 +32,7 @@ export function FilterSelect<T extends string | number>({
   onChange,
   getOptionLabel,
   disabled,
-  minWidth,
+  fullWidth,
 }: FilterSelectProps<T>) {
   const { t } = useTranslation();
   const isDisabled = disabled || options.length === 0;
@@ -48,7 +49,7 @@ export function FilterSelect<T extends string | number>({
       value={selected}
       onChange={(event) => onChange(event.target.value as unknown as T[])}
       disabled={isDisabled}
-      sx={{ minWidth }}
+      fullWidth={fullWidth}
       slotProps={{
         select: {
           multiple: true,
@@ -109,7 +110,7 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         onChange={(platformIds) => onChange({ ...filters, platformIds })}
         getOptionLabel={platformLabel}
         disabled={disabled || metaLoading}
-        minWidth={200}
+        fullWidth
       />
       <FilterSelect
         label={t("games.filters.ownership")}
@@ -118,7 +119,7 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         onChange={(ownership) => onChange({ ...filters, ownership })}
         getOptionLabel={ownershipLabel}
         disabled={disabled || metaLoading}
-        minWidth={160}
+        fullWidth
       />
       <FilterSelect
         label={t("games.filters.progress")}
@@ -127,7 +128,7 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         onChange={(progress) => onChange({ ...filters, progress })}
         getOptionLabel={progressLabel}
         disabled={disabled || metaLoading}
-        minWidth={180}
+        fullWidth
       />
       <FilterSelect
         label={t("games.filters.releaseYear")}
@@ -136,7 +137,7 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         onChange={(releaseYears) => onChange({ ...filters, releaseYears })}
         getOptionLabel={yearLabel}
         disabled={disabled || metaLoading}
-        minWidth={140}
+        fullWidth
       />
     </>
   );

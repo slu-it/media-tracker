@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
-import { Alert, Box, Button, Divider, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Divider, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse, GameSort } from "../../types/api";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
+import { GamesViewHeader } from "./components/GamesViewHeader";
+import { SECTION_GAP } from "./components/gamesLayout";
 import { FilterSelect } from "./components/GameFilterBar";
 import { ReleaseSortToggle } from "./components/ReleaseSortToggle";
 import { WatchlistGameCard } from "./components/WatchlistGameCard";
@@ -59,7 +61,7 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
   );
   const { meta, error: metaError, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<GameResponse | null>(null);
-  const { pagination, onDeleted, onUpdated } = usePagedGameActions({
+  const { topPagination, pagination, onDeleted, onUpdated } = usePagedGameActions({
     data,
     loading,
     page,
@@ -80,33 +82,45 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
 
   return (
     <Box sx={{ pb: 12 }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center", minHeight: 64, flexWrap: "wrap", rowGap: 2 }}>
-        <GameSearchField
-          value={searchInput}
-          onChange={setSearchInput}
-          onClear={() => setSearchInput("")}
-          onSubmit={flushSearch}
-        />
-        <FilterSelect
-          label={t("games.filters.platform")}
-          options={meta?.platforms.map((platform) => platform.id) ?? []}
-          selected={platformIds}
-          onChange={setPlatformIds}
-          getOptionLabel={platformLabel}
-          disabled={metaLoading}
-          minWidth={200}
-        />
-        <ReleaseSortToggle value={sort} onChange={setSort} />
-        <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>{pagination}</Box>
-      </Stack>
-      <Divider />
+      <GamesViewHeader
+        controls={
+          <>
+            <FilterSelect
+              label={t("games.filters.platform")}
+              options={meta?.platforms.map((platform) => platform.id) ?? []}
+              selected={platformIds}
+              onChange={setPlatformIds}
+              getOptionLabel={platformLabel}
+              disabled={metaLoading}
+              fullWidth
+            />
+            <ReleaseSortToggle value={sort} onChange={setSort} fullWidth />
+          </>
+        }
+        controlsLayout="half"
+        search={
+          <GameSearchField
+            value={searchInput}
+            onChange={setSearchInput}
+            onClear={() => setSearchInput("")}
+            onSubmit={flushSearch}
+            fullWidth
+          />
+        }
+        count={data?.totalItems ?? null}
+        pagination={topPagination}
+      />
       {error && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
+        <Alert severity="error" sx={{ mt: SECTION_GAP }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
           {error}
         </Alert>
       )}
       {metaError && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}>
+        <Alert
+          severity="error"
+          sx={{ mt: SECTION_GAP }}
+          action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}
+        >
           {metaError}
         </Alert>
       )}

@@ -5,6 +5,7 @@ import { coverHeight } from "../../../components/coverFrame";
 import type { GameResponse } from "../../../types/api";
 import { GameCard } from "./GameCard";
 import { CARD_COVER_WIDTH } from "./GameCardShell";
+import { SECTION_GAP } from "./gamesLayout";
 
 interface GamesGridProps {
   games: GameResponse[] | null;
@@ -19,7 +20,12 @@ interface GamesGridProps {
   renderCard?: (game: GameResponse, onClick: () => void) => ReactNode;
 }
 
-const GRID_SX = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 2, py: 2 };
+const GRID_SX = {
+  display: "grid",
+  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+  gap: 2,
+  py: SECTION_GAP,
+};
 
 function defaultRenderCard(game: GameResponse, onClick: () => void) {
   return <GameCard game={game} onOpen={onClick} />;

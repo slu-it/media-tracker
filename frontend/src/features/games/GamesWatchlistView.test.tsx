@@ -57,6 +57,17 @@ describe("GamesWatchlistView", () => {
     ]);
   });
 
+  it("shows the response's total item count in the results bar", async () => {
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 7)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesWatchlistView />);
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("7 games");
+  });
+
   it("shows the release date, or the year when no date is set, and no platform chips or status icons", async () => {
     mockApi({
       "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),

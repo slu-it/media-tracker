@@ -71,6 +71,17 @@ describe("GamesView", () => {
     expect(within(dialog).getByRole("button", { name: "Delete" })).toBeInTheDocument();
   });
 
+  it("shows the response's total item count in the results bar", async () => {
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 7)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("7 games");
+  });
+
   it("requests the next page from the pagination control", async () => {
     const user = userEvent.setup();
     const calls = mockApi({
@@ -102,6 +113,7 @@ describe("GamesView", () => {
     renderWithProviders(<GamesView />);
     expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
     expect(screen.queryByText(/of 0/)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("0 games");
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
     const dialog = await screen.findByRole("dialog");

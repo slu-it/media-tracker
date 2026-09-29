@@ -1,5 +1,4 @@
 import { useEffect, type ReactNode } from "react";
-import { Box } from "@mui/material";
 import type { GameResponse, PageResponse } from "../../../types/api";
 import { PaginationBar } from "../components/PaginationBar";
 
@@ -14,7 +13,11 @@ interface UsePagedGameActionsArgs {
 }
 
 export interface PagedGameActions {
-  /** Right-aligned pagination bar for the current page; `null` while there is no page loaded yet. */
+  /** Pagination for the top bar, sharing `GameResultsBar`'s row (no own padding); `null` while there is no page
+   *  loaded yet. Right-aligned, like `pagination`. */
+  topPagination: ReactNode;
+  /** Right-aligned pagination bar below the grid, with its own vertical padding; `null` while there is no page
+   *  loaded yet. */
   pagination: ReactNode;
   /** Closes the detail dialog, reloads meta and either steps back a page (the deleted game was the last one of
    *  a later page) or reloads the current page. */
@@ -46,17 +49,22 @@ export function usePagedGameActions({
     if (data && data.items.length === 0 && page > 1) setPage(Math.max(1, data.totalPages));
   }, [data, page, setPage]);
 
-  const pagination = data && (
-    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+  // Both bars share the same page/total/handler; `dense` is the only difference (the top one drops the
+  // vertical padding to fit `GameResultsBar`'s row), kept in one place so they can't drift apart.
+  const renderPagination = (dense: boolean) =>
+    data && (
       <PaginationBar
         page={data.page}
         totalItems={data.totalItems}
         totalPages={data.totalPages}
         onPageChange={setPage}
         disabled={loading}
+        dense={dense}
       />
-    </Box>
-  );
+    );
+
+  const topPagination = renderPagination(true);
+  const pagination = renderPagination(false);
 
   const onDeleted = () => {
     setSelected(null);
@@ -71,5 +79,5 @@ export function usePagedGameActions({
     reloadMeta();
   };
 
-  return { pagination, onDeleted, onUpdated };
+  return { topPagination, pagination, onDeleted, onUpdated };
 }

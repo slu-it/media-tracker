@@ -27,10 +27,14 @@ Code:
 
 - Shows games with ownership `watchlist`; the tab carries the ownership label ("Watchlist", German
   "Merkliste").
-- Filter row: the search field, then the platform `FilterSelect` (exported from `GameFilterBar.tsx`) and
-  `ReleaseSortToggle`. The toggle is an exclusive `ToggleButtonGroup`, "Oldest first" (`release_asc`, the
-  default) / "Newest first" (`release_desc`), and it cannot be deselected.
-- Paging works as on the overview: `GAMES_PAGE_SIZE`, `PaginationBar` at the top and bottom. A change of the
+- Header (`GamesViewHeader` as on the overview): the search field first, then the platform `FilterSelect`
+  (exported from `GameFilterBar.tsx`) and a `fullWidth` `ReleaseSortToggle` in `controlsLayout="half"`. That
+  row is centered at the search field's width and split into two equal columns (stacked at `xs`). The
+  results bar comes last.
+  The toggle is an exclusive `ToggleButtonGroup`, "Oldest first" (`release_asc`, the default) / "Newest
+  first" (`release_desc`), and it cannot be deselected.
+- Paging and the results bar work as on the overview: `GAMES_PAGE_SIZE`, the count and the
+  top `PaginationBar` in the header's results bar, and a second `PaginationBar` below the grid. A change of the
   search, the filter or the sort returns to page 1.
 - `usePagedGameActions` (shared with the overview) reloads after a create, an update or a delete. When a reload
   leaves a later page empty, it steps back to the last page. On the watchlist this happens, for example, when
@@ -44,7 +48,9 @@ Code:
   never shown (`rated=true`).
 - The year is loaded as a whole: `listAllGames` walks pages of `ALL_GAMES_PAGE_SIZE` (200).
 - `YearNavigator` sits centered above and below the grid. It has an older/newer IconButton on each side of a
-  single-select year Select, and both copies share one state.
+  single-select year Select, and both copies share one state. The top copy is the first row of
+  `GamesViewHeader` (`controlsLayout="center"`, no search row). Its results bar shows the number of ranked
+  games in that year, centered because there is no pagination. It shows no count while the year loads.
 - The years are `releaseYears` from `/api/games.meta` up to the current year, plus the current year
   (`domain/rankingYears.ts`). Future years are not offered. The page starts on the current year, and a year
   without rated games shows an empty state.
