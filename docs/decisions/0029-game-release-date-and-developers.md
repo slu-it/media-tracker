@@ -1,6 +1,6 @@
 # 0029: An optional release date that overrides the year, and developers as user-created vocabulary
 
-Status: accepted, 2026-09
+Status: accepted, 2026-09; date format amended 2026-09-29
 
 ## Context
 
@@ -34,9 +34,10 @@ there are far too many of them to seed, so the owner and agents create them whil
   `search_game_developers`, then `create_game_developer`, then `add_game`/`update_game`.
 - **Developers nobody references are kept.** An agent creates one before the game exists, and a kept name stays
   suggestible.
-- **The date picker is MUI X `DatePicker` on dayjs.** Its input format is built from
-  `Intl.DateTimeFormat(navigator.language).formatToParts()`, falling back to `YYYY-MM-DD`, and the view dialog
-  formats with the same string.
+- **The date picker is MUI X `DatePicker` on dayjs.** Picker and view dialog use a fixed `YYYY-MM-DD`
+  (amended 2026-09-29). The format was first built from `Intl.DateTimeFormat(navigator.language)`, but browsers
+  expose only the language, not the OS regional format settings, so multilingual users (English UI, German date
+  habits) got a date order they had not chosen.
 - **Backups cover the new tables.** A missing nullable column in an imported row now defaults to `null`, so
   exports taken before this record still import.
 

@@ -3,17 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { celeste, hades } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
-import { formatReleaseDate } from "../domain/releaseDate";
 import { WatchlistGameCard } from "./WatchlistGameCard";
 
 describe("WatchlistGameCard", () => {
   it("shows the formatted release date when one is set", () => {
     const dated = { ...hades, releaseDate: "2020-09-17" };
     renderWithProviders(<WatchlistGameCard game={dated} onOpen={() => {}} />);
-    expect(screen.getByText(formatReleaseDate("2020-09-17"))).toBeInTheDocument();
+    expect(screen.getByText("2020-09-17")).toBeInTheDocument();
     // The explicit aria-label on the card's button would otherwise hide the date from screen readers; wired as
     // an accessible description instead (see GameCardShell), so it is still announced alongside the title.
-    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription(formatReleaseDate("2020-09-17"));
+    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2020-09-17");
   });
 
   it("falls back to the release year when no release date is set", () => {
