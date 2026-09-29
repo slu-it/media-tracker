@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ExpansionResponse, GameDeveloperResponse, GameResponse } from "../../../types/api";
-import { formatReleaseDate } from "../domain/releaseDate";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
 import {
@@ -112,7 +111,7 @@ describe("GameDetailDialog", () => {
 
     expect(within(dialog).getByText(teamCherry.name)).toBeInTheDocument();
     expect(within(dialog).getByText(supergiantGames.name)).toBeInTheDocument();
-    expect(within(dialog).getByText(formatReleaseDate("2018-01-25"))).toBeInTheDocument();
+    expect(within(dialog).getByText("2018-01-25")).toBeInTheDocument();
   });
 
   it("labels the dialog with the game's title in view mode", async () => {
@@ -617,10 +616,10 @@ describe("GameDetailDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
     const save = within(dialog).getByRole("button", { name: "Save" });
 
-    // ArrowUp fills an empty section with a default (today's month/day/year), giving a full valid date without
+    // ArrowUp fills an empty section with a default (today's year/month/day), giving a full valid date without
     // typing a fresh multi-digit section, which is flaky to drive through jsdom (see ReleaseDateField.test.tsx).
     const releaseDate = within(dialog).getByRole("group", { name: "Release date" });
-    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Month" }));
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Year" }));
     await user.keyboard("{ArrowUp}{ArrowRight}{ArrowUp}{ArrowRight}{ArrowUp}");
     expect(save).toBeEnabled();
 

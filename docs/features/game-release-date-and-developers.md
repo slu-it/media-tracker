@@ -14,10 +14,11 @@ Code: `games/domain/` (`ReleaseDate`, `GameDeveloper*`, `GameDeveloperService`),
   `null` clears it.
 - Search, the four filters and `/api/games.meta` stay on the year.
 - The add/edit dialog puts year and date in one row (a column at `xs`). A set date disables the year select,
-  which shows the date's year. The picker is MUI X `DatePicker` (dayjs adapter in `AppProviders`). Its format
-  comes from `browserDateFormat()`, which is `navigator.language` through `Intl.DateTimeFormat.formatToParts`,
-  with `YYYY-MM-DD` as the fallback. The field only propagates a complete valid date or a clear. While the typed date is incomplete or invalid, Save
-  stays disabled (`onValidityChange` in the dialogs).
+  which shows the date's year. The picker is MUI X `DatePicker` (dayjs adapter in `AppProviders`). Picker and
+  display always use ISO `YYYY-MM-DD` (`RELEASE_DATE_FORMAT`), whatever the language: browsers expose only the
+  language, not the OS regional date format, so a language-derived format was wrong for multilingual users.
+  The field only propagates a complete valid date or a clear. While the typed date is incomplete or invalid,
+  Save stays disabled (`onValidityChange` in the dialogs).
 - The view dialog shows the formatted date under the label "Release date" instead of the year.
 
 ## Developers

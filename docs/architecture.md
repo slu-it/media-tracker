@@ -232,7 +232,7 @@ frontend/src
                           games.meta, cover-options, title-suggestions;
                           expansionsApi), hooks/ (useGamesPage, useAllGames, usePagedGameActions, useGamesMeta, useExpansions, useCoverOptions,
                           useTitleSuggestions, useDeveloperSuggestions), domain/ (gameValues validators,
-                          SEARCH_DEBOUNCE_MS, gameDraft, developerDraft, releaseDate: browser-locale date
+                          SEARCH_DEBOUNCE_MS, gameDraft, developerDraft, releaseDate: fixed YYYY-MM-DD
                           format, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
                           ownership/progress values and defaults, rankingYears: the ranking's year list),
                           components/ (grid with renderCard, GameCardShell + GameCard/WatchlistGameCard/

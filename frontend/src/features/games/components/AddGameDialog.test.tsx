@@ -309,10 +309,10 @@ describe("AddGameDialog", () => {
     await user.click(screen.getByRole("option", { name: "PC" }));
     expect(save).toBeEnabled();
 
-    // ArrowUp fills an empty section with a default (today's month/day/year), giving a full valid date without
+    // ArrowUp fills an empty section with a default (today's year/month/day), giving a full valid date without
     // typing a fresh multi-digit section, which is flaky to drive through jsdom (see ReleaseDateField.test.tsx).
     const releaseDate = within(dialog).getByRole("group", { name: "Release date" });
-    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Month" }));
+    await user.click(within(releaseDate).getByRole("spinbutton", { name: "Year" }));
     await user.keyboard("{ArrowUp}{ArrowRight}{ArrowUp}{ArrowRight}{ArrowUp}");
     expect(save).toBeEnabled();
 

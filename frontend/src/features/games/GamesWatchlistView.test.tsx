@@ -5,7 +5,6 @@ import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
 import { renderWithProviders } from "../../test/renderWithProviders";
-import { formatReleaseDate } from "./domain/releaseDate";
 import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { GamesWatchlistView } from "./GamesWatchlistView";
 
@@ -68,7 +67,7 @@ describe("GamesWatchlistView", () => {
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
 
     expect(screen.getByText(String(hades.releaseYear))).toBeInTheDocument();
-    expect(screen.getByText(formatReleaseDate(dated.releaseDate!))).toBeInTheDocument();
+    expect(screen.getByText(dated.releaseDate!)).toBeInTheDocument();
     expect(screen.queryByText("Nintendo")).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Watchlist" })).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();

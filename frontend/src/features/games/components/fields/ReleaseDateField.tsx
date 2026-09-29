@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import dayjs, { type Dayjs } from "dayjs";
-import { browserDateFormat } from "../../domain/releaseDate";
+import { RELEASE_DATE_FORMAT } from "../../domain/releaseDate";
 import { RELEASE_YEAR_MAX_DIGITS, RELEASE_YEAR_MIN_DIGITS, validateReleaseDate } from "../../domain/gameValues";
 
 const MIN_DATE = dayjs(new Date(RELEASE_YEAR_MIN_DIGITS, 0, 1));
@@ -53,7 +53,7 @@ export function ReleaseDateField({ value, onChange, disabled, showErrors, onVali
         }
         // else: keep the last committed value, the field keeps showing what was typed.
       }}
-      format={browserDateFormat()}
+      format={RELEASE_DATE_FORMAT}
       minDate={MIN_DATE}
       maxDate={MAX_DATE}
       disabled={disabled}
