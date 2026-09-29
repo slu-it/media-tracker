@@ -1,6 +1,9 @@
 # Scratch
 tmp/
 
+# Playwright MCP screenshots and page snapshots
+.playwright-mcp/
+
 # Gradle / Kotlin
 .gradle/
 .kotlin/

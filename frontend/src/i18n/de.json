@@ -110,6 +110,8 @@
     "noCover": "Kein Coverbild",
     "coverPreview": "Cover-Vorschau",
     "deleteQuestion": "„{{title}}“ löschen?",
+    "resultCount_one": "{{count}} Spiel",
+    "resultCount_other": "{{count}} Spiele",
     "search": {
       "label": "Spiele suchen",
       "placeholder": "Spiele suchen…",

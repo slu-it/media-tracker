@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
 import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GamesGrid } from "./components/GamesGrid";
+import { GamesViewHeader } from "./components/GamesViewHeader";
 import { RankingGameCard } from "./components/RankingGameCard";
+import { SECTION_GAP } from "./components/gamesLayout";
 import { YearNavigator } from "./components/YearNavigator";
 import { EMPTY_FILTERS, type GameFilters } from "./domain/gameFilters";
 import { currentYear } from "./domain/gameValues";
@@ -61,15 +63,18 @@ export function GamesRankingView() {
 
   return (
     <Box sx={{ pb: 12 }}>
-      <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>{navigatorTop}</Box>
-      <Divider />
+      <GamesViewHeader controls={navigatorTop} count={loading ? null : (items?.length ?? null)} />
       {error && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
+        <Alert severity="error" sx={{ mt: SECTION_GAP }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
           {error}
         </Alert>
       )}
       {metaError && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}>
+        <Alert
+          severity="error"
+          sx={{ mt: SECTION_GAP }}
+          action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}
+        >
           {metaError}
         </Alert>
       )}
@@ -94,7 +99,7 @@ export function GamesRankingView() {
         />
       )}
       <Divider />
-      <Box sx={{ display: "flex", justifyContent: "center", py: 1 }}>{navigatorBottom}</Box>
+      <Box sx={{ display: "flex", justifyContent: "center", pt: SECTION_GAP }}>{navigatorBottom}</Box>
     </Box>
   );
 }

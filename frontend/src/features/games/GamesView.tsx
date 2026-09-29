@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Box, Button, Divider, Stack } from "@mui/material";
+import { Alert, Box, Button, Divider } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -7,6 +7,8 @@ import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GameFilterBar } from "./components/GameFilterBar";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
+import { GamesViewHeader } from "./components/GamesViewHeader";
+import { SECTION_GAP } from "./components/gamesLayout";
 import { EMPTY_FILTERS, filtersKey, hasActiveFilters, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
 import { useGamesMeta } from "./hooks/useGamesMeta";
@@ -43,7 +45,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
   );
   const { meta, error: metaError, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<GameResponse | null>(null);
-  const { pagination, onDeleted, onUpdated } = usePagedGameActions({
+  const { topPagination, pagination, onDeleted, onUpdated } = usePagedGameActions({
     data,
     loading,
     page,
@@ -55,24 +57,32 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
 
   return (
     <Box sx={{ pb: 12 }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: "center", minHeight: 64, flexWrap: "wrap", rowGap: 2 }}>
-        <GameSearchField
-          value={searchInput}
-          onChange={setSearchInput}
-          onClear={() => setSearchInput("")}
-          onSubmit={flushSearch}
-        />
-        <GameFilterBar filters={filters} onChange={setFilters} meta={meta} />
-        <Box sx={{ flex: 1, display: "flex", justifyContent: "flex-end" }}>{pagination}</Box>
-      </Stack>
-      <Divider />
+      <GamesViewHeader
+        controls={<GameFilterBar filters={filters} onChange={setFilters} meta={meta} />}
+        controlsLayout="fill"
+        search={
+          <GameSearchField
+            value={searchInput}
+            onChange={setSearchInput}
+            onClear={() => setSearchInput("")}
+            onSubmit={flushSearch}
+            fullWidth
+          />
+        }
+        count={data?.totalItems ?? null}
+        pagination={topPagination}
+      />
       {error && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
+        <Alert severity="error" sx={{ mt: SECTION_GAP }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
           {error}
         </Alert>
       )}
       {metaError && (
-        <Alert severity="error" sx={{ mt: 2 }} action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}>
+        <Alert
+          severity="error"
+          sx={{ mt: SECTION_GAP }}
+          action={<Button onClick={reloadMeta}>{t("common.retry")}</Button>}
+        >
           {metaError}
         </Alert>
       )}

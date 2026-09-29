@@ -82,6 +82,17 @@ describe("GamesRankingView", () => {
     ]);
   });
 
+  it("shows the item count of the current year's ranking in the results bar", async () => {
+    mockApi({
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games": mockGamesByYear({ [TEST_YEAR]: [gameCurrent, game2020] }),
+      "GET /api/games.meta": mockMeta(),
+    });
+    renderWithProviders(<GamesRankingView />);
+    expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("2 games");
+  });
+
   it("does not offer a future year from meta", async () => {
     const user = userEvent.setup();
     mockApi({
@@ -159,6 +170,33 @@ describe("GamesRankingView", () => {
 
     resolvers[0](jsonResponse(pageOf([game2020])));
     expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+  });
+
+  it("keeps the results status empty while a new year's request is in flight, then shows its count", async () => {
+    const user = userEvent.setup();
+    const resolvers: ((response: Response) => void)[] = [];
+    const game2020Second: GameResponse = { ...celeste, id: "id-2020-b", title: "Another Old", releaseYear: 2020 };
+    mockApi({
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games": (_call, url) => {
+        const year = Number(url.searchParams.get("releaseYear"));
+        if (year === TEST_YEAR) return jsonResponse(pageOf([gameCurrent]));
+        return new Promise<Response>((resolve) => resolvers.push(resolve));
+      },
+      "GET /api/games.meta": mockMeta(),
+    });
+    renderWithProviders(<GamesRankingView />);
+    expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("1 game");
+
+    await user.click(within(topNavigator()).getByRole("button", { name: "Previous year" }));
+    await waitFor(() => expect(resolvers).toHaveLength(1));
+    expect(screen.getByRole("status")).toHaveTextContent("");
+
+    resolvers[0](jsonResponse(pageOf([game2020, game2020Second])));
+    expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Another Old" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("2 games");
   });
 
   it("shows the empty state for a year with no rated games", async () => {

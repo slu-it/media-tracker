@@ -110,6 +110,8 @@
     "noCover": "No cover image",
     "coverPreview": "Cover preview",
     "deleteQuestion": "Delete \"{{title}}\"?",
+    "resultCount_one": "{{count}} game",
+    "resultCount_other": "{{count}} games",
     "search": {
       "label": "Search games",
       "placeholder": "Search games…",

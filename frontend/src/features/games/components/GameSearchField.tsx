@@ -9,10 +9,13 @@ interface GameSearchFieldProps {
   onChange: (value: string) => void;
   onClear: () => void;
   onSubmit?: () => void;
+  /** Fills the parent's width instead of the default `{ xs: 1, sm: 320 }`; for callers (e.g. `GamesViewHeader`'s
+   *  wider search row) that size the field through a wrapping `Box` instead. */
+  fullWidth?: boolean;
 }
 
 /** Controlled search box for the games list; Enter submits immediately instead of waiting for the debounce. */
-export function GameSearchField({ value, onChange, onClear, onSubmit }: GameSearchFieldProps) {
+export function GameSearchField({ value, onChange, onClear, onSubmit, fullWidth }: GameSearchFieldProps) {
   const { t } = useTranslation();
   return (
     <TextField
@@ -42,7 +45,10 @@ export function GameSearchField({ value, onChange, onClear, onSubmit }: GameSear
           ),
         },
       }}
-      sx={{ width: { xs: 1, sm: 320 }, "& input::-webkit-search-cancel-button": { WebkitAppearance: "none" } }}
+      sx={{
+        width: fullWidth ? 1 : { xs: 1, sm: 320 },
+        "& input::-webkit-search-cancel-button": { WebkitAppearance: "none" },
+      }}
     />
   );
 }

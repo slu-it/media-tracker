@@ -226,7 +226,8 @@ frontend/src
 │                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
 │                         disconnect; fields/AuthorizationCodeField)
 ├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
-└── features/games/       GamesView (overview: search field + filter bar + pagination bar above the grid),
+└── features/games/       GamesView (overview: GamesViewHeader = search field / filter bar /
+                          GameResultsBar: count + top pagination),
                           GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,
                           ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
                           games.meta, cover-options, title-suggestions;
@@ -238,7 +239,8 @@ frontend/src
                           components/ (grid with renderCard, GameCardShell + GameCard/WatchlistGameCard/
                           RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
                           YearNavigator, GameSearchField,
-                          GameFilterBar, pagination, detail/add dialogs, fields/, ExpansionList/ExpansionCard:
+                          GameFilterBar, GamesViewHeader, GameResultsBar, pagination, detail/add dialogs,
+                          fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
                           SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the
                           add/edit form (persistence-agnostic: the detail dialog PATCHes the pick, the form
