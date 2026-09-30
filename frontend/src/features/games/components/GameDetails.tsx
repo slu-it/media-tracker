@@ -1,12 +1,13 @@
 import { Box, Chip, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import type { Progress } from "../domain/gameStatus";
+import type { Ownership, Progress } from "../domain/gameStatus";
 import type { ExpansionResponse, GameResponse } from "../../../types/api";
 import { CoverImage } from "../../../components/CoverImage";
 import { formatReleaseDate } from "../domain/releaseDate";
 import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { ExpansionList } from "./ExpansionList";
 import { GameStatusIcons } from "./GameStatusIcons";
+import { OwnershipSwitch } from "./OwnershipSwitch";
 import { PlatformChips } from "./PlatformChips";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 import { RatingField } from "./fields/RatingField";
@@ -20,18 +21,20 @@ interface GameDetailsProps {
   onMoveExpansion: (expansionId: string, targetIndex: number) => void;
   /** Opens the cover picker; the cover is clickable whenever this is set, whether or not it has a URL. */
   onPickCover?: () => void;
+  /** When set, a quick ownership switch is shown under the rating; it displays `game.ownership`. */
+  onOwnershipChange?: (next: Ownership) => void;
   /** When set, a quick progress toggle bar is shown under the rating; it displays `game.progress`. */
   onProgressChange?: (next: Progress) => void;
   /** When set, the rating stars are editable and report the new value (`null` clears it). */
   onRatingChange?: (next: number | null) => void;
-  /** Blocks the progress toggle and the rating while a quick save is in flight. */
+  /** Blocks the ownership switch, the progress toggle and the rating while a quick save is in flight. */
   quickSaveBusy?: boolean;
 }
 
 /**
  * One game as shown in the detail dialog's view mode. Display only apart from the optional quick actions: clicking
- * the cover (`onPickCover`), the progress toggle bar (`onProgressChange`) and the rating stars (`onRatingChange`),
- * which each report a change for the caller to save. Without `onRatingChange` the stars are read-only.
+ * the cover (`onPickCover`), the ownership switch (`onOwnershipChange`), the progress toggle bar
+ * (`onProgressChange`) and the rating stars (`onRatingChange`), which each report a change for the caller to save. Without `onRatingChange` the stars are read-only.
  */
 export function GameDetails({
   game,
@@ -40,6 +43,7 @@ export function GameDetails({
   onSelectExpansion,
   onMoveExpansion,
   onPickCover,
+  onOwnershipChange,
   onProgressChange,
   onRatingChange,
   quickSaveBusy,
@@ -58,20 +62,17 @@ export function GameDetails({
         />
       }
       underCover={
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: COVER_UNDER_GAP }}>
           {onRatingChange ? (
             <RatingField value={game.rating} onChange={onRatingChange} busy={quickSaveBusy} />
           ) : (
             <RatingField readOnly value={game.rating} />
           )}
+          {onOwnershipChange && (
+            <OwnershipSwitch value={game.ownership} onChange={onOwnershipChange} disabled={quickSaveBusy} showLabel />
+          )}
           {onProgressChange && (
-            <ProgressToggleBar
-              value={game.progress}
-              onChange={onProgressChange}
-              disabled={quickSaveBusy}
-              showLabel
-              sx={{ mt: COVER_UNDER_GAP * 2 }}
-            />
+            <ProgressToggleBar value={game.progress} onChange={onProgressChange} disabled={quickSaveBusy} showLabel />
           )}
         </Box>
       }

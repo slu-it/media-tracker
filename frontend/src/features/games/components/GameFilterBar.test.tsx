@@ -155,11 +155,33 @@ describe("GameFilterBar", () => {
     ]);
     await user.keyboard("{Escape}");
 
-    // Other filters stay icon-free: each option holds only the checkbox svg.
+    // Ownership options carry the same icons as the ownership switch.
     await user.click(screen.getByRole("combobox", { name: "Ownership" }));
     const ownershipOptions = screen.getAllByRole("option");
     expect(ownershipOptions.length).toBeGreaterThan(0);
     for (const option of ownershipOptions) {
+      expect(iconsIn(option)).toHaveLength(2);
+    }
+    expect(
+      within(screen.getByRole("option", { name: "Watchlist" })).getByTestId("LibraryAddOutlinedIcon"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("option", { name: "Owned" })).getByTestId("LibraryAddCheckOutlinedIcon"),
+    ).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    // Other filters stay icon-free: each option holds only the checkbox svg.
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    const platformOptions = screen.getAllByRole("option");
+    expect(platformOptions.length).toBeGreaterThan(0);
+    for (const option of platformOptions) {
+      expect(iconsIn(option)).toHaveLength(1);
+    }
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("combobox", { name: "Release year" }));
+    const yearOptions = screen.getAllByRole("option");
+    expect(yearOptions.length).toBeGreaterThan(0);
+    for (const option of yearOptions) {
       expect(iconsIn(option)).toHaveLength(1);
     }
   });

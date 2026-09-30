@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { GameMetaResponse, Ownership, Progress } from "../../../types/api";
 import type { GameFilters } from "../domain/gameFilters";
 import { OptionIconSlot } from "./OptionIconSlot";
+import { OWNERSHIP_ICONS } from "./ownershipIcons";
 import { PROGRESS_ICONS, type IconComponent } from "./progressIcons";
 
 interface GameFilterBarProps {
@@ -127,6 +128,7 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         selected={filters.ownership}
         onChange={(ownership) => onChange({ ...filters, ownership })}
         getOptionLabel={ownershipLabel}
+        getOptionIcon={(value) => OWNERSHIP_ICONS[value]}
         disabled={disabled || metaLoading}
         fullWidth
       />

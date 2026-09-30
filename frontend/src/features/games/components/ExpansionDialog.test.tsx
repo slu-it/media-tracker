@@ -28,6 +28,7 @@ describe("ExpansionDialog", () => {
     await user.paste("Boon Pack");
     expect(save).toBeEnabled();
     expect(within(dialog).getByRole("button", { name: "Not started" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(dialog).getByRole("switch", { name: "Owned" })).not.toBeChecked();
     await user.click(within(dialog).getByRole("button", { name: "Playing" }));
 
     await user.click(save);
@@ -49,7 +50,7 @@ describe("ExpansionDialog", () => {
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByText("Boon Pack")).toBeInTheDocument();
-    expect(within(dialog).getByText("Owned")).toBeInTheDocument();
+    expect(within(dialog).getByRole("switch", { name: "Owned" })).toBeChecked();
     expect(within(dialog).getByRole("button", { name: "Not started" })).toHaveAttribute("aria-pressed", "true");
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
   });
@@ -80,6 +81,136 @@ describe("ExpansionDialog", () => {
     expect(within(dialog).getByRole("button", { name: "Not started" })).toHaveAttribute("aria-pressed", "false");
     expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("saves an ownership click in view mode immediately and stays in view mode", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn();
+    const calls = mockApi({
+      "PATCH /api/games/:gameId/expansions/:id": (call) =>
+        jsonResponse({ ...hadesExpansion1, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <ExpansionDialog gameId={hades.id} expansion={hadesExpansion1} open onClose={() => {}} onChanged={onChanged} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+
+    expect(calls).toEqual([
+      {
+        method: "PATCH",
+        url: `/api/games/${hades.id}/expansions/${hadesExpansion1.id}`,
+        body: { ownership: "watchlist" },
+      },
+    ]);
+    expect(within(dialog).getByRole("switch", { name: "Owned" })).not.toBeChecked();
+    expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("shows the error and reverts the switch when the immediate ownership save fails", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn();
+    mockApi({
+      "PATCH /api/games/:gameId/expansions/:id": () =>
+        jsonResponse({ error: "validation_error", message: "ownership: nope" }, 400),
+    });
+    renderWithProviders(
+      <ExpansionDialog gameId={hades.id} expansion={hadesExpansion1} open onClose={() => {}} onChanged={onChanged} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("ownership: nope");
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("switch", { name: "Owned" })).toBeChecked();
+  });
+
+  it("blocks a second save while an ownership save is in flight", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    let resolve!: (response: Response) => void;
+    const calls = mockApi({
+      "PATCH /api/games/:gameId/expansions/:id": () =>
+        new Promise<Response>((r) => {
+          resolve = r;
+        }),
+    });
+    renderWithProviders(
+      <ExpansionDialog gameId={hades.id} expansion={hadesExpansion1} open onClose={() => {}} onChanged={() => {}} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+
+    const group = within(dialog).getByRole("group", { name: "Ownership" });
+    expect(group).toHaveAttribute("aria-busy", "true");
+    expect(within(dialog).getByRole("switch", { name: "Owned" })).not.toBeChecked();
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("button", { name: "Finished" }));
+    expect(calls).toHaveLength(1);
+
+    resolve(jsonResponse({ ...hadesExpansion1, ownership: "watchlist" }));
+    await waitFor(() => expect(group).not.toHaveAttribute("aria-busy"));
+    expect(calls).toHaveLength(1);
+  });
+
+  it("posts the chosen ownership in add mode", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn();
+    const calls = mockApi({
+      "POST /api/games/:gameId/expansions": (call) =>
+        jsonResponse({ id: "new-id", gameId: hades.id, sequence: 0, ...(call.body as object) }, 201),
+    });
+    renderWithProviders(
+      <ExpansionDialog gameId={hades.id} expansion={null} open onClose={() => {}} onChanged={onChanged} />,
+    );
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getByRole("textbox", { name: /title/i }));
+    await user.paste("Boon Pack");
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    expect(within(dialog).getByRole("switch", { name: "Owned" })).toBeChecked();
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(calls).toEqual([
+      {
+        method: "POST",
+        url: `/api/games/${hades.id}/expansions`,
+        body: { title: "Boon Pack", ownership: "owned", progress: "not_started" },
+      },
+    ]);
+  });
+
+  it("edits ownership in the draft and sends only it on Save", async () => {
+    const user = userEvent.setup();
+    const onChanged = vi.fn();
+    const calls = mockApi({
+      "PATCH /api/games/:gameId/expansions/:id": (call) =>
+        jsonResponse({ ...hadesExpansion1, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <ExpansionDialog gameId={hades.id} expansion={hadesExpansion1} open onClose={() => {}} onChanged={onChanged} />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    expect(calls).toEqual([]);
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
+    expect(calls).toEqual([
+      {
+        method: "PATCH",
+        url: `/api/games/${hades.id}/expansions/${hadesExpansion1.id}`,
+        body: { ownership: "watchlist" },
+      },
+    ]);
+    expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
   });
 
   it("does nothing when the active progress is clicked", async () => {

@@ -14,6 +14,8 @@ interface BaseDialogProps {
   maxWidth?: DialogProps["maxWidth"];
   /** id of the element that titles the dialog, for `aria-labelledby`. */
   titleId?: string;
+  /** Accessible name for dialogs without a visible title element (`aria-label`; ignored when `titleId` is set). */
+  ariaLabel?: string;
   /**
    * Fixed paper height (number = px, or a CSS size string), capped by the viewport. Without it the paper
    * sizes to its content up to `calc(100vh - 96px)`, as before.
@@ -42,6 +44,7 @@ export function BaseDialog({
   bottomActions,
   maxWidth = "md",
   titleId,
+  ariaLabel,
   height,
   contentScroll = "self",
 }: BaseDialogProps) {
@@ -59,7 +62,10 @@ export function BaseDialog({
       fullWidth
       aria-labelledby={titleId}
       slotProps={{
-        paper: { sx: { overflow: "visible", position: "relative", ...(resolvedHeight && { height: resolvedHeight }) } },
+        paper: {
+          "aria-label": titleId ? undefined : ariaLabel,
+          sx: { overflow: "visible", position: "relative", ...(resolvedHeight && { height: resolvedHeight }) },
+        },
       }}
     >
       <IconButton

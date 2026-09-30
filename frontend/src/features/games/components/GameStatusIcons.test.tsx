@@ -4,10 +4,9 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameStatusIcons } from "./GameStatusIcons";
 
 describe("GameStatusIcons", () => {
-  it("keeps the quiet values (owned, not hidden) iconless and shows only the not started icon", () => {
+  it("shows no hidden icon for the not hidden default", () => {
     renderWithProviders(<GameStatusIcons ownership="owned" progress="not_started" hidden={false} />);
-    expect(screen.getByRole("img", { name: "Not started" })).toBeInTheDocument();
-    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Owned", "Not started"]);
   });
 
   it("shows the ownership icon before the progress icon, both with accessible names", () => {
@@ -17,10 +16,9 @@ describe("GameStatusIcons", () => {
     expect(icons.map((icon) => icon.textContent)).toEqual(["Watchlist", "Playing"]);
   });
 
-  it("shows only the progress icon when ownership is owned", () => {
+  it("shows the Owned icon before the progress icon when ownership is owned", () => {
     renderWithProviders(<GameStatusIcons ownership="owned" progress="finished" hidden={false} />);
-    expect(screen.getByRole("img", { name: "Finished" })).toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Owned", "Finished"]);
   });
 
   it("shows the ownership and not started icons when progress is the default", () => {

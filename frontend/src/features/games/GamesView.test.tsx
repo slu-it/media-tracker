@@ -116,8 +116,8 @@ describe("GamesView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Add game" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Add game" });
+    expect(within(dialog).queryByRole("heading", { name: "Add game" })).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
     expect(within(dialog).queryByRole("button", { name: "Delete" })).not.toBeInTheDocument();
   });

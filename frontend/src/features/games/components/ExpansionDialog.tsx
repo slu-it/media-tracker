@@ -20,10 +20,10 @@ import {
   toUpdateRequest,
   type ExpansionDraft,
 } from "../domain/expansionDraft";
-import type { Progress } from "../domain/gameStatus";
+import type { Ownership, Progress } from "../domain/gameStatus";
 import { GameTitleField } from "./fields/GameTitleField";
-import { OwnershipField } from "./fields/OwnershipField";
 import { EXPANSION_DIALOG_HEIGHT } from "./gameDialogLayout";
+import { OwnershipSwitch } from "./OwnershipSwitch";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 
 interface ExpansionDialogProps {
@@ -50,6 +50,8 @@ export function ExpansionDialog({ gameId, expansion, open, onClose, onChanged }:
   );
 }
 
+type QuickPatch = { progress?: Progress; ownership?: Ownership };
+
 const TITLE_ID = "expansion-dialog-title";
 
 type Mode = "add" | "view" | "edit";
@@ -67,8 +69,9 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
   // successful update is kept here so view mode (and isDraftDirty below) reflect what was actually saved instead
   // of going stale. Reset per expansion via the `key` on ExpansionDialog, same as draft/mode/etc above.
   const [current, setCurrent] = useState(expansion);
-  // The value a view-mode progress click is saving; shown as pressed until the PATCH settles.
-  const [pendingProgress, setPendingProgress] = useState<Progress | null>(null);
+  // The patch a view-mode click is saving; its values are shown until the PATCH settles.
+  const [pending, setPending] = useState<QuickPatch | null>(null);
+  const ownershipLabelId = useId();
   const progressLabelId = useId();
 
   const startEditing = () => {
@@ -104,22 +107,29 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
     }
   };
 
-  const changeProgress = async (next: Progress) => {
-    if (current === null || next === current.progress) return;
+  const quickPatch = async (patch: QuickPatch) => {
+    if (current === null || busy) return;
+    const changed =
+      (patch.progress !== undefined && patch.progress !== current.progress) ||
+      (patch.ownership !== undefined && patch.ownership !== current.ownership);
+    if (!changed) return;
     setBusy(true);
     setError(null);
-    setPendingProgress(next);
+    setPending(patch);
     try {
-      const updated = await updateExpansion(gameId, current.id, { progress: next });
+      const updated = await updateExpansion(gameId, current.id, patch);
       setCurrent(updated);
       onChanged();
     } catch (cause: unknown) {
       setError(errorMessage(cause, t("errors.saveFailed")));
     } finally {
       setBusy(false);
-      setPendingProgress(null);
+      setPending(null);
     }
   };
+
+  const changeProgress = (next: Progress) => quickPatch({ progress: next });
+  const changeOwnership = (next: Ownership) => quickPatch({ ownership: next });
 
   const remove = async () => {
     if (current === null) return;
@@ -190,10 +200,19 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
       {mode === "view" && current !== null ? (
         <Stack spacing={2}>
           <Field label={t("games.fields.title")}>{current.title}</Field>
-          <Field label={t("games.fields.ownership")}>{t(`games.ownership.${current.ownership}`)}</Field>
+          <Field label={t("games.fields.ownership")} labelId={ownershipLabelId}>
+            <OwnershipSwitch
+              value={pending?.ownership ?? current.ownership}
+              onChange={(next) => void changeOwnership(next)}
+              disabled={busy}
+              aria-labelledby={ownershipLabelId}
+              edge="start"
+              sx={{ alignItems: "flex-start", textAlign: "left" }}
+            />
+          </Field>
           <Field label={t("games.fields.progress")} labelId={progressLabelId}>
             <ProgressToggleBar
-              value={pendingProgress ?? current.progress}
+              value={pending?.progress ?? current.progress}
               onChange={(next) => void changeProgress(next)}
               disabled={busy}
               aria-labelledby={progressLabelId}
@@ -208,11 +227,16 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
             disabled={busy}
             autoFocus
           />
-          <OwnershipField
-            value={draft.ownership}
-            onChange={(ownership) => setDraft({ ...draft, ownership })}
-            disabled={busy}
-          />
+          <Field label={t("games.fields.ownership")} labelId={ownershipLabelId}>
+            <OwnershipSwitch
+              value={draft.ownership}
+              onChange={(ownership) => setDraft({ ...draft, ownership })}
+              disabled={busy}
+              aria-labelledby={ownershipLabelId}
+              edge="start"
+              sx={{ alignItems: "flex-start", textAlign: "left" }}
+            />
+          </Field>
           <Field label={t("games.fields.progress")} labelId={progressLabelId}>
             <ProgressToggleBar
               value={draft.progress}
