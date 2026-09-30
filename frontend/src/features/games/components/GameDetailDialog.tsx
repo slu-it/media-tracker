@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Alert, Button, Typography } from "@mui/material";
+import { Alert, Button } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
 import PlaylistAddIcon from "@mui/icons-material/PlaylistAdd";
@@ -10,7 +10,7 @@ import { errorMessage } from "../../../api/client";
 import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
-import type { Progress } from "../domain/gameStatus";
+import type { Ownership, Progress } from "../domain/gameStatus";
 import type { ExpansionResponse, GamePlatformResponse, GameResponse, UpdateGameRequest } from "../../../types/api";
 import { updateExpansion } from "../api/expansionsApi";
 import { deleteGame, resolveDeveloperIds, updateGame } from "../api/gamesApi";
@@ -49,7 +49,7 @@ export function GameDetailDialog({ game, onClose, onSaved, onDeleted, platforms 
 
 const TITLE_ID = "game-detail-title";
 
-type QuickPatch = Pick<UpdateGameRequest, "progress" | "rating">;
+type QuickPatch = Pick<UpdateGameRequest, "progress" | "rating" | "ownership">;
 
 function GameDetailDialogContent({
   game,
@@ -63,7 +63,7 @@ function GameDetailDialogContent({
   const [draft, setDraft] = useState(() => draftFromGame(game));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Overlay on the displayed game while a quick progress/rating PATCH is in flight.
+  // Overlay on the displayed game while a quick progress/rating/ownership PATCH is in flight.
   const [pending, setPending] = useState<QuickPatch | null>(null);
   // Not part of `draft`: a rejected mid-edit in the release date picker never reaches `onChange`, so it cannot be
   // represented there; see `GameForm`'s `onValidityChange`.
@@ -158,6 +158,8 @@ function GameDetailDialogContent({
     }
   };
 
+  const changeOwnership = (next: Ownership) => quickPatch({ ownership: next });
+
   const changeProgress = (next: Progress) => quickPatch({ progress: next });
 
   const changeRating = (next: number | null) => {
@@ -222,7 +224,8 @@ function GameDetailDialogContent({
       onClose={onClose}
       actions={actions}
       bottomActions={bottomActions}
-      titleId={TITLE_ID}
+      titleId={mode === "view" ? TITLE_ID : undefined}
+      ariaLabel={mode === "edit" ? t("games.editGame") : undefined}
       height={GAME_DIALOG_HEIGHT}
       contentScroll="children"
     >
@@ -252,23 +255,19 @@ function GameDetailDialogContent({
           onSelectExpansion={setSelectedExpansion}
           onMoveExpansion={(expansionId, targetIndex) => void moveExpansion(expansionId, targetIndex)}
           onPickCover={() => setCoverPickerOpen(true)}
+          onOwnershipChange={(next) => void changeOwnership(next)}
           onProgressChange={(next) => void changeProgress(next)}
           onRatingChange={(next) => void changeRating(next)}
           quickSaveBusy={busy}
         />
       ) : (
-        <>
-          <Typography id={TITLE_ID} variant="h6" component="h2" sx={{ mb: 2 }}>
-            {t("games.editGame")}
-          </Typography>
-          <GameForm
-            value={draft}
-            onChange={setDraft}
-            platforms={platforms}
-            disabled={busy}
-            onValidityChange={setFormValid}
-          />
-        </>
+        <GameForm
+          value={draft}
+          onChange={setDraft}
+          platforms={platforms}
+          disabled={busy}
+          onValidityChange={setFormValid}
+        />
       )}
       <ExpansionDialog
         gameId={game.id}

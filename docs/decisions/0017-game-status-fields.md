@@ -42,20 +42,24 @@ colours in the database. The question was whether these three follow that patter
   `Patch<T>`: a value that has a default and can never be absent cannot be cleared either. The MCP `update_game`
   tool consequently lists them in `UPDATE_GAME_UNCLEARABLE`, so an explicit `"ownership": null` is rejected
   instead of being read as "leave it alone".
-- **Icon vocabulary** (MUI, imported by path; `owned` deliberately shows nothing - note that the *default*
-  ownership, `watchlist`, is one of the loud values, so a freshly added game does carry the watchlist icon):
-  watchlist `ShoppingCartOutlined`, not started `NotStarted`, playing `SportsEsports`, finished `TaskAlt`,
-  completed `EmojiEvents`, paused `Pause`, abandoned `NotInterested`, and `hidden` (only when true)
-  `VisibilityOffOutlined`. All three axes render through one component, `GameStatusIcons`, after the title in the
-  game detail dialog and on the grid card. The detail dialog shows all of them; the game and expansion cards
-  (`variant="card"`, since 2026-09-30) show only the watchlist icon for a watchlist game and only the progress
-  icon for an owned one, plus the hidden icon either way. The labels behind the icons live in the i18n bundles,
-  not in the database, because unlike platform labels they are not data; `hidden` reuses `games.fields.hidden`,
-  which also labels the checkbox that still sets it in the add/edit form.
+- **Icon vocabulary** (MUI, imported by path; maps in `components/ownershipIcons.ts` and `progressIcons.ts`):
+  watchlist `LibraryAddOutlined`, owned `LibraryAddCheckOutlined`, not started `NotStarted`, playing
+  `SportsEsports`, finished `TaskAlt`, completed `EmojiEvents`, paused `Pause`, abandoned `NotInterested`, and
+  `hidden` (only when true) `VisibilityOffOutlined`. All three axes render through one component,
+  `GameStatusIcons`, after the title in the game detail dialog and on the grid card. The detail dialog shows all of
+  them; the game and expansion cards (`variant="card"`, since 2026-09-30) show only the ownership icon for a
+  watchlist game and only the progress icon for an owned one, plus the hidden icon either way. The labels behind
+  the icons live in the i18n bundles, not in the database, because unlike platform labels they are not data;
+  `hidden` reuses `games.fields.hidden`, which also labels the checkbox that still sets it in the add/edit form.
 
   Until 2026-09-30 `not_started` showed nothing as well, so an icon meant "not simply owned and unplayed"; the
   owner gave every progress value an icon, and finished, paused and abandoned switched from `CheckCircle`,
   `PauseCircle` and `DoNotDisturb`.
+
+  Until 2026-09-30 `owned` showed nothing either and watchlist was `ShoppingCartOutlined`. When ownership became
+  a switch whose thumb shows the current state, both values needed an icon, so watchlist and owned became the
+  `LibraryAdd` / `LibraryAddCheck` pair; the card rule above was made explicit instead of following from owned
+  being iconless.
 
   Watchlist started as `VisibilityOutlined` and `hidden` as a read-only checkbox at the end of the detail
   dialog's fields. Both changed once the UI was real: a struck-through eye is the obvious icon for "hidden", which

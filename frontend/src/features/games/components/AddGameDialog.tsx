@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Typography } from "@mui/material";
+import { Alert } from "@mui/material";
 import SaveIcon from "@mui/icons-material/Save";
 import { useTranslation } from "react-i18next";
 import { errorMessage } from "../../../api/client";
@@ -23,8 +23,6 @@ export function AddGameDialog({ open, onClose, onCreated, platforms }: AddGameDi
   if (!open) return null;
   return <AddGameDialogContent onClose={onClose} onCreated={onCreated} platforms={platforms} />;
 }
-
-const TITLE_ID = "add-game-title";
 
 function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDialogProps, "open">) {
   const { t } = useTranslation();
@@ -62,13 +60,10 @@ function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDia
       open
       onClose={onClose}
       actions={actions}
-      titleId={TITLE_ID}
+      ariaLabel={t("games.addGame")}
       height={GAME_DIALOG_HEIGHT}
       contentScroll="children"
     >
-      <Typography id={TITLE_ID} variant="h6" component="h2" sx={{ mb: 2 }}>
-        {t("games.addGame")}
-      </Typography>
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {error}

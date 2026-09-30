@@ -236,8 +236,8 @@ describe("GamesRankingView", () => {
     expect(await screen.findByText(`No rated games in ${TEST_YEAR}.`)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Add game" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Add game" });
+    expect(within(dialog).queryByRole("heading", { name: "Add game" })).not.toBeInTheDocument();
   });
 
   it("reloads the list and meta after saving from the detail dialog", async () => {

@@ -10,7 +10,7 @@ import type { Ownership, Progress } from "../../../types/api";
 
 export type { Ownership, Progress };
 
-/** Display order for the ownership dropdown. */
+/** Canonical list of ownership values; backs the exhaustiveness check below. */
 export const OWNERSHIP_VALUES = ["watchlist", "owned"] as const satisfies readonly Ownership[];
 
 /**

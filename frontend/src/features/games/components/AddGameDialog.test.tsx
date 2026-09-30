@@ -22,7 +22,8 @@ describe("AddGameDialog", () => {
       ...noTitleSuggestions,
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
-    const dialog = screen.getByRole("dialog");
+    const dialog = screen.getByRole("dialog", { name: "Add game" });
+    expect(within(dialog).queryByRole("heading", { name: "Add game" })).not.toBeInTheDocument();
     const save = within(dialog).getByRole("button", { name: "Save" });
     expect(save).toBeDisabled();
 
@@ -89,8 +90,10 @@ describe("AddGameDialog", () => {
     await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
     await user.click(screen.getByRole("option", { name: "PC" }));
 
-    await user.click(within(dialog).getByRole("combobox", { name: "Ownership" }));
-    await user.click(screen.getByRole("option", { name: "Owned" }));
+    const ownedSwitch = within(dialog).getByRole("switch", { name: "Owned" });
+    expect(ownedSwitch).not.toBeChecked();
+    await user.click(ownedSwitch);
+    expect(ownedSwitch).toBeChecked();
     await user.click(
       within(within(dialog).getByRole("group", { name: "Progress" })).getByRole("button", { name: "Playing" }),
     );
@@ -350,14 +353,16 @@ describe("AddGameDialog", () => {
       within(dialog).getByRole("combobox", { name: /release year/i }),
       within(dialog).getByRole("group", { name: "Release date" }),
       within(dialog).getByRole("combobox", { name: /developers/i }),
-      within(dialog).getByRole("combobox", { name: "Ownership" }),
       within(dialog).getByRole("checkbox", { name: "Hidden" }),
       within(dialog).getByRole("textbox", { name: /cover image url/i }),
     ];
-    // The rating and the progress toggle bar sit together in the cover column, rating first.
+    expect(within(dialog).queryByRole("combobox", { name: "Ownership" })).not.toBeInTheDocument();
+    // The cover column stacks rating, ownership switch and progress toggle bar, in that order.
     const rating = within(dialog).getByRole("group", { name: "Rating" });
+    const ownership = within(dialog).getByRole("group", { name: "Ownership" });
     const progress = within(dialog).getByRole("group", { name: "Progress" });
-    expect(rating.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rating.compareDocumentPosition(ownership) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ownership.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     for (let i = 0; i < order.length - 1; i++) {
       expect(order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }

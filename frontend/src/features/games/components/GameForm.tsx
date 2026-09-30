@@ -7,13 +7,13 @@ import { type GameDraft, withReleaseDate } from "../domain/gameDraft";
 import { validateCoverImageUrl } from "../domain/gameValues";
 import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { CoverPickerDialog } from "./CoverPickerDialog";
+import { OwnershipSwitch } from "./OwnershipSwitch";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 import { CoverImageUrlField } from "./fields/CoverImageUrlField";
 import { DescriptionField } from "./fields/DescriptionField";
 import { DevelopersField } from "./fields/DevelopersField";
 import { GameTitleField } from "./fields/GameTitleField";
 import { HiddenField } from "./fields/HiddenField";
-import { OwnershipField } from "./fields/OwnershipField";
 import { PlatformsField } from "./fields/PlatformsField";
 import { RatingField } from "./fields/RatingField";
 import { ReleaseDateField } from "./fields/ReleaseDateField";
@@ -65,19 +65,24 @@ export function GameForm({
           />
         }
         underCover={
-          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: COVER_UNDER_GAP }}>
             <RatingField
               value={value.rating}
               onChange={(rating) => onChange({ ...value, rating })}
               disabled={disabled}
               showErrors={showErrors}
             />
+            <OwnershipSwitch
+              value={value.ownership}
+              onChange={(ownership) => onChange({ ...value, ownership })}
+              disabled={disabled}
+              showLabel
+            />
             <ProgressToggleBar
               value={value.progress}
               onChange={(progress) => onChange({ ...value, progress })}
               disabled={disabled}
               showLabel
-              sx={{ mt: COVER_UNDER_GAP * 2 }}
             />
           </Box>
         }
@@ -133,22 +138,7 @@ export function GameForm({
             onChange={(developers) => onChange({ ...value, developers })}
             disabled={disabled}
           />
-          <Box sx={{ display: "flex", gap: 2, flexDirection: { xs: "column", sm: "row" } }}>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <OwnershipField
-                value={value.ownership}
-                onChange={(ownership) => onChange({ ...value, ownership })}
-                disabled={disabled}
-              />
-            </Box>
-            <Box sx={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, minHeight: { sm: 56 } }}>
-              <HiddenField
-                value={value.hidden}
-                onChange={(hidden) => onChange({ ...value, hidden })}
-                disabled={disabled}
-              />
-            </Box>
-          </Box>
+          <HiddenField value={value.hidden} onChange={(hidden) => onChange({ ...value, hidden })} disabled={disabled} />
           <CoverImageUrlField
             value={value.coverImageUrl}
             onChange={(coverImageUrl) => onChange({ ...value, coverImageUrl })}

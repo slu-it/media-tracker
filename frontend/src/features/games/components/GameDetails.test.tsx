@@ -29,7 +29,7 @@ describe("GameDetails", () => {
     expect(screen.getByRole("img", { name: "100%" })).toBeInTheDocument();
   });
 
-  it("shows no ownership icon for an owned game", () => {
+  it("shows the owned icon and the progress icon for an owned game", () => {
     renderWithProviders(
       <GameDetails
         game={celeste}
@@ -39,7 +39,7 @@ describe("GameDetails", () => {
         onMoveExpansion={() => {}}
       />,
     );
-    expect(screen.queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Owned" })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Playing" })).toBeInTheDocument();
   });
 
@@ -224,6 +224,62 @@ describe("GameDetails", () => {
       />,
     );
     expect(screen.queryByRole("group", { name: "Progress" })).not.toBeInTheDocument();
+  });
+
+  it("shows the ownership switch between the rating and the progress bar only when onOwnershipChange is given", () => {
+    const onOwnershipChange = vi.fn();
+    const { unmount } = renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+        onOwnershipChange={onOwnershipChange}
+        onProgressChange={() => {}}
+      />,
+    );
+    const rating = screen.getByRole("group", { name: "Rating" });
+    const ownership = screen.getByRole("group", { name: "Ownership" });
+    const progress = screen.getByRole("group", { name: "Progress" });
+    expect(screen.getByRole("switch", { name: "Owned" })).toBeChecked();
+    expect(rating.compareDocumentPosition(ownership) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(ownership.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    unmount();
+
+    renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("switch", { name: "Owned" })).not.toBeInTheDocument();
+  });
+
+  it("emits the opposite ownership on click and nothing while quickSaveBusy", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
+    const onOwnershipChange = vi.fn();
+    const base = {
+      game: celeste,
+      titleId: "title",
+      expansions: [],
+      onSelectExpansion: () => {},
+      onMoveExpansion: () => {},
+      onOwnershipChange,
+    };
+    const { unmount } = renderWithProviders(<GameDetails {...base} />);
+    await user.click(screen.getByRole("switch", { name: "Owned" }));
+    expect(onOwnershipChange).toHaveBeenCalledExactlyOnceWith("watchlist");
+    unmount();
+
+    onOwnershipChange.mockClear();
+    renderWithProviders(<GameDetails {...base} quickSaveBusy />);
+    expect(screen.getByRole("group", { name: "Ownership" })).toHaveAttribute("aria-busy", "true");
+    await user.click(screen.getByRole("switch", { name: "Owned" }));
+    expect(onOwnershipChange).not.toHaveBeenCalled();
   });
 
   describe("rating", () => {

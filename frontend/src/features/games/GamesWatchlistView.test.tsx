@@ -258,8 +258,8 @@ describe("GamesWatchlistView", () => {
     expect(await screen.findByText("Your watchlist is empty.")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("heading", { name: "Add game" })).toBeInTheDocument();
+    const dialog = await screen.findByRole("dialog", { name: "Add game" });
+    expect(within(dialog).queryByRole("heading", { name: "Add game" })).not.toBeInTheDocument();
   });
 
   it("shows the previous page after deleting the last game of a later page", async () => {
@@ -352,8 +352,7 @@ describe("GamesWatchlistView", () => {
     await user.click(screen.getByRole("button", { name: "Outer Wilds" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    await user.click(within(dialog).getByRole("combobox", { name: /ownership/i }));
-    await user.click(screen.getByRole("option", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("button", { name: "Edit" })).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Close" }));
