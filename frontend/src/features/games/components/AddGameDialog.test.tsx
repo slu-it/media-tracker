@@ -91,8 +91,9 @@ describe("AddGameDialog", () => {
 
     await user.click(within(dialog).getByRole("combobox", { name: "Ownership" }));
     await user.click(screen.getByRole("option", { name: "Owned" }));
-    await user.click(within(dialog).getByRole("combobox", { name: "Progress" }));
-    await user.click(screen.getByRole("option", { name: "Playing" }));
+    await user.click(
+      within(within(dialog).getByRole("group", { name: "Progress" })).getByRole("button", { name: "Playing" }),
+    );
     await user.click(within(dialog).getByRole("checkbox", { name: "Hidden" }));
 
     const save = within(dialog).getByRole("button", { name: "Save" });
@@ -324,6 +325,19 @@ describe("AddGameDialog", () => {
     expect(save).toBeEnabled();
   });
 
+  it("shows the default progress pressed in the toggle bar on add", () => {
+    mockApi(noTitleSuggestions);
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+    const group = within(dialog).getByRole("group", { name: "Progress" });
+
+    expect(within(dialog).getAllByRole("group", { name: "Progress" })).toHaveLength(1);
+    expect(within(dialog).getByText("Progress")).toBeInTheDocument();
+    expect(within(dialog).getByText("Rating")).toBeInTheDocument();
+    expect(within(group).getByRole("button", { name: "Not started" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(group).getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("lays out the fields in the documented order", async () => {
     mockApi(noTitleSuggestions);
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
@@ -337,10 +351,13 @@ describe("AddGameDialog", () => {
       within(dialog).getByRole("group", { name: "Release date" }),
       within(dialog).getByRole("combobox", { name: /developers/i }),
       within(dialog).getByRole("combobox", { name: "Ownership" }),
-      within(dialog).getByRole("combobox", { name: "Progress" }),
       within(dialog).getByRole("checkbox", { name: "Hidden" }),
       within(dialog).getByRole("textbox", { name: /cover image url/i }),
     ];
+    // The rating and the progress toggle bar sit together in the cover column, rating first.
+    const rating = within(dialog).getByRole("group", { name: "Rating" });
+    const progress = within(dialog).getByRole("group", { name: "Progress" });
+    expect(rating.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     for (let i = 0; i < order.length - 1; i++) {
       expect(order[i].compareDocumentPosition(order[i + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }

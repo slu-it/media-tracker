@@ -1,6 +1,6 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react";
+import { act, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ExpansionResponse, GameDeveloperResponse, GameResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
@@ -36,6 +36,23 @@ const noExpansions = {
 // catch `ExpansionDialog`'s title field wrongly requesting suggestions too).
 const titleSuggestionsEmpty = { "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
+/** Mirrors the host: the saved game replaces the `game` prop. */
+function StatefulDialog({ initial, onSaved }: { initial: GameResponse; onSaved?: (updated: GameResponse) => void }) {
+  const [current, setCurrent] = useState(initial);
+  return (
+    <GameDetailDialog
+      game={current}
+      onClose={() => {}}
+      onSaved={(updated) => {
+        setCurrent(updated);
+        onSaved?.(updated);
+      }}
+      onDeleted={() => {}}
+      platforms={platforms}
+    />
+  );
+}
+
 describe("GameDetailDialog", () => {
   it("shows the cover image but not the cover image URL as text in view mode", async () => {
     mockApi(noExpansions);
@@ -59,10 +76,11 @@ describe("GameDetailDialog", () => {
 
     const cover = within(dialog).getByRole("img", { name: "Celeste" });
     const rating = within(dialog).getByRole("group", { name: "Rating" });
-    // The cover image sits inside a clickable button inside its own fixed-size frame, so the shared parent is
-    // two levels up. Verifying that is structural and has no ARIA role/text query equivalent.
+    // The cover image sits inside a clickable button inside its own fixed-size frame, so its shared parent is
+    // three levels up; the rating group sits in a wrapper (shared with the progress toggle bar), so it is two
+    // levels below that parent. Verifying that is structural and has no ARIA role/text query equivalent.
     // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
-    expect(rating.parentElement).toBe(cover.parentElement!.parentElement!.parentElement);
+    expect(rating.parentElement!.parentElement).toBe(cover.parentElement!.parentElement!.parentElement);
   });
 
   it("shows the rating under the cover image, in the same column, in edit mode", async () => {
@@ -77,9 +95,9 @@ describe("GameDetailDialog", () => {
     const cover = within(dialog).getByRole("img", { name: "Cover preview" });
     const rating = within(dialog).getByRole("group", { name: "Rating" });
     // The cover preview is now clickable (opens the cover picker), so it sits inside its own button, one level
-    // deeper than before.
+    // deeper than before; the rating sits in a wrapper shared with the progress toggle bar.
     // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
-    expect(rating.parentElement).toBe(cover.parentElement!.parentElement!.parentElement);
+    expect(rating.parentElement!.parentElement).toBe(cover.parentElement!.parentElement!.parentElement);
   });
 
   it("shows the description under the title and platform chips in view mode", async () => {
@@ -349,12 +367,20 @@ describe("GameDetailDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: hadesExpansion1.title }));
     const expansionDialog = await screen.findByRole("dialog", { name: "Expansion details" });
     await user.click(within(expansionDialog).getByRole("button", { name: "Edit" }));
-    await user.click(within(expansionDialog).getByRole("combobox", { name: "Progress" }));
-    await user.click(screen.getByRole("option", { name: "Finished" }));
+    await user.click(
+      within(within(expansionDialog).getByRole("group", { name: "Progress" })).getByRole("button", {
+        name: "Finished",
+      }),
+    );
     await user.click(within(expansionDialog).getByRole("button", { name: "Save" }));
 
-    await within(expansionDialog).findByText("Finished");
-    expect(within(expansionDialog).queryByText("Not started")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(expansionDialog).getByRole("button", { name: "Finished" })).toHaveAttribute("aria-pressed", "true"),
+    );
+    expect(within(expansionDialog).getByRole("button", { name: "Not started" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("shows no expansion heading for a game with no expansions", async () => {
@@ -394,8 +420,10 @@ describe("GameDetailDialog", () => {
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
 
-    await user.click(within(dialog).getByRole("combobox", { name: "Progress" }));
-    await user.click(screen.getByRole("option", { name: "Finished" }));
+    await user.click(
+      within(within(dialog).getByRole("group", { name: "Progress" })).getByRole("button", { name: "Finished" }),
+    );
+    expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
 
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
@@ -558,8 +586,10 @@ describe("GameDetailDialog", () => {
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
 
-    await user.click(within(dialog).getByRole("combobox", { name: "Progress" }));
-    await user.click(screen.getByRole("option", { name: "Finished" }));
+    await user.click(
+      within(within(dialog).getByRole("group", { name: "Progress" })).getByRole("button", { name: "Finished" }),
+    );
+    expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
 
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
@@ -808,5 +838,304 @@ describe("GameDetailDialog", () => {
       hadesCoverOptions.covers.items[0].imageUrl,
     );
     expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
+  });
+
+  // MUI Rating takes the hovered value over the radio's own value, and a pointer hover yields NaN in jsdom
+  // (zero-sized boxes), so `user.click` on a star is unusable. `fireEvent.click` on the quarter-star radio
+  // ("<n> Stars") skips the hover; re-clicking the checked radio needs a non-zero clientX/Y, else MUI treats the
+  // click as a keyboard event and ignores it.
+  describe("quick rating", () => {
+    const rated: GameResponse = { ...game, rating: 4.5 };
+
+    it("PATCHes only the rating on selecting stars and stays in view mode", async () => {
+      const onSaved = vi.fn();
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": (call) => jsonResponse({ ...rated, ...(call.body as object) }),
+      });
+      renderWithProviders(<StatefulDialog initial={rated} onSaved={onSaved} />);
+      const dialog = screen.getByRole("dialog");
+
+      fireEvent.click(within(dialog).getByRole("radio", { name: "4 Stars" }), { clientX: 1, clientY: 1 });
+      await flushAsync();
+
+      expect(calls.filter((c) => c.method === "PATCH")).toEqual([
+        { method: "PATCH", url: "/api/games/id-1", body: { rating: 4 } },
+      ]);
+      expect(onSaved).toHaveBeenCalledOnce();
+      expect(onSaved.mock.calls[0][0]).toMatchObject({ rating: 4 });
+      expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+      expect(within(dialog).getByText("4")).toBeInTheDocument();
+    });
+
+    it("clears the rating when the current value is clicked again", async () => {
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": (call) => jsonResponse({ ...rated, ...(call.body as object) }),
+      });
+      renderWithProviders(<StatefulDialog initial={rated} />);
+      const dialog = screen.getByRole("dialog");
+
+      fireEvent.click(within(dialog).getByRole("radio", { name: "4.5 Stars" }), { clientX: 1, clientY: 1 });
+      await flushAsync();
+
+      expect(calls.filter((c) => c.method === "PATCH")).toEqual([
+        { method: "PATCH", url: "/api/games/id-1", body: { rating: null } },
+      ]);
+      expect(within(dialog).getByText("Not rated yet")).toBeInTheDocument();
+    });
+
+    it("shows the error and reverts the displayed rating on a failed save", async () => {
+      const onSaved = vi.fn();
+      mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": () => jsonResponse({ error: "validation_error", message: "rating: nope" }, 400),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={rated}
+          onClose={() => {}}
+          onSaved={onSaved}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+
+      fireEvent.click(within(dialog).getByRole("radio", { name: "4 Stars" }), { clientX: 1, clientY: 1 });
+      await flushAsync();
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("rating: nope");
+      expect(onSaved).not.toHaveBeenCalled();
+      expect(within(dialog).getByText("4.5")).toBeInTheDocument();
+      expect(within(dialog).getByRole("radio", { name: "4.5 Stars" })).toBeChecked();
+    });
+
+    it("blocks further changes and sends no second PATCH while a rating or progress save is pending", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      const onSaved = vi.fn();
+      let resolvePatch!: (response: Response) => void;
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": () =>
+          new Promise<Response>((resolve) => {
+            resolvePatch = resolve;
+          }),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={rated}
+          onClose={() => {}}
+          onSaved={onSaved}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+
+      fireEvent.click(within(dialog).getByRole("radio", { name: "4 Stars" }), { clientX: 1, clientY: 1 });
+
+      // The optimistic overlay shows the new rating; the group stays enabled but busy.
+      expect(within(dialog).getByRole("radio", { name: "4 Stars" })).toBeChecked();
+      expect(within(dialog).getByText("4")).toBeInTheDocument();
+      expect(within(dialog).getByRole("group", { name: "Rating" })).toHaveAttribute("aria-busy", "true");
+      expect(within(dialog).getByRole("radio", { name: "3 Stars" })).toBeEnabled();
+      fireEvent.click(within(dialog).getByRole("radio", { name: "3 Stars" }), { clientX: 1, clientY: 1 });
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+      await user.click(within(dialog).getByRole("button", { name: "Finished" }));
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+
+      resolvePatch(jsonResponse({ ...rated, rating: 4 }));
+      await flushAsync();
+      expect(within(dialog).getByRole("group", { name: "Rating" })).not.toHaveAttribute("aria-busy");
+      expect(onSaved).toHaveBeenCalledOnce();
+
+      await user.click(within(dialog).getByRole("button", { name: "Paused" }));
+      expect(within(dialog).getByRole("group", { name: "Rating" })).toHaveAttribute("aria-busy", "true");
+      resolvePatch(jsonResponse({ ...rated, progress: "paused" }));
+      await flushAsync();
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(2);
+    });
+
+    it("sends one PATCH for an arrow-key change and ignores further arrows while pending, keeping focus", async () => {
+      const user = userEvent.setup();
+      let resolvePatch!: (response: Response) => void;
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": () =>
+          new Promise<Response>((resolve) => {
+            resolvePatch = resolve;
+          }),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={{ ...rated, rating: 3 }}
+          onClose={() => {}}
+          onSaved={() => {}}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+      const group = within(dialog).getByRole("group", { name: "Rating" });
+      // eslint-disable-next-line testing-library/no-node-access -- focus check, no query alternative
+      const focused = () => document.activeElement;
+
+      act(() => within(dialog).getByRole("radio", { name: "3 Stars" }).focus());
+      await user.keyboard("{ArrowRight}");
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+      expect(group).toHaveAttribute("aria-busy", "true");
+      expect(within(group).getAllByRole("radio")).toContain(focused());
+
+      await user.keyboard("{ArrowRight}{ArrowRight}");
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+      expect(within(group).getAllByRole("radio")).toContain(focused());
+
+      resolvePatch(jsonResponse({ ...rated, rating: 3.25 }));
+      await flushAsync();
+    });
+
+    it("only changes the draft in edit mode and sends nothing before Save", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi(noExpansions);
+      renderWithProviders(
+        <GameDetailDialog
+          game={rated}
+          onClose={() => {}}
+          onSaved={() => {}}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+      await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+      fireEvent.click(within(dialog).getByRole("radio", { name: "2 Stars" }), { clientX: 1, clientY: 1 });
+
+      expect(within(dialog).getByText("2")).toBeInTheDocument();
+      expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
+    });
+  });
+
+  describe("quick progress toggle", () => {
+    const paused: GameResponse = { ...game, progress: "paused" };
+
+    it("PATCHes only the progress on click and stays in view mode", async () => {
+      const user = userEvent.setup();
+      const onSaved = vi.fn();
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": (call) => jsonResponse({ ...paused, ...(call.body as object) }),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={paused}
+          onClose={() => {}}
+          onSaved={onSaved}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+
+      await user.click(within(dialog).getByRole("button", { name: "Playing" }));
+      await flushAsync();
+
+      expect(calls.filter((c) => c.method === "PATCH")).toEqual([
+        { method: "PATCH", url: "/api/games/id-1", body: { progress: "playing" } },
+      ]);
+      expect(onSaved).toHaveBeenCalledOnce();
+      expect(onSaved.mock.calls[0][0]).toMatchObject({ progress: "playing" });
+      expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    });
+
+    it("shows the error and reverts the pressed button on a failed save", async () => {
+      const user = userEvent.setup();
+      const onSaved = vi.fn();
+      mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": () => jsonResponse({ error: "validation_error", message: "progress: nope" }, 400),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={paused}
+          onClose={() => {}}
+          onSaved={onSaved}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+
+      await user.click(within(dialog).getByRole("button", { name: "Playing" }));
+      await flushAsync();
+
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent("progress: nope");
+      expect(onSaved).not.toHaveBeenCalled();
+      expect(within(dialog).getByRole("button", { name: "Paused" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(dialog).getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("blocks further changes and actions while the progress save is pending", async () => {
+      const user = userEvent.setup({ pointerEventsCheck: 0 });
+      const onSaved = vi.fn();
+      let resolvePatch!: (response: Response) => void;
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": () =>
+          new Promise<Response>((resolve) => {
+            resolvePatch = resolve;
+          }),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={paused}
+          onClose={() => {}}
+          onSaved={onSaved}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+
+      await user.click(within(dialog).getByRole("button", { name: "Playing" }));
+
+      expect(within(dialog).getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(dialog).getByRole("group", { name: "Progress" })).toHaveAttribute("aria-busy", "true");
+      await user.click(within(dialog).getByRole("button", { name: "Finished" }));
+      expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
+      expect(within(dialog).getByRole("button", { name: "Edit" })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Delete" })).toBeDisabled();
+
+      resolvePatch(jsonResponse({ ...paused, progress: "playing" }));
+      await flushAsync();
+
+      expect(within(dialog).getByRole("group", { name: "Progress" })).not.toHaveAttribute("aria-busy");
+      expect(onSaved).toHaveBeenCalledOnce();
+    });
+
+    it("only updates the draft in edit mode and sends nothing before Save", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi(noExpansions);
+      renderWithProviders(
+        <GameDetailDialog
+          game={paused}
+          onClose={() => {}}
+          onSaved={() => {}}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+      await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+      const group = within(dialog).getByRole("group", { name: "Progress" });
+      expect(within(group).getByRole("button", { name: "Paused" })).toHaveAttribute("aria-pressed", "true");
+      await user.click(within(group).getByRole("button", { name: "Playing" }));
+
+      expect(within(group).getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "true");
+      expect(within(dialog).queryByRole("combobox", { name: "Progress" })).not.toBeInTheDocument();
+      expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
+    });
   });
 });

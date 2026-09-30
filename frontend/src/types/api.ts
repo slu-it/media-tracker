@@ -7,7 +7,7 @@
 export type Ownership = "watchlist" | "owned";
 
 /** Mirrors the Kotlin `Progress` enum in games/domain/GameStatus.kt. */
-export type Progress = "not_started" | "playing" | "finished" | "completed" | "paused" | "abandoned";
+export type Progress = "abandoned" | "not_started" | "paused" | "playing" | "finished" | "completed";
 
 /**
  * Ordering for `GET /api/games`; mirrors the Kotlin `GameSort` enum in games/domain/GameSort.kt. Absent/`"title"`

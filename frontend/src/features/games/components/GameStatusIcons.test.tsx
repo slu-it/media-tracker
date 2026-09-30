@@ -4,11 +4,10 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameStatusIcons } from "./GameStatusIcons";
 
 describe("GameStatusIcons", () => {
-  it("renders nothing for the quiet values (owned, not started, not hidden)", () => {
-    const { container } = renderWithProviders(
-      <GameStatusIcons ownership="owned" progress="not_started" hidden={false} />,
-    );
-    expect(container).toBeEmptyDOMElement();
+  it("keeps the quiet values (owned, not hidden) iconless and shows only the not started icon", () => {
+    renderWithProviders(<GameStatusIcons ownership="owned" progress="not_started" hidden={false} />);
+    expect(screen.getByRole("img", { name: "Not started" })).toBeInTheDocument();
+    expect(screen.getAllByRole("img")).toHaveLength(1);
   });
 
   it("shows the ownership icon before the progress icon, both with accessible names", () => {
@@ -24,10 +23,9 @@ describe("GameStatusIcons", () => {
     expect(screen.queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();
   });
 
-  it("shows only the ownership icon when progress is the default", () => {
+  it("shows the ownership and not started icons when progress is the default", () => {
     renderWithProviders(<GameStatusIcons ownership="watchlist" progress="not_started" hidden={false} />);
-    expect(screen.getByRole("img", { name: "Watchlist" })).toBeInTheDocument();
-    expect(screen.getAllByRole("img")).toHaveLength(1);
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Watchlist", "Not started"]);
   });
 
   it("shows an icon for every other progress value", () => {
@@ -54,5 +52,20 @@ describe("GameStatusIcons", () => {
   it("shows no hidden icon when hidden is false", () => {
     renderWithProviders(<GameStatusIcons ownership="watchlist" progress="playing" hidden={false} />);
     expect(screen.queryByRole("img", { name: "Hidden" })).not.toBeInTheDocument();
+  });
+
+  it("card variant shows only the watchlist icon for a watchlist game", () => {
+    renderWithProviders(<GameStatusIcons ownership="watchlist" progress="playing" hidden={false} variant="card" />);
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Watchlist"]);
+  });
+
+  it("card variant shows only the progress icon for an owned game", () => {
+    renderWithProviders(<GameStatusIcons ownership="owned" progress="playing" hidden={false} variant="card" />);
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Playing"]);
+  });
+
+  it("card variant still shows the hidden icon", () => {
+    renderWithProviders(<GameStatusIcons ownership="watchlist" progress="playing" hidden={true} variant="card" />);
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Watchlist", "Hidden"]);
   });
 });

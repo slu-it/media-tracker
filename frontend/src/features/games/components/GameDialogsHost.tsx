@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Button, Fab } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import { useTranslation } from "react-i18next";
@@ -25,6 +25,11 @@ export function GameDialogsHost({ selected, onSelect, onCreated, onUpdated, onDe
   const { t } = useTranslation();
   const { platforms, error: platformsError, reload: reloadPlatforms } = useGamePlatforms(t("errors.loadFailed"));
   const [addOpen, setAddOpen] = useState(false);
+  // Read when a save resolves: the dialog may have been closed or switched to another game meanwhile.
+  const selectedRef = useRef(selected);
+  useEffect(() => {
+    selectedRef.current = selected;
+  }, [selected]);
 
   return (
     <>
@@ -48,7 +53,7 @@ export function GameDialogsHost({ selected, onSelect, onCreated, onUpdated, onDe
         game={selected}
         onClose={() => onSelect(null)}
         onSaved={(updated) => {
-          onSelect(updated);
+          if (selectedRef.current?.id === updated.id) onSelect(updated);
           onUpdated(updated);
         }}
         onDeleted={onDeleted}

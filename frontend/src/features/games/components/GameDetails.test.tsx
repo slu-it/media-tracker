@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -190,5 +190,74 @@ describe("GameDetails", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Choose a cover image" })).not.toBeInTheDocument();
+  });
+
+  it("shows the progress toggle bar under the rating in the cover column only when onProgressChange is given", () => {
+    const onProgressChange = vi.fn();
+    const { unmount } = renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+        onProgressChange={onProgressChange}
+      />,
+    );
+    const rating = screen.getByRole("group", { name: "Rating" });
+    const bar = screen.getByRole("group", { name: "Progress" });
+    // eslint-disable-next-line testing-library/no-node-access -- structural layout check, no query alternative
+    expect(bar.parentElement!.parentElement).toBe(rating.parentElement);
+    expect(screen.getAllByRole("group", { name: "Progress" })).toHaveLength(1);
+    expect(screen.getByText("Progress")).toBeInTheDocument();
+    expect(screen.getByText("Rating")).toBeInTheDocument();
+    expect(rating.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    unmount();
+
+    renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Progress" })).not.toBeInTheDocument();
+  });
+
+  describe("rating", () => {
+    const base = {
+      game: celeste,
+      titleId: "title",
+      expansions: [],
+      onSelectExpansion: () => {},
+      onMoveExpansion: () => {},
+    };
+
+    it("has radio stars when onRatingChange is given and read-only stars without", () => {
+      const { unmount } = renderWithProviders(<GameDetails {...base} onRatingChange={() => {}} />);
+      expect(screen.getAllByRole("radio").length).toBeGreaterThan(0);
+      unmount();
+      renderWithProviders(<GameDetails {...base} />);
+      expect(screen.queryAllByRole("radio")).toHaveLength(0);
+    });
+
+    it("emits the clicked value", () => {
+      const onRatingChange = vi.fn();
+      renderWithProviders(<GameDetails {...base} game={{ ...celeste, rating: 2 }} onRatingChange={onRatingChange} />);
+      fireEvent.click(screen.getByRole("radio", { name: "4 Stars" }), { clientX: 1, clientY: 1 });
+      expect(onRatingChange).toHaveBeenCalledExactlyOnceWith(4);
+    });
+
+    it("marks the rating group aria-busy and emits nothing while quickSaveBusy", () => {
+      const onRatingChange = vi.fn();
+      renderWithProviders(
+        <GameDetails {...base} game={{ ...celeste, rating: 2 }} onRatingChange={onRatingChange} quickSaveBusy />,
+      );
+      expect(screen.getByRole("group", { name: "Rating" })).toHaveAttribute("aria-busy", "true");
+      fireEvent.click(screen.getByRole("radio", { name: "4 Stars" }), { clientX: 1, clientY: 1 });
+      expect(onRatingChange).not.toHaveBeenCalled();
+    });
   });
 });

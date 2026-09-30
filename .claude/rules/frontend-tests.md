@@ -7,8 +7,12 @@ paths:
 ---
 # Frontend tests (Vitest, Testing Library, user-event)
 
-Conventions and known jsdom limits (MUI Rating clicks) are in ADR 0012. Query through the accessibility tree
-via `screen` (dialogs are portals); no `data-testid`.
+Conventions and known jsdom limits are in ADR 0012; click MUI Rating stars with `fireEvent.click` on the
+quarter-star radio and a non-zero `clientX`/`clientY` (not `user.click`, whose hover yields `NaN`); test the hover
+preview by mocking `getBoundingClientRect` and firing `mouseMove`/`mouseLeave` (focus never emits
+`onChangeActive`). Query through the accessibility tree via `screen` (dialogs are portals); no `data-testid` of our
+own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility tree, so assert them via the
+`data-testid` MUI generates (`SportsEsportsIcon`, or `within(option).queryAllByTestId(/Icon$/)` to count them).
 
 - Render with `src/test/renderWithProviders.tsx`. Mock the network only with `src/test/mockFetch.ts`:
   `mockApi({"GET /api/games": ...})` records calls, and an unmocked request throws. Shared fixtures live in

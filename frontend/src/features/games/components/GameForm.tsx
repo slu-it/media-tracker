@@ -5,8 +5,9 @@ import { CoverImage } from "../../../components/CoverImage";
 import type { GamePlatformResponse } from "../../../types/api";
 import { type GameDraft, withReleaseDate } from "../domain/gameDraft";
 import { validateCoverImageUrl } from "../domain/gameValues";
-import { CoverAndInfoLayout } from "./CoverAndInfoLayout";
+import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { CoverPickerDialog } from "./CoverPickerDialog";
+import { ProgressToggleBar } from "./ProgressToggleBar";
 import { CoverImageUrlField } from "./fields/CoverImageUrlField";
 import { DescriptionField } from "./fields/DescriptionField";
 import { DevelopersField } from "./fields/DevelopersField";
@@ -14,7 +15,6 @@ import { GameTitleField } from "./fields/GameTitleField";
 import { HiddenField } from "./fields/HiddenField";
 import { OwnershipField } from "./fields/OwnershipField";
 import { PlatformsField } from "./fields/PlatformsField";
-import { ProgressField } from "./fields/ProgressField";
 import { RatingField } from "./fields/RatingField";
 import { ReleaseDateField } from "./fields/ReleaseDateField";
 import { ReleaseYearField } from "./fields/ReleaseYearField";
@@ -65,12 +65,21 @@ export function GameForm({
           />
         }
         underCover={
-          <RatingField
-            value={value.rating}
-            onChange={(rating) => onChange({ ...value, rating })}
-            disabled={disabled}
-            showErrors={showErrors}
-          />
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+            <RatingField
+              value={value.rating}
+              onChange={(rating) => onChange({ ...value, rating })}
+              disabled={disabled}
+              showErrors={showErrors}
+            />
+            <ProgressToggleBar
+              value={value.progress}
+              onChange={(progress) => onChange({ ...value, progress })}
+              disabled={disabled}
+              showLabel
+              sx={{ mt: COVER_UNDER_GAP * 2 }}
+            />
+          </Box>
         }
       >
         <Stack spacing={2}>
@@ -125,18 +134,21 @@ export function GameForm({
             disabled={disabled}
           />
           <Box sx={{ display: "flex", gap: 2, flexDirection: { xs: "column", sm: "row" } }}>
-            <OwnershipField
-              value={value.ownership}
-              onChange={(ownership) => onChange({ ...value, ownership })}
-              disabled={disabled}
-            />
-            <ProgressField
-              value={value.progress}
-              onChange={(progress) => onChange({ ...value, progress })}
-              disabled={disabled}
-            />
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <OwnershipField
+                value={value.ownership}
+                onChange={(ownership) => onChange({ ...value, ownership })}
+                disabled={disabled}
+              />
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", flex: 1, minWidth: 0, minHeight: { sm: 56 } }}>
+              <HiddenField
+                value={value.hidden}
+                onChange={(hidden) => onChange({ ...value, hidden })}
+                disabled={disabled}
+              />
+            </Box>
           </Box>
-          <HiddenField value={value.hidden} onChange={(hidden) => onChange({ ...value, hidden })} disabled={disabled} />
           <CoverImageUrlField
             value={value.coverImageUrl}
             onChange={(coverImageUrl) => onChange({ ...value, coverImageUrl })}

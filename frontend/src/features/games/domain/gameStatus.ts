@@ -13,14 +13,17 @@ export type { Ownership, Progress };
 /** Display order for the ownership dropdown. */
 export const OWNERSHIP_VALUES = ["watchlist", "owned"] as const satisfies readonly Ownership[];
 
-/** Display order for the progress dropdown. */
+/**
+ * Display order for the progress dropdown. Mirrors the declaration order of the Kotlin `Progress` enum (backend
+ * `games/domain/GameStatus.kt`), which orders `/api/games.meta` and the MCP schemas.
+ */
 export const PROGRESS_VALUES = [
+  "abandoned",
   "not_started",
+  "paused",
   "playing",
   "finished",
   "completed",
-  "paused",
-  "abandoned",
 ] as const satisfies readonly Progress[];
 
 // Exhaustiveness guards: `satisfies` above only catches an *extra* array entry that isn't a valid `Ownership`/

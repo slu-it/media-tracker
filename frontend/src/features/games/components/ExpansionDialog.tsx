@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Alert, Stack, Typography } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
@@ -20,10 +20,11 @@ import {
   toUpdateRequest,
   type ExpansionDraft,
 } from "../domain/expansionDraft";
+import type { Progress } from "../domain/gameStatus";
 import { GameTitleField } from "./fields/GameTitleField";
 import { OwnershipField } from "./fields/OwnershipField";
-import { ProgressField } from "./fields/ProgressField";
 import { EXPANSION_DIALOG_HEIGHT } from "./gameDialogLayout";
+import { ProgressToggleBar } from "./ProgressToggleBar";
 
 interface ExpansionDialogProps {
   gameId: string;
@@ -66,6 +67,9 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
   // successful update is kept here so view mode (and isDraftDirty below) reflect what was actually saved instead
   // of going stale. Reset per expansion via the `key` on ExpansionDialog, same as draft/mode/etc above.
   const [current, setCurrent] = useState(expansion);
+  // The value a view-mode progress click is saving; shown as pressed until the PATCH settles.
+  const [pendingProgress, setPendingProgress] = useState<Progress | null>(null);
+  const progressLabelId = useId();
 
   const startEditing = () => {
     if (current) setDraft(draftFromExpansion(current));
@@ -97,6 +101,23 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
       setError(errorMessage(cause, t("errors.saveFailed")));
     } finally {
       setBusy(false);
+    }
+  };
+
+  const changeProgress = async (next: Progress) => {
+    if (current === null || next === current.progress) return;
+    setBusy(true);
+    setError(null);
+    setPendingProgress(next);
+    try {
+      const updated = await updateExpansion(gameId, current.id, { progress: next });
+      setCurrent(updated);
+      onChanged();
+    } catch (cause: unknown) {
+      setError(errorMessage(cause, t("errors.saveFailed")));
+    } finally {
+      setBusy(false);
+      setPendingProgress(null);
     }
   };
 
@@ -170,7 +191,14 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
         <Stack spacing={2}>
           <Field label={t("games.fields.title")}>{current.title}</Field>
           <Field label={t("games.fields.ownership")}>{t(`games.ownership.${current.ownership}`)}</Field>
-          <Field label={t("games.fields.progress")}>{t(`games.progress.${current.progress}`)}</Field>
+          <Field label={t("games.fields.progress")} labelId={progressLabelId}>
+            <ProgressToggleBar
+              value={pendingProgress ?? current.progress}
+              onChange={(next) => void changeProgress(next)}
+              disabled={busy}
+              aria-labelledby={progressLabelId}
+            />
+          </Field>
         </Stack>
       ) : (
         <Stack spacing={2}>
@@ -185,11 +213,14 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
             onChange={(ownership) => setDraft({ ...draft, ownership })}
             disabled={busy}
           />
-          <ProgressField
-            value={draft.progress}
-            onChange={(progress) => setDraft({ ...draft, progress })}
-            disabled={busy}
-          />
+          <Field label={t("games.fields.progress")} labelId={progressLabelId}>
+            <ProgressToggleBar
+              value={draft.progress}
+              onChange={(progress) => setDraft({ ...draft, progress })}
+              disabled={busy}
+              aria-labelledby={progressLabelId}
+            />
+          </Field>
         </Stack>
       )}
       <ConfirmDialog
@@ -205,10 +236,10 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, labelId, children }: { label: string; labelId?: string; children: React.ReactNode }) {
   return (
     <div>
-      <Typography variant="overline" color="text.secondary" component="div">
+      <Typography id={labelId} variant="overline" color="text.secondary" component="div">
         {label}
       </Typography>
       <Typography component="div">{children}</Typography>

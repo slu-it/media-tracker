@@ -20,6 +20,9 @@ interface CoverAndInfoLayoutProps {
   infoHeader?: ReactNode;
 }
 
+/** Gap (theme spacing units) between the cover and the content under it. */
+export const COVER_UNDER_GAP = 2;
+
 /** Dialog body layout: cover on the left, content on the right, roughly 1:2; stacks on narrow screens. */
 export function CoverAndInfoLayout({ cover, underCover, children, scrollInfo, infoHeader }: CoverAndInfoLayoutProps) {
   return (
@@ -37,7 +40,7 @@ export function CoverAndInfoLayout({ cover, underCover, children, scrollInfo, in
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 2,
+          gap: COVER_UNDER_GAP,
           ...(scrollInfo && { minHeight: 0, overflow: { xs: "visible", sm: "auto" } }),
         }}
       >

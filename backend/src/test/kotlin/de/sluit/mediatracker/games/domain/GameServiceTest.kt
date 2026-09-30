@@ -453,7 +453,7 @@ class GameServiceTest {
 
             assertEquals(listOf(Platforms.NINTENDO, Platforms.XBOX), result.platforms)
             assertEquals(listOf(Ownership.WATCHLIST, Ownership.OWNED), result.ownership)
-            assertEquals(listOf(Progress.NOT_STARTED, Progress.PLAYING, Progress.ABANDONED), result.progress)
+            assertEquals(listOf(Progress.ABANDONED, Progress.NOT_STARTED, Progress.PLAYING), result.progress)
             assertEquals(listOf(ReleaseYear(2020), ReleaseYear(2010), ReleaseYear(1998)), result.releaseYears)
         }
 }
