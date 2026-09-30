@@ -1,4 +1,8 @@
 import { Box, Container } from "@mui/material";
+import GridViewOutlined from "@mui/icons-material/GridViewOutlined";
+import LeaderboardOutlined from "@mui/icons-material/LeaderboardOutlined";
+import LibraryAddOutlined from "@mui/icons-material/LibraryAddOutlined";
+import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { AppHeader } from "./components/layout/AppHeader";
 import { MediaTabs } from "./components/layout/MediaTabs";
@@ -12,6 +16,12 @@ import { GamesRankingView } from "./features/games/GamesRankingView";
 import { GamesWatchlistView } from "./features/games/GamesWatchlistView";
 import { MoviesView } from "./features/movies/MoviesView";
 import { SeriesView } from "./features/series/SeriesView";
+
+const GAME_SUB_PAGE_ICONS: Record<GameSubPage, ReactElement> = {
+  overview: <GridViewOutlined fontSize="small" />,
+  watchlist: <LibraryAddOutlined fontSize="small" />,
+  ranking: <LeaderboardOutlined fontSize="small" />,
+};
 
 function GamesSubView({ page }: { page: GameSubPage }) {
   switch (page) {
@@ -52,6 +62,7 @@ export function App() {
           options={MEDIA_SUB_PAGES.games}
           onChange={setGamesSubPage}
           getLabel={(page) => t(`subPages.games.${page}`)}
+          getIcon={(page) => GAME_SUB_PAGE_ICONS[page]}
         />
       )}
       <Container component="main" maxWidth="xl" sx={{ flex: 1, display: "flex", flexDirection: "column", py: 2 }}>

@@ -6,7 +6,7 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { EMPTY_FILTERS } from "../domain/gameFilters";
 import { GameFilterBar } from "./GameFilterBar";
 
-/** MUI icons (checkbox included) carry a data-testid named after the icon component, so this counts the svgs. */
+/** MUI icons carry a data-testid named after the icon component, so this counts the svgs. */
 const iconsIn = (option: HTMLElement) => within(option).queryAllByTestId(/Icon$/);
 
 describe("GameFilterBar", () => {
@@ -143,11 +143,11 @@ describe("GameFilterBar", () => {
     const notStarted = screen.getByRole("option", { name: "Not started" });
     // MUI icons carry a data-testid named after the icon component.
     expect(within(playing).getByTestId("SportsEsportsIcon")).toHaveAttribute("aria-hidden", "true");
-    // Checkbox svg plus the status icon.
-    expect(iconsIn(playing)).toHaveLength(2);
-    expect(iconsIn(completed)).toHaveLength(2);
+    // Just the status icon.
+    expect(iconsIn(playing)).toHaveLength(1);
+    expect(iconsIn(completed)).toHaveLength(1);
     expect(within(notStarted).getByTestId("NotStartedIcon")).toHaveAttribute("aria-hidden", "true");
-    expect(iconsIn(notStarted)).toHaveLength(2);
+    expect(iconsIn(notStarted)).toHaveLength(1);
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
       "Not started",
       "Playing",
@@ -160,7 +160,7 @@ describe("GameFilterBar", () => {
     const ownershipOptions = screen.getAllByRole("option");
     expect(ownershipOptions.length).toBeGreaterThan(0);
     for (const option of ownershipOptions) {
-      expect(iconsIn(option)).toHaveLength(2);
+      expect(iconsIn(option)).toHaveLength(1);
     }
     expect(
       within(screen.getByRole("option", { name: "Watchlist" })).getByTestId("LibraryAddOutlinedIcon"),
@@ -170,19 +170,33 @@ describe("GameFilterBar", () => {
     ).toBeInTheDocument();
     await user.keyboard("{Escape}");
 
-    // Other filters stay icon-free: each option holds only the checkbox svg.
+    // Other filters stay icon-free: no option holds an svg.
     await user.click(screen.getByRole("combobox", { name: "Platform" }));
     const platformOptions = screen.getAllByRole("option");
     expect(platformOptions.length).toBeGreaterThan(0);
     for (const option of platformOptions) {
-      expect(iconsIn(option)).toHaveLength(1);
+      expect(iconsIn(option)).toHaveLength(0);
     }
     await user.keyboard("{Escape}");
     await user.click(screen.getByRole("combobox", { name: "Release year" }));
     const yearOptions = screen.getAllByRole("option");
     expect(yearOptions.length).toBeGreaterThan(0);
     for (const option of yearOptions) {
-      expect(iconsIn(option)).toHaveLength(1);
+      expect(iconsIn(option)).toHaveLength(0);
     }
+  });
+
+  it("marks selected options with aria-selected and renders no checkboxes", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={() => {}} meta={meta} />,
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+
+    const listbox = screen.getByRole("listbox");
+    expect(within(listbox).queryByRole("checkbox")).toBeNull();
+    expect(screen.getByRole("option", { name: "PC" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("option", { name: "Nintendo" })).toHaveAttribute("aria-selected", "false");
   });
 });

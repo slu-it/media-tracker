@@ -13,7 +13,9 @@ Code:
 ## Navigation
 
 - A second, smaller tab row sits under the media tabs. It is shown only for kinds listed in `MEDIA_SUB_PAGES`,
-  which today is games only (`overview`, `watchlist`, `ranking`).
+  which today is games only (`overview`, `watchlist`, `ranking`). Each tab has a decorative start icon
+  (`GridViewOutlined`, `LibraryAddOutlined` like the watchlist status icon, `LeaderboardOutlined`), mapped in
+  `App.tsx` and passed to `SubPageTabs` as `getIcon`.
 - The chosen sub-page is stored in localStorage under `mt.gamesPage` through the generic `useStoredChoice`,
   which also backs `useStoredTab`. An unknown stored value falls back to `overview`. There is no router, so a
   sub-page has no URL of its own.

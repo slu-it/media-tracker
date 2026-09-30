@@ -113,6 +113,16 @@ describe("App", () => {
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Watchlist" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Yearly ranking" })).toBeInTheDocument();
+    // Decorative prefix icons are aria-hidden, so the accessible names above stay exact.
+    expect(
+      within(screen.getByRole("tab", { name: "Overview" })).getByTestId("GridViewOutlinedIcon"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tab", { name: "Watchlist" })).getByTestId("LibraryAddOutlinedIcon"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tab", { name: "Yearly ranking" })).getByTestId("LeaderboardOutlinedIcon"),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Movies" }));
     expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();

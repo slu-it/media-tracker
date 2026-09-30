@@ -1,4 +1,5 @@
 import { Box, Tab, Tabs } from "@mui/material";
+import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 
 interface SubPageTabsProps<T extends string> {
@@ -6,6 +7,8 @@ interface SubPageTabsProps<T extends string> {
   options: readonly T[];
   onChange: (next: T) => void;
   getLabel: (option: T) => string;
+  /** Optional decorative prefix icon per option; the tab name stays the label. */
+  getIcon?: (option: T) => ReactElement;
 }
 
 /**
@@ -13,7 +16,7 @@ interface SubPageTabsProps<T extends string> {
  * pages), rendered below `MediaTabs`. Visually subordinate to the media tabs: a lower min-height and denser tab
  * padding, and its own `aria-label` since it is a separate tablist.
  */
-export function SubPageTabs<T extends string>({ value, options, onChange, getLabel }: SubPageTabsProps<T>) {
+export function SubPageTabs<T extends string>({ value, options, onChange, getLabel, getIcon }: SubPageTabsProps<T>) {
   const { t } = useTranslation();
   return (
     <Box sx={{ borderBottom: 1, borderColor: "divider", bgcolor: "background.paper" }}>
@@ -30,7 +33,9 @@ export function SubPageTabs<T extends string>({ value, options, onChange, getLab
             key={option}
             value={option}
             label={getLabel(option)}
-            sx={{ minHeight: 36, py: 0.5, fontSize: "0.8125rem" }}
+            icon={getIcon?.(option)}
+            iconPosition="start"
+            sx={{ minHeight: 36, py: 0.5, fontSize: "0.8125rem", "& .MuiTab-icon": { mr: 0.75 } }}
           />
         ))}
       </Tabs>
