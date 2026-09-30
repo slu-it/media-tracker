@@ -1,12 +1,15 @@
-import { Box, Chip, Rating, Stack, Typography } from "@mui/material";
+import { Box, Chip, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import type { Progress } from "../domain/gameStatus";
 import type { ExpansionResponse, GameResponse } from "../../../types/api";
 import { CoverImage } from "../../../components/CoverImage";
 import { formatReleaseDate } from "../domain/releaseDate";
-import { CoverAndInfoLayout } from "./CoverAndInfoLayout";
+import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { ExpansionList } from "./ExpansionList";
 import { GameStatusIcons } from "./GameStatusIcons";
 import { PlatformChips } from "./PlatformChips";
+import { ProgressToggleBar } from "./ProgressToggleBar";
+import { RatingField } from "./fields/RatingField";
 
 interface GameDetailsProps {
   game: GameResponse;
@@ -17,9 +20,19 @@ interface GameDetailsProps {
   onMoveExpansion: (expansionId: string, targetIndex: number) => void;
   /** Opens the cover picker; the cover is clickable whenever this is set, whether or not it has a URL. */
   onPickCover?: () => void;
+  /** When set, a quick progress toggle bar is shown under the rating; it displays `game.progress`. */
+  onProgressChange?: (next: Progress) => void;
+  /** When set, the rating stars are editable and report the new value (`null` clears it). */
+  onRatingChange?: (next: number | null) => void;
+  /** Blocks the progress toggle and the rating while a quick save is in flight. */
+  quickSaveBusy?: boolean;
 }
 
-/** Read-only view of one game (the detail dialog's view mode). */
+/**
+ * One game as shown in the detail dialog's view mode. Display only apart from the optional quick actions: clicking
+ * the cover (`onPickCover`), the progress toggle bar (`onProgressChange`) and the rating stars (`onRatingChange`),
+ * which each report a change for the caller to save. Without `onRatingChange` the stars are read-only.
+ */
 export function GameDetails({
   game,
   titleId,
@@ -27,6 +40,9 @@ export function GameDetails({
   onSelectExpansion,
   onMoveExpansion,
   onPickCover,
+  onProgressChange,
+  onRatingChange,
+  quickSaveBusy,
 }: GameDetailsProps) {
   const { t } = useTranslation();
   return (
@@ -42,15 +58,21 @@ export function GameDetails({
         />
       }
       underCover={
-        <Box
-          role="group"
-          aria-label={t("games.fields.rating")}
-          sx={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}
-        >
-          <Rating readOnly precision={0.25} value={game.rating} />
-          <Typography color="text.secondary" variant="body2">
-            {game.rating === null ? t("games.notRated") : game.rating}
-          </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+          {onRatingChange ? (
+            <RatingField value={game.rating} onChange={onRatingChange} busy={quickSaveBusy} />
+          ) : (
+            <RatingField readOnly value={game.rating} />
+          )}
+          {onProgressChange && (
+            <ProgressToggleBar
+              value={game.progress}
+              onChange={onProgressChange}
+              disabled={quickSaveBusy}
+              showLabel
+              sx={{ mt: COVER_UNDER_GAP * 2 }}
+            />
+          )}
         </Box>
       }
       infoHeader={

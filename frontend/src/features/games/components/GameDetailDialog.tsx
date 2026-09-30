@@ -10,10 +10,12 @@ import { errorMessage } from "../../../api/client";
 import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
-import type { ExpansionResponse, GamePlatformResponse, GameResponse } from "../../../types/api";
+import type { Progress } from "../domain/gameStatus";
+import type { ExpansionResponse, GamePlatformResponse, GameResponse, UpdateGameRequest } from "../../../types/api";
 import { updateExpansion } from "../api/expansionsApi";
 import { deleteGame, resolveDeveloperIds, updateGame } from "../api/gamesApi";
 import { draftFromGame, isDraftDirty, isDraftValid, toUpdateRequest } from "../domain/gameDraft";
+import { validateRating } from "../domain/gameValues";
 import { useExpansions } from "../hooks/useExpansions";
 import { CoverPickerDialog } from "./CoverPickerDialog";
 import { ExpansionDialog } from "./ExpansionDialog";
@@ -47,6 +49,8 @@ export function GameDetailDialog({ game, onClose, onSaved, onDeleted, platforms 
 
 const TITLE_ID = "game-detail-title";
 
+type QuickPatch = Pick<UpdateGameRequest, "progress" | "rating">;
+
 function GameDetailDialogContent({
   game,
   onClose,
@@ -59,6 +63,8 @@ function GameDetailDialogContent({
   const [draft, setDraft] = useState(() => draftFromGame(game));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Overlay on the displayed game while a quick progress/rating PATCH is in flight.
+  const [pending, setPending] = useState<QuickPatch | null>(null);
   // Not part of `draft`: a rejected mid-edit in the release date picker never reaches `onChange`, so it cannot be
   // represented there; see `GameForm`'s `onValidityChange`.
   const [formValid, setFormValid] = useState(true);
@@ -132,6 +138,31 @@ function GameDetailDialogContent({
     } finally {
       setBusy(false);
     }
+  };
+
+  const quickPatch = async (patch: QuickPatch) => {
+    // The controls stay enabled (focus), so a second change can arrive while one is in flight.
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setPending(patch);
+    try {
+      const updated = await updateGame(game.id, patch);
+      setDraft(draftFromGame(updated));
+      onSaved(updated);
+    } catch (cause: unknown) {
+      setError(errorMessage(cause, t("errors.saveFailed")));
+    } finally {
+      setBusy(false);
+      setPending(null);
+    }
+  };
+
+  const changeProgress = (next: Progress) => quickPatch({ progress: next });
+
+  const changeRating = (next: number | null) => {
+    if (next === game.rating || validateRating(next) !== null) return;
+    return quickPatch({ rating: next });
   };
 
   const remove = async () => {
@@ -215,12 +246,15 @@ function GameDetailDialogContent({
       )}
       {mode === "view" ? (
         <GameDetails
-          game={game}
+          game={pending === null ? game : { ...game, ...pending }}
           titleId={TITLE_ID}
           expansions={displayedExpansions}
           onSelectExpansion={setSelectedExpansion}
           onMoveExpansion={(expansionId, targetIndex) => void moveExpansion(expansionId, targetIndex)}
           onPickCover={() => setCoverPickerOpen(true)}
+          onProgressChange={(next) => void changeProgress(next)}
+          onRatingChange={(next) => void changeRating(next)}
+          quickSaveBusy={busy}
         />
       ) : (
         <>

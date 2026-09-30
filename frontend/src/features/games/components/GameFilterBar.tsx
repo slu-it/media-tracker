@@ -4,6 +4,8 @@ import ClearIcon from "@mui/icons-material/Clear";
 import { useTranslation } from "react-i18next";
 import type { GameMetaResponse, Ownership, Progress } from "../../../types/api";
 import type { GameFilters } from "../domain/gameFilters";
+import { OptionIconSlot } from "./OptionIconSlot";
+import { PROGRESS_ICONS, type IconComponent } from "./progressIcons";
 
 interface GameFilterBarProps {
   filters: GameFilters;
@@ -19,6 +21,8 @@ export interface FilterSelectProps<T extends string | number> {
   selected: T[];
   onChange: (values: T[]) => void;
   getOptionLabel: (option: T) => string;
+  /** Optional icon shown before the label in each menu item; options without one get an empty slot of equal width. */
+  getOptionIcon?: (option: T) => IconComponent | undefined;
   disabled?: boolean;
   /** Stretches to the width of the grid cell it sits in (`GamesViewHeader`'s `"fill"`/`"half"` layouts). */
   fullWidth?: boolean;
@@ -31,6 +35,7 @@ export function FilterSelect<T extends string | number>({
   selected,
   onChange,
   getOptionLabel,
+  getOptionIcon,
   disabled,
   fullWidth,
 }: FilterSelectProps<T>) {
@@ -81,13 +86,17 @@ export function FilterSelect<T extends string | number>({
         },
       }}
     >
-      {options.map((option) => (
-        <MenuItem key={option} value={option}>
-          {/* Compact so an option row stays as high as a plain menu row and the theme's 6-row cap holds. */}
-          <Checkbox checked={selected.includes(option)} size="small" sx={{ p: 0, mr: 1 }} />
-          <ListItemText primary={getOptionLabel(option)} />
-        </MenuItem>
-      ))}
+      {options.map((option) => {
+        const OptionIcon = getOptionIcon?.(option);
+        return (
+          <MenuItem key={option} value={option}>
+            {/* Compact so an option row stays as high as a plain menu row and the theme's 6-row cap holds. */}
+            <Checkbox checked={selected.includes(option)} size="small" sx={{ p: 0, mr: 1 }} />
+            {getOptionIcon && <OptionIconSlot icon={OptionIcon} />}
+            <ListItemText primary={getOptionLabel(option)} />
+          </MenuItem>
+        );
+      })}
     </TextField>
   );
 }
@@ -127,6 +136,7 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         selected={filters.progress}
         onChange={(progress) => onChange({ ...filters, progress })}
         getOptionLabel={progressLabel}
+        getOptionIcon={(value) => PROGRESS_ICONS[value]}
         disabled={disabled || metaLoading}
         fullWidth
       />

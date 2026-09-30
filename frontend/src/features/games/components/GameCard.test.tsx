@@ -5,12 +5,12 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GameCard } from "./GameCard";
 
 describe("GameCard", () => {
-  it("shows the status icons after the title in document order", () => {
+  it("shows only the watchlist icon (no progress) after the title in document order", () => {
     renderWithProviders(<GameCard game={hades} onOpen={() => {}} />);
     const title = screen.getByText("Hades");
     const icon = screen.getByRole("img", { name: "Watchlist" });
     expect(title.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole("img", { name: "100%" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "100%" })).not.toBeInTheDocument();
   });
 
   it("shows no ownership icon for an owned game", () => {

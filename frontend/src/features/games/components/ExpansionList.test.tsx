@@ -22,6 +22,21 @@ describe("ExpansionList", () => {
     expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("shows only the watchlist icon (no progress icon) for a watchlist expansion", () => {
+    renderWithProviders(<ExpansionList expansions={[hadesExpansion2]} onSelect={() => {}} onMove={() => {}} />);
+
+    expect(screen.getByRole("img", { name: "Watchlist" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Not started" })).not.toBeInTheDocument();
+  });
+
+  it("shows only the progress icon (no watchlist icon) for an owned expansion", () => {
+    renderWithProviders(<ExpansionList expansions={[hadesExpansion1]} onSelect={() => {}} onMove={() => {}} />);
+
+    expect(screen.getByRole("img", { name: "Not started" })).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Watchlist" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();
+  });
+
   it("calls onSelect with the clicked expansion", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();

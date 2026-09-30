@@ -8,7 +8,7 @@ export function GameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: 
   return (
     <GameCardShell title={game.title} coverImageUrl={game.coverImageUrl} onClick={() => onOpen(game)}>
       <PlatformChips platforms={game.platforms} />
-      <GameStatusIcons ownership={game.ownership} progress={game.progress} hidden={game.hidden} />
+      <GameStatusIcons ownership={game.ownership} progress={game.progress} hidden={game.hidden} variant="card" />
     </GameCardShell>
   );
 }

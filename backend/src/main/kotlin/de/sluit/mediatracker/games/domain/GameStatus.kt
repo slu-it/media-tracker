@@ -28,14 +28,18 @@ enum class Ownership {
     }
 }
 
-/** How far a game has been played. [COMPLETED] is the "100%" state; that spelling is a UI label only. */
+/**
+ * How far a game has been played. [COMPLETED] is the "100%" state; that spelling is a UI label only.
+ * Declaration order is the order offered in UIs, meta and MCP schemas; the ordinal is never persisted.
+ * The frontend mirrors this order in `PROGRESS_VALUES`.
+ */
 enum class Progress {
+    ABANDONED,
     NOT_STARTED,
+    PAUSED,
     PLAYING,
     FINISHED,
     COMPLETED,
-    PAUSED,
-    ABANDONED,
     ;
 
     val wire: String get() = name.lowercase()

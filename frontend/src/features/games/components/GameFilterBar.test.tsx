@@ -1,10 +1,13 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { meta } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { EMPTY_FILTERS } from "../domain/gameFilters";
 import { GameFilterBar } from "./GameFilterBar";
+
+/** MUI icons (checkbox included) carry a data-testid named after the icon component, so this counts the svgs. */
+const iconsIn = (option: HTMLElement) => within(option).queryAllByTestId(/Icon$/);
 
 describe("GameFilterBar", () => {
   it("shows the placeholder for every filter when nothing is selected", () => {
@@ -126,5 +129,38 @@ describe("GameFilterBar", () => {
 
     expect(onChange).toHaveBeenLastCalledWith({ ...EMPTY_FILTERS, platformIds: [] });
     expect(screen.getByRole("combobox", { name: "Platform" })).toHaveFocus();
+  });
+
+  it("prefixes progress options with their status icon and leaves other filters without", async () => {
+    const user = userEvent.setup();
+    const progressMeta = { ...meta, progress: ["not_started", "playing", "completed"] as typeof meta.progress };
+    renderWithProviders(<GameFilterBar filters={EMPTY_FILTERS} onChange={() => {}} meta={progressMeta} />);
+
+    await user.click(screen.getByRole("combobox", { name: "Progress" }));
+
+    const playing = screen.getByRole("option", { name: "Playing" });
+    const completed = screen.getByRole("option", { name: "100%" });
+    const notStarted = screen.getByRole("option", { name: "Not started" });
+    // MUI icons carry a data-testid named after the icon component.
+    expect(within(playing).getByTestId("SportsEsportsIcon")).toHaveAttribute("aria-hidden", "true");
+    // Checkbox svg plus the status icon.
+    expect(iconsIn(playing)).toHaveLength(2);
+    expect(iconsIn(completed)).toHaveLength(2);
+    expect(within(notStarted).getByTestId("NotStartedIcon")).toHaveAttribute("aria-hidden", "true");
+    expect(iconsIn(notStarted)).toHaveLength(2);
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Not started",
+      "Playing",
+      "100%",
+    ]);
+    await user.keyboard("{Escape}");
+
+    // Other filters stay icon-free: each option holds only the checkbox svg.
+    await user.click(screen.getByRole("combobox", { name: "Ownership" }));
+    const ownershipOptions = screen.getAllByRole("option");
+    expect(ownershipOptions.length).toBeGreaterThan(0);
+    for (const option of ownershipOptions) {
+      expect(iconsIn(option)).toHaveLength(1);
+    }
   });
 });

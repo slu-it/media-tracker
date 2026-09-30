@@ -27,6 +27,9 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
   that resets it to `-all-` and returns focus to the select; MUI `Select` has no built-in clear. `GamesView` derives the page-1 reset from state (the stored
   page is paired with the search term and the filter key it was chosen for) instead of an effect, because the
   react-hooks preset makes `set-state-in-effect` an error.
+- The progress filter's menu items show the status icon before the label (map in
+  `components/progressIcons.ts`, shared with `GameStatusIcons`); a value without an icon would keep an empty
+  slot so labels stay aligned. `FilterSelect` takes an optional `getOptionIcon` for this.
 - The MCP tool `search_games` takes the same filters, and its `query` is optional.
 
 ## Agent-only extras on `search_games` (MT-013)

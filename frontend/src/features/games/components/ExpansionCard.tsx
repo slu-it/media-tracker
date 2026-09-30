@@ -34,7 +34,12 @@ export function ExpansionCard({
         <CardActionArea onClick={() => onSelect(expansion)} aria-label={expansion.title} sx={{ flex: 1 }}>
           <CardContent sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
             <Typography variant="body1">{expansion.title}</Typography>
-            <GameStatusIcons ownership={expansion.ownership} progress={expansion.progress} hidden={false} />
+            <GameStatusIcons
+              ownership={expansion.ownership}
+              progress={expansion.progress}
+              hidden={false}
+              variant="card"
+            />
           </CardContent>
         </CardActionArea>
         <IconButton

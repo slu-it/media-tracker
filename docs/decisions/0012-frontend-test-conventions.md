@@ -69,13 +69,18 @@ Books, Movies and Series will copy `features/games/` and its tests, so the conve
   where the per-keystroke behaviour (touched state, counter, disabled save button) is what the test asserts.
 
 Known limits, accepted: MUI `Rating` derives the value from pointer geometry, which jsdom reports as zero, so a
-star click yields `NaN`; rating changes are covered by the `gameValues` validators and the field's display
-states only. The 401 redirect is asserted by redefining `window.location` with `Object.defineProperty`; that
-works because Vitest's jsdom environment installs a configurable `location` on the Node global (real jsdom
-makes it unforgeable). If a future Vitest closes that, add a one-line `navigation.assign` indirection in
-`api/client.ts` rather than skipping the test. The stored language is restored once, when `i18n/index.ts`
-loads (`readStoredLanguage() ?? DEFAULT_LANGUAGE`); i18next is a singleton that `vi.resetModules()` cannot
-re-create, so that line is covered through `i18n/language.test.ts`, not through `<App />`.
+star click yields `NaN`; rating changes are covered by the `gameValues` validators and the field's display states
+only. (Update 2026-09-30: the `NaN` comes from the hover value `user.click` sets first. `fireEvent.click` on a
+quarter-star radio, e.g. `getByRole("radio", { name: "4 Stars" })` with a non-zero `clientX`/`clientY`, skips the
+hover and yields the radio's value; clicking the checked one that way clears it, because MUI ignores clicks at 0,0
+as keyboard events. The quick-rating tests in `GameDetailDialog.test.tsx` use it. The hover preview is tested by
+mocking `getBoundingClientRect` and firing `mouseMove`/`mouseLeave`, since focus never emits `onChangeActive`.) The
+401 redirect is asserted by redefining `window.location` with `Object.defineProperty`; that works because Vitest's
+jsdom environment installs a configurable `location` on the Node global (real jsdom makes it unforgeable). If a
+future Vitest closes that, add a one-line `navigation.assign` indirection in `api/client.ts` rather than skipping
+the test. The stored language is restored once, when `i18n/index.ts` loads (`readStoredLanguage() ??
+DEFAULT_LANGUAGE`); i18next is a singleton that `vi.resetModules()` cannot re-create, so that line is covered
+through `i18n/language.test.ts`, not through `<App />`.
 
 ## Alternatives not taken
 
