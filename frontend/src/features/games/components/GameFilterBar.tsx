@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { Checkbox, IconButton, InputAdornment, ListItemText, MenuItem, TextField } from "@mui/material";
+import { IconButton, InputAdornment, ListItemText, MenuItem, TextField } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { useTranslation } from "react-i18next";
 import type { GameMetaResponse, Ownership, Progress } from "../../../types/api";
@@ -90,9 +90,7 @@ export function FilterSelect<T extends string | number>({
       {options.map((option) => {
         const OptionIcon = getOptionIcon?.(option);
         return (
-          <MenuItem key={option} value={option}>
-            {/* Compact so an option row stays as high as a plain menu row and the theme's 6-row cap holds. */}
-            <Checkbox checked={selected.includes(option)} size="small" sx={{ p: 0, mr: 1 }} />
+          <MenuItem key={option} value={option} sx={{ "&.Mui-selected .MuiSvgIcon-root": { color: "primary.main" } }}>
             {getOptionIcon && <OptionIconSlot icon={OptionIcon} />}
             <ListItemText primary={getOptionLabel(option)} />
           </MenuItem>
