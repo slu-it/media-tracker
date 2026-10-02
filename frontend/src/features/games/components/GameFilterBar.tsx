@@ -2,11 +2,8 @@ import { useRef } from "react";
 import { IconButton, InputAdornment, ListItemText, MenuItem, TextField } from "@mui/material";
 import ClearIcon from "@mui/icons-material/Clear";
 import { useTranslation } from "react-i18next";
-import type { GameMetaResponse, Ownership, Progress } from "../../../types/api";
+import type { GameMetaResponse } from "../../../types/api";
 import type { GameFilters } from "../domain/gameFilters";
-import { OptionIconSlot } from "./OptionIconSlot";
-import { OWNERSHIP_ICONS } from "./ownershipIcons";
-import { PROGRESS_ICONS, type IconComponent } from "./progressIcons";
 
 interface GameFilterBarProps {
   filters: GameFilters;
@@ -22,21 +19,18 @@ export interface FilterSelectProps<T extends string | number> {
   selected: T[];
   onChange: (values: T[]) => void;
   getOptionLabel: (option: T) => string;
-  /** Optional icon shown before the label in each menu item; options without one get an empty slot of equal width. */
-  getOptionIcon?: (option: T) => IconComponent | undefined;
   disabled?: boolean;
-  /** Stretches to the width of the grid cell it sits in (`GamesViewHeader`'s `"fill"`/`"half"` layouts). */
+  /** Stretches to the width of the grid cell it sits in (`GamesViewHeader`'s `"half"` layout). */
   fullWidth?: boolean;
 }
 
-/** One multi-select shared by all four filters; shows `-all-` when nothing is selected. */
+/** One multi-select shared by the filters; shows `-all-` when nothing is selected. */
 export function FilterSelect<T extends string | number>({
   label,
   options,
   selected,
   onChange,
   getOptionLabel,
-  getOptionIcon,
   disabled,
   fullWidth,
 }: FilterSelectProps<T>) {
@@ -87,25 +81,19 @@ export function FilterSelect<T extends string | number>({
         },
       }}
     >
-      {options.map((option) => {
-        const OptionIcon = getOptionIcon?.(option);
-        return (
-          <MenuItem key={option} value={option} sx={{ "&.Mui-selected .MuiSvgIcon-root": { color: "primary.main" } }}>
-            {getOptionIcon && <OptionIconSlot icon={OptionIcon} />}
-            <ListItemText primary={getOptionLabel(option)} />
-          </MenuItem>
-        );
-      })}
+      {options.map((option) => (
+        <MenuItem key={option} value={option}>
+          <ListItemText primary={getOptionLabel(option)} />
+        </MenuItem>
+      ))}
     </TextField>
   );
 }
 
-/** Platform, ownership, progress and release year multi-selects; several values in one field OR, all four AND. */
+/** Platform and release year multi-selects; several values in one field OR. (Ownership and progress are `StatusFilterToggles`.) */
 export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterBarProps) {
   const { t } = useTranslation();
   const platformLabel = (id: string) => meta?.platforms.find((platform) => platform.id === id)?.label ?? id;
-  const ownershipLabel = (value: Ownership) => t(`games.ownership.${value}`);
-  const progressLabel = (value: Progress) => t(`games.progress.${value}`);
   const yearLabel = (value: number) => String(value);
   const metaLoading = meta === null;
 
@@ -117,26 +105,6 @@ export function GameFilterBar({ filters, onChange, meta, disabled }: GameFilterB
         selected={filters.platformIds}
         onChange={(platformIds) => onChange({ ...filters, platformIds })}
         getOptionLabel={platformLabel}
-        disabled={disabled || metaLoading}
-        fullWidth
-      />
-      <FilterSelect
-        label={t("games.filters.ownership")}
-        options={meta?.ownership ?? []}
-        selected={filters.ownership}
-        onChange={(ownership) => onChange({ ...filters, ownership })}
-        getOptionLabel={ownershipLabel}
-        getOptionIcon={(value) => OWNERSHIP_ICONS[value]}
-        disabled={disabled || metaLoading}
-        fullWidth
-      />
-      <FilterSelect
-        label={t("games.filters.progress")}
-        options={meta?.progress ?? []}
-        selected={filters.progress}
-        onChange={(progress) => onChange({ ...filters, progress })}
-        getOptionLabel={progressLabel}
-        getOptionIcon={(value) => PROGRESS_ICONS[value]}
         disabled={disabled || metaLoading}
         fullWidth
       />

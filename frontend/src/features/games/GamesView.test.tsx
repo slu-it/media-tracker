@@ -50,6 +50,14 @@ function searchAwareGames(_call: unknown, url: URL) {
   return jsonResponse(pageOf(matches, page, matches.length));
 }
 
+/** The results row is visually hidden (absolutely positioned 1px box) at a count of 0; jsdom's `toBeVisible` can't see that. */
+function isResultsRowHidden() {
+  // eslint-disable-next-line testing-library/no-node-access -- the row has no role; status sits in the left wrapper in the row
+  const row = screen.getByRole("status").parentElement!.parentElement!;
+  const style = getComputedStyle(row);
+  return style.position === "absolute" && style.width === "1px";
+}
+
 describe("GamesView", () => {
   it("renders the grid, both pagination bars and opens the detail dialog from a card", async () => {
     const user = userEvent.setup();
@@ -117,6 +125,7 @@ describe("GamesView", () => {
     expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
     expect(screen.queryByText(/of 0/)).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
+    expect(isResultsRowHidden()).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Add game" }));
     const dialog = await screen.findByRole("dialog", { name: "Add game" });
@@ -552,6 +561,43 @@ describe("GamesView", () => {
     expect(screen.queryByText(/No games yet/)).not.toBeInTheDocument();
   });
 
+  it("hides the results row for a search without matches and without status filters", async () => {
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf([], 1, 0)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />, { route: "/games/overview?search=zzz" });
+
+    expect(await screen.findByText('No games match "zzz"')).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("0 games");
+    expect(isResultsRowHidden()).toBe(true);
+  });
+
+  it("keeps the toggles visible when they lead to zero results and restores the list when untoggled", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games": (_call, url) =>
+        url.searchParams.has("progress") ? jsonResponse(pageOf([], 1, 0)) : jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Playing" }));
+
+    expect(await screen.findByText("No games match the selected filters.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("0 games");
+    expect(isResultsRowHidden()).toBe(false);
+    expect(screen.getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("button", { name: "Playing" }));
+
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("2 games");
+  });
+
   describe("URL state", () => {
     const OVERVIEW_PATH = "/games/overview";
     const twoPages = (_call: unknown, url: URL) => {
@@ -591,9 +637,54 @@ describe("GamesView", () => {
       });
       expect(screen.getByRole("searchbox", { name: "Search games" })).toHaveValue("zelda");
       await waitFor(() => expect(screen.getByRole("combobox", { name: "Platform" })).toHaveTextContent("PC"));
-      expect(screen.getByRole("combobox", { name: "Ownership" })).toHaveTextContent("Owned");
-      expect(screen.getByRole("combobox", { name: "Progress" })).toHaveTextContent("Playing");
+      expect(screen.getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Watchlist" })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "100%" })).toHaveAttribute("aria-pressed", "false");
       expect(screen.getByRole("combobox", { name: "Release year" })).toHaveTextContent("2017");
+    });
+
+    it("filters by progress and ownership toggles, replacing the URL and dropping the page", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi({
+        "GET /api/games": (_call, url) => {
+          const page = Number(url.searchParams.get("page"));
+          return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE + 1));
+        },
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(
+        <>
+          <GamesView />
+          <HistoryControls />
+          <GoTo to={`${OVERVIEW_PATH}?page=2`} />
+        </>,
+        { route: OVERVIEW_PATH },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+      await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "Playing" }));
+      await waitFor(() =>
+        expect(gamesUrls(calls).at(-1)).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&progress=playing`),
+      );
+      await user.click(screen.getByRole("button", { name: "Owned" }));
+      await waitFor(() =>
+        expect(gamesUrls(calls).at(-1)).toBe(
+          `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&ownership=owned&progress=playing`,
+        ),
+      );
+
+      expect(screen.getByRole("button", { name: "Playing" })).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
+      expect(currentLocation()).toBe(`${OVERVIEW_PATH}?ownership=owned&progress=playing`);
+
+      // Replaced, not pushed: Back skips straight to the entry before the page-2 one.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(OVERVIEW_PATH);
     });
 
     it("replaces the URL with the debounced search and drops the page", async () => {

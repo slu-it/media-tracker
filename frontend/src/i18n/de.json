@@ -120,6 +120,7 @@
     },
     "filters": {
       "all": "-alle-",
+      "noGames": "Keine Spiele",
       "clear": "{{label}} zurücksetzen",
       "platform": "Plattform",
       "ownership": "Besitzstatus",

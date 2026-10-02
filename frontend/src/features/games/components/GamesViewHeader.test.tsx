@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { GamesViewHeader } from "./GamesViewHeader";
@@ -40,7 +40,7 @@ describe("GamesViewHeader", () => {
   });
 
   it("renders the controls for each layout", () => {
-    for (const controlsLayout of ["fill", "half", "center"] as const) {
+    for (const controlsLayout of ["half", "center"] as const) {
       const { unmount } = renderWithProviders(
         <GamesViewHeader
           controls={<button type="button">Filter</button>}
@@ -51,6 +51,19 @@ describe("GamesViewHeader", () => {
       expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
       unmount();
     }
+  });
+
+  it("passes facts through to the results row, next to the count", () => {
+    renderWithProviders(
+      <GamesViewHeader
+        controls={<button type="button">Filter</button>}
+        count={3}
+        facts={<button type="button">Facts slot</button>}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Facts slot" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("3 games");
+    expect(within(screen.getByRole("status")).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("shows the result count", () => {

@@ -34,18 +34,25 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   the backend default). The games tests derive their expected URLs from that constant instead of pinning it.
 - Above the grid sits `GamesViewHeader`, shared by all three games views. Row 1 holds the search field,
   centered at `HALF_ROW_WIDTH` (`components/gamesLayout.ts`: full width below `md`, half the row from `md`).
-  Row 2 holds the controls in the `controlsLayout="fill"` grid: the four `-all-` multi-selects of
-  `components/GameFilterBar.tsx` in equal columns (1 column at `xs`, 2 at `sm`, 4 from `md`). Row 3 is
+  Row 2 holds the controls in the `controlsLayout="half"` row: the platform and release year `-all-`
+  multi-selects of `components/GameFilterBar.tsx`, in two equal columns at the search field's width, stacked
+  at `xs`. Row 3 is
   `GameResultsBar`, followed by a divider. The results bar shows
   the match count for the current search and filters (`totalItems`, "142 games", plural keys
-  `games.resultCount_*`) as an outlined `Chip` (32px, the height of the page buttons) inside the `role="status"` region on the left, and the top `PaginationBar` right-aligned. `PaginationBar` is capped to
+  `games.resultCount_*`) as an outlined `Chip` (32px, the height of the page buttons) inside the `role="status"` region on the left. Next to it, outside the live region, is the `facts` slot: on
+  the overview, the progress and ownership filter toggles ([game-search-and-filters.md](game-search-and-filters.md)).
+  The top `PaginationBar` is right-aligned. `PaginationBar` is capped to
   five page buttons via MUI's `boundaryCount`/`siblingCount`; a second, right-aligned copy sits below the grid.
   A click on another page in either bar scrolls the window to the top (in `PaginationBar`, so automatic page
   corrections and search/filter resets do not scroll); a click on the current page does nothing (no scroll, no
   history entry).
   The bar shows no count until the first page arrives (keeping its 32px height, the height of the page
   buttons), then keeps the previous count while a new page loads. When nothing matches, it becomes a visually hidden `role="status"`
-  region ("0 games" for screen readers) that takes no space, since the visible empty state covers that.
+  region ("0 games" for screen readers) that takes no space, since the visible empty state covers that. On the
+  overview it stays visible at 0 while a status toggle is pressed ("0 games" plus the toggles, no pagination),
+  so the toggles that caused the empty result can be undone. An empty library, or a search with no matches and
+  no status filter, hides the row as before. The `role="status"` element keeps the same position in the tree
+  either way, so the live region never remounts.
 - The vertical gaps between header rows, around both dividers, above the bottom pagination and above an
   error `Alert` are all `SECTION_GAP` (`components/gamesLayout.ts`, 16px). Empty-state messages keep their own
   larger padding.

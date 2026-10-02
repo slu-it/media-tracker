@@ -13,7 +13,7 @@ ADR 0008 for the stack, ADR 0020 for the theme toggle. Feature layout `src/featu
   dropdown at `MENU_MAX_ITEMS` (6) rows (`MuiSelect.defaultProps.MenuProps` for selects,
   `MuiAutocomplete.styleOverrides.listbox` for autocompletes), so feature code sets no menu height itself and
   menu rows stay a uniform height (`GameFilterBar`'s options carry no checkbox; selection shows as the
-  `Mui-selected` background plus a primary-coloured option icon).
+  `Mui-selected` background). Status filters are icon toggles (`StatusToggleBar multiple`), not selects.
 - **i18n**: every UI string goes through `t()` and must exist in both `src/i18n/en.json` and `de.json` (a test
   compares the key sets). Platform labels come from the database via `/api/game-platforms`, not from bundles.
 - **react-refresh / react-hooks**: hooks, constants and validators live in non-component files;

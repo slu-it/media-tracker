@@ -120,6 +120,7 @@
     },
     "filters": {
       "all": "-all-",
+      "noGames": "No games",
       "clear": "Clear {{label}}",
       "platform": "Platform",
       "ownership": "Ownership",
