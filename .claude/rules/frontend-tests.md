@@ -14,7 +14,10 @@ preview by mocking `getBoundingClientRect` and firing `mouseMove`/`mouseLeave` (
 own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility tree, so assert them via the
 `data-testid` MUI generates (`SportsEsportsIcon`, or `within(option).queryAllByTestId(/Icon$/)` to count them).
 
-- Render with `src/test/renderWithProviders.tsx`. Mock the network only with `src/test/mockFetch.ts`:
+- Render with `src/test/renderWithProviders.tsx`; its `route` option (default `/`) sets the `MemoryRouter`
+  entry. Assert URLs with `currentLocation()` (`src/test/currentLocation.ts`, reads a hidden location probe)
+  and drive history with `src/test/HistoryControls.tsx` (`window.history` does nothing under `MemoryRouter`).
+  Mock the network only with `src/test/mockFetch.ts`:
   `mockApi({"GET /api/games": ...})` records calls, and an unmocked request throws. Shared fixtures live in
   `src/test/fixtures/`; mirrored DTO changes must be reflected there.
 - Any `console.error` during a test fails it.

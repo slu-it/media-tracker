@@ -32,7 +32,7 @@ is GA.
 
 **Versions.** `gradle/libs.versions.toml` is the single source for JVM versions; npm packages are pinned exactly in
 `frontend/package.json` (no `^`). Stay on the current majors and take the newest release within each (npm side:
-MUI 9, Emotion 11, i18next 26, react-i18next 17, @dnd-kit/core 6 + /sortable 10 + /utilities 3, @mui/x-date-pickers 9, dayjs 1; `utilities` is a
+MUI 9, Emotion 11, i18next 26, react-i18next 17, @dnd-kit/core 6 + /sortable 10 + /utilities 3, @mui/x-date-pickers 9, dayjs 1, react-router 8; `utilities` is a
 direct dependency because the page imports `CSS` from it and pnpm does not hoist). Do not bump majors (pnpm 12,
 TypeScript 7, Logback 1.6, ...) without asking. `@vitest/coverage-v8` declares the exact Vitest version as a peer
 dependency, so bump both to the same version. A dependency change runs `pnpm install` and commits the resulting

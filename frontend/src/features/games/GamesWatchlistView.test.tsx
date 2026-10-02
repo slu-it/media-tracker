@@ -1,11 +1,16 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useNavigate } from "react-router";
 import { describe, expect, it } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
+import { currentLocation } from "../../test/currentLocation";
+import { flushAsync } from "../../test/flushAsync";
+import { HistoryControls } from "../../test/HistoryControls";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { GAMES_PAGE_SIZE } from "./domain/gameValues";
+import { DEFAULT_WATCHLIST_SORT } from "./domain/gameViewParams";
 import { GamesWatchlistView } from "./GamesWatchlistView";
 
 const platforms: GamePlatformResponse[] = [pc, nintendo];
@@ -146,7 +151,7 @@ describe("GamesWatchlistView", () => {
 
     await waitFor(() =>
       expect(gamesUrls(calls)).toContain(
-        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc&ownership=watchlist&sort=release_asc`,
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=${pc.id}&ownership=watchlist&sort=release_asc`,
       ),
     );
   });
@@ -393,5 +398,178 @@ describe("GamesWatchlistView", () => {
 
     expect(await within(dialog).findByRole("heading", { name: "Hades (Switch)" })).toBeInTheDocument();
     await waitFor(() => expect(calls.filter((c) => c.url.startsWith("/api/games?"))).toHaveLength(2));
+  });
+
+  describe("URL state", () => {
+    const WATCHLIST_PATH = "/games/watchlist";
+    const DESC = "release_desc";
+    const twoPages = (_call: unknown, url: URL) => {
+      const page = Number(url.searchParams.get("page"));
+      return jsonResponse(pageOf(page === 1 ? games : [dated], page, GAMES_PAGE_SIZE + 1));
+    };
+    const mocks = () => ({
+      "GET /api/games": twoPages,
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    /** A link-like external navigation: pushes `to` onto the history. */
+    function GoTo({ to }: { to: string }) {
+      const navigate = useNavigate();
+      return <button onClick={() => void navigate(to)}>Go to {to}</button>;
+    }
+    const lastGamesQuery = (calls: { url: string }[]) =>
+      new URL(gamesUrls(calls).at(-1)!, "http://localhost").searchParams;
+    const waitForPlatformSelect = () =>
+      waitFor(() => expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"));
+
+    it("loads the state of a deep link and shows the controls as selected", async () => {
+      const calls = mockApi(mocks());
+      renderWithProviders(<GamesWatchlistView />, {
+        route: `${WATCHLIST_PATH}?search=outer&platform=${pc.id}&sort=${DESC}&page=2`,
+      });
+
+      expect(await screen.findByRole("heading", { name: "Outer Wilds" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toHaveLength(1);
+      expect(Object.fromEntries(lastGamesQuery(calls))).toEqual({
+        page: "2",
+        pageSize: String(GAMES_PAGE_SIZE),
+        search: "outer",
+        platformIds: pc.id,
+        ownership: "watchlist",
+        sort: DESC,
+      });
+      expect(screen.getByRole("searchbox", { name: "Search games" })).toHaveValue("outer");
+      expect(screen.getByRole("button", { name: "Newest first" })).toHaveAttribute("aria-pressed", "true");
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Platform" })).toHaveTextContent("PC"));
+    });
+
+    it("replaces the URL with the debounced search and drops the page", async () => {
+      const user = userEvent.setup();
+      mockApi(mocks());
+      renderWithProviders(
+        <>
+          <GamesWatchlistView searchDebounceMs={300} />
+          <HistoryControls />
+          <GoTo to={`${WATCHLIST_PATH}?page=2`} />
+        </>,
+        { route: WATCHLIST_PATH },
+      );
+      await screen.findByRole("heading", { name: "Hades" });
+      await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));
+      await screen.findByRole("heading", { name: "Outer Wilds" });
+
+      await user.click(screen.getByRole("searchbox", { name: "Search games" }));
+      await user.paste("hades");
+      // Positive control: the URL is untouched while the debounce is pending, and changes once it has passed.
+      expect(currentLocation()).toBe(`${WATCHLIST_PATH}?page=2`);
+      await waitFor(() => expect(currentLocation()).toBe(`${WATCHLIST_PATH}?search=hades`));
+
+      // Replaced, not pushed: Back skips straight to the entry before the page-2 one.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(currentLocation()).toBe(WATCHLIST_PATH);
+    });
+
+    it("replaces the URL and drops the page when the platform filter changes", async () => {
+      const user = userEvent.setup();
+      mockApi(mocks());
+      renderWithProviders(<GamesWatchlistView />, { route: `${WATCHLIST_PATH}?page=2&sort=${DESC}` });
+      await screen.findByRole("heading", { name: "Outer Wilds" });
+
+      await waitForPlatformSelect();
+      await user.click(screen.getByRole("combobox", { name: "Platform" }));
+      await user.click(screen.getByRole("option", { name: "PC" }));
+
+      await waitFor(() => expect(currentLocation()).toBe(`${WATCHLIST_PATH}?platform=${pc.id}&sort=${DESC}`));
+    });
+
+    it("replaces the URL and drops the page when the sort changes, omitting the default sort", async () => {
+      const user = userEvent.setup();
+      mockApi(mocks());
+      renderWithProviders(
+        <>
+          <GamesWatchlistView />
+          <HistoryControls />
+        </>,
+        { route: WATCHLIST_PATH },
+      );
+      await screen.findByRole("heading", { name: "Hades" });
+      await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
+      await screen.findByRole("heading", { name: "Outer Wilds" });
+      expect(currentLocation()).toBe(`${WATCHLIST_PATH}?page=2`);
+
+      await user.click(screen.getByRole("button", { name: "Newest first" }));
+      await waitFor(() => expect(currentLocation()).toBe(`${WATCHLIST_PATH}?sort=${DESC}`));
+      await user.click(screen.getByRole("button", { name: "Oldest first" }));
+      await waitFor(() => expect(currentLocation()).toBe(WATCHLIST_PATH));
+
+      // Both sort changes replaced the page-2 entry: one Back reaches the initial entry.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(currentLocation()).toBe(WATCHLIST_PATH);
+    });
+
+    it("pushes a history entry on a page change and Back returns to the previous page", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi(mocks());
+      renderWithProviders(
+        <>
+          <GamesWatchlistView />
+          <HistoryControls />
+        </>,
+        { route: WATCHLIST_PATH },
+      );
+      await screen.findByRole("heading", { name: "Hades" });
+
+      await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
+      expect(await screen.findByRole("heading", { name: "Outer Wilds" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(`${WATCHLIST_PATH}?page=2`);
+      expect(lastGamesQuery(calls).get("page")).toBe("2");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(WATCHLIST_PATH);
+      expect(lastGamesQuery(calls).get("page")).toBe("1");
+    });
+
+    it("ignores junk params", async () => {
+      const calls = mockApi({ ...mocks(), "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)) });
+      renderWithProviders(<GamesWatchlistView />, { route: `${WATCHLIST_PATH}?sort=title&page=0` });
+
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toEqual([
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&ownership=watchlist&sort=${DEFAULT_WATCHLIST_SORT}`,
+      ]);
+      expect(screen.getByRole("button", { name: "Oldest first" })).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("does not add a history entry when an automatic page correction steps back", async () => {
+      const user = userEvent.setup();
+      // Page 2 comes back empty (e.g. its last game was edited away): the view corrects to page 1.
+      mockApi({
+        ...mocks(),
+        "GET /api/games": (_call: unknown, url: URL) => {
+          const page = Number(url.searchParams.get("page"));
+          return jsonResponse(pageOf(page === 1 ? games : [], page, 1));
+        },
+      });
+      renderWithProviders(
+        <>
+          <GamesWatchlistView />
+          <HistoryControls />
+          <GoTo to={`${WATCHLIST_PATH}?page=2`} />
+          <GoTo to={`${WATCHLIST_PATH}?sort=${DESC}`} />
+        </>,
+        { route: `${WATCHLIST_PATH}?sort=${DESC}` },
+      );
+      await screen.findByRole("heading", { name: "Hades" });
+      await user.click(screen.getByRole("button", { name: `Go to ${WATCHLIST_PATH}?page=2` }));
+      await waitFor(() => expect(currentLocation()).toBe(WATCHLIST_PATH));
+      await screen.findByRole("heading", { name: "Hades" });
+
+      // The correction replaced the `?page=2` entry: Back lands on the initial entry, not on the empty page.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(currentLocation()).toBe(`${WATCHLIST_PATH}?sort=${DESC}`);
+      await flushAsync();
+      expect(currentLocation()).toBe(`${WATCHLIST_PATH}?sort=${DESC}`);
+    });
   });
 });

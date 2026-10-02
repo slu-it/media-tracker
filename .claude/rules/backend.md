@@ -42,7 +42,8 @@ auto-reload the new instance starts before the old one stops and would close the
 **Routes and auth tiers.** Public: `/login`, `/login/static/*`, `/logout`, `/health`. The SPA (with `index.html`
 fallback) and everything under `/api` sit inside `authenticate(SESSION_AUTH)`; `POST /mcp` sits inside
 `authenticate(API_KEY_AUTH)` (`X-API-Key: <key>`, alias `Authorization: Bearer <key>`). Both providers and their
-challenges live in `auth/api/Security.kt`: JSON 401 for `/api` and `/mcp`, a 302 to `/login` otherwise.
+challenges live in `auth/api/Security.kt`: JSON 401 for `/api` and `/mcp`, a 302 to `/login?returnTo=…` otherwise
+(validated by `safeReturnPath` in `auth/api/ReturnPath.kt` before any redirect to it).
 `authenticate(name)` consults only the named provider. Each feature defines `Route.<kind>Routes(service)` in
 `<feature>/api/*Routes.kt`; `apiRoutes` in the root `Routes.kt` mounts it inside that `authenticate` block,
 before the `{...}` catch-all that turns unknown API paths into JSON 404s. Sub-resources nest inside the parent's

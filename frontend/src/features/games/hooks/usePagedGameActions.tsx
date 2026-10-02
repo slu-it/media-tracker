@@ -6,7 +6,8 @@ interface UsePagedGameActionsArgs {
   data: PageResponse<GameResponse> | null;
   loading: boolean;
   page: number;
-  setPage: (page: number) => void;
+  /** `replace` marks an automatic correction: the view must not add a history entry for it. */
+  setPage: (page: number, options?: { replace?: boolean }) => void;
   reload: () => void;
   reloadMeta: () => void;
   setSelected: (game: GameResponse | null) => void;
@@ -45,9 +46,13 @@ export function usePagedGameActions({
   reloadMeta,
   setSelected,
 }: UsePagedGameActionsArgs): PagedGameActions {
+  // `data` is the previous request's page while the next one loads, so only a settled response for the current
+  // page may trigger the correction; stale data would overwrite a history entry (e.g. after Back).
   useEffect(() => {
-    if (data && data.items.length === 0 && page > 1) setPage(Math.max(1, data.totalPages));
-  }, [data, page, setPage]);
+    if (!loading && data && data.page === page && data.items.length === 0 && page > 1) {
+      setPage(Math.max(1, data.totalPages), { replace: true });
+    }
+  }, [data, loading, page, setPage]);
 
   // Both bars share the same page/total/handler; `dense` is the only difference (the top one drops the
   // vertical padding to fit `GameResultsBar`'s row), kept in one place so they can't drift apart.
@@ -57,7 +62,7 @@ export function usePagedGameActions({
         page={data.page}
         totalItems={data.totalItems}
         totalPages={data.totalPages}
-        onPageChange={setPage}
+        onPageChange={(next) => setPage(next)}
         disabled={loading}
         dense={dense}
       />
@@ -70,7 +75,7 @@ export function usePagedGameActions({
     setSelected(null);
     reloadMeta();
     // Removing the last item of a later page: step back instead of showing an empty page.
-    if (data && data.items.length === 1 && page > 1) setPage(page - 1);
+    if (data && data.items.length === 1 && page > 1) setPage(page - 1, { replace: true });
     else reload();
   };
 

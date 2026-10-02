@@ -7,15 +7,23 @@ import type {
   GameResponse,
 } from "../../types/api";
 
-export const pc: GamePlatformResponse = { id: "platform-pc", label: "PC", associatedColor: "757575" };
+export const pc: GamePlatformResponse = {
+  id: "00000000-0000-4000-8000-000000000002",
+  label: "PC",
+  associatedColor: "757575",
+};
 export const playstation: GamePlatformResponse = {
-  id: "platform-playstation",
+  id: "00000000-0000-4000-8000-000000000003",
   label: "PlayStation",
   associatedColor: "0070D1",
 };
-export const xbox: GamePlatformResponse = { id: "platform-xbox", label: "Xbox", associatedColor: "107C10" };
+export const xbox: GamePlatformResponse = {
+  id: "00000000-0000-4000-8000-000000000004",
+  label: "Xbox",
+  associatedColor: "107C10",
+};
 export const nintendo: GamePlatformResponse = {
-  id: "platform-nintendo",
+  id: "00000000-0000-4000-8000-000000000001",
   label: "Nintendo",
   associatedColor: "E60012",
 };

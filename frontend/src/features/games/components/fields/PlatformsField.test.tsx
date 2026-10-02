@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { platforms as options } from "../../../../test/fixtures/games";
+import { pc, platforms as options, xbox } from "../../../../test/fixtures/games";
 import { renderWithProviders } from "../../../../test/renderWithProviders";
 import { PlatformsField } from "./PlatformsField";
 
@@ -15,23 +15,21 @@ describe("PlatformsField", () => {
     expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["PC", "PlayStation", "Xbox", "Nintendo"]);
 
     await user.click(screen.getByRole("option", { name: "Xbox" }));
-    expect(onChange).toHaveBeenLastCalledWith(["platform-xbox"]);
+    expect(onChange).toHaveBeenLastCalledWith([xbox.id]);
   });
 
   it("reports both ids when two platforms end up selected", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const { rerender } = renderWithProviders(
-      <PlatformsField value={["platform-pc"]} onChange={onChange} options={options} />,
-    );
+    const { rerender } = renderWithProviders(<PlatformsField value={[pc.id]} onChange={onChange} options={options} />);
 
     await user.click(screen.getByRole("combobox", { name: /platforms/i }));
     await user.click(screen.getByRole("option", { name: "Xbox" }));
-    expect(onChange).toHaveBeenLastCalledWith(["platform-pc", "platform-xbox"]);
+    expect(onChange).toHaveBeenLastCalledWith([pc.id, xbox.id]);
     // Multi-select keeps the listbox open after a pick; close it so the rerendered chips are the only "Xbox" match.
     await user.keyboard("{Escape}");
 
-    rerender(<PlatformsField value={["platform-pc", "platform-xbox"]} onChange={onChange} options={options} />);
+    rerender(<PlatformsField value={[pc.id, xbox.id]} onChange={onChange} options={options} />);
     expect(screen.getByText("PC")).toBeInTheDocument();
     expect(screen.getByText("Xbox")).toBeInTheDocument();
   });

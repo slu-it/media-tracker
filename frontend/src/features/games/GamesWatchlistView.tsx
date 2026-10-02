@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { Alert, Box, Button, Divider, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import type { GameResponse, GameSort } from "../../types/api";
-import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import type { GameResponse } from "../../types/api";
 import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
@@ -11,50 +10,59 @@ import { SECTION_GAP } from "./components/gamesLayout";
 import { FilterSelect } from "./components/GameFilterBar";
 import { ReleaseSortToggle } from "./components/ReleaseSortToggle";
 import { WatchlistGameCard } from "./components/WatchlistGameCard";
-import { EMPTY_FILTERS, filtersKey, type GameFilters } from "./domain/gameFilters";
+import { EMPTY_FILTERS, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
+import { parseWatchlistParams, watchlistParams, type WatchlistParams } from "./domain/gameViewParams";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
+import { useViewParams } from "./hooks/useViewParams";
 import { usePagedGameActions } from "./hooks/usePagedGameActions";
+import { useUrlSearchInput } from "./hooks/useUrlSearchInput";
 
 interface GamesWatchlistViewProps {
   /** Same convention as `GamesView`: tests pass a short value to stay on real timers. */
   searchDebounceMs?: number;
 }
 
-const DEFAULT_SORT: GameSort = "release_asc";
-
 /** Games on the watchlist (`ownership === "watchlist"`), sorted by release date, oldest or newest first. */
 export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesWatchlistViewProps = {}) {
   const { t } = useTranslation();
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, flushSearch] = useDebouncedValue(searchInput.trim(), searchDebounceMs);
-  const [platformIds, setPlatformIds] = useState<string[]>([]);
-  // Ownership is fixed to the watchlist and never shown as a filter; only the platform selection is under the
-  // user's control here. Memoized so its identity only changes with platformIds: useGamesPage's fetch effect
-  // depends on this object directly (not just its key), and a fresh literal on every render would refetch on
-  // every unrelated re-render (e.g. once the meta payload arrives).
-  const filters: GameFilters = useMemo(
-    () => ({ ...EMPTY_FILTERS, ownership: ["watchlist"], platformIds }),
-    [platformIds],
+  const [searchParams, writeParams] = useViewParams();
+  // The URL is the single source of truth for search, platform filter, sort and page (as in GamesView).
+  const query = searchParams.toString();
+  const {
+    search: urlSearch,
+    platformIds,
+    sort,
+    page,
+  } = useMemo(() => parseWatchlistParams(new URLSearchParams(query)), [query]);
+
+  // Search, platform and sort are refinements, not navigation steps: they replace the entry and return to page 1.
+  const update = (next: Partial<WatchlistParams>) =>
+    writeParams((prev) => watchlistParams({ ...parseWatchlistParams(prev), page: 1, ...next }), { replace: true });
+  const [searchInput, setSearchInput, flushSearch] = useUrlSearchInput(
+    urlSearch,
+    (search) => update({ search }),
+    searchDebounceMs,
   );
-  const filtersValue = filtersKey(filters);
-  const [sort, setSort] = useState<GameSort>(DEFAULT_SORT);
-  // Paging is stored together with the search term, filter selection and sort it was chosen for (as in
-  // GamesView), extended with sort: any of the three evaluates to page 1 in the same render.
-  const [paging, setPaging] = useState({
-    page: 1,
-    search: "",
-    filters: filtersKey({ ...EMPTY_FILTERS, ownership: ["watchlist"] }),
-    sort: DEFAULT_SORT,
-  });
-  const page =
-    paging.search === debouncedSearch && paging.filters === filtersValue && paging.sort === sort ? paging.page : 1;
-  const setPage = (next: number) => setPaging({ page: next, search: debouncedSearch, filters: filtersValue, sort });
+  // A page change is a navigation step: it pushes, so Back returns to the previous page. The automatic
+  // corrections of `usePagedGameActions` pass `replace` and do not add an entry.
+  const setPage = (next: number, { replace = false }: { replace?: boolean } = {}) =>
+    writeParams((prev) => watchlistParams({ ...parseWatchlistParams(prev), page: next }), { replace });
+
+  // Ownership is fixed to the watchlist and never shown as a filter; only the platform selection is under the
+  // user's control here. Memoized on the selection's key: useGamesPage's fetch effect depends on this object
+  // directly (not just its key), so it must keep its identity across unrelated renders and query changes (e.g.
+  // a page change) that leave the selection alone.
+  const platformKey = JSON.stringify(platformIds);
+  const filters: GameFilters = useMemo(
+    () => ({ ...EMPTY_FILTERS, ownership: ["watchlist"], platformIds: JSON.parse(platformKey) as string[] }),
+    [platformKey],
+  );
   const { data, loading, error, reload } = useGamesPage(
     page,
     GAMES_PAGE_SIZE,
-    debouncedSearch,
+    urlSearch,
     filters,
     t("errors.loadFailed"),
     sort,
@@ -78,7 +86,7 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
   // `!loading` avoids a flash of this message while a still-loading page's stale (already filtered-out) data
   // momentarily satisfies the other conditions, e.g. right after clearing a zero-result search.
   const whollyEmpty =
-    !loading && data !== null && data.items.length === 0 && debouncedSearch === "" && platformIds.length === 0;
+    !loading && data !== null && data.items.length === 0 && urlSearch === "" && platformIds.length === 0;
 
   return (
     <Box sx={{ pb: 12 }}>
@@ -89,12 +97,12 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
               label={t("games.filters.platform")}
               options={meta?.platforms.map((platform) => platform.id) ?? []}
               selected={platformIds}
-              onChange={setPlatformIds}
+              onChange={(next) => update({ platformIds: next })}
               getOptionLabel={platformLabel}
               disabled={metaLoading}
               fullWidth
             />
-            <ReleaseSortToggle value={sort} onChange={setSort} fullWidth />
+            <ReleaseSortToggle value={sort} onChange={(next) => update({ sort: next })} fullWidth />
           </>
         }
         controlsLayout="half"
@@ -139,7 +147,7 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
         <GamesGrid
           games={data?.items ?? null}
           onOpen={setSelected}
-          searchTerm={debouncedSearch}
+          searchTerm={urlSearch}
           filtered={platformIds.length > 0}
           renderCard={(game, onClick) => <WatchlistGameCard game={game} onOpen={onClick} />}
         />

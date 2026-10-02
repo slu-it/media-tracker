@@ -12,6 +12,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.encodeURLParameter
 import io.ktor.http.parameters
 import io.ktor.server.testing.testApplication
 import io.mockk.coEvery
@@ -53,7 +54,7 @@ class AuthRoutesTest {
 
         val login = client.get("/login")
         assertEquals(HttpStatusCode.OK, login.status)
-        assertContains(login.bodyAsText(), "<form method=\"post\" action=\"/login\"")
+        assertContains(login.bodyAsText(), "<form method=\"post\" autocomplete=\"on\"")
         assertFalse(login.bodyAsText().contains("Wrong username or password"))
     }
 
@@ -204,5 +205,110 @@ class AuthRoutesTest {
         assertEquals("/login", logout.headers["Location"])
 
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/me").status)
+    }
+
+    private suspend fun io.ktor.client.HttpClient.postLogin(url: String, password: String = "pw") = submitForm(
+        url,
+        parameters {
+            append("username", "alice")
+            append("password", password)
+        },
+    )
+
+    private fun returnToOf(location: String?): String? =
+        io.ktor.http.Url(location ?: error("no location")).parameters["returnTo"]
+
+    @Test
+    fun `anonymous deep link is redirected to login with the encoded return target`() = testApplication {
+        val client = handlerApp()
+
+        val response = client.get("/games/watchlist?search=zelda&page=2")
+
+        assertEquals(HttpStatusCode.Found, response.status)
+        val location = response.headers["Location"]
+        assertTrue(location!!.startsWith("/login?returnTo="))
+        assertEquals("/games/watchlist?search=zelda&page=2", returnToOf(location))
+    }
+
+    @Test
+    fun `successful login with a return target redirects there`() = testApplication {
+        val auth = mockk<AuthService>()
+        coEvery { auth.login("alice", any()) } returns User(id = 1L, username = "alice", passwordHash = "x")
+        val client = handlerApp(auth = auth)
+
+        val response = client.postLogin("/login?returnTo=%2Fgames%2Fwatchlist%3Fsearch%3Dzelda")
+
+        assertEquals(HttpStatusCode.Found, response.status)
+        assertEquals("/games/watchlist?search=zelda", response.headers["Location"])
+    }
+
+    @Test
+    fun `unsafe return targets fall back to the app root after login`() = testApplication {
+        val auth = mockk<AuthService>()
+        coEvery { auth.login("alice", any()) } returns User(id = 1L, username = "alice", passwordHash = "x")
+        val client = handlerApp(auth = auth)
+
+        for (bad in listOf("//evil.example", "https://evil.example", "/\\evil.example", "/login", "/logout")) {
+            val response = client.postLogin("/login?returnTo=" + bad.encodeURLParameter())
+            assertEquals("/", response.headers["Location"], bad)
+        }
+    }
+
+    @Test
+    fun `failed login keeps the return target`() = testApplication {
+        val auth = mockk<AuthService>()
+        coEvery { auth.login("alice", any()) } returns null
+        val client = handlerApp(auth = auth)
+
+        val response = client.postLogin("/login?returnTo=%2Fgames%2Franking")
+
+        val location = response.headers["Location"]
+        assertTrue(location!!.startsWith("/login?error=1&returnTo="))
+        assertEquals("/games/ranking", returnToOf(location))
+    }
+
+    @Test
+    fun `logged in bounce from the login page goes to the return target`() = testApplication {
+        val auth = mockk<AuthService>()
+        val client = handlerApp(auth = auth)
+        client.loginAsMocked(auth)
+
+        val response = client.get("/login?returnTo=/games/ranking")
+
+        assertEquals(HttpStatusCode.Found, response.status)
+        assertEquals("/games/ranking", response.headers["Location"])
+    }
+
+    @Test
+    fun `logged in bounce ignores an unsafe return target`() = testApplication {
+        val auth = mockk<AuthService>()
+        val client = handlerApp(auth = auth)
+        client.loginAsMocked(auth)
+
+        val response = client.get("/login?$RETURN_TO_PARAM=//evil.example")
+
+        assertEquals(HttpStatusCode.Found, response.status)
+        assertEquals("/", response.headers["Location"])
+    }
+
+    @Test
+    fun `anonymous request with a raw non-ascii path is redirected to plain login`() = testApplication {
+        val client = handlerApp()
+
+        val response = client.get("/games/\u00fc")
+
+        assertEquals(HttpStatusCode.Found, response.status)
+        assertEquals("/login", response.headers["Location"])
+    }
+
+    @Test
+    fun `anonymous request keeps the percent-encoded raw uri as returnTo`() = testApplication {
+        val client = handlerApp()
+        val uri = "/games/overview?search=%C3%BCber&platform=00000000-0000-4000-8000-000000000002"
+
+        val response = client.get(uri)
+
+        assertEquals(HttpStatusCode.Found, response.status)
+        assertEquals(uri, returnToOf(response.headers["Location"]))
     }
 }

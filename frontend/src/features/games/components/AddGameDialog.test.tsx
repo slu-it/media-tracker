@@ -58,7 +58,7 @@ describe("AddGameDialog", () => {
         body: {
           title: "Hades",
           releaseYear: 2020,
-          platformIds: ["platform-pc"],
+          platformIds: [pc.id],
           description: "Roguelike dungeon crawler.",
           rating: null,
           coverImageUrl: "https://img.example/h.png",
