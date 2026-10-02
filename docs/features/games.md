@@ -38,7 +38,7 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   `components/GameFilterBar.tsx` in equal columns (1 column at `xs`, 2 at `sm`, 4 from `md`). Row 3 is
   `GameResultsBar`, followed by a divider. The results bar shows
   the match count for the current search and filters (`totalItems`, "142 games", plural keys
-  `games.resultCount_*`) on the left, and the top `PaginationBar` right-aligned. `PaginationBar` is capped to
+  `games.resultCount_*`) as an outlined `Chip` (32px, the height of the page buttons) inside the `role="status"` region on the left, and the top `PaginationBar` right-aligned. `PaginationBar` is capped to
   five page buttons via MUI's `boundaryCount`/`siblingCount`; a second, right-aligned copy sits below the grid.
   A click on another page in either bar scrolls the window to the top (in `PaginationBar`, so automatic page
   corrections and search/filter resets do not scroll); a click on the current page does nothing (no scroll, no

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Box, Stack, Typography } from "@mui/material";
+import { Box, Chip, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { SECTION_GAP } from "./gamesLayout";
 
@@ -9,7 +9,8 @@ interface GameResultsBarProps {
 }
 
 /**
- * Result count on the left, an optional right slot (the top pagination bar) pinned to the right edge via
+ * Result count (a neutral outlined `Chip` inside an always-mounted `role="status"` wrapper, so the live region
+ * does not mount and unmount with the chip) on the left, an optional right slot (the top pagination bar) pinned to the right edge via
  * `ml: "auto"` so it stays right-aligned even when it wraps onto its own line under the count on narrow
  * screens. A fixed `minHeight` (the dense `Pagination`'s own 32px height) keeps the grid below from jumping
  * while `count` is still loading (`null`), so the visible gaps above and below this row equal `SECTION_GAP`.
@@ -53,9 +54,9 @@ export function GameResultsBar({ count, children }: GameResultsBarProps) {
             }
       }
     >
-      <Typography variant="body2" color="text.secondary" role="status">
-        {count !== null && t("games.resultCount", { count })}
-      </Typography>
+      <Box role="status" sx={{ display: "flex", alignItems: "center" }}>
+        {count !== null && <Chip variant="outlined" label={t("games.resultCount", { count })} />}
+      </Box>
       {!isEmpty && hasChildren && <Box sx={{ ml: "auto" }}>{children}</Box>}
     </Stack>
   );

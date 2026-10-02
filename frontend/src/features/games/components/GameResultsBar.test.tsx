@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import i18n from "../../../i18n";
 import { renderWithProviders } from "../../../test/renderWithProviders";
@@ -33,13 +33,14 @@ describe("GameResultsBar", () => {
         <button type="button">Right slot</button>
       </GameResultsBar>,
     );
-    expect(screen.getByRole("status")).toHaveTextContent("");
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
     expect(screen.getByRole("button", { name: "Right slot" })).toBeInTheDocument();
   });
 
   it("shows the count without children", () => {
     renderWithProviders(<GameResultsBar count={3} />);
     expect(screen.getByRole("status")).toHaveTextContent("3 games");
+    expect(within(screen.getByRole("status")).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("keeps the status region mounted with the zero-count announcement when count is 0, and drops children", () => {
