@@ -7,6 +7,8 @@ import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
 import { GamesViewHeader } from "./components/GamesViewHeader";
 import { SECTION_GAP } from "./components/gamesLayout";
+import { FILTER_SELECT_SX } from "./components/filterLayout";
+import { FilterRow } from "./components/FilterRow";
 import { FilterSelect } from "./components/GameFilterBar";
 import { ReleaseSortToggle } from "./components/ReleaseSortToggle";
 import { WatchlistGameCard } from "./components/WatchlistGameCard";
@@ -91,21 +93,26 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
   return (
     <Box sx={{ pb: 12 }}>
       <GamesViewHeader
-        controls={
-          <>
-            <FilterSelect
-              label={t("games.filters.platform")}
-              options={meta?.platforms.map((platform) => platform.id) ?? []}
-              selected={platformIds}
-              onChange={(next) => update({ platformIds: next })}
-              getOptionLabel={platformLabel}
-              disabled={metaLoading}
-              fullWidth
-            />
-            <ReleaseSortToggle value={sort} onChange={(next) => update({ sort: next })} fullWidth />
-          </>
+        facts={
+          // Hidden only for a watchlist without a single game; a platform filter without results stays visible so it
+          // can be undone (the sort never causes zero results).
+          data?.totalItems !== 0 || platformIds.length > 0 ? (
+            <FilterRow>
+              <ReleaseSortToggle value={sort} onChange={(next) => update({ sort: next })} />
+              <FilterSelect
+                label={t("games.filters.platform")}
+                options={meta?.platforms.map((platform) => platform.id) ?? []}
+                selected={platformIds}
+                onChange={(next) => update({ platformIds: next })}
+                getOptionLabel={platformLabel}
+                disabled={metaLoading}
+                variant="standard"
+                labelStyle="legend"
+                sx={FILTER_SELECT_SX}
+              />
+            </FilterRow>
+          ) : undefined
         }
-        controlsLayout="half"
         search={
           <GameSearchField
             value={searchInput}

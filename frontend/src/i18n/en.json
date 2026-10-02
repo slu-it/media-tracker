@@ -129,7 +129,7 @@
       "noResults": "No games match the selected filters."
     },
     "sort": {
-      "label": "Sort by release date",
+      "legend": "Sort order",
       "releaseAsc": "Oldest first",
       "releaseDesc": "Newest first"
     },

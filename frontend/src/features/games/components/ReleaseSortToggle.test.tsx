@@ -5,9 +5,10 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { ReleaseSortToggle } from "./ReleaseSortToggle";
 
 describe("ReleaseSortToggle", () => {
-  it("shows both options with the group aria-label", () => {
+  it("shows both options with the legend naming the group", () => {
     renderWithProviders(<ReleaseSortToggle value="release_asc" onChange={() => {}} />);
-    expect(screen.getByRole("group", { name: "Sort by release date" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Sort order" })).toBeInTheDocument();
+    expect(screen.getByText("Sort order")).toBeVisible();
     expect(screen.getByRole("button", { name: "Oldest first" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Newest first" })).toBeInTheDocument();
   });

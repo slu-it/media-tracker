@@ -129,7 +129,7 @@
       "noResults": "Keine Spiele passen zu den gewählten Filtern."
     },
     "sort": {
-      "label": "Nach Erscheinungsdatum sortieren",
+      "legend": "Sortierung",
       "releaseAsc": "Älteste zuerst",
       "releaseDesc": "Neueste zuerst"
     },

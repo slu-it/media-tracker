@@ -7,13 +7,13 @@ type ControlsLayout = "half" | "center";
 
 interface GamesViewHeaderProps {
   /**
-   * Row 2: filters, sort toggle, year navigator etc. Centered and wraps onto multiple lines on narrow screens
+   * Row 2, optional (the overview has none, its filters sit in the results row): filters, sort toggle, year navigator etc. Centered and wraps onto multiple lines on narrow screens
    * for `"center"` (the default); an equal-column grid confined to the same centered, half-width column as
    * `search` for `"half"`. A component returning a
    * `React.Fragment` of several elements (e.g. `GameFilterBar`) works as `controls` for `"half"`: a
    * `Fragment` renders no DOM node of its own, so its children land directly in the grid as its items.
    */
-  controls: ReactNode;
+  controls?: ReactNode;
   controlsLayout?: ControlsLayout;
   /** Row 1, optional: a search field wide enough to need its own centered row above `controls`. */
   search?: ReactNode;
@@ -60,7 +60,7 @@ export function GamesViewHeader({
           <Box sx={{ width: HALF_ROW_WIDTH }}>{search}</Box>
         </Box>
       )}
-      {controlsLayout === "center" ? (
+      {controls == null ? null : controlsLayout === "center" ? (
         <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: SECTION_GAP }}>{controls}</Box>
       ) : (
         <Box sx={{ display: "flex", justifyContent: "center" }}>

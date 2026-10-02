@@ -598,6 +598,30 @@ describe("GamesView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("2 games");
   });
 
+  it("keeps the row visible when a platform filter leads to zero results", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games": (_call, url) =>
+        url.searchParams.has("platformIds") ? jsonResponse(pageOf([], 1, 0)) : jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesView />);
+    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+    await user.keyboard("{Escape}"); // a multi-select keeps its menu (and the aria-hidden page behind it) open
+
+    expect(await screen.findByText("No games match the selected filters.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("listbox")).not.toBeInTheDocument());
+    expect(isResultsRowHidden()).toBe(false);
+    expect(screen.getByRole("button", { name: "Clear Platform" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Release year" })).toBeInTheDocument();
+  });
+
   describe("URL state", () => {
     const OVERVIEW_PATH = "/games/overview";
     const twoPages = (_call: unknown, url: URL) => {

@@ -103,4 +103,15 @@ describe("StatusFilterToggles", () => {
 
     for (const button of screen.getAllByRole("button")) expect(button).not.toHaveAttribute("data-dimmed");
   });
+
+  it("shows the group names as visible labels above the bars", () => {
+    setupToggles();
+
+    for (const name of ["Progress", "Ownership"]) {
+      const legend = screen.getByText(name);
+      expect(legend).toBeVisible();
+      const group = screen.getByRole("group", { name });
+      expect(legend.compareDocumentPosition(group)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
+  });
 });

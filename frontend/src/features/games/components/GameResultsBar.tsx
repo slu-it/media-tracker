@@ -64,14 +64,22 @@ export function GameResultsBar({ count, children, facts }: GameResultsBarProps) 
           ? VISUALLY_HIDDEN_SX
           : {
               justifyContent: hasChildren ? "space-between" : "center",
-              alignItems: "center",
+              // With facts the chip, toggle bars, select underlines and page buttons share one bottom line.
+              alignItems: hasFacts ? "flex-end" : "center",
               flexWrap: "wrap",
               rowGap: SECTION_GAP,
               minHeight: 32,
             }
       }
     >
-      <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: hasFacts ? "flex-end" : "center",
+          flexWrap: "wrap",
+          gap: hasFacts ? 3 : 1.5,
+        }}
+      >
         <Box role="status" sx={{ display: "flex", alignItems: "center" }}>
           {count !== null && <Chip variant="outlined" label={t("games.resultCount", { count })} />}
         </Box>

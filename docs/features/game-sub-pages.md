@@ -29,12 +29,19 @@ Code:
 
 - Shows games with ownership `watchlist`; the tab carries the ownership label ("Watchlist", German
   "Merkliste").
-- Header (`GamesViewHeader` as on the overview): the search field first, then the platform `FilterSelect`
-  (exported from `GameFilterBar.tsx`) and a `fullWidth` `ReleaseSortToggle` in `controlsLayout="half"`. That
-  row is centered at the search field's width and split into two equal columns (stacked at `xs`). The
-  results bar comes last.
-  The toggle is an exclusive `ToggleButtonGroup`, "Oldest first" (`release_asc`, the default) / "Newest
-  first" (`release_desc`), and it cannot be deselected.
+- Header (`GamesViewHeader` as on the overview): the search field, then the results row. There is no
+  controls row.
+  - The results row holds the count chip, then the sort toggle, then the platform select, all bottom-aligned
+    with the pagination, as on the overview ([game-search-and-filters.md](game-search-and-filters.md)).
+  - The sort toggle is `ReleaseSortToggle`, an exclusive `ToggleButtonGroup`: "Oldest first" (`release_asc`,
+    the default) / "Newest first" (`release_desc`). It cannot be deselected.
+  - The toggle carries a centred "Sort order" legend (German "Sortierung"), has 32px buttons, and shows the
+    pressed button in the primary colour.
+  - The platform select is the overview's standard `FilterSelect` with a legend label.
+  - Filter selects keep at least 160px below `sm` (`filterLayout.ts`). On a phone the platform select wraps
+    onto its own full-width line instead of being squeezed next to the toggle.
+  - The row stays visible at 0 results while a platform filter is active. An empty watchlist hides it and
+    shows its own empty state.
 - Paging and the results bar work as on the overview: `GAMES_PAGE_SIZE`, the count and the
   top `PaginationBar` in the header's results bar, and a second `PaginationBar` below the grid. A change of the
   search, the filter or the sort returns to page 1 (it drops `page` from the URL).
