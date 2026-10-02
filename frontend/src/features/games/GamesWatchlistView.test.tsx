@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
@@ -509,6 +509,7 @@ describe("GamesWatchlistView", () => {
 
     it("pushes a history entry on a page change and Back returns to the previous page", async () => {
       const user = userEvent.setup();
+      const scrollTo = vi.spyOn(window, "scrollTo");
       const calls = mockApi(mocks());
       renderWithProviders(
         <>
@@ -523,11 +524,14 @@ describe("GamesWatchlistView", () => {
       expect(await screen.findByRole("heading", { name: "Outer Wilds" })).toBeInTheDocument();
       expect(currentLocation()).toBe(`${WATCHLIST_PATH}?page=2`);
       expect(lastGamesQuery(calls).get("page")).toBe("2");
+      expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 0 });
+      scrollTo.mockClear();
 
       await user.click(screen.getByRole("button", { name: "Back" }));
       expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
       expect(currentLocation()).toBe(WATCHLIST_PATH);
       expect(lastGamesQuery(calls).get("page")).toBe("1");
+      expect(scrollTo).not.toHaveBeenCalled();
     });
 
     it("ignores junk params", async () => {
@@ -543,6 +547,7 @@ describe("GamesWatchlistView", () => {
 
     it("does not add a history entry when an automatic page correction steps back", async () => {
       const user = userEvent.setup();
+      const scrollTo = vi.spyOn(window, "scrollTo");
       // Page 2 comes back empty (e.g. its last game was edited away): the view corrects to page 1.
       mockApi({
         ...mocks(),
@@ -570,6 +575,7 @@ describe("GamesWatchlistView", () => {
       expect(currentLocation()).toBe(`${WATCHLIST_PATH}?sort=${DESC}`);
       await flushAsync();
       expect(currentLocation()).toBe(`${WATCHLIST_PATH}?sort=${DESC}`);
+      expect(scrollTo).not.toHaveBeenCalled();
     });
   });
 });

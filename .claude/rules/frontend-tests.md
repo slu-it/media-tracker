@@ -3,7 +3,7 @@ paths:
   - "frontend/src/**/*.test.{ts,tsx}"
   - "frontend/src/test/**"
   - "frontend/vitest.config.*"
-  - "frontend/test-setup.ts"
+  - "frontend/src/test-setup.ts"
 ---
 # Frontend tests (Vitest, Testing Library, user-event)
 
@@ -31,8 +31,9 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
   numbers.
 - Vitest runs with `testTimeout: 10_000` and `isolate: false` (one jsdom shared across files). `test-setup.ts`
   runs per file and does the lifecycle itself: explicit `afterEach(cleanup)`, a `beforeAll` setting
-  `IS_REACT_ACT_ENVIRONMENT`, then the mocks (incl. `matchMedia` and an `Element.prototype.scrollIntoView` stub
-  that @dnd-kit's keyboard sensor needs), language and `localStorage`. Never rely on state from another file and
+  `IS_REACT_ACT_ENVIRONMENT`, then the mocks (incl. `matchMedia`, an `Element.prototype.scrollIntoView` stub
+  that @dnd-kit's keyboard sensor needs, and an unconditional no-op `window.scrollTo` for `PaginationBar`, since
+  jsdom defines it as a not-implemented function that logs a console.error), language and `localStorage`. Never rely on state from another file and
   never remove those hooks. Vitest caps itself to 3 workers when `CI` is set.
 - After a change to the Vitest config or `test-setup.ts`, run the suite once in CI mode (`CI=1`) and once
   shuffled (`--sequence.shuffle`) before calling it done.

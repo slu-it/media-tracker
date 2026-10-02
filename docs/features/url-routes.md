@@ -57,6 +57,10 @@ Code:
   page empty. Its `setPage(page, { replace: true })` is the convention for any correction; user navigation calls
   it without the option. The correction only acts on data of the current request (`!loading && data.page ===
   page`), so Back to a page entry is never rewritten from the previous query's stale data.
+- **Scroll**: only the user's page click scrolls the window to the top (`PaginationBar`). Corrections,
+  refinements and Back/Forward leave the scroll position alone. Back/Forward relies on the browser's own scroll
+  restoration, which works because the previous page's grid stays rendered while the next one loads, so the
+  document height survives the popstate (jsdom cannot check this; verify by eye).
 - The search field stays local state, initialised from `search` (`useUrlSearchInput`). Its debounced value is
   written back. A `search` change from outside (Back, a link) re-syncs the field without a write-back.
 

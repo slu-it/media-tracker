@@ -26,6 +26,10 @@ if (typeof Element.prototype.scrollIntoView !== "function") {
   Element.prototype.scrollIntoView = () => {};
 }
 
+// jsdom does not implement window.scrollTo and logs "Not implemented" via console.error, which fails the test.
+// A plain no-op property stays spy-able with vi.spyOn(window, "scrollTo").
+window.scrollTo = () => {};
+
 // An unexpected console.error usually means an act() warning, an unhandled rejection log or a component
 // error boundary firing: real problems that should fail the test rather than scroll by silently.
 let errorSpy: MockInstance<(...args: Parameters<typeof console.error>) => void>;
