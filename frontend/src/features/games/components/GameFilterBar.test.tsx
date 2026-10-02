@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { meta } from "../../../test/fixtures/games";
+import { meta, nintendo, pc } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { EMPTY_FILTERS } from "../domain/gameFilters";
 import { GameFilterBar } from "./GameFilterBar";
@@ -43,7 +43,7 @@ describe("GameFilterBar", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProviders(
-      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={onChange} meta={meta} />,
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: [pc.id] }} onChange={onChange} meta={meta} />,
     );
 
     await user.click(screen.getByRole("combobox", { name: "Platform" }));
@@ -51,7 +51,7 @@ describe("GameFilterBar", () => {
 
     expect(onChange).toHaveBeenLastCalledWith({
       ...EMPTY_FILTERS,
-      platformIds: ["platform-pc", "platform-nintendo"],
+      platformIds: [pc.id, nintendo.id],
     });
   });
 
@@ -76,20 +76,13 @@ describe("GameFilterBar", () => {
     const { rerender } = renderWithProviders(<GameFilterBar filters={EMPTY_FILTERS} onChange={() => {}} meta={meta} />);
     expect(screen.queryByRole("button", { name: "Clear Platform" })).not.toBeInTheDocument();
 
-    rerender(
-      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={() => {}} meta={meta} />,
-    );
+    rerender(<GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: [pc.id] }} onChange={() => {}} meta={meta} />);
     expect(screen.getByRole("button", { name: "Clear Platform" })).toBeInTheDocument();
   });
 
   it("hides the clear button while the filter is disabled even with a selection", () => {
     renderWithProviders(
-      <GameFilterBar
-        filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }}
-        onChange={() => {}}
-        meta={meta}
-        disabled
-      />,
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: [pc.id] }} onChange={() => {}} meta={meta} disabled />,
     );
 
     expect(screen.queryByRole("button", { name: "Clear Platform" })).not.toBeInTheDocument();
@@ -99,7 +92,7 @@ describe("GameFilterBar", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProviders(
-      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={onChange} meta={meta} />,
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: [pc.id] }} onChange={onChange} meta={meta} />,
     );
 
     await user.click(screen.getByRole("button", { name: "Clear Platform" }));
@@ -117,7 +110,7 @@ describe("GameFilterBar", () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProviders(
-      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={onChange} meta={meta} />,
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: [pc.id] }} onChange={onChange} meta={meta} />,
     );
 
     await user.tab();
@@ -189,7 +182,7 @@ describe("GameFilterBar", () => {
   it("marks selected options with aria-selected and renders no checkboxes", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: ["platform-pc"] }} onChange={() => {}} meta={meta} />,
+      <GameFilterBar filters={{ ...EMPTY_FILTERS, platformIds: [pc.id] }} onChange={() => {}} meta={meta} />,
     );
 
     await user.click(screen.getByRole("combobox", { name: "Platform" }));

@@ -1,19 +1,21 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Alert, Box, Button, Divider } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
-import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GameFilterBar } from "./components/GameFilterBar";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
 import { GamesViewHeader } from "./components/GamesViewHeader";
 import { SECTION_GAP } from "./components/gamesLayout";
-import { EMPTY_FILTERS, filtersKey, hasActiveFilters, type GameFilters } from "./domain/gameFilters";
+import { hasActiveFilters, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
+import { overviewParams, parseOverviewParams } from "./domain/gameViewParams";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
+import { useViewParams } from "./hooks/useViewParams";
 import { usePagedGameActions } from "./hooks/usePagedGameActions";
+import { useUrlSearchInput } from "./hooks/useUrlSearchInput";
 
 interface GamesViewProps {
   /**
@@ -25,21 +27,32 @@ interface GamesViewProps {
 
 export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewProps = {}) {
   const { t } = useTranslation();
-  const [searchInput, setSearchInput] = useState("");
-  const [debouncedSearch, flushSearch] = useDebouncedValue(searchInput.trim(), searchDebounceMs);
-  const [filters, setFilters] = useState<GameFilters>(EMPTY_FILTERS);
-  const filtersValue = filtersKey(filters);
-  // The page is stored together with the search term and filter selection it was chosen for, so a new term or
-  // a filter change evaluates to page 1 in the same render: no reset effect, no redundant request for the stale
-  // page. Clearing the search/filters returns to the page that was open before (the stored page belongs to the
-  // empty term/filters).
-  const [paging, setPaging] = useState({ page: 1, search: "", filters: filtersKey(EMPTY_FILTERS) });
-  const page = paging.search === debouncedSearch && paging.filters === filtersValue ? paging.page : 1;
-  const setPage = (next: number) => setPaging({ page: next, search: debouncedSearch, filters: filtersValue });
+  const [searchParams, writeParams] = useViewParams();
+  // The URL is the single source of truth for search, filters and page. Parsed once per distinct query string, so
+  // `filters` keeps its identity while the query is unchanged and `useGamesPage` does not refetch every render.
+  const query = searchParams.toString();
+  const { search: urlSearch, page, filters } = useMemo(() => parseOverviewParams(new URLSearchParams(query)), [query]);
+
+  // A new search term is a refinement, not a navigation step: replace the entry and return to page 1.
+  const [searchInput, setSearchInput, flushSearch] = useUrlSearchInput(
+    urlSearch,
+    (search) =>
+      writeParams((prev) => overviewParams({ ...parseOverviewParams(prev), search, page: 1 }), { replace: true }),
+    searchDebounceMs,
+  );
+
+  const setFilters = (next: GameFilters) =>
+    writeParams((prev) => overviewParams({ ...parseOverviewParams(prev), filters: next, page: 1 }), {
+      replace: true,
+    });
+  // A page change is a navigation step: it pushes, so Back returns to the previous page.
+  // The automatic corrections of `usePagedGameActions` pass `replace` and do not add an entry.
+  const setPage = (next: number, { replace = false }: { replace?: boolean } = {}) =>
+    writeParams((prev) => overviewParams({ ...parseOverviewParams(prev), page: next }), { replace });
   const { data, loading, error, reload } = useGamesPage(
     page,
     GAMES_PAGE_SIZE,
-    debouncedSearch,
+    urlSearch,
     filters,
     t("errors.loadFailed"),
   );
@@ -96,7 +109,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
       <GamesGrid
         games={data?.items ?? null}
         onOpen={setSelected}
-        searchTerm={debouncedSearch}
+        searchTerm={urlSearch}
         filtered={hasActiveFilters(filters)}
       />
       <Divider />

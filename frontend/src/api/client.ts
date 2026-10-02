@@ -16,6 +16,12 @@ export class ApiError extends Error {
 
 const LOGIN_PATH = "/login";
 
+/** The login page, carrying the current location as `returnTo` (omitted for `/`) so login lands back here. */
+function loginUrl(): string {
+  const returnTo = window.location.pathname + window.location.search;
+  return returnTo === "/" ? LOGIN_PATH : `${LOGIN_PATH}?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
 /**
  * Typed fetch wrapper for the backend's /api routes.
  * The session cookie is sent automatically (same origin, also under the Vite dev proxy).
@@ -34,7 +40,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
   });
 
   if (response.status === 401) {
-    window.location.assign(LOGIN_PATH);
+    window.location.assign(loginUrl());
     // Never resolves: navigation is in progress.
     return new Promise<T>(() => {});
   }

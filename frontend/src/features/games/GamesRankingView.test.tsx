@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameMetaResponse, GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
+import { currentLocation } from "../../test/currentLocation";
+import { HistoryControls } from "../../test/HistoryControls";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { ALL_GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { GamesRankingView } from "./GamesRankingView";
@@ -305,5 +307,108 @@ describe("GamesRankingView", () => {
     expect(await screen.findByText(`No rated games in ${TEST_YEAR}.`)).toBeInTheDocument();
     expect(gamesUrls(calls)).toHaveLength(2);
     expect(metaCalls).toBe(2);
+  });
+
+  describe("URL state", () => {
+    const RANKING_PATH = "/games/ranking";
+    const DEEP_YEAR = 2020;
+    const rankingUrl = (year: number) =>
+      `/api/games?page=1&pageSize=${ALL_GAMES_PAGE_SIZE}&releaseYear=${year}&sort=rating_desc&rated=true`;
+    const mocks = () => ({
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games": mockGamesByYear({ [TEST_YEAR]: [gameCurrent], [DEEP_YEAR]: [game2020] }),
+      "GET /api/games.meta": mockMeta(),
+    });
+
+    it("loads the year of a deep link and shows it in the navigator", async () => {
+      const calls = mockApi(mocks());
+      renderWithProviders(<GamesRankingView />, { route: `${RANKING_PATH}?year=${DEEP_YEAR}` });
+
+      expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toEqual([rankingUrl(DEEP_YEAR)]);
+      expect(within(topNavigator()).getByRole("combobox", { name: "Year" })).toHaveTextContent(String(DEEP_YEAR));
+      expect(within(bottomNavigator()).getByRole("combobox", { name: "Year" })).toHaveTextContent(String(DEEP_YEAR));
+      // The resolved year was explicitly requested: nothing is rewritten.
+      expect(currentLocation()).toBe(`${RANKING_PATH}?year=${DEEP_YEAR}`);
+    });
+
+    it("does not write the default year into the URL on load", async () => {
+      mockApi(mocks());
+      renderWithProviders(<GamesRankingView />, { route: RANKING_PATH });
+      expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(RANKING_PATH);
+    });
+
+    it("pushes the year on an older click and Back restores the previous year and its request", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi(mocks());
+      renderWithProviders(
+        <>
+          <GamesRankingView />
+          <HistoryControls />
+        </>,
+        { route: RANKING_PATH },
+      );
+      expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+
+      await user.click(within(topNavigator()).getByRole("button", { name: "Previous year" }));
+      expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(`${RANKING_PATH}?year=${DEEP_YEAR}`);
+
+      await user.click(within(bottomNavigator()).getByRole("button", { name: "Next year" }));
+      expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(`${RANKING_PATH}?year=${TEST_YEAR}`);
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(`${RANKING_PATH}?year=${DEEP_YEAR}`);
+      expect(gamesUrls(calls).at(-1)).toBe(rankingUrl(DEEP_YEAR));
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(RANKING_PATH);
+      expect(gamesUrls(calls).at(-1)).toBe(rankingUrl(TEST_YEAR));
+    });
+
+    it("pushes the year chosen in the select", async () => {
+      const user = userEvent.setup();
+      mockApi(mocks());
+      renderWithProviders(<GamesRankingView />, { route: RANKING_PATH });
+      await screen.findByRole("heading", { name: "Fresh Release" });
+
+      await user.click(within(topNavigator()).getByRole("combobox", { name: "Year" }));
+      await user.click(await screen.findByRole("option", { name: String(DEEP_YEAR) }));
+
+      expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(`${RANKING_PATH}?year=${DEEP_YEAR}`);
+    });
+
+    it("falls back to the current year for a junk year", async () => {
+      const calls = mockApi(mocks());
+      renderWithProviders(<GamesRankingView />, { route: `${RANKING_PATH}?year=abc` });
+
+      expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toEqual([rankingUrl(TEST_YEAR)]);
+    });
+
+    it("never requests a year outside the release-year range", async () => {
+      const calls = mockApi(mocks());
+      renderWithProviders(<GamesRankingView />, { route: `${RANKING_PATH}?year=12` });
+
+      expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toEqual([rankingUrl(TEST_YEAR)]);
+    });
+
+    it("falls back to the nearest offered year for a year that is not offered", async () => {
+      const calls = mockApi(mocks());
+      renderWithProviders(<GamesRankingView />, { route: `${RANKING_PATH}?year=2019` });
+
+      await waitFor(() =>
+        expect(within(topNavigator()).getByRole("combobox", { name: "Year" })).toHaveTextContent(String(DEEP_YEAR)),
+      );
+      expect(await screen.findByRole("heading", { name: "Old Favorite" })).toBeInTheDocument();
+      expect(gamesUrls(calls).at(-1)).toBe(rankingUrl(DEEP_YEAR));
+      expect(currentLocation()).toBe(`${RANKING_PATH}?year=2019`);
+    });
   });
 });

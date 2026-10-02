@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router";
 import "./i18n"; // initialises translations before the first render
 import { App } from "./App";
 import { AppProviders } from "./AppProviders";
@@ -11,8 +12,10 @@ if (!container) {
 
 createRoot(container).render(
   <StrictMode>
-    <AppProviders>
-      <App />
-    </AppProviders>
+    <BrowserRouter>
+      <AppProviders>
+        <App />
+      </AppProviders>
+    </BrowserRouter>
   </StrictMode>,
 );

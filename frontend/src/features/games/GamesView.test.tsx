@@ -1,10 +1,13 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useNavigate } from "react-router";
 import { describe, expect, it } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
+import { currentLocation } from "../../test/currentLocation";
 import { flushAsync } from "../../test/flushAsync";
+import { HistoryControls } from "../../test/HistoryControls";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { GamesView } from "./GamesView";
@@ -438,7 +441,7 @@ describe("GamesView", () => {
     await user.click(screen.getByRole("option", { name: "PC" }));
 
     await waitFor(() =>
-      expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`),
+      expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=${pc.id}`),
     );
   });
 
@@ -461,7 +464,7 @@ describe("GamesView", () => {
     await waitFor(() => expect(screen.queryByRole("listbox")).not.toBeInTheDocument());
 
     await waitFor(() =>
-      expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`),
+      expect(gamesUrls(calls)).toContain(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=${pc.id}`),
     );
 
     await user.click(screen.getByRole("button", { name: "Clear Platform" }));
@@ -490,7 +493,7 @@ describe("GamesView", () => {
 
     await waitFor(() =>
       expect(gamesUrls(calls)).toContain(
-        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-nintendo&platformIds=platform-pc`,
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=${nintendo.id}&platformIds=${pc.id}`,
       ),
     );
   });
@@ -521,7 +524,7 @@ describe("GamesView", () => {
       expect(gamesUrls(calls)).toEqual([
         `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
         `/api/games?page=2&pageSize=${GAMES_PAGE_SIZE}`,
-        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=platform-pc`,
+        `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&platformIds=${pc.id}`,
       ]),
     );
   });
@@ -545,5 +548,282 @@ describe("GamesView", () => {
 
     expect(await screen.findByText("No games match the selected filters.")).toBeInTheDocument();
     expect(screen.queryByText(/No games yet/)).not.toBeInTheDocument();
+  });
+
+  describe("URL state", () => {
+    const OVERVIEW_PATH = "/games/overview";
+    const twoPages = (_call: unknown, url: URL) => {
+      const page = Number(url.searchParams.get("page"));
+      return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE + 1));
+    };
+    /** A link-like external navigation: pushes `to` onto the history. */
+    function GoTo({ to }: { to: string }) {
+      const navigate = useNavigate();
+      return <button onClick={() => void navigate(to)}>Go to {to}</button>;
+    }
+    const lastGamesUrl = (calls: { url: string }[]) => new URL(gamesUrls(calls).at(-1)!, "http://localhost");
+    const waitForPlatformSelect = () =>
+      waitFor(() => expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"));
+
+    it("loads the state of a deep link and shows the filters as selected", async () => {
+      const calls = mockApi({
+        "GET /api/games": twoPages,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(<GamesView />, {
+        route: `${OVERVIEW_PATH}?search=zelda&platform=${pc.id}&ownership=owned&progress=playing&year=2017&page=2`,
+      });
+
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toHaveLength(1);
+      const query = new URL(gamesUrls(calls)[0], "http://localhost").searchParams;
+      expect(Object.fromEntries(query)).toEqual({
+        page: "2",
+        pageSize: String(GAMES_PAGE_SIZE),
+        search: "zelda",
+        platformIds: pc.id,
+        ownership: "owned",
+        progress: "playing",
+        releaseYear: "2017",
+      });
+      expect(screen.getByRole("searchbox", { name: "Search games" })).toHaveValue("zelda");
+      await waitFor(() => expect(screen.getByRole("combobox", { name: "Platform" })).toHaveTextContent("PC"));
+      expect(screen.getByRole("combobox", { name: "Ownership" })).toHaveTextContent("Owned");
+      expect(screen.getByRole("combobox", { name: "Progress" })).toHaveTextContent("Playing");
+      expect(screen.getByRole("combobox", { name: "Release year" })).toHaveTextContent("2017");
+    });
+
+    it("replaces the URL with the debounced search and drops the page", async () => {
+      const user = userEvent.setup();
+      mockApi({
+        "GET /api/games": twoPages,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(
+        <>
+          <GamesView searchDebounceMs={300} />
+          <HistoryControls />
+          <GoTo to={`${OVERVIEW_PATH}?page=2`} />
+        </>,
+        { route: OVERVIEW_PATH },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+      await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));
+      await screen.findByRole("heading", { name: "Hades" });
+
+      await user.click(screen.getByRole("searchbox", { name: "Search games" }));
+      await user.paste("hades");
+      // Positive control: the URL is untouched while the debounce is pending, and changes once it has passed.
+      expect(currentLocation()).toBe(`${OVERVIEW_PATH}?page=2`);
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?search=hades`));
+
+      // Replaced, not pushed: Back skips straight to the entry before the page-2 one.
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(OVERVIEW_PATH);
+    });
+
+    it("updates the URL and drops the page when a filter changes", async () => {
+      const user = userEvent.setup();
+      mockApi({
+        "GET /api/games": twoPages,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(<GamesView />, { route: `${OVERVIEW_PATH}?page=2` });
+      await screen.findByRole("heading", { name: "Hades" });
+
+      await waitForPlatformSelect();
+      await user.click(screen.getByRole("combobox", { name: "Platform" }));
+      await user.click(screen.getByRole("option", { name: "PC" }));
+
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?platform=${pc.id}`));
+    });
+
+    it("pushes a history entry on a page change and Back returns to the previous page", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi({
+        "GET /api/games": twoPages,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(
+        <>
+          <GamesView />
+          <HistoryControls />
+        </>,
+        { route: OVERVIEW_PATH },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+
+      await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(`${OVERVIEW_PATH}?page=2`);
+      expect(lastGamesUrl(calls).searchParams.get("page")).toBe("2");
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+      expect(currentLocation()).toBe(OVERVIEW_PATH);
+      expect(gamesUrls(calls).at(-1)).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`);
+    });
+
+    it("re-syncs the search box when the URL search changes from outside", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi({
+        "GET /api/games": searchAwareGames,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      const target = `${OVERVIEW_PATH}?search=hades`;
+      renderWithProviders(
+        <>
+          <GamesView searchDebounceMs={100} />
+          <HistoryControls />
+          <GoTo to={target} />
+        </>,
+        { route: `${OVERVIEW_PATH}?search=celeste` },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+      const search = screen.getByRole("searchbox", { name: "Search games" });
+      expect(search).toHaveValue("celeste");
+
+      await user.click(screen.getByRole("button", { name: `Go to ${target}` }));
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      expect(search).toHaveValue("hades");
+      // Wait out the 100ms debounce so a stale write-back would have happened by now.
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      });
+      expect(currentLocation()).toBe(target); // no write-back of the stale debounced value
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+      expect(search).toHaveValue("celeste");
+      expect(currentLocation()).toBe(`${OVERVIEW_PATH}?search=celeste`);
+      expect(gamesUrls(calls).at(-1)).toContain("search=celeste");
+    });
+
+    it("keeps the search of a Forward entry reached within the debounce after Back", async () => {
+      const user = userEvent.setup();
+      mockApi({
+        "GET /api/games": searchAwareGames,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      const target = `${OVERVIEW_PATH}?search=hades`;
+      renderWithProviders(
+        <>
+          <GamesView searchDebounceMs={100} />
+          <HistoryControls />
+          <GoTo to={target} />
+        </>,
+        { route: OVERVIEW_PATH },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+      const search = screen.getByRole("searchbox", { name: "Search games" });
+      const waitPastDebounce = () =>
+        act(async () => {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        });
+
+      await user.click(screen.getByRole("button", { name: `Go to ${target}` }));
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      await waitPastDebounce(); // the debounced value is now "hades"
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+      expect(search).toHaveValue(""); // positive control: Back reset the box
+      await user.click(screen.getByRole("button", { name: "Forward" }));
+      expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+      expect(search).toHaveValue("hades");
+
+      await waitPastDebounce();
+      expect(currentLocation()).toBe(target); // not stripped by a stale write of ""
+      expect(search).toHaveValue("hades");
+    });
+
+    it("keeps the page-2 history entry when Back shows stale empty data of a filter without results", async () => {
+      const user = userEvent.setup();
+      const threePages = (_call: unknown, url: URL) => {
+        const page = Number(url.searchParams.get("page"));
+        if (url.searchParams.has("platformIds")) return jsonResponse(pageOf([], 1, 0));
+        return jsonResponse(pageOf(page === 1 ? games : [games[1]], page, GAMES_PAGE_SIZE * 2 + 1));
+      };
+      const calls = mockApi({
+        "GET /api/games": threePages,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(
+        <>
+          <GamesView />
+          <HistoryControls />
+        </>,
+        { route: OVERVIEW_PATH },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+      await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?page=2`));
+      await user.click(screen.getAllByRole("button", { name: "Go to page 3" })[0]);
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?page=3`));
+      await waitForPlatformSelect();
+      await user.click(screen.getByRole("combobox", { name: "Platform" }));
+      await user.click(screen.getByRole("option", { name: "PC" }));
+      await user.keyboard("{Escape}");
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?platform=${pc.id}`));
+      // Positive control: the empty filter result has arrived.
+      await waitFor(() => expect(screen.queryByRole("heading", { name: "Hades" })).not.toBeInTheDocument());
+      await flushAsync();
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      await waitFor(() => expect(gamesUrls(calls).at(-1)).toContain("page=2"));
+      await flushAsync();
+      expect(currentLocation()).toBe(`${OVERVIEW_PATH}?page=2`);
+    });
+
+    it("writes a search typed again after Back, although the debounced value is still the old one", async () => {
+      const user = userEvent.setup();
+      mockApi({
+        "GET /api/games": searchAwareGames,
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(
+        <>
+          <GamesView searchDebounceMs={300} />
+          <HistoryControls />
+          <GoTo to={`${OVERVIEW_PATH}?page=2`} />
+        </>,
+        { route: OVERVIEW_PATH },
+      );
+      await screen.findByRole("heading", { name: "Celeste" });
+      await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));
+      const search = screen.getByRole("searchbox", { name: "Search games" });
+      await user.click(search);
+      await user.paste("hades");
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?search=hades`));
+
+      await user.click(screen.getByRole("button", { name: "Back" }));
+      await waitFor(() => expect(search).toHaveValue(""));
+      expect(currentLocation()).toBe(OVERVIEW_PATH);
+
+      // Still inside the debounce window of the reset: the debounced value is the stale "hades".
+      await user.click(search);
+      await user.paste("hades");
+      await waitFor(() => expect(currentLocation()).toBe(`${OVERVIEW_PATH}?search=hades`));
+    });
+
+    it("ignores junk params", async () => {
+      const calls = mockApi({
+        "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
+        "GET /api/game-platforms": mockPlatforms,
+        "GET /api/games.meta": mockMeta,
+      });
+      renderWithProviders(<GamesView />, { route: `${OVERVIEW_PATH}?page=-3&ownership=foo&year=abc` });
+      expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
+      expect(gamesUrls(calls)).toEqual([`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`]);
+    });
   });
 });

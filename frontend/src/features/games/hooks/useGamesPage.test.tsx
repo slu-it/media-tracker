@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
 import { flushAsync } from "../../../test/flushAsync";
+import { pc, xbox } from "../../../test/fixtures/games";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import type { GameSort } from "../../../types/api";
 import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
@@ -140,7 +141,7 @@ describe("useGamesPage", () => {
     await waitFor(() => expect(calls).toHaveLength(1));
 
     const filters: GameFilters = {
-      platformIds: ["platform-pc", "platform-xbox"],
+      platformIds: [pc.id, xbox.id],
       ownership: ["owned"],
       progress: [],
       releaseYears: [2018],
@@ -148,7 +149,7 @@ describe("useGamesPage", () => {
     rerender({ filters });
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1].url).toBe(
-      "/api/games?page=1&pageSize=50&platformIds=platform-pc&platformIds=platform-xbox&ownership=owned&releaseYear=2018",
+      `/api/games?page=1&pageSize=50&platformIds=${pc.id}&platformIds=${xbox.id}&ownership=owned&releaseYear=2018`,
     );
   });
 

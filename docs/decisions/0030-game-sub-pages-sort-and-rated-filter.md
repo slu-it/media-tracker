@@ -41,7 +41,8 @@ leave unrated games out. The app has no router, and the media tab is a localStor
 - A new ordering is one more `GameSort` entry: the REST parsing and the MCP schema follow from the enum.
 - A year with thousands of rated games would need several requests. That is acceptable for a personal
   collection.
-- Deep links to a sub-page do not exist. They would come with a router.
+- Deep links to a sub-page do not exist. They would come with a router. (Superseded by record 0031: sub-pages
+  are routes now.)
 
 ## Alternatives considered
 

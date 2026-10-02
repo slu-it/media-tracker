@@ -40,10 +40,17 @@ describe("apiFetch", () => {
     expect(errorMessage(new Error("boom"), "fallback")).toBe("fallback");
   });
 
-  it("sends the browser to the login page on 401 and never resolves", async () => {
+  it.each([
+    { pathname: "/games/watchlist", search: "?q=a b", expected: "/login?returnTo=%2Fgames%2Fwatchlist%3Fq%3Da%20b" },
+    { pathname: "/games/overview", search: "", expected: "/login?returnTo=%2Fgames%2Foverview" },
+    { pathname: "/", search: "", expected: "/login" },
+  ])("sends the browser to the login page on 401 and never resolves ($pathname$search)", async (loc) => {
     mockApi({ "GET /api/thing": () => jsonResponse({ error: "unauthorized" }, 401) });
     const assign = vi.fn();
-    Object.defineProperty(window, "location", { value: { ...window.location, assign }, writable: true });
+    Object.defineProperty(window, "location", {
+      value: { ...window.location, pathname: loc.pathname, search: loc.search, assign },
+      writable: true,
+    });
 
     const promise = apiFetch("/api/thing");
     let settled = false;
@@ -54,7 +61,7 @@ describe("apiFetch", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(settled).toBe(false);
-    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith("/login"));
+    await vi.waitFor(() => expect(assign).toHaveBeenCalledWith(loc.expected));
   });
 
   it("rejects with the fetch error on network failure", async () => {

@@ -31,7 +31,7 @@ describe("usePagedGameActions", () => {
 
     expect(setSelected).toHaveBeenCalledWith(null);
     expect(reloadMeta).toHaveBeenCalledTimes(1);
-    expect(setPage).toHaveBeenCalledWith(1);
+    expect(setPage).toHaveBeenCalledWith(1, { replace: true });
     expect(reload).not.toHaveBeenCalled();
   });
 
@@ -98,7 +98,7 @@ describe("usePagedGameActions", () => {
     // back empty for the still-current page 2.
     rerender({ data: pageOf([], 2, 1) });
 
-    expect(setPage).toHaveBeenCalledWith(1);
+    expect(setPage).toHaveBeenCalledWith(1, { replace: true });
   });
 
   it("does not step back when already on page 1", () => {
@@ -108,6 +108,23 @@ describe("usePagedGameActions", () => {
         data: pageOf([], 1, 0),
         loading: false,
         page: 1,
+        setPage,
+        reload: vi.fn(),
+        reloadMeta: vi.fn(),
+        setSelected: vi.fn(),
+      }),
+    );
+
+    expect(setPage).not.toHaveBeenCalled();
+  });
+
+  it("does not step back when loading is false but the data belongs to another page (failed request)", () => {
+    const setPage = vi.fn();
+    renderHook(() =>
+      usePagedGameActions({
+        data: pageOf([], 1, 1),
+        loading: false,
+        page: 3,
         setPage,
         reload: vi.fn(),
         reloadMeta: vi.fn(),

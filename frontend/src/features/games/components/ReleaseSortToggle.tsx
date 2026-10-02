@@ -1,10 +1,10 @@
 import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import type { GameSort } from "../../../types/api";
+import type { WatchlistSort } from "../domain/gameViewParams";
 
 interface ReleaseSortToggleProps {
-  value: GameSort;
-  onChange: (value: GameSort) => void;
+  value: WatchlistSort;
+  onChange: (value: WatchlistSort) => void;
   disabled?: boolean;
   /** Stretches to the width of the grid cell it sits in, splitting it evenly between the two buttons. */
   fullWidth?: boolean;
@@ -27,7 +27,7 @@ export function ReleaseSortToggle({ value, onChange, disabled, fullWidth }: Rele
       value={value}
       disabled={disabled}
       aria-label={t("games.sort.label")}
-      onChange={(_event, next: GameSort | null) => {
+      onChange={(_event, next: WatchlistSort | null) => {
         if (next !== null) onChange(next);
       }}
       // Matches GameFilterBar's small TextFields (40px), so the row above the grid is one height.

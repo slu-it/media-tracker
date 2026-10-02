@@ -7,10 +7,11 @@ compiled React single-page app. It runs on a Raspberry Pi and talks to the centr
 ## Request flow
 
 ```
-Browser ──GET /────────────▶ Ktor ── no valid session ──▶ 302 /login
+Browser ──GET /games/watchlist?…▶ Ktor ── no valid session ──▶ 302 /login?returnTo=%2Fgames%2Fwatchlist%3F…
         ◀─ login.html ─────  (public tier: /login, /login/static/*, /health)
-        ──POST /login──────▶ AuthService.login ─▶ Argon2id verify ─▶ sessions row ─▶ Set-Cookie MT_SESSION=<signed id>
-        ──GET / (+cookie)──▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
+        ──POST /login?returnTo=…▶ AuthService.login ─▶ Argon2id verify ─▶ sessions row ─▶ Set-Cookie MT_SESSION=<signed id>
+                                 ─▶ 302 to safeReturnPath(returnTo), else /
+        ──GET /games/watchlist?… (+cookie)▶ DbSessionStorage.read ─▶ UserSession principal ─▶ app/index.html
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
         ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MariaDB
         ──GET /api/games/cover-options, /title-suggestions▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
@@ -27,7 +28,8 @@ Three tiers share one port:
 | MCP | `POST /mcp` (Model Context Protocol, stateless Streamable HTTP) | `X-API-Key: <key>` header, or `Authorization: Bearer <key>` |
 
 Unauthenticated requests to `/api/**` and `/mcp` get a JSON `401`; unauthenticated browser navigation is redirected
-to `/login`. Both providers live in `auth/api/Security.kt`; `authenticate(name)` only consults the provider named
+to `/login?returnTo=<the requested path and query>`. After the login it lands there, if `safeReturnPath` accepts
+the target (record 0031). Both providers live in `auth/api/Security.kt`; `authenticate(name)` only consults the provider named
 on that route, so a session cookie never opens `/mcp` and an API key never opens `/api/**` or the SPA.
 
 ## Sessions
@@ -205,15 +207,18 @@ results with `isError: true` and the domain message, not as HTTP errors.
 
 ```
 frontend/src
-├── main.tsx / App.tsx / AppProviders.tsx   i18n init, theme + CssBaseline, MUI X LocalizationProvider (dayjs,
-│                                           de/en), shell (AppHeader, MediaTabs, SubPageTabs, active view)
+├── main.tsx / App.tsx / AppProviders.tsx   BrowserRouter (main.tsx), i18n init, theme + CssBaseline, MUI X
+│                                           LocalizationProvider (dayjs, de/en), shell (AppHeader, MediaTabs,
+│                                           SubPageTabs, <Routes> with the redirects)
+├── routes.ts             paths derived from MEDIA_KINDS / MEDIA_SUB_PAGES, last-used route in localStorage
+│                         (mt.mediaTab, mt.gamesPage) for the / and /{kind} redirects (record 0031)
 ├── theme/                MUI theme: login-page palette, system font stack; light/dark from the header
 │                         toggle (mode.ts: localStorage key mt.mode, default "system" = OS preference)
 ├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
-├── api/client.ts         apiFetch (401 -> /login, 204 -> undefined, ApiError with the parsed ErrorResponse)
+├── api/client.ts         apiFetch (401 -> /login?returnTo=<current location>, 204 -> undefined, ApiError with the
+│                         parsed ErrorResponse)
 ├── types/api.ts          hand-written mirrors of the backend DTOs
-├── hooks/                useLocalStorageState, useStoredChoice (a validated stored choice), useStoredTab (selected
-│                         media tab), useGamesSubPage (mt.gamesPage), useDebouncedValue (search fields)
+├── hooks/                useActiveRoute (kind + sub-page of the location), useDebouncedValue (search fields)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
@@ -231,10 +236,11 @@ frontend/src
                           GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,
                           ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
                           games.meta, cover-options, title-suggestions;
-                          expansionsApi), hooks/ (useGamesPage, useAllGames, usePagedGameActions, useGamesMeta, useExpansions, useCoverOptions,
+                          expansionsApi), hooks/ (useGamesPage, useAllGames, usePagedGameActions, useUrlSearchInput, useViewParams, useGamesMeta, useExpansions, useCoverOptions,
                           useTitleSuggestions, useDeveloperSuggestions), domain/ (gameValues validators,
                           SEARCH_DEBOUNCE_MS, gameDraft, developerDraft, releaseDate: fixed YYYY-MM-DD
-                          format, expansionDraft, gameFilters: the selection and its stable key, gameStatus:
+                          format, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
+                          URL query codecs of the three views, gameStatus:
                           ownership/progress values and defaults, rankingYears: the ranking's year list),
                           components/ (grid with renderCard, GameCardShell + GameCard/WatchlistGameCard/
                           RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
@@ -253,9 +259,12 @@ Beyond React, MUI and i18next, the frontend has two runtime dependencies:
 - @dnd-kit (`core`, `sortable`, `utilities`) drags the expansion cards, and the reorder test drives its keyboard
   sensor (decision record 0023).
 - `@mui/x-date-pickers` with `dayjs` renders the release date picker (decision record 0029).
+- `react-router` (declarative mode) maps the paths to views and keeps the view state in the query (decision
+  record 0031).
 
-Browser state: `localStorage["mt.language"]` (`en`/`de`) and `localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/
-`series`). The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,
+Browser state: the URL (route and view query, record 0031), `localStorage["mt.language"]` (`en`/`de`), and
+`localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/`series`) plus `["mt.gamesPage"]`, the last-used route
+read only by the `/` and `/games` redirects. The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,
 and any later 401 redirects to the login page. Decision record 0008 covers the UI stack.
 
 ## Build pipeline

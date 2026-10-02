@@ -54,4 +54,24 @@ class RoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, unknownApi.status)
         assertContains(unknownApi.bodyAsText(), "\"error\":\"unauthorized\"")
     }
+
+    @Test
+    fun `anonymous root is redirected to plain login`() = testApplication {
+        val client = handlerApp()
+
+        val response = client.get("/")
+        assertEquals(HttpStatusCode.Found, response.status)
+        assertEquals("/login", response.headers["Location"])
+    }
+
+    @Test
+    fun `deep link with a query string serves the spa to a logged in user`() = testApplication {
+        val auth = mockk<AuthService>()
+        val client = handlerApp(auth = auth)
+        client.loginAsMocked(auth)
+
+        val response = client.get("/games/watchlist?search=x")
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertContains(response.bodyAsText(), "<div id=\"root\">")
+    }
 }

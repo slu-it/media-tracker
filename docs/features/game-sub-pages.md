@@ -6,7 +6,7 @@ Code:
 - Backend: `games/domain/GameSort.kt`, `GameFilters.ratedOnly`, `ExposedGameRepository.orderingFor`,
   `games/api/GameFilterParams.kt`.
 - Frontend: `components/layout/SubPageTabs.tsx`, `MEDIA_SUB_PAGES` in `components/layout/mediaKinds.ts`,
-  `hooks/useStoredChoice.ts`, `hooks/useGamesSubPage.ts`, `features/games/GamesWatchlistView.tsx`,
+  `src/routes.ts`, `features/games/GamesWatchlistView.tsx`,
   `features/games/GamesRankingView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
   `features/games/components/GameCardShell.tsx` and `features/games/hooks/usePagedGameActions.tsx`.
 
@@ -16,9 +16,9 @@ Code:
   which today is games only (`overview`, `watchlist`, `ranking`). Each tab has a decorative start icon
   (`GridViewOutlined`, `LibraryAddOutlined` like the watchlist status icon, `LeaderboardOutlined`), mapped in
   `App.tsx` and passed to `SubPageTabs` as `getIcon`.
-- The chosen sub-page is stored in localStorage under `mt.gamesPage` through the generic `useStoredChoice`,
-  which also backs `useStoredTab`. An unknown stored value falls back to `overview`. There is no router, so a
-  sub-page has no URL of its own.
+- Each sub-page is a route, `/games/{overview|watchlist|ranking}`, with its search, filters, sort, page or
+  year in the query ([url-routes.md](url-routes.md), ADR 0031). The last-used sub-page is still stored under
+  `mt.gamesPage`, and `/games` redirects there. An unknown stored value falls back to `overview`.
 - Every sub-page renders `GameDialogsHost`: the FAB, the add dialog and the detail dialog, including editing,
   deleting and expansions. The page owns the selected game and reloads its list and `/api/games.meta` after a
   create, an update or a delete.
@@ -37,7 +37,7 @@ Code:
   first" (`release_desc`), and it cannot be deselected.
 - Paging and the results bar work as on the overview: `GAMES_PAGE_SIZE`, the count and the
   top `PaginationBar` in the header's results bar, and a second `PaginationBar` below the grid. A change of the
-  search, the filter or the sort returns to page 1.
+  search, the filter or the sort returns to page 1 (it drops `page` from the URL).
 - `usePagedGameActions` (shared with the overview) reloads after a create, an update or a delete. When a reload
   leaves a later page empty, it steps back to the last page. On the watchlist this happens, for example, when
   the only game on the last page is set to owned.

@@ -13,6 +13,7 @@ import io.ktor.server.auth.session
 import io.ktor.server.request.ApplicationRequest
 import io.ktor.server.request.header
 import io.ktor.server.request.path
+import io.ktor.server.request.uri
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondRedirect
@@ -48,7 +49,9 @@ fun Application.configureSecurity(apiKeyService: ApiKeyService) {
                 if (call.request.path().startsWith("/api/")) {
                     call.respond(HttpStatusCode.Unauthorized, ErrorResponse("unauthorized"))
                 } else {
-                    call.respondRedirect("/login")
+                    val uri = call.request.uri
+                    val target = safeReturnPath(uri)?.takeIf { it != "/" }
+                    call.respondRedirect(loginUrl(target))
                 }
             }
         }

@@ -34,7 +34,8 @@ English and German from the start.
   compose fields; parents derive validity with `isDraftValid`.
 - **No router, no data library.** Tabs are app state persisted in `localStorage["mt.mediaTab"]`; one small hook per
   list (`useGamesPage`) on top of `apiFetch`, which now resolves `undefined` for 204 and carries the parsed
-  `ErrorResponse` on `ApiError.body`.
+  `ErrorResponse` on `ApiError.body`. (The no-router part is superseded by record 0031: React Router maps the
+  paths, and the stored tab only feeds the `/` redirect.)
 - **Tests**: Vitest + Testing Library + `@testing-library/user-event`, MUI rendered for real in jsdom
   (`test/renderWithProviders.tsx`), `fetch` replaced by a small router (`test/mockFetch.ts`). Dialogs render in
   portals, so tests query through `screen`; MUI selects are opened with `user.click` on the combobox. Coverage

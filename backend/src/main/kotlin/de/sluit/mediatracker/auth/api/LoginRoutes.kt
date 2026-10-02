@@ -30,7 +30,7 @@ fun Route.loginRoutes(authService: AuthService) {
     route("/login") {
         get {
             if (call.sessions.get<UserSession>() != null) {
-                call.respondRedirect("/")
+                call.respondRedirect(safeReturnPath(call.request.queryParameters[RETURN_TO_PARAM]) ?: "/")
                 return@get
             }
             val showError = call.request.queryParameters["error"] != null
@@ -39,19 +39,20 @@ fun Route.loginRoutes(authService: AuthService) {
         }
 
         post {
+            val returnTo = safeReturnPath(call.request.queryParameters[RETURN_TO_PARAM])
             val params = call.receiveParameters()
             val username = params["username"].orEmpty()
             val password = params["password"].orEmpty().toCharArray()
             if (username.isBlank() || password.isEmpty()) {
-                call.respondRedirect("/login?error=1")
+                call.respondRedirect(loginUrl(returnTo, error = true))
                 return@post
             }
             val user = authService.login(username, password)
             if (user == null) {
-                call.respondRedirect("/login?error=1")
+                call.respondRedirect(loginUrl(returnTo, error = true))
             } else {
                 call.sessions.set(UserSession(user.id, user.username))
-                call.respondRedirect("/")
+                call.respondRedirect(returnTo ?: "/")
             }
         }
     }

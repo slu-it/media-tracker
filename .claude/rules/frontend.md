@@ -19,9 +19,17 @@ ADR 0008 for the stack, ADR 0020 for the theme toggle. Feature layout `src/featu
 - **react-refresh / react-hooks**: hooks, constants and validators live in non-component files;
   `set-state-in-effect` is an error, so derive resets from state (pair the stored value with the inputs it was
   chosen for) instead of syncing in an effect.
+- **Routes and view state** (ADR 0031, `docs/features/url-routes.md`): paths come from `src/routes.ts`, which
+  derives them from `MEDIA_KINDS`/`MEDIA_SUB_PAGES`; never write a path literal. A view's state (search,
+  filters, sort, page, year) lives in its URL codec in `features/<kind>/domain/` (`gameViewParams.ts`), not in
+  `useState`. A view that updates part of its query writes through `useViewParams`, which merges writes within
+  one commit; a raw functional `setSearchParams` loses one of two same-commit writes. The ranking replaces its
+  whole query, so it uses `setSearchParams` directly. The codec drops anything the backend would answer with 400. Push for navigation (tabs, page,
+  year). Replace and drop `page` for refinements (search, filters, sort). Automatic corrections replace too
+  (`setPage(page, { replace: true })`).
 - **Validation**: backend value class rules are mirrored as validators in `features/<kind>/domain/` returning
   i18n codes, wrapped in self-validating field components under `features/<kind>/components/fields/`.
-- **API**: `src/api/client.ts` (`apiFetch`) redirects to `/login` on 401, resolves `undefined` for 204 and
+- **API**: `src/api/client.ts` (`apiFetch`) redirects to `/login?returnTo=<current location>` on 401, resolves `undefined` for 204 and
   throws `ApiError` (with the parsed `ErrorResponse` as `body`) on other non-2xx. `src/types/api.ts` mirrors the
   backend DTOs by hand; change both together. Page sizes come from the feature constant
   (`GAMES_PAGE_SIZE` = 36 in `games/domain/gameValues.ts`), never a literal.
