@@ -12,11 +12,14 @@ table as in ADR 0009).
   the defaults; the columns declare none (see `.claude/rules/schema-migrations.md`).
 - Set on create and edit, shown as icons after the title in the detail dialog (all of them) and on the grid and
   expansion cards (`GameStatusIcons variant="card"`: ownership icon only for watchlist games, progress icon only
-  for owned ones, hidden icon either way). Ownership and progress icons also prefix the options of their filters
-  (`components/OptionIconSlot.tsx`; the maps live in `components/ownershipIcons.ts` and `progressIcons.ts`). The
+  for owned ones, hidden icon either way). The overview filters ownership and progress through toggle buttons with
+  the same icons (`StatusFilterToggles`, see [game-search-and-filters.md](game-search-and-filters.md); the maps
+  live in `components/ownershipIcons.ts` and `progressIcons.ts`). The
   fields do not affect search, listing or paging; `ownership` and `progress` became filterable with MT-011.
 - Progress is picked with `ProgressToggleBar` everywhere (there is no progress dropdown): six small exclusive
-  icon buttons in `PROGRESS_VALUES` order, labels only as tooltip / accessible name.
+  icon buttons in `PROGRESS_VALUES` order, labels only as tooltip / accessible name. It wraps the generic
+  `StatusToggleBar`, whose `multiple` mode backs the overview's progress and ownership filters. Pressed buttons
+  show their icon in the theme's primary colour (`color="primary"`), like the selected page button.
   - Game view, add and edit dialogs: in the cover column, order Rating → Ownership → Progress, each block 16px
     below the previous one (`CoverAndInfoLayout`'s cover gap; it was twice that until all three blocks existed
     and the owner found the gaps too big). All three carry the same small legend

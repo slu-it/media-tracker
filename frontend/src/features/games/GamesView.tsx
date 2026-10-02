@@ -6,6 +6,7 @@ import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GameFilterBar } from "./components/GameFilterBar";
 import { GameSearchField } from "./components/GameSearchField";
 import { GamesGrid } from "./components/GamesGrid";
+import { StatusFilterToggles } from "./components/StatusFilterToggles";
 import { GamesViewHeader } from "./components/GamesViewHeader";
 import { SECTION_GAP } from "./components/gamesLayout";
 import { hasActiveFilters, type GameFilters } from "./domain/gameFilters";
@@ -72,7 +73,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
     <Box sx={{ pb: 12 }}>
       <GamesViewHeader
         controls={<GameFilterBar filters={filters} onChange={setFilters} meta={meta} />}
-        controlsLayout="fill"
+        controlsLayout="half"
         search={
           <GameSearchField
             value={searchInput}
@@ -83,6 +84,12 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
           />
         }
         count={data?.totalItems ?? null}
+        facts={
+          // Shown at a count of 0 only when a status filter is active, so there is something to undo.
+          data?.totalItems !== 0 || filters.progress.length > 0 || filters.ownership.length > 0 ? (
+            <StatusFilterToggles filters={filters} onChange={setFilters} meta={meta} />
+          ) : undefined
+        }
         pagination={topPagination}
       />
       {error && (

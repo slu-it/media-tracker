@@ -22,14 +22,31 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
   three filterable `games` columns.
 - `GET /api/games.meta` returns the values to offer, and only those that occur in a stored game; `.meta` is the
   convention for a resource's lookup data. Release years are listed newest first (MT-014).
-- Frontend: `components/GameFilterBar.tsx` with four `-all-` multi-selects fed by `hooks/useGamesMeta.ts`
-  (MT-012 resized them and set the page size to 36). Each select with a selection shows a × end adornment
-  that resets it to `-all-` and returns focus to the select; MUI `Select` has no built-in clear. `GamesView` derives the page-1 reset from state (the stored
-  page is paired with the search term and the filter key it was chosen for) instead of an effect, because the
-  react-hooks preset makes `set-state-in-effect` an error.
-- The progress filter's menu items show the status icon before the label (map in
-  `components/progressIcons.ts`, shared with `GameStatusIcons`); a value without an icon would keep an empty
-  slot so labels stay aligned. `FilterSelect` takes an optional `getOptionIcon` for this.
+- Frontend, overview:
+  - Platform and release year are `-all-` multi-selects in `components/GameFilterBar.tsx`, fed by
+    `hooks/useGamesMeta.ts`. MT-012 resized them and set the page size to 36. They sit in the two-column
+    `controlsLayout="half"` row under the search.
+  - Each select with a selection shows a × end adornment that resets it to `-all-` and returns focus to the
+    select. MUI `Select` has no built-in clear.
+  - A filter change replaces the URL entry and drops `page` ([url-routes.md](url-routes.md)).
+- Progress and ownership are icon toggle groups in the results row, right after the count chip
+  (`components/StatusFilterToggles.tsx`):
+  - Two `StatusToggleBar`s in `multiple` mode, with all six progress and both ownership values in
+    `PROGRESS_VALUES` / `OWNERSHIP_VALUES` order.
+  - The icons come from `PROGRESS_ICONS` / `OWNERSHIP_ICONS`, the same as the cards and dialogs. The labels
+    are tooltips and accessible names.
+  - None pressed means no filter. Pressing several ORs within the group, as the selects did.
+  - A value that does not occur in `/api/games.meta` is dimmed (`data-dimmed`, opacity 0.5) but stays
+    clickable, so a deep-linked value can be undone.
+    - Its tooltip and `aria-description` add "No games", so the state does not rest on opacity alone.
+    - A pressed button is never dimmed, so pressed always reads as pressed.
+    - Nothing is dimmed while the meta loads.
+  - Each button is its own tab stop (MUI `ToggleButtonGroup` has no arrow-key roving), so eight stops sit
+    between the selects and the pagination. This is accepted for now.
+  - The buttons are 32px square, the height of the count chip and the page buttons.
+  - `StatusToggleBar` is the generic bar behind the dialogs' `ProgressToggleBar` too (single mode: exactly
+    one value).
+  - The watchlist keeps its platform `FilterSelect`, and the dialogs keep `OwnershipSwitch`.
 - The MCP tool `search_games` takes the same filters, and its `query` is optional.
 
 ## Agent-only extras on `search_games` (MT-013)

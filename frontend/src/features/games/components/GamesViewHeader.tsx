@@ -3,14 +3,14 @@ import { Box, Divider, Stack } from "@mui/material";
 import { GameResultsBar } from "./GameResultsBar";
 import { HALF_ROW_WIDTH, SECTION_GAP } from "./gamesLayout";
 
-type ControlsLayout = "fill" | "half" | "center";
+type ControlsLayout = "half" | "center";
 
 interface GamesViewHeaderProps {
   /**
    * Row 2: filters, sort toggle, year navigator etc. Centered and wraps onto multiple lines on narrow screens
-   * for `"center"` (the default); an equal-column grid spanning the full row for `"fill"`; an equal-column grid
-   * confined to the same centered, half-width column as `search` for `"half"`. A component returning a
-   * `React.Fragment` of several elements (e.g. `GameFilterBar`) works as `controls` for `"fill"`/`"half"`: a
+   * for `"center"` (the default); an equal-column grid confined to the same centered, half-width column as
+   * `search` for `"half"`. A component returning a
+   * `React.Fragment` of several elements (e.g. `GameFilterBar`) works as `controls` for `"half"`: a
    * `Fragment` renders no DOM node of its own, so its children land directly in the grid as its items.
    */
   controls: ReactNode;
@@ -20,22 +20,19 @@ interface GamesViewHeaderProps {
   count: number | null;
   /** Right slot of the results row (the top `PaginationBar`), shared with `GameResultsBar`. */
   pagination?: ReactNode;
+  /**
+   * Optional slot right after the count in the results row (the overview's status toggles), outside the live
+   * region. Keeps the row visible at a count of `0`; see `GameResultsBar`.
+   */
+  facts?: ReactNode;
 }
 
-/** Equal-column grids for the non-`"center"` layouts; `"center"` stays a plain centered, wrapping flex row. */
-const CONTROLS_GRID_SX = {
-  fill: {
-    display: "grid",
-    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(4, 1fr)" },
-    gap: SECTION_GAP,
-    width: 1,
-  },
-  half: {
-    display: "grid",
-    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
-    gap: SECTION_GAP,
-    width: HALF_ROW_WIDTH,
-  },
+/** Equal-column grid for the `"half"` layout; `"center"` stays a plain centered, wrapping flex row. */
+const HALF_GRID_SX = {
+  display: "grid",
+  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+  gap: SECTION_GAP,
+  width: HALF_ROW_WIDTH,
 } as const;
 
 /**
@@ -46,7 +43,7 @@ const CONTROLS_GRID_SX = {
  *
  * `GameResultsBar` is visually hidden rather than merely collapsed to no height once `count` is `0`, so it takes
  * no slot in this `Stack` and the gap between the row above it and the divider below stays exactly one
- * `SECTION_GAP`.
+ * `SECTION_GAP`. Exception: with `facts` the row stays visible at `0`, so the toggles remain usable.
  */
 export function GamesViewHeader({
   controls,
@@ -54,6 +51,7 @@ export function GamesViewHeader({
   search,
   count,
   pagination,
+  facts,
 }: GamesViewHeaderProps) {
   return (
     <Stack spacing={SECTION_GAP}>
@@ -64,14 +62,14 @@ export function GamesViewHeader({
       )}
       {controlsLayout === "center" ? (
         <Box sx={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: SECTION_GAP }}>{controls}</Box>
-      ) : controlsLayout === "fill" ? (
-        <Box sx={CONTROLS_GRID_SX.fill}>{controls}</Box>
       ) : (
         <Box sx={{ display: "flex", justifyContent: "center" }}>
-          <Box sx={CONTROLS_GRID_SX.half}>{controls}</Box>
+          <Box sx={HALF_GRID_SX}>{controls}</Box>
         </Box>
       )}
-      <GameResultsBar count={count}>{pagination}</GameResultsBar>
+      <GameResultsBar count={count} facts={facts}>
+        {pagination}
+      </GameResultsBar>
       <Divider />
     </Stack>
   );

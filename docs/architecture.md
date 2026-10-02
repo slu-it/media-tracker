@@ -245,7 +245,9 @@ frontend/src
                           components/ (grid with renderCard, GameCardShell + GameCard/WatchlistGameCard/
                           RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
                           YearNavigator, GameSearchField,
-                          GameFilterBar, GamesViewHeader, GameResultsBar, pagination, detail/add dialogs,
+                          GameFilterBar (platform + release year), StatusToggleBar (icon toggles: exclusive or multiple) +
+                          ProgressToggleBar + StatusFilterToggles (overview progress/ownership filter),
+                          GamesViewHeader, GameResultsBar (count chip + facts slot), pagination, detail/add dialogs,
                           fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
                           SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the
