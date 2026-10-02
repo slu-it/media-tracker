@@ -246,7 +246,8 @@ frontend/src
                           RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
                           YearNavigator, GameSearchField,
                           GameFilterBar (platform + release year), StatusToggleBar (icon toggles: exclusive or multiple) +
-                          ProgressToggleBar + StatusFilterToggles (overview progress/ownership filter),
+                          ProgressToggleBar + StatusFilterToggles (overview progress/ownership filter) +
+                          OverviewFilters (toggles + standard selects in the results row),
                           GamesViewHeader, GameResultsBar (count chip + facts slot), pagination, detail/add dialogs,
                           fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:

@@ -23,14 +23,24 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
 - `GET /api/games.meta` returns the values to offer, and only those that occur in a stored game; `.meta` is the
   convention for a resource's lookup data. Release years are listed newest first (MT-014).
 - Frontend, overview:
-  - Platform and release year are `-all-` multi-selects in `components/GameFilterBar.tsx`, fed by
-    `hooks/useGamesMeta.ts`. MT-012 resized them and set the page size to 36. They sit in the two-column
-    `controlsLayout="half"` row under the search.
+  - All four filters sit in the results row after the count chip (`components/OverviewFilters.tsx`): the
+    progress and ownership toggle bars, then Platform and Release year.
+  - Platform and Release year are `-all-` multi-selects in `components/GameFilterBar.tsx`, fed by
+    `hooks/useGamesMeta.ts`. MT-012 set the page size to 36.
+  - Here they use the `standard` variant of `FilterSelect` (underline only) at `OVERVIEW_SELECT_WIDTH`
+    (200px). Below `sm` they share one full-width line.
+  - Instead of MUI's floating label they carry a `FieldLegend` (legend label mode), the same as the toggle
+    bars. It names the combobox via `aria-labelledby`.
+  - The select's input is 32px high like the bars, so with bottom alignment all four labels sit at the same
+    height. Each label has a 4px gap to its control.
+  - The filter items are 24px apart.
+  - The watchlist keeps the default outlined variant.
   - Each select with a selection shows a × end adornment that resets it to `-all-` and returns focus to the
     select. MUI `Select` has no built-in clear.
   - A filter change replaces the URL entry and drops `page` ([url-routes.md](url-routes.md)).
-- Progress and ownership are icon toggle groups in the results row, right after the count chip
-  (`components/StatusFilterToggles.tsx`):
+- Progress and ownership are icon toggle groups (`components/StatusFilterToggles.tsx`):
+  - Each has a centred legend above the bar ("Progress", "Ownership"), as in the dialogs. Its `legendSx`
+    adds the 4px gap to the bar that the select legends share.
   - Two `StatusToggleBar`s in `multiple` mode, with all six progress and both ownership values in
     `PROGRESS_VALUES` / `OWNERSHIP_VALUES` order.
   - The icons come from `PROGRESS_ICONS` / `OWNERSHIP_ICONS`, the same as the cards and dialogs. The labels

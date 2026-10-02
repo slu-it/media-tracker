@@ -28,6 +28,8 @@ interface StatusToggleBarBaseProps<T extends string> {
   dimmedHint?: string;
   /** Extra styles for every button, e.g. a fixed height for a denser variant. The default size is unchanged. */
   buttonSx?: SxProps<Theme>;
+  /** Extra styles for the `showLabel` legend only (ignored without it), e.g. a visual offset to line it up with neighbouring labels. */
+  legendSx?: SxProps<Theme>;
 }
 
 interface StatusToggleBarSingleProps<T extends string> extends StatusToggleBarBaseProps<T> {
@@ -66,7 +68,8 @@ export type StatusToggleBarProps<T extends string> = StatusToggleBarSingleProps<
  * keep the joined borders.
  */
 export function StatusToggleBar<T extends string>(props: StatusToggleBarProps<T>) {
-  const { values, icons, getLabel, groupLabel, disabled, sx, showLabel, dimmed, dimmedHint, buttonSx } = props;
+  const { values, icons, getLabel, groupLabel, disabled, sx, showLabel, dimmed, dimmedHint, buttonSx, legendSx } =
+    props;
   const legendId = useId();
   const nameBy = showLabel ? legendId : props["aria-labelledby"];
   const buttons = values.map((value) => {
@@ -132,7 +135,9 @@ export function StatusToggleBar<T extends string>(props: StatusToggleBarProps<T>
         ...(Array.isArray(sx) ? sx : [sx]),
       ]}
     >
-      <FieldLegend id={legendId}>{groupLabel}</FieldLegend>
+      <FieldLegend id={legendId} sx={legendSx}>
+        {groupLabel}
+      </FieldLegend>
       {group}
     </Box>
   );

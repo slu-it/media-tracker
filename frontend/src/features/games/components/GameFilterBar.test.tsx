@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { meta, nintendo, pc } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { EMPTY_FILTERS } from "../domain/gameFilters";
-import { GameFilterBar } from "./GameFilterBar";
+import { FilterSelect, GameFilterBar } from "./GameFilterBar";
 
 describe("GameFilterBar", () => {
   it("shows the placeholder for every filter when nothing is selected", () => {
@@ -12,6 +12,25 @@ describe("GameFilterBar", () => {
 
     expect(screen.getByRole("combobox", { name: "Platform" })).toHaveTextContent("-all-");
     expect(screen.getByRole("combobox", { name: "Release year" })).toHaveTextContent("-all-");
+  });
+
+  it("names the select by a visible legend instead of an InputLabel in legend mode", () => {
+    const { container } = renderWithProviders(
+      <FilterSelect
+        label="Platform"
+        options={["a"]}
+        selected={[]}
+        onChange={() => {}}
+        getOptionLabel={(option) => option}
+        variant="standard"
+        labelStyle="legend"
+      />,
+    );
+
+    expect(screen.getByText("Platform")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Platform" })).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access -- an InputLabel is only visible as a MUI class
+    expect(container.querySelector(".MuiInputLabel-root")).toBeNull();
   });
 
   it("offers the values from the meta payload", async () => {
@@ -128,5 +147,20 @@ describe("GameFilterBar", () => {
     expect(within(listbox).queryByRole("checkbox")).toBeNull();
     expect(screen.getByRole("option", { name: "PC" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("option", { name: "Nintendo" })).toHaveAttribute("aria-selected", "false");
+  });
+
+  it("renders the overview selects underline-only, the FilterSelect default stays outlined", () => {
+    const { container } = renderWithProviders(
+      <>
+        <GameFilterBar filters={EMPTY_FILTERS} onChange={() => {}} meta={meta} />
+        <FilterSelect label="Outlined" options={["a"]} selected={[]} onChange={() => {}} getOptionLabel={String} />
+      </>,
+    );
+
+    /* eslint-disable testing-library/no-container, testing-library/no-node-access -- the variant is only visible as a MUI class */
+    expect(container.querySelectorAll(".MuiInput-underline")).toHaveLength(2);
+    expect(container.querySelectorAll(".MuiOutlinedInput-root")).toHaveLength(1);
+    /* eslint-enable testing-library/no-container, testing-library/no-node-access */
+    expect(screen.getByRole("combobox", { name: "Outlined" })).toBeInTheDocument();
   });
 });

@@ -98,4 +98,11 @@ describe("GamesViewHeader", () => {
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
     expect(screen.queryByRole("button", { name: "Page 2" })).not.toBeInTheDocument();
   });
+
+  it("renders without a controls row", () => {
+    renderWithProviders(<GamesViewHeader search={<input aria-label="Search" />} count={3} />);
+    expect(screen.getByRole("textbox", { name: "Search" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("3 games");
+    expect(screen.getByRole("separator")).toBeInTheDocument();
+  });
 });

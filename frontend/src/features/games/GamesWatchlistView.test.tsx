@@ -48,6 +48,14 @@ function gamesUrls(calls: { url: string }[]) {
   return calls.map((c) => c.url).filter((url) => url.startsWith("/api/games?"));
 }
 
+/** The results row is visually hidden (absolutely positioned 1px box) at a count of 0 without `facts`; jsdom's `toBeVisible` can't see that. */
+function isResultsRowHidden() {
+  // eslint-disable-next-line testing-library/no-node-access -- the row has no role; status sits in the left wrapper in the row
+  const row = screen.getByRole("status").parentElement!.parentElement!;
+  const style = getComputedStyle(row);
+  return style.position === "absolute" && style.width === "1px";
+}
+
 describe("GamesWatchlistView", () => {
   it("requests the watchlist with the default oldest-first sort", async () => {
     const calls = mockApi({
@@ -234,6 +242,62 @@ describe("GamesWatchlistView", () => {
 
     expect(await screen.findByText("No games match the selected filters.")).toBeInTheDocument();
     expect(screen.queryByText("Your watchlist is empty.")).not.toBeInTheDocument();
+  });
+
+  it("shows the Sort order and Platform legends naming their controls", async () => {
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesWatchlistView />);
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+
+    expect(screen.getByText("Sort order")).toBeVisible();
+    expect(screen.getByRole("group", { name: "Sort order" })).toBeInTheDocument();
+    expect(screen.getByText("Platform")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Platform" })).toBeInTheDocument();
+  });
+
+  it("keeps the filter row visible when the platform filter has no results, so it can be undone", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      "GET /api/games": (_call, url) =>
+        url.searchParams.has("platformIds") ? jsonResponse(pageOf([], 1, 0)) : jsonResponse(pageOf(games, 1, 2)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesWatchlistView />);
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),
+    );
+    await user.click(screen.getByRole("combobox", { name: "Platform" }));
+    await user.click(screen.getByRole("option", { name: "PC" }));
+    expect(await screen.findByText("No games match the selected filters.")).toBeInTheDocument();
+
+    // A multi-select stays open after a pick, and its menu hides the page from the accessibility tree.
+    await user.keyboard("{Escape}");
+    expect(await screen.findByRole("status")).toHaveTextContent("0 games");
+    expect(isResultsRowHidden()).toBe(false);
+    expect(screen.getByRole("group", { name: "Sort order" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear Platform" }));
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+  });
+
+  it("hides the filter row for a watchlist without any game", async () => {
+    mockApi({
+      "GET /api/games": () => jsonResponse(pageOf([], 1, 0)),
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    renderWithProviders(<GamesWatchlistView />);
+    expect(await screen.findByText("Your watchlist is empty.")).toBeInTheDocument();
+
+    expect(isResultsRowHidden()).toBe(true);
+    expect(screen.queryByRole("group", { name: "Sort order" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Platform" })).not.toBeInTheDocument();
   });
 
   it("opens the detail dialog from a card", async () => {
