@@ -11,7 +11,10 @@ interface PaginationBarProps {
   dense?: boolean;
 }
 
-/** Right-aligned page controls, no caption. Renders nothing for an empty list. */
+/**
+ * Right-aligned page controls, no caption. Renders nothing for an empty list. Scrolls the window to the top when the
+ * user clicks another page; prop changes (corrections, refinements, Back/Forward) never scroll.
+ */
 export function PaginationBar({ page, totalItems, totalPages, onPageChange, disabled, dense }: PaginationBarProps) {
   if (totalItems === 0) return null;
   return (
@@ -28,7 +31,11 @@ export function PaginationBar({ page, totalItems, totalPages, onPageChange, disa
       <Pagination
         count={totalPages}
         page={page}
-        onChange={(_event, next) => onPageChange(next)}
+        onChange={(_event, next) => {
+          if (next === page) return;
+          onPageChange(next);
+          window.scrollTo({ top: 0 });
+        }}
         color="primary"
         shape="rounded"
         showFirstButton

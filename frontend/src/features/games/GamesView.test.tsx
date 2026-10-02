@@ -1,7 +1,7 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
@@ -371,6 +371,7 @@ describe("GamesView", () => {
 
     await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+    const scrollTo = vi.spyOn(window, "scrollTo");
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
     await user.paste("hades");
@@ -382,6 +383,7 @@ describe("GamesView", () => {
         `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&search=hades`,
       ]),
     );
+    expect(scrollTo).not.toHaveBeenCalled();
   });
 
   it("shows the search-specific empty state when nothing matches", async () => {
@@ -644,6 +646,7 @@ describe("GamesView", () => {
 
     it("pushes a history entry on a page change and Back returns to the previous page", async () => {
       const user = userEvent.setup();
+      const scrollTo = vi.spyOn(window, "scrollTo");
       const calls = mockApi({
         "GET /api/games": twoPages,
         "GET /api/game-platforms": mockPlatforms,
@@ -662,11 +665,14 @@ describe("GamesView", () => {
       expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
       expect(currentLocation()).toBe(`${OVERVIEW_PATH}?page=2`);
       expect(lastGamesUrl(calls).searchParams.get("page")).toBe("2");
+      expect(scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 0 });
+      scrollTo.mockClear();
 
       await user.click(screen.getByRole("button", { name: "Back" }));
       expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
       expect(currentLocation()).toBe(OVERVIEW_PATH);
       expect(gamesUrls(calls).at(-1)).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`);
+      expect(scrollTo).not.toHaveBeenCalled();
     });
 
     it("re-syncs the search box when the URL search changes from outside", async () => {

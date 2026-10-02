@@ -40,6 +40,9 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   the match count for the current search and filters (`totalItems`, "142 games", plural keys
   `games.resultCount_*`) on the left, and the top `PaginationBar` right-aligned. `PaginationBar` is capped to
   five page buttons via MUI's `boundaryCount`/`siblingCount`; a second, right-aligned copy sits below the grid.
+  A click on another page in either bar scrolls the window to the top (in `PaginationBar`, so automatic page
+  corrections and search/filter resets do not scroll); a click on the current page does nothing (no scroll, no
+  history entry).
   The bar shows no count until the first page arrives (keeping its 32px height, the height of the page
   buttons), then keeps the previous count while a new page loads. When nothing matches, it becomes a visually hidden `role="status"`
   region ("0 games" for screen readers) that takes no space, since the visible empty state covers that.
