@@ -11,9 +11,15 @@ import de.sluit.mediatracker.common.domain.InvalidValueException
 /** Default value of the `hidden` game status field, written down once here (ADR 0017). */
 const val DEFAULT_HIDDEN = false
 
-/** Whether a game is owned or merely on the watchlist. */
+/**
+ * Whether a game is owned, playable through a subscription (PlayStation Plus, Game Pass, ...), or merely on the
+ * watchlist.
+ * Declaration order is the order offered in UIs, meta and MCP schemas; the ordinal is never persisted.
+ * The frontend mirrors this order in `OWNERSHIP_VALUES`.
+ */
 enum class Ownership {
     WATCHLIST,
+    SUBSCRIPTION,
     OWNED,
     ;
 

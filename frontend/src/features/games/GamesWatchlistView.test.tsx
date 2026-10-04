@@ -421,7 +421,7 @@ describe("GamesWatchlistView", () => {
     await user.click(screen.getByRole("button", { name: "Outer Wilds" }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("button", { name: "Owned" }));
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("button", { name: "Edit" })).toBeInTheDocument();
     await user.click(within(dialog).getByRole("button", { name: "Close" }));

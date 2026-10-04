@@ -37,6 +37,17 @@ describe("overview params", () => {
     });
   });
 
+  it("round-trips all ownership values (serialized sorted)", () => {
+    const state = {
+      search: "",
+      page: 1,
+      filters: { ...EMPTY_FILTERS, ownership: ["owned" as const, "subscription" as const, "watchlist" as const] },
+    };
+    const params = overviewParams(state);
+    expect(params.toString()).toBe("ownership=owned&ownership=subscription&ownership=watchlist");
+    expect(parseOverviewParams(params)).toEqual(state);
+  });
+
   it("omits defaults and empty values", () => {
     expect(overviewParams({ search: "  ", page: 1, filters: EMPTY_FILTERS }).toString()).toBe("");
   });

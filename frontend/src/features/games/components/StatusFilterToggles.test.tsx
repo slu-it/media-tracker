@@ -29,7 +29,7 @@ describe("StatusFilterToggles", () => {
       within(ownershipGroup())
         .getAllByRole("button")
         .map((b) => b.getAttribute("aria-label")),
-    ).toEqual(["Watchlist", "Owned"]);
+    ).toEqual(["Watchlist", "Subscription", "Owned"]);
     for (const button of screen.getAllByRole("button")) expect(button).toHaveAttribute("aria-pressed", "false");
   });
 

@@ -4,7 +4,7 @@
 // .../dropbox/api/DropboxDtos.kt. Keep them in sync.
 
 /** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
-export type Ownership = "watchlist" | "owned";
+export type Ownership = "watchlist" | "subscription" | "owned";
 
 /** Mirrors the Kotlin `Progress` enum in games/domain/GameStatus.kt. */
 export type Progress = "abandoned" | "not_started" | "paused" | "playing" | "finished" | "completed";

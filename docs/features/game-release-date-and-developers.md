@@ -42,7 +42,7 @@ Code: `games/domain/` (`ReleaseDate`, `GameDeveloper*`, `GameDeveloperService`),
 
 Title, Description, Platforms, [Release year | Release date], Developers, Hidden, Cover image URL. The URL moved
 last because covers usually come from the [cover picker](cover-picker.md). Ownership and progress are not in this
-list: they are the `OwnershipSwitch` and `ProgressToggleBar` under the rating in the cover column (see
+list: they are the `OwnershipToggleBar` and `ProgressToggleBar` under the rating in the cover column (see
 [game status fields](game-status-fields.md)). The view dialog's order is unchanged.
 
 ## MCP

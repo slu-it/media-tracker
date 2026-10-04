@@ -9,8 +9,8 @@ import { PROGRESS_ICONS } from "./progressIcons";
  * Small at-a-glance icons for a game's ownership, progress and hidden status; omits the hidden icon unless hidden.
  *
  * `variant="full"` (default) always shows the ownership icon, then progress. `variant="card"` is the compact list
- * form: a watchlist entry shows only the ownership icon, an owned one only the progress icon. The hidden icon is
- * unaffected.
+ * form: a watchlist entry shows only the ownership icon, a subscription entry both, an owned one only the progress
+ * icon. The hidden icon is unaffected.
  */
 export function GameStatusIcons({
   ownership,
@@ -25,8 +25,8 @@ export function GameStatusIcons({
 }) {
   const { t } = useTranslation();
   const OwnershipIcon = OWNERSHIP_ICONS[ownership];
-  const showOwnership = variant === "full" || ownership === "watchlist";
-  const showProgress = variant === "full" || ownership === "owned";
+  const showOwnership = variant === "full" || ownership !== "owned";
+  const showProgress = variant === "full" || ownership !== "watchlist";
   const ProgressIcon = PROGRESS_ICONS[progress];
 
   return (

@@ -208,7 +208,11 @@ private val ADD_GAME_SCHEMA = ToolSchema(
         putJsonObject("ownership") {
             put("type", "string")
             putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            put("description", "Whether the game is owned or just on the watchlist. Defaults to watchlist.")
+            put(
+                "description",
+                "Whether the game is owned, available through a subscription (e.g. PlayStation Plus, Game Pass), " +
+                    "or just on the watchlist. Defaults to watchlist.",
+            )
         }
         putJsonObject("progress") {
             put("type", "string")
@@ -409,7 +413,11 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
         putJsonObject("ownership") {
             put("type", "string")
             putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            put("description", "Whether the game is owned or just on the watchlist. Cannot be cleared.")
+            put(
+                "description",
+                "Whether the game is owned, available through a subscription (e.g. PlayStation Plus, Game Pass), " +
+                    "or just on the watchlist. Cannot be cleared.",
+            )
         }
         putJsonObject("progress") {
             put("type", "string")
@@ -480,7 +488,11 @@ private val ADD_EXPANSION_SCHEMA = ToolSchema(
         putJsonObject("ownership") {
             put("type", "string")
             putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            put("description", "Whether the expansion is owned or just on the watchlist. Defaults to watchlist.")
+            put(
+                "description",
+                "Whether the expansion is owned, available through a subscription, or just on the watchlist. " +
+                    "Defaults to watchlist.",
+            )
         }
         putJsonObject("progress") {
             put("type", "string")

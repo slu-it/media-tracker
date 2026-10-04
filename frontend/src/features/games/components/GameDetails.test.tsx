@@ -226,7 +226,7 @@ describe("GameDetails", () => {
     expect(screen.queryByRole("group", { name: "Progress" })).not.toBeInTheDocument();
   });
 
-  it("shows the ownership switch between the rating and the progress bar only when onOwnershipChange is given", () => {
+  it("shows the ownership toggle bar between the rating and the progress bar only when onOwnershipChange is given", () => {
     const onOwnershipChange = vi.fn();
     const { unmount } = renderWithProviders(
       <GameDetails
@@ -242,7 +242,7 @@ describe("GameDetails", () => {
     const rating = screen.getByRole("group", { name: "Rating" });
     const ownership = screen.getByRole("group", { name: "Ownership" });
     const progress = screen.getByRole("group", { name: "Progress" });
-    expect(screen.getByRole("switch", { name: "Owned" })).toBeChecked();
+    expect(screen.getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
     expect(rating.compareDocumentPosition(ownership) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(ownership.compareDocumentPosition(progress) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     unmount();
@@ -256,10 +256,10 @@ describe("GameDetails", () => {
         onMoveExpansion={() => {}}
       />,
     );
-    expect(screen.queryByRole("switch", { name: "Owned" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Owned" })).not.toBeInTheDocument();
   });
 
-  it("emits the opposite ownership on click and nothing while quickSaveBusy", async () => {
+  it("emits the clicked ownership and nothing while quickSaveBusy", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 });
     const onOwnershipChange = vi.fn();
     const base = {
@@ -271,14 +271,14 @@ describe("GameDetails", () => {
       onOwnershipChange,
     };
     const { unmount } = renderWithProviders(<GameDetails {...base} />);
-    await user.click(screen.getByRole("switch", { name: "Owned" }));
+    await user.click(screen.getByRole("button", { name: "Watchlist" }));
     expect(onOwnershipChange).toHaveBeenCalledExactlyOnceWith("watchlist");
     unmount();
 
     onOwnershipChange.mockClear();
     renderWithProviders(<GameDetails {...base} quickSaveBusy />);
     expect(screen.getByRole("group", { name: "Ownership" })).toHaveAttribute("aria-busy", "true");
-    await user.click(screen.getByRole("switch", { name: "Owned" }));
+    await user.click(screen.getByRole("button", { name: "Watchlist" }));
     expect(onOwnershipChange).not.toHaveBeenCalled();
   });
 

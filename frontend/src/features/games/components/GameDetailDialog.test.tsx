@@ -1142,9 +1142,9 @@ describe("GameDetailDialog", () => {
     });
   });
 
-  describe("quick ownership switch", () => {
+  describe("quick ownership toggle", () => {
     const watchlisted: GameResponse = { ...game, ownership: "watchlist" };
-    const ownedSwitch = (dialog: HTMLElement) => within(dialog).getByRole("switch", { name: "Owned" });
+    const ownedButton = (dialog: HTMLElement) => within(dialog).getByRole("button", { name: "Owned" });
 
     it("PATCHes only the ownership on click and stays in view mode", async () => {
       const user = userEvent.setup();
@@ -1163,9 +1163,9 @@ describe("GameDetailDialog", () => {
         />,
       );
       const dialog = screen.getByRole("dialog");
-      expect(ownedSwitch(dialog)).not.toBeChecked();
+      expect(ownedButton(dialog)).toHaveAttribute("aria-pressed", "false");
 
-      await user.click(ownedSwitch(dialog));
+      await user.click(ownedButton(dialog));
       await flushAsync();
 
       expect(calls.filter((c) => c.method === "PATCH")).toEqual([
@@ -1176,7 +1176,32 @@ describe("GameDetailDialog", () => {
       expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
     });
 
-    it("shows the error and reverts the switch on a failed save", async () => {
+    it("PATCHes subscription when Subscription is chosen", async () => {
+      const user = userEvent.setup();
+      const calls = mockApi({
+        ...noExpansions,
+        "PATCH /api/games/:id": (call) => jsonResponse({ ...watchlisted, ...(call.body as object) }),
+      });
+      renderWithProviders(
+        <GameDetailDialog
+          game={watchlisted}
+          onClose={() => {}}
+          onSaved={() => {}}
+          onDeleted={() => {}}
+          platforms={platforms}
+        />,
+      );
+      const dialog = screen.getByRole("dialog");
+
+      await user.click(within(dialog).getByRole("button", { name: "Subscription" }));
+      await flushAsync();
+
+      expect(calls.filter((c) => c.method === "PATCH")).toEqual([
+        { method: "PATCH", url: "/api/games/id-1", body: { ownership: "subscription" } },
+      ]);
+    });
+
+    it("shows the error and reverts the toggle on a failed save", async () => {
       const user = userEvent.setup();
       const onSaved = vi.fn();
       mockApi({
@@ -1194,12 +1219,12 @@ describe("GameDetailDialog", () => {
       );
       const dialog = screen.getByRole("dialog");
 
-      await user.click(ownedSwitch(dialog));
+      await user.click(ownedButton(dialog));
       await flushAsync();
 
       expect(await within(dialog).findByRole("alert")).toHaveTextContent("ownership: nope");
       expect(onSaved).not.toHaveBeenCalled();
-      expect(ownedSwitch(dialog)).not.toBeChecked();
+      expect(ownedButton(dialog)).toHaveAttribute("aria-pressed", "false");
     });
 
     it("is blocked while any quick save is pending", async () => {
@@ -1224,20 +1249,20 @@ describe("GameDetailDialog", () => {
       const dialog = screen.getByRole("dialog");
       const ownershipGroup = within(dialog).getByRole("group", { name: "Ownership" });
 
-      // A pending progress save blocks the switch.
+      // A pending progress save blocks the toggle.
       await user.click(within(dialog).getByRole("button", { name: "Finished" }));
       expect(ownershipGroup).toHaveAttribute("aria-busy", "true");
-      await user.click(ownedSwitch(dialog));
+      await user.click(ownedButton(dialog));
       expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1);
       resolvePatch(jsonResponse({ ...watchlisted, progress: "finished" }));
       await flushAsync();
       expect(ownershipGroup).not.toHaveAttribute("aria-busy");
 
       // A pending ownership save blocks a second change and the other controls.
-      await user.click(ownedSwitch(dialog));
-      expect(ownedSwitch(dialog)).toBeChecked();
+      await user.click(ownedButton(dialog));
+      expect(ownedButton(dialog)).toHaveAttribute("aria-pressed", "true");
       expect(ownershipGroup).toHaveAttribute("aria-busy", "true");
-      await user.click(ownedSwitch(dialog));
+      await user.click(within(dialog).getByRole("button", { name: "Subscription" }));
       await user.click(within(dialog).getByRole("button", { name: "Paused" }));
       expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(2);
       resolvePatch(jsonResponse({ ...watchlisted, ownership: "owned" }));
@@ -1263,10 +1288,10 @@ describe("GameDetailDialog", () => {
       const dialog = screen.getByRole("dialog");
       await user.click(within(dialog).getByRole("button", { name: "Edit" }));
 
-      expect(ownedSwitch(dialog)).not.toBeChecked();
-      await user.click(ownedSwitch(dialog));
+      expect(ownedButton(dialog)).toHaveAttribute("aria-pressed", "false");
+      await user.click(ownedButton(dialog));
 
-      expect(ownedSwitch(dialog)).toBeChecked();
+      expect(ownedButton(dialog)).toHaveAttribute("aria-pressed", "true");
       expect(within(dialog).queryByRole("combobox", { name: "Ownership" })).not.toBeInTheDocument();
       expect(calls.filter((c) => c.method === "PATCH")).toEqual([]);
 

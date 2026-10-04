@@ -43,14 +43,15 @@ colours in the database. The question was whether these three follow that patter
   tool consequently lists them in `UPDATE_GAME_UNCLEARABLE`, so an explicit `"ownership": null` is rejected
   instead of being read as "leave it alone".
 - **Icon vocabulary** (MUI, imported by path; maps in `components/ownershipIcons.ts` and `progressIcons.ts`):
-  watchlist `LibraryAddOutlined`, owned `LibraryAddCheckOutlined`, not started `NotStarted`, playing
-  `SportsEsports`, finished `TaskAlt`, completed `EmojiEvents`, paused `Pause`, abandoned `NotInterested`, and
-  `hidden` (only when true) `VisibilityOffOutlined`. All three axes render through one component,
-  `GameStatusIcons`, after the title in the game detail dialog and on the grid card. The detail dialog shows all of
-  them; the game and expansion cards (`variant="card"`, since 2026-09-30) show only the ownership icon for a
-  watchlist game and only the progress icon for an owned one, plus the hidden icon either way. The labels behind
-  the icons live in the i18n bundles, not in the database, because unlike platform labels they are not data;
-  `hidden` reuses `games.fields.hidden`, which also labels the checkbox that still sets it in the add/edit form.
+  watchlist `LibraryAddOutlined`, subscription `VideoLibraryOutlined`, owned `LibraryAddCheckOutlined`, not
+  started `NotStarted`, playing `SportsEsports`, finished `TaskAlt`, completed `EmojiEvents`, paused `Pause`,
+  abandoned `NotInterested`, and `hidden` (only when true) `VisibilityOffOutlined`. All three axes render through
+  one component, `GameStatusIcons`, after the title in the game detail dialog and on the grid card. The detail
+  dialog shows all of them; the game and expansion cards (`variant="card"`, since 2026-09-30) show the ownership
+  icon for a watchlist or subscription game and the progress icon for a subscription or owned one (so a
+  subscription game shows both), plus the hidden icon either way. The labels behind the icons live in the i18n
+  bundles, not in the database, because unlike platform labels they are not data; `hidden` reuses
+  `games.fields.hidden`, which also labels the checkbox that still sets it in the add/edit form.
 
   Until 2026-09-30 `not_started` showed nothing as well, so an icon meant "not simply owned and unplayed"; the
   owner gave every progress value an icon, and finished, paused and abandoned switched from `CheckCircle`,
@@ -65,6 +66,15 @@ colours in the database. The question was whether these three follow that patter
   dialog's fields. Both changed once the UI was real: a struck-through eye is the obvious icon for "hidden", which
   made an eye for "watchlist" confusable, so watchlist moved to the cart. The lesson for the next media kind is
   the constraint, not the glyphs: the icons are a set, and each one has to stay legible next to the others.
+
+  On 2026-10-04 ownership gained a third value, `subscription`, for games playable only while a subscription
+  (PlayStation Plus, Game Pass) runs; it sits between watchlist and owned in declaration order. It was a code
+  change only, as this record predicts: no migration, the MCP schemas and `/api/games.meta` picked it up from
+  `entries`. The two-state switch could not hold three values and became `OwnershipToggleBar`, the exclusive
+  icon bar progress already used. `VideoLibraryOutlined` keeps the library family of the other two icons, and a
+  subscription card shows both icons because the game is playable (progress matters) yet not owned. The
+  change is one-way: an older JAR's `Ownership.from` throws on a stored `subscription` row, so a rollback first
+  has to rewrite those rows to another value.
 
 ## Alternatives not taken
 

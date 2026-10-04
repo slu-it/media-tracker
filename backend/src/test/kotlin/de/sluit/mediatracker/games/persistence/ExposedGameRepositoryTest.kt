@@ -791,6 +791,22 @@ class ExposedGameRepositoryTest {
         }
 
     @Test
+    fun `a subscription game round-trips and is matched by the subscription ownership filter`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val subscribed = game("Alpha", ownership = Ownership.SUBSCRIPTION)
+        repo.insert(subscribed)
+        repo.insert(game("Beta", ownership = Ownership.OWNED))
+        repo.insert(game("Gamma", ownership = Ownership.WATCHLIST))
+
+        val found = repo.findById(subscribed.id)
+        val page = repo.search(null, GameFilters(ownership = setOf(Ownership.SUBSCRIPTION)), PageRequest())
+
+        assertEquals(Ownership.SUBSCRIPTION, found?.ownership)
+        assertEquals(listOf(subscribed.id), page.items.map { it.id })
+        assertEquals(1, page.totalItems)
+    }
+
+    @Test
     fun `findUsedFilterValues returns only the values in use`() = withFreshDatabase {
         val repo = ExposedGameRepository()
         repo.insert(

@@ -23,7 +23,7 @@ import {
 import type { Ownership, Progress } from "../domain/gameStatus";
 import { GameTitleField } from "./fields/GameTitleField";
 import { EXPANSION_DIALOG_HEIGHT } from "./gameDialogLayout";
-import { OwnershipSwitch } from "./OwnershipSwitch";
+import { OwnershipToggleBar } from "./OwnershipToggleBar";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 
 interface ExpansionDialogProps {
@@ -201,13 +201,11 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
         <Stack spacing={2}>
           <Field label={t("games.fields.title")}>{current.title}</Field>
           <Field label={t("games.fields.ownership")} labelId={ownershipLabelId}>
-            <OwnershipSwitch
+            <OwnershipToggleBar
               value={pending?.ownership ?? current.ownership}
               onChange={(next) => void changeOwnership(next)}
               disabled={busy}
               aria-labelledby={ownershipLabelId}
-              edge="start"
-              sx={{ alignItems: "flex-start", textAlign: "left" }}
             />
           </Field>
           <Field label={t("games.fields.progress")} labelId={progressLabelId}>
@@ -228,13 +226,11 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
             autoFocus
           />
           <Field label={t("games.fields.ownership")} labelId={ownershipLabelId}>
-            <OwnershipSwitch
+            <OwnershipToggleBar
               value={draft.ownership}
               onChange={(ownership) => setDraft({ ...draft, ownership })}
               disabled={busy}
               aria-labelledby={ownershipLabelId}
-              edge="start"
-              sx={{ alignItems: "flex-start", textAlign: "left" }}
             />
           </Field>
           <Field label={t("games.fields.progress")} labelId={progressLabelId}>
