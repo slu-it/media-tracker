@@ -90,10 +90,10 @@ describe("AddGameDialog", () => {
     await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
     await user.click(screen.getByRole("option", { name: "PC" }));
 
-    const ownedSwitch = within(dialog).getByRole("switch", { name: "Owned" });
-    expect(ownedSwitch).not.toBeChecked();
-    await user.click(ownedSwitch);
-    expect(ownedSwitch).toBeChecked();
+    const ownedButton = within(dialog).getByRole("button", { name: "Owned" });
+    expect(ownedButton).toHaveAttribute("aria-pressed", "false");
+    await user.click(ownedButton);
+    expect(ownedButton).toHaveAttribute("aria-pressed", "true");
     await user.click(
       within(within(dialog).getByRole("group", { name: "Progress" })).getByRole("button", { name: "Playing" }),
     );
@@ -357,7 +357,7 @@ describe("AddGameDialog", () => {
       within(dialog).getByRole("textbox", { name: /cover image url/i }),
     ];
     expect(within(dialog).queryByRole("combobox", { name: "Ownership" })).not.toBeInTheDocument();
-    // The cover column stacks rating, ownership switch and progress toggle bar, in that order.
+    // The cover column stacks rating, ownership toggle bar and progress toggle bar, in that order.
     const rating = within(dialog).getByRole("group", { name: "Rating" });
     const ownership = within(dialog).getByRole("group", { name: "Ownership" });
     const progress = within(dialog).getByRole("group", { name: "Progress" });

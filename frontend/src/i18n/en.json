@@ -164,6 +164,7 @@
     },
     "ownership": {
       "watchlist": "Watchlist",
+      "subscription": "Subscription",
       "owned": "Owned"
     },
     "progress": {

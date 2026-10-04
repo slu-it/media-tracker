@@ -7,7 +7,7 @@ import { formatReleaseDate } from "../domain/releaseDate";
 import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { ExpansionList } from "./ExpansionList";
 import { GameStatusIcons } from "./GameStatusIcons";
-import { OwnershipSwitch } from "./OwnershipSwitch";
+import { OwnershipToggleBar } from "./OwnershipToggleBar";
 import { PlatformChips } from "./PlatformChips";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 import { RatingField } from "./fields/RatingField";
@@ -69,7 +69,12 @@ export function GameDetails({
             <RatingField readOnly value={game.rating} />
           )}
           {onOwnershipChange && (
-            <OwnershipSwitch value={game.ownership} onChange={onOwnershipChange} disabled={quickSaveBusy} showLabel />
+            <OwnershipToggleBar
+              value={game.ownership}
+              onChange={onOwnershipChange}
+              disabled={quickSaveBusy}
+              showLabel
+            />
           )}
           {onProgressChange && (
             <ProgressToggleBar value={game.progress} onChange={onProgressChange} disabled={quickSaveBusy} showLabel />

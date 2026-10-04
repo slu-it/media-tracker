@@ -7,7 +7,7 @@ import { StatusToggleBar } from "./StatusToggleBar";
 import type { Ownership } from "../domain/gameStatus";
 
 const VALUES = ["watchlist", "owned"] as const satisfies readonly Ownership[];
-const LABELS: Record<Ownership, string> = { watchlist: "Wish", owned: "Have" };
+const LABELS: Record<Ownership, string> = { watchlist: "Wish", subscription: "Sub", owned: "Have" };
 
 function multi(overrides: { value?: readonly Ownership[]; onChange?: (next: Ownership[]) => void } = {}) {
   return (

@@ -10,8 +10,11 @@ import type { Ownership, Progress } from "../../../types/api";
 
 export type { Ownership, Progress };
 
-/** Canonical list of ownership values; backs the exhaustiveness check below. */
-export const OWNERSHIP_VALUES = ["watchlist", "owned"] as const satisfies readonly Ownership[];
+/**
+ * Canonical list of ownership values; backs the exhaustiveness check below. Mirrors the declaration order of the
+ * Kotlin `Ownership` enum (backend `games/domain/GameStatus.kt`).
+ */
+export const OWNERSHIP_VALUES = ["watchlist", "subscription", "owned"] as const satisfies readonly Ownership[];
 
 /**
  * Display order for the progress dropdown. Mirrors the declaration order of the Kotlin `Progress` enum (backend

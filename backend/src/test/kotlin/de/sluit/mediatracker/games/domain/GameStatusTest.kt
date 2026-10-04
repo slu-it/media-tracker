@@ -9,6 +9,7 @@ class GameStatusTest {
     @Test
     fun `ownership wire values are the lowercase constant names`() {
         assertEquals("watchlist", Ownership.WATCHLIST.wire)
+        assertEquals("subscription", Ownership.SUBSCRIPTION.wire)
         assertEquals("owned", Ownership.OWNED.wire)
     }
 

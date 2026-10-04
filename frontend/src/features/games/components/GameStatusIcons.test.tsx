@@ -62,6 +62,11 @@ describe("GameStatusIcons", () => {
     expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Playing"]);
   });
 
+  it("card variant shows the Subscription icon before the progress icon for a subscription game", () => {
+    renderWithProviders(<GameStatusIcons ownership="subscription" progress="playing" hidden={false} variant="card" />);
+    expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Subscription", "Playing"]);
+  });
+
   it("card variant still shows the hidden icon", () => {
     renderWithProviders(<GameStatusIcons ownership="watchlist" progress="playing" hidden={true} variant="card" />);
     expect(screen.getAllByRole("img").map((icon) => icon.textContent)).toEqual(["Watchlist", "Hidden"]);

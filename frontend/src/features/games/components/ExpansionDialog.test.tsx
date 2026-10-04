@@ -28,7 +28,7 @@ describe("ExpansionDialog", () => {
     await user.paste("Boon Pack");
     expect(save).toBeEnabled();
     expect(within(dialog).getByRole("button", { name: "Not started" })).toHaveAttribute("aria-pressed", "true");
-    expect(within(dialog).getByRole("switch", { name: "Owned" })).not.toBeChecked();
+    expect(within(dialog).getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "false");
     await user.click(within(dialog).getByRole("button", { name: "Playing" }));
 
     await user.click(save);
@@ -50,7 +50,7 @@ describe("ExpansionDialog", () => {
     const dialog = screen.getByRole("dialog");
 
     expect(within(dialog).getByText("Boon Pack")).toBeInTheDocument();
-    expect(within(dialog).getByRole("switch", { name: "Owned" })).toBeChecked();
+    expect(within(dialog).getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
     expect(within(dialog).getByRole("button", { name: "Not started" })).toHaveAttribute("aria-pressed", "true");
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
   });
@@ -95,7 +95,7 @@ describe("ExpansionDialog", () => {
     );
     const dialog = screen.getByRole("dialog");
 
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("button", { name: "Watchlist" }));
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
 
     expect(calls).toEqual([
@@ -105,12 +105,12 @@ describe("ExpansionDialog", () => {
         body: { ownership: "watchlist" },
       },
     ]);
-    expect(within(dialog).getByRole("switch", { name: "Owned" })).not.toBeChecked();
+    expect(within(dialog).getByRole("button", { name: "Watchlist" })).toHaveAttribute("aria-pressed", "true");
     expect(within(dialog).getByRole("button", { name: "Edit" })).toBeInTheDocument();
     expect(within(dialog).queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("shows the error and reverts the switch when the immediate ownership save fails", async () => {
+  it("shows the error and reverts the toggle when the immediate ownership save fails", async () => {
     const user = userEvent.setup();
     const onChanged = vi.fn();
     mockApi({
@@ -122,11 +122,11 @@ describe("ExpansionDialog", () => {
     );
     const dialog = screen.getByRole("dialog");
 
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("button", { name: "Watchlist" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("ownership: nope");
     expect(onChanged).not.toHaveBeenCalled();
-    expect(within(dialog).getByRole("switch", { name: "Owned" })).toBeChecked();
+    expect(within(dialog).getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("blocks a second save while an ownership save is in flight", async () => {
@@ -143,12 +143,12 @@ describe("ExpansionDialog", () => {
     );
     const dialog = screen.getByRole("dialog");
 
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("button", { name: "Watchlist" }));
 
     const group = within(dialog).getByRole("group", { name: "Ownership" });
     expect(group).toHaveAttribute("aria-busy", "true");
-    expect(within(dialog).getByRole("switch", { name: "Owned" })).not.toBeChecked();
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    expect(within(dialog).getByRole("button", { name: "Watchlist" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(within(dialog).getByRole("button", { name: "Subscription" }));
     await user.click(within(dialog).getByRole("button", { name: "Finished" }));
     expect(calls).toHaveLength(1);
 
@@ -171,8 +171,8 @@ describe("ExpansionDialog", () => {
 
     await user.click(within(dialog).getByRole("textbox", { name: /title/i }));
     await user.paste("Boon Pack");
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
-    expect(within(dialog).getByRole("switch", { name: "Owned" })).toBeChecked();
+    await user.click(within(dialog).getByRole("button", { name: "Owned" }));
+    expect(within(dialog).getByRole("button", { name: "Owned" })).toHaveAttribute("aria-pressed", "true");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(onChanged).toHaveBeenCalledOnce());
@@ -198,7 +198,7 @@ describe("ExpansionDialog", () => {
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
 
-    await user.click(within(dialog).getByRole("switch", { name: "Owned" }));
+    await user.click(within(dialog).getByRole("button", { name: "Watchlist" }));
     expect(calls).toEqual([]);
 
     await user.click(within(dialog).getByRole("button", { name: "Save" }));

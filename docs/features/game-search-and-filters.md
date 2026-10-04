@@ -41,7 +41,7 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
 - Progress and ownership are icon toggle groups (`components/StatusFilterToggles.tsx`):
   - Each has a centred legend above the bar ("Progress", "Ownership"), as in the dialogs. Its `legendSx`
     adds the 4px gap to the bar that the select legends share.
-  - Two `StatusToggleBar`s in `multiple` mode, with all six progress and both ownership values in
+  - Two `StatusToggleBar`s in `multiple` mode, with all six progress and all three ownership values in
     `PROGRESS_VALUES` / `OWNERSHIP_VALUES` order.
   - The icons come from `PROGRESS_ICONS` / `OWNERSHIP_ICONS`, the same as the cards and dialogs. The labels
     are tooltips and accessible names.
@@ -51,12 +51,12 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
     - Its tooltip and `aria-description` add "No games", so the state does not rest on opacity alone.
     - A pressed button is never dimmed, so pressed always reads as pressed.
     - Nothing is dimmed while the meta loads.
-  - Each button is its own tab stop (MUI `ToggleButtonGroup` has no arrow-key roving), so eight stops sit
+  - Each button is its own tab stop (MUI `ToggleButtonGroup` has no arrow-key roving), so nine stops sit
     between the selects and the pagination. This is accepted for now.
   - The buttons are 32px square, the height of the count chip and the page buttons.
-  - `StatusToggleBar` is the generic bar behind the dialogs' `ProgressToggleBar` too (single mode: exactly
-    one value).
-  - The watchlist keeps its platform `FilterSelect`, and the dialogs keep `OwnershipSwitch`.
+  - `StatusToggleBar` is the generic bar behind the dialogs' `ProgressToggleBar` and `OwnershipToggleBar` too
+    (single mode: exactly one value).
+  - The watchlist keeps its platform `FilterSelect`.
 - The MCP tool `search_games` takes the same filters, and its `query` is optional.
 
 ## Agent-only extras on `search_games` (MT-013)

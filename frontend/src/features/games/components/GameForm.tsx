@@ -7,7 +7,7 @@ import { type GameDraft, withReleaseDate } from "../domain/gameDraft";
 import { validateCoverImageUrl } from "../domain/gameValues";
 import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
 import { CoverPickerDialog } from "./CoverPickerDialog";
-import { OwnershipSwitch } from "./OwnershipSwitch";
+import { OwnershipToggleBar } from "./OwnershipToggleBar";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 import { CoverImageUrlField } from "./fields/CoverImageUrlField";
 import { DescriptionField } from "./fields/DescriptionField";
@@ -72,7 +72,7 @@ export function GameForm({
               disabled={disabled}
               showErrors={showErrors}
             />
-            <OwnershipSwitch
+            <OwnershipToggleBar
               value={value.ownership}
               onChange={(ownership) => onChange({ ...value, ownership })}
               disabled={disabled}

@@ -561,6 +561,24 @@ class GameRoutesTest {
     }
 
     @Test
+    fun `list accepts the subscription ownership filter value`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games)
+        coEvery { games.list(any(), any(), any(), any()) } returns
+            Page(emptyList(), PageNumber.FIRST, PageSize.DEFAULT, 0)
+
+        client.get("/api/games?ownership=subscription")
+
+        coVerify {
+            games.list(
+                PageRequest(PageNumber(1), PageSize(50)),
+                null,
+                GameFilters(ownership = setOf(Ownership.SUBSCRIPTION)),
+            )
+        }
+    }
+
+    @Test
     fun `list rejects an unknown ownership filter value`() = testApplication {
         val games = mockk<GameService>()
         val client = loggedInHandlerClient(games)
