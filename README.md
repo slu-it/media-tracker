@@ -310,3 +310,89 @@ Games are implemented (grid, add/edit/delete dialogs with description, star rati
 `docs/decisions/0007-*.md` / `0008-*.md` / `0009-*.md` for the backend, frontend and reference-data patterns),
 plus per-user API keys and the MCP server (`0013-*.md`) and the move to MariaDB 11.8 (`0014-*.md`); Books, Movies and
 Series are "coming soon" tabs.
+
+## Development in a Docker Sandbox
+
+This repository includes a preconfigured [Docker Sandbox](https://docs.docker.com/ai/sandboxes/)
+environment (`sbxenv.yaml`). It runs Claude Code in an isolated microVM with everything the
+project needs:
+
+- Node.js and Java for the React frontend and the Ktor backend
+- Playwright MCP with a headless Chromium, so Claude can test the UI
+- Dev server ports published to your machine: frontend on `5173`, backend on `8080`
+
+The sandbox setup comes from the team kit
+[`media-tracker-sbx-kit`](https://github.com/your-org/media-tracker-sbx-kit).
+
+### Prerequisites (one time per machine)
+
+1. Install the `sbx` CLI (version 0.42 or later) and sign in:
+
+```console
+# macOS
+brew trust docker/tap && brew install docker/tap/sbx
+# Windows
+winget install -h Docker.sbx
+# Ubuntu 24.04+
+curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh && sudo apt-get install docker-sbx
+
+sbx login
+```
+
+2. Allow the team kit's registry as a kit source:
+
+```console
+sbx settings set kit.allowedSources '["docker.io/","ghcr.io/your-org/"]'
+```
+
+### Start the sandbox
+
+From the repository root:
+
+```console
+sbx env run
+```
+
+`sbx` shows a plan of what it will set up (kits, ports, resources) and asks for approval.
+The first run creates a sandbox named `media-tracker`, which takes a few minutes. Later runs
+reattach to the existing sandbox.
+
+### Everyday commands
+
+| Task                                  | Command                                              |
+| ------------------------------------- | ---------------------------------------------------- |
+| Preview what `sbx env run` would do   | `sbx env plan`                                       |
+| Show published ports                  | `sbx ports media-tracker`                            |
+| Stop the sandbox (keeps its state)    | `sbx stop media-tracker`                             |
+| Delete the sandbox                    | `sbx env rm`                                         |
+
+### After pulling changes to `sbxenv.yaml`
+
+Changes to kits, ports, or resources only apply when the sandbox is created. Recreate it:
+
+```console
+sbx env rm
+sbx env run
+```
+
+Changes to environment variables apply on the next `sbx env run` without recreating.
+
+### External Services & Secrets
+
+For certain external APIs you might want to set an API key for local testing.
+This can be done with custom sandbox secrets like this:
+
+```
+sbx secret set-custom --host www.steamgriddb.com --env STEAMGRIDDB_API_KEY --value <api-key>
+```
+
+### Troubleshooting
+
+- **Can't reach the app from the browser:** the dev servers must listen on `0.0.0.0`, not
+  `127.0.0.1`. Check `/tmp/start-dev.log`.
+- **Vite fails with a native binary error:** `node_modules` was installed on your host OS.
+  Reinstall inside the sandbox: `sbx env exec -- npm ci`.
+- **A download or API call is blocked:** run `sbx policy log` to see which host was denied,
+  then ask the kit maintainers to allow it.
+
+> `sbx env` is experimental, so commands and the file format may change between `sbx` releases.
