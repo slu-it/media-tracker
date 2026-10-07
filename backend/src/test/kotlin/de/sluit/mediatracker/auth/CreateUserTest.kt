@@ -130,4 +130,15 @@ class CreateUserTest {
         assertTrue(err.contains("at least 8 characters"))
         assertNull(storedUser(cfg, "bob"))
     }
+
+    @Test
+    fun `rejects a password longer than 1024 characters`() {
+        val cfg = testDatabaseConfig()
+
+        val (code, _, err) = cli("bob", env = envFor(cfg), password = { "a".repeat(1025).toCharArray() })
+
+        assertEquals(1, code)
+        assertTrue(err.contains("at most 1024 characters"))
+        assertNull(storedUser(cfg, "bob"))
+    }
 }

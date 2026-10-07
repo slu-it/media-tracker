@@ -7,6 +7,7 @@ import de.sluit.mediatracker.auth.api.API_KEY_AUTH
 import de.sluit.mediatracker.auth.api.SESSION_AUTH
 import de.sluit.mediatracker.auth.api.apiKeyRoutes
 import de.sluit.mediatracker.auth.api.meRoutes
+import de.sluit.mediatracker.auth.api.passwordRoutes
 import de.sluit.mediatracker.backup.api.backupRoutes
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.HealthResponse
@@ -37,6 +38,8 @@ fun Route.apiRoutes(services: Services) {
             meRoutes()
 
             apiKeyRoutes(services.apiKeys)
+
+            passwordRoutes(services.auth)
 
             gameRoutes(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
 

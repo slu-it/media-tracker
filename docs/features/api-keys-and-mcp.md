@@ -8,7 +8,8 @@ Connecting an agent as a client is described in the README section "MCP server".
 
 - Two slots per user, `primary` and `secondary`, as plaintext UUIDs in two nullable unique `CHAR(36)` columns
   on `users` (V003). `GET /api/me/api-keys` shows them, `POST /api/me/api-keys/{primary|secondary}` regenerates
-  one slot; the settings dialog confirms before regenerating. Two slots allow rotation without downtime.
+  one slot; the settings dialog (API keys tab, after the Password tab) confirms before regenerating. Two slots
+  allow rotation without downtime.
 - A key opens only `POST /mcp` (`X-API-Key: <key>`, alias `Authorization: Bearer <key>`). Session cookies never
   open `/mcp`, keys never open `/api`.
 

@@ -4,6 +4,7 @@ import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.WrongPasswordException
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
@@ -31,6 +32,7 @@ class StatusPagesTest {
                 get("/api/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/api/missing") { throw NotFoundException("game", "42") }
+                get("/api/wrong-password") { throw WrongPasswordException() }
                 get("/api/bad-body") { throw BadRequestException("x", IllegalArgumentException("first line\nsecond")) }
                 get("/api/cover-unavailable") { throw ExternalSourceUnavailableException("cover_source") }
                 get("/api/cover-error") {
@@ -94,6 +96,13 @@ class StatusPagesTest {
         val response = get("/api/missing")
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals("""{"error":"not_found"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `wrong password exception on an api path is a json 403 without message`() = testApp {
+        val response = get("/api/wrong-password")
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertEquals("""{"error":"wrong_password"}""", response.bodyAsText())
     }
 
     @Test

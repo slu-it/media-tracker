@@ -15,7 +15,7 @@ services:
       MARIADB_PASSWORD: mediatracker
       MARIADB_ROOT_PASSWORD: root
     ports:
-      - "127.0.0.1:3306:3306"
+      - "0.0.0.0:3306:3306"
     volumes:
       - mariadb-data:/var/lib/mysql
     healthcheck:

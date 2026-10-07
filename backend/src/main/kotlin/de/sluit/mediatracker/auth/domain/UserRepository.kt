@@ -17,4 +17,7 @@ interface UserRepository {
 
     /** The user whose primary or secondary key equals [key], or null if it matches neither. */
     suspend fun findByApiKey(key: ApiKey): User?
+
+    /** Replaces the stored password hash. Returns false if no such user exists. */
+    suspend fun updatePassword(userId: Long, passwordHash: String): Boolean
 }

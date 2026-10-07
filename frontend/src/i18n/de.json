@@ -34,8 +34,19 @@
     "open": "Einstellungen",
     "tabs": {
       "label": "Einstellungsbereiche",
+      "password": "Passwort",
       "apiKeys": "API-Schlüssel",
       "exportImport": "Export / Import"
+    },
+    "password": {
+      "hint": "Passwort ändern. Diese Sitzung bleibt angemeldet; andere Geräte, auf denen du angemeldet bist, werden abgemeldet.",
+      "current": "Aktuelles Passwort",
+      "new": "Neues Passwort",
+      "confirm": "Neues Passwort bestätigen",
+      "submit": "Passwort ändern",
+      "success": "Das Passwort wurde geändert.",
+      "wrongPassword": "Das aktuelle Passwort ist falsch.",
+      "failed": "Das Passwort konnte nicht geändert werden."
     },
     "apiKeys": {
       "hint": "API-Schlüssel authentifizieren MCP-Clients: einen davon beim Aufruf von /mcp im Header X-API-Key mitschicken. Den zweiten Schlüssel für die unterbrechungsfreie Rotation aufheben.",
@@ -210,7 +221,9 @@
     "invalidUrl": "Muss eine absolute http(s)-URL sein",
     "invalidYear": "Muss eine vierstellige Jahreszahl sein",
     "invalidRating": "Muss zwischen 0,25 und 5 in Schritten von 0,25 liegen",
-    "invalidDate": "Muss ein gültiges Datum mit vierstelliger Jahreszahl sein"
+    "invalidDate": "Muss ein gültiges Datum mit vierstelliger Jahreszahl sein",
+    "tooShort": "Mindestens {{min}} Zeichen",
+    "mismatch": "Passwörter stimmen nicht überein"
   },
   "errors": {
     "loadFailed": "Die Liste konnte nicht geladen werden.",

@@ -34,8 +34,19 @@
     "open": "Settings",
     "tabs": {
       "label": "Settings sections",
+      "password": "Password",
       "apiKeys": "API Keys",
       "exportImport": "Export / Import"
+    },
+    "password": {
+      "hint": "Change your password. You will stay signed in here; any other devices you are signed in on will be signed out.",
+      "current": "Current password",
+      "new": "New password",
+      "confirm": "Confirm new password",
+      "submit": "Change password",
+      "success": "Your password was changed.",
+      "wrongPassword": "The current password is incorrect.",
+      "failed": "Could not change the password."
     },
     "apiKeys": {
       "hint": "API keys authenticate MCP clients: send one in the X-API-Key header when calling /mcp. Keep the second key so you can rotate them without downtime.",
@@ -210,7 +221,9 @@
     "invalidUrl": "Must be an absolute http(s) URL",
     "invalidYear": "Must be a four-digit year",
     "invalidRating": "Must be between 0.25 and 5 in steps of 0.25",
-    "invalidDate": "Must be a valid date with a four-digit year"
+    "invalidDate": "Must be a valid date with a four-digit year",
+    "tooShort": "At least {{min}} characters",
+    "mismatch": "Passwords do not match"
   },
   "errors": {
     "loadFailed": "Could not load the list.",

@@ -101,6 +101,35 @@ class ExposedSessionRepositoryTest {
     }
 
     @Test
+    fun `deleteAllForUserExcept keeps the given session and removes the user's other ones`() = withFreshDatabase {
+        val repo = ExposedSessionRepository()
+        val userId = transaction { insertUser("alice") }
+        repo.save("keep-me", userId, now() + 1.days)
+        repo.save("other-1", userId, now() + 1.days)
+        repo.save("other-2", userId, now() + 1.days)
+
+        val deleted = repo.deleteAllForUserExcept(userId, "keep-me")
+
+        assertEquals(2, deleted)
+        assertEquals("keep-me", repo.find("keep-me")?.id)
+        assertNull(repo.find("other-1"))
+        assertNull(repo.find("other-2"))
+    }
+
+    @Test
+    fun `deleteAllForUserExcept leaves other users' sessions alone`() = withFreshDatabase {
+        val repo = ExposedSessionRepository()
+        val aliceId = transaction { insertUser("alice") }
+        val bobId = transaction { insertUser("bob") }
+        repo.save("alice-session", aliceId, now() + 1.days)
+        repo.save("bob-session", bobId, now() + 1.days)
+
+        repo.deleteAllForUserExcept(aliceId, "some-other-session-id")
+
+        assertEquals("bob-session", repo.find("bob-session")?.id)
+    }
+
+    @Test
     fun `deleting the user cascades to its sessions`() = withFreshDatabase {
         val repo = ExposedSessionRepository()
         val userId = transaction { insertUser("alice") }

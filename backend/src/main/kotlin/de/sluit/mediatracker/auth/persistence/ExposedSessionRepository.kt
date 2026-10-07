@@ -4,8 +4,10 @@ import de.sluit.mediatracker.auth.domain.SessionRepository
 import de.sluit.mediatracker.auth.domain.StoredSession
 import de.sluit.mediatracker.common.persistence.dbQuery
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.less
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -45,5 +47,9 @@ class ExposedSessionRepository : SessionRepository {
 
     override suspend fun delete(id: String): Int = dbQuery {
         SessionsTable.deleteWhere { SessionsTable.id eq id }
+    }
+
+    override suspend fun deleteAllForUserExcept(userId: Long, keepId: String): Int = dbQuery {
+        SessionsTable.deleteWhere { (SessionsTable.userId eq userId) and (SessionsTable.id neq keepId) }
     }
 }

@@ -97,7 +97,7 @@ fun Application.module() {
     val passwordHasher = PasswordHasher()
     val userRepository = ExposedUserRepository()
     val sessionRepository = ExposedSessionRepository()
-    val authService = AuthService(userRepository, passwordHasher)
+    val authService = AuthService(userRepository, passwordHasher, sessionRepository)
     val gameRepository = ExposedGameRepository()
     val gameDeveloperRepository = ExposedGameDeveloperRepository()
     val gameService = GameService(gameRepository, ExposedGamePlatformRepository(), gameDeveloperRepository)

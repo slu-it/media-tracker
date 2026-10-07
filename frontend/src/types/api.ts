@@ -1,5 +1,5 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
-// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse), .../games/api/GameDtos.kt,
+// .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse, ChangePasswordRequest), .../games/api/GameDtos.kt,
 // .../games/api/ExpansionDtos.kt, .../games/api/CoverOptionDtos.kt, .../backup/api/BackupDtos.kt and
 // .../dropbox/api/DropboxDtos.kt. Keep them in sync.
 
@@ -26,6 +26,12 @@ export interface ApiKeysResponse {
 }
 
 export type ApiKeySlot = "primary" | "secondary";
+
+/** Body of `PUT /api/me/password`; mirrors `ChangePasswordRequest` in auth/api/AuthDtos.kt. */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
 
 /** Body of every non-2xx API response. `message` is only present when the backend has a detail to add. */
 export interface ErrorResponse {

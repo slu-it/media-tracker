@@ -13,6 +13,13 @@ class InvalidValueException(val field: String, val reason: String) : IllegalArgu
 class NotFoundException(val resource: String, val id: String) : RuntimeException("$resource $id not found")
 
 /**
+ * A self-service password change was rejected because `currentPassword` did not match the stored hash
+ * (`auth.domain.AuthService.changePassword`). Lives here, not in `auth.domain`, so `plugins/StatusPages.kt`
+ * (which never imports a feature package) can map it to HTTP 403 `wrong_password` directly.
+ */
+class WrongPasswordException : RuntimeException("current password does not match")
+
+/**
  * An outward integration ([source], e.g. `cover_source`) is not configured, so the call was never attempted.
  * Mapped to HTTP 503 `"${source}_unavailable"` (see plugins/StatusPages.kt).
  */

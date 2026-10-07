@@ -5,6 +5,7 @@ import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.WrongPasswordException
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -28,6 +29,7 @@ import io.ktor.server.response.respondText
  * | [BadRequestException] (malformed/ill-typed body) | 400 | `invalid_body`     |
  * | [ContentTransformationException] (no/unsupported body) | 400 | `invalid_body` |
  * | [NotFoundException]                           | 404    | `not_found`        |
+ * | [WrongPasswordException] (self-service password change, wrong current password) | 403 | `wrong_password` |
  * | [ExternalSourceUnavailableException] (integration not configured) | 503 | `"${source}_unavailable"` |
  * | [ExternalSourceException] (integration call failed, logged at warn) | 502 | `"${source}_error"` |
  * | anything else                                 | 500    | `internal_error`   |
@@ -39,6 +41,11 @@ fun Application.configureStatusPages() {
         }
         exception<NotFoundException> { call, _ ->
             call.respondError(HttpStatusCode.NotFound, "not_found")
+        }
+        exception<WrongPasswordException> { call, _ ->
+            // Deliberately 403, not 401: the SPA redirects every 401 to /login, which would drop an otherwise
+            // still-valid session just because the user mistyped their current password.
+            call.respondError(HttpStatusCode.Forbidden, "wrong_password")
         }
         exception<ExternalSourceUnavailableException> { call, cause ->
             call.respondError(HttpStatusCode.ServiceUnavailable, "${cause.source}_unavailable", cause.message)

@@ -56,6 +56,10 @@ class ExposedUserRepository : UserRepository {
         it[createdAt] = Clock.System.now()
     }[UsersTable.id]
 
+    override suspend fun updatePassword(userId: Long, passwordHash: String): Boolean = dbQuery {
+        updatePasswordBlocking(userId, passwordHash) == 1
+    }
+
     fun updatePasswordBlocking(userId: Long, passwordHash: String): Int =
         UsersTable.update({ UsersTable.id eq userId }) { it[UsersTable.passwordHash] = passwordHash }
 
