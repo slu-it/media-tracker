@@ -9,17 +9,14 @@ import { platforms } from "../../../test/fixtures/games";
 import type { TitleSuggestionsResponse } from "../../../types/api";
 import { emptyGameDraft, type GameDraft } from "../domain/gameDraft";
 import { GameForm } from "./GameForm";
+import { SearchDebounceContext } from "../../../hooks/useSearchDebounceMs";
 
 function Harness({ initial, onValidityChange }: { initial: GameDraft; onValidityChange?: (valid: boolean) => void }) {
   const [draft, setDraft] = useState<GameDraft>(initial);
   return (
-    <GameForm
-      value={draft}
-      onChange={setDraft}
-      platforms={platforms}
-      titleSuggestionDebounceMs={10}
-      onValidityChange={onValidityChange}
-    />
+    <SearchDebounceContext value={10}>
+      <GameForm value={draft} onChange={setDraft} platforms={platforms} onValidityChange={onValidityChange} />
+    </SearchDebounceContext>
   );
 }
 

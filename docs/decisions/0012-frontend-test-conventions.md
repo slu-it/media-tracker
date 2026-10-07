@@ -106,3 +106,13 @@ Addendum (MT-003, 2026-09): a view with a debounced input takes the delay as an 
 constant as default (`GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS })`), so view tests stay on real timers with a
 short delay; fake timers are confined to the pure hook test (`src/hooks/useDebouncedValue.test.tsx`, with
 `vi.useRealTimers()` in its own `afterEach`) because jsdom is shared across files.
+
+Addendum (2026-10, supersedes the delay prop of MT-003): the search debounce comes from `SearchDebounceContext`
+(`src/hooks/useSearchDebounceMs.ts`, shared by all media kinds), whose default is the production
+`SEARCH_DEBOUNCE_MS`; the app
+mounts no provider. `renderWithProviders` provides `TEST_SEARCH_DEBOUNCE_MS` (100 ms), so every test that only waits
+for the debounced result runs short without opting in, and the per-component delay props are gone. A test that
+asserts something before the debounce fires (no request yet, two edits coalesced into one window, Enter or Clear
+bypassing the delay) passes a longer delay via `renderWithProviders(ui, { searchDebounceMs })`. Real timers stay the
+rule outside `useDebouncedValue.test.tsx`. Prompted by a CI flake where a 300 ms debounce plus refetch missed the
+1000 ms `findBy*` budget.

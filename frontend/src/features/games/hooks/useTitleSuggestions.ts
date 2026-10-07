@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { CoverMatchResponse } from "../../../types/api";
+import { useSearchDebounceMs } from "../../../hooks/useSearchDebounceMs";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { getTitleSuggestions } from "../api/gamesApi";
-import { SEARCH_DEBOUNCE_MS, SEARCH_MAX_LENGTH, TITLE_SUGGESTION_MIN_LENGTH } from "../domain/gameValues";
+import { SEARCH_MAX_LENGTH, TITLE_SUGGESTION_MIN_LENGTH } from "../domain/gameValues";
 
 /**
  * Background title suggestions for the add/edit form. Modelled on `useCoverOptions` but much smaller: there is
@@ -18,12 +19,9 @@ interface Loaded {
   suggestions: CoverMatchResponse[];
 }
 
-export function useTitleSuggestions(
-  title: string,
-  enabled: boolean,
-  debounceMs: number = SEARCH_DEBOUNCE_MS,
-): CoverMatchResponse[] {
-  const [debouncedTitle] = useDebouncedValue(title.trim(), debounceMs);
+export function useTitleSuggestions(title: string, enabled: boolean, debounceMs?: number): CoverMatchResponse[] {
+  const contextDebounceMs = useSearchDebounceMs();
+  const [debouncedTitle] = useDebouncedValue(title.trim(), debounceMs ?? contextDebounceMs);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const liveTitle = title.trim();
   // `null` below the threshold, above the backend's `SearchTerm.MAX_LENGTH`, disabled, or not yet settled: no

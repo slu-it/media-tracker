@@ -11,8 +11,9 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
   `idx_games_title (title, id)`. The same ADR replaced H2 with a Testcontainers MariaDB for every backend test,
   which is why Docker is a development requirement.
 - `SearchTerm` lives in `common/domain`, the `?search` parsing in `common/api/Search.kt`.
-- Frontend: a debounced field above the grid (`src/hooks/useDebouncedValue.ts`, `SEARCH_DEBOUNCE_MS` = 500 ms
-  since MT-015); `listGames` appends `search=` only when the term is non-blank.
+- Frontend: a debounced field above the grid (`src/hooks/useDebouncedValue.ts`; `SEARCH_DEBOUNCE_MS` = 500 ms
+  since MT-015, in `src/hooks/useSearchDebounceMs.ts`); Enter and the clear button skip the debounce and search
+  at once. `listGames` appends `search=` only when the term is non-blank.
 
 ## Filters (MT-011, MT-012, MT-014)
 

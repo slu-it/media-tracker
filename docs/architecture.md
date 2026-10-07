@@ -223,7 +223,8 @@ frontend/src
 ├── api/client.ts         apiFetch (401 -> /login?returnTo=<current location>, 204 -> undefined, ApiError with the
 │                         parsed ErrorResponse)
 ├── types/api.ts          hand-written mirrors of the backend DTOs
-├── hooks/                useActiveRoute (kind + sub-page of the location), useDebouncedValue (search fields)
+├── hooks/                useActiveRoute (kind + sub-page of the location), useDebouncedValue (search fields),
+│                         useSearchDebounceMs (SEARCH_DEBOUNCE_MS + context, tests shorten it)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
@@ -244,7 +245,7 @@ frontend/src
                           games.meta, cover-options, title-suggestions;
                           expansionsApi), hooks/ (useGamesPage, useAllGames, usePagedGameActions, useUrlSearchInput, useViewParams, useGamesMeta, useExpansions, useCoverOptions,
                           useTitleSuggestions, useDeveloperSuggestions), domain/ (gameValues validators,
-                          SEARCH_DEBOUNCE_MS, gameDraft, developerDraft, releaseDate: fixed YYYY-MM-DD
+                          gameDraft, developerDraft, releaseDate: fixed YYYY-MM-DD
                           format, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
                           URL query codecs of the three views, gameStatus:
                           ownership/progress values and defaults, rankingYears: the ranking's year list),

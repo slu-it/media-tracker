@@ -7,6 +7,7 @@ import { jsonResponse, mockApi } from "../../../../test/mockFetch";
 import { renderWithProviders } from "../../../../test/renderWithProviders";
 import type { CoverMatchResponse, TitleSuggestionsResponse } from "../../../../types/api";
 import { GameTitleField } from "./GameTitleField";
+import { SearchDebounceContext } from "../../../../hooks/useSearchDebounceMs";
 
 const suggestions: CoverMatchResponse[] = [
   { id: 5245, name: "Hollow Knight", releaseYear: 2017, verified: true },
@@ -18,30 +19,33 @@ const response: TitleSuggestionsResponse = { suggestions };
 function Harness({
   initialValue = "",
   onSuggestionPick,
-  suggestionDebounceMs = 10,
 }: {
   initialValue?: string;
   onSuggestionPick?: (suggestion: CoverMatchResponse) => void;
-  suggestionDebounceMs?: number;
 }) {
   const [value, setValue] = useState(initialValue);
   return (
-    <GameTitleField
-      value={value}
-      onChange={setValue}
-      onSuggestionPick={(suggestion) => {
-        setValue(suggestion.name);
-        onSuggestionPick?.(suggestion);
-      }}
-      suggestionDebounceMs={suggestionDebounceMs}
-    />
+    <SearchDebounceContext value={10}>
+      <GameTitleField
+        value={value}
+        onChange={setValue}
+        onSuggestionPick={(suggestion) => {
+          setValue(suggestion.name);
+          onSuggestionPick?.(suggestion);
+        }}
+      />
+    </SearchDebounceContext>
   );
 }
 
 /** Same as `Harness`, but without `onSuggestionPick`: the feature-gating case (e.g. `ExpansionDialog`'s title). */
 function NoPickHarness({ initialValue = "" }: { initialValue?: string }) {
   const [value, setValue] = useState(initialValue);
-  return <GameTitleField value={value} onChange={setValue} suggestionDebounceMs={10} />;
+  return (
+    <SearchDebounceContext value={10}>
+      <GameTitleField value={value} onChange={setValue} />
+    </SearchDebounceContext>
+  );
 }
 
 describe("GameTitleField", () => {

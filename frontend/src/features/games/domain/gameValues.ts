@@ -13,8 +13,6 @@ export const RELEASE_YEAR_SELECT_MIN = 1980;
 export const GAMES_PAGE_SIZE = 36;
 /** Page size `listAllGames` requests, the backend's maximum; keeps the number of round-trips as low as possible. */
 export const ALL_GAMES_PAGE_SIZE = 200;
-/** How long the search box waits after the last keystroke before firing a request. */
-export const SEARCH_DEBOUNCE_MS = 500;
 /** Minimum trimmed title length before the add/edit form requests title suggestions. */
 export const TITLE_SUGGESTION_MIN_LENGTH = 5;
 /** Mirrors `SearchTerm.MAX_LENGTH` (backend). */

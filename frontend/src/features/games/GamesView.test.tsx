@@ -310,7 +310,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView searchDebounceMs={300} />);
+    renderWithProviders(<GamesView />, { searchDebounceMs: 300 });
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
@@ -331,7 +331,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView searchDebounceMs={300} />);
+    renderWithProviders(<GamesView />, { searchDebounceMs: 300 });
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     const search = screen.getByRole("searchbox", { name: "Search games" });
@@ -346,23 +346,38 @@ describe("GamesView", () => {
     );
   });
 
-  it("clears the search with the clear button and drops the search param", async () => {
+  it("clears the search immediately with the clear button and drops the search and page params", async () => {
     const user = userEvent.setup();
     const calls = mockApi({
-      "GET /api/games": searchAwareGames,
+      // Enough hits for page 2 to be valid while searching; the unfiltered list is a single page.
+      "GET /api/games": (_call, url) => {
+        const page = Number(url.searchParams.get("page"));
+        if (url.searchParams.has("search")) return jsonResponse(pageOf([hades], page, GAMES_PAGE_SIZE + 1));
+        return jsonResponse(pageOf([celeste], page, 1));
+      },
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView searchDebounceMs={300} />);
-    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
-
-    await user.click(screen.getByRole("searchbox", { name: "Search games" }));
-    await user.paste("hades");
-    await screen.findByRole("heading", { name: "Hades" });
+    // A debounce far beyond the waitFor timeout below: only an explicit flush can get Celeste on screen.
+    renderWithProviders(<GamesView />, { route: "/?search=hades&page=2", searchDebounceMs: 5000 });
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Clear search" }));
-    expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
-    expect(gamesUrls(calls).at(-1)).toBe(`/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`);
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "Celeste" },
+        {
+          timeout: 500,
+        },
+      ),
+    ).toBeInTheDocument();
+    expect(gamesUrls(calls)).toEqual([
+      `/api/games?page=2&pageSize=${GAMES_PAGE_SIZE}&search=hades`,
+      `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}`,
+    ]);
+    expect(currentLocation()).not.toContain("search=");
+    expect(currentLocation()).not.toContain("page=");
   });
 
   it("returns to page 1 when the search term changes on a later page", async () => {
@@ -375,7 +390,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView searchDebounceMs={300} />);
+    renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getAllByRole("button", { name: "Go to page 2" })[0]);
@@ -402,7 +417,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView searchDebounceMs={300} />);
+    renderWithProviders(<GamesView />);
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
@@ -420,7 +435,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView searchDebounceMs={5000} />);
+    renderWithProviders(<GamesView />, { searchDebounceMs: 5000 });
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
@@ -720,11 +735,11 @@ describe("GamesView", () => {
       });
       renderWithProviders(
         <>
-          <GamesView searchDebounceMs={300} />
+          <GamesView />
           <HistoryControls />
           <GoTo to={`${OVERVIEW_PATH}?page=2`} />
         </>,
-        { route: OVERVIEW_PATH },
+        { route: OVERVIEW_PATH, searchDebounceMs: 300 },
       );
       await screen.findByRole("heading", { name: "Celeste" });
       await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));
@@ -800,11 +815,11 @@ describe("GamesView", () => {
       const target = `${OVERVIEW_PATH}?search=hades`;
       renderWithProviders(
         <>
-          <GamesView searchDebounceMs={100} />
+          <GamesView />
           <HistoryControls />
           <GoTo to={target} />
         </>,
-        { route: `${OVERVIEW_PATH}?search=celeste` },
+        { route: `${OVERVIEW_PATH}?search=celeste`, searchDebounceMs: 100 },
       );
       await screen.findByRole("heading", { name: "Celeste" });
       const search = screen.getByRole("searchbox", { name: "Search games" });
@@ -836,11 +851,11 @@ describe("GamesView", () => {
       const target = `${OVERVIEW_PATH}?search=hades`;
       renderWithProviders(
         <>
-          <GamesView searchDebounceMs={100} />
+          <GamesView />
           <HistoryControls />
           <GoTo to={target} />
         </>,
-        { route: OVERVIEW_PATH },
+        { route: OVERVIEW_PATH, searchDebounceMs: 100 },
       );
       await screen.findByRole("heading", { name: "Celeste" });
       const search = screen.getByRole("searchbox", { name: "Search games" });
@@ -913,11 +928,11 @@ describe("GamesView", () => {
       });
       renderWithProviders(
         <>
-          <GamesView searchDebounceMs={300} />
+          <GamesView />
           <HistoryControls />
           <GoTo to={`${OVERVIEW_PATH}?page=2`} />
         </>,
-        { route: OVERVIEW_PATH },
+        { route: OVERVIEW_PATH, searchDebounceMs: 300 },
       );
       await screen.findByRole("heading", { name: "Celeste" });
       await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));

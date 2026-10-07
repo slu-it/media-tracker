@@ -7,6 +7,7 @@ import { renderWithProviders } from "../../../../test/renderWithProviders";
 import { jsonResponse, mockApi } from "../../../../test/mockFetch";
 import type { DeveloperDraft } from "../../domain/developerDraft";
 import { DevelopersField } from "./DevelopersField";
+import { SearchDebounceContext } from "../../../../hooks/useSearchDebounceMs";
 
 /** Wraps `DevelopersField` as a controlled component, mirroring how `GameForm` will drive it. */
 function ControlledDevelopersField({
@@ -18,14 +19,15 @@ function ControlledDevelopersField({
 }) {
   const [value, setValue] = useState<DeveloperDraft[]>(initialValue);
   return (
-    <DevelopersField
-      value={value}
-      onChange={(next) => {
-        setValue(next);
-        onChange?.(next);
-      }}
-      suggestionDebounceMs={10}
-    />
+    <SearchDebounceContext value={10}>
+      <DevelopersField
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          onChange?.(next);
+        }}
+      />
+    </SearchDebounceContext>
   );
 }
 

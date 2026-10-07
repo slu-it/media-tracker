@@ -9,23 +9,16 @@ import { OverviewFilters } from "./components/OverviewFilters";
 import { GamesViewHeader } from "./components/GamesViewHeader";
 import { SECTION_GAP } from "./components/gamesLayout";
 import { hasActiveFilters, type GameFilters } from "./domain/gameFilters";
-import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
+import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { overviewParams, parseOverviewParams } from "./domain/gameViewParams";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
 import { useViewParams } from "./hooks/useViewParams";
 import { usePagedGameActions } from "./hooks/usePagedGameActions";
+import { useSearchDebounceMs } from "../../hooks/useSearchDebounceMs";
 import { useUrlSearchInput } from "./hooks/useUrlSearchInput";
 
-interface GamesViewProps {
-  /**
-   * Debounce delay for the search box. Tests pass a short value to stay on real timers; this prop is the
-   * convention for debounced views (copy it for the next media kind) instead of module mocks or fake timers.
-   */
-  searchDebounceMs?: number;
-}
-
-export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewProps = {}) {
+export function GamesView() {
   const { t } = useTranslation();
   const [searchParams, writeParams] = useViewParams();
   // The URL is the single source of truth for search, filters and page. Parsed once per distinct query string, so
@@ -34,11 +27,11 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
   const { search: urlSearch, page, filters } = useMemo(() => parseOverviewParams(new URLSearchParams(query)), [query]);
 
   // A new search term is a refinement, not a navigation step: replace the entry and return to page 1.
-  const [searchInput, setSearchInput, flushSearch] = useUrlSearchInput(
+  const [searchInput, setSearchInput, flushSearch, clearSearch] = useUrlSearchInput(
     urlSearch,
     (search) =>
       writeParams((prev) => overviewParams({ ...parseOverviewParams(prev), search, page: 1 }), { replace: true }),
-    searchDebounceMs,
+    useSearchDebounceMs(),
   );
 
   const setFilters = (next: GameFilters) =>
@@ -75,7 +68,7 @@ export function GamesView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesViewPr
           <GameSearchField
             value={searchInput}
             onChange={setSearchInput}
-            onClear={() => setSearchInput("")}
+            onClear={clearSearch}
             onSubmit={flushSearch}
             fullWidth
           />

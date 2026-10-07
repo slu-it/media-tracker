@@ -62,7 +62,8 @@ Code:
   restoration, which works because the previous page's grid stays rendered while the next one loads, so the
   document height survives the popstate (jsdom cannot check this; verify by eye).
 - The search field stays local state, initialised from `search` (`useUrlSearchInput`). Its debounced value is
-  written back. A `search` change from outside (Back, a link) re-syncs the field without a write-back.
+  written back; Enter (`flushSearch`) and the clear button (`clearSearch`) write at once. A `search` change from
+  outside (Back, a link) re-syncs the field without a write-back.
 
 ## Login return
 

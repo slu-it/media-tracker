@@ -20,8 +20,9 @@ import { focusVisibleRingSx } from "../../../theme/focusRing";
 import type { CoverMatchResponse, CoverOptionResponse } from "../../../types/api";
 import { CoverThumbnail } from "./CoverThumbnail";
 import { COVER_TYPES, DEFAULT_COVER_TYPE, type CoverType } from "../domain/coverTypes";
-import { SEARCH_DEBOUNCE_MS, SEARCH_MAX_LENGTH } from "../domain/gameValues";
+import { SEARCH_MAX_LENGTH } from "../domain/gameValues";
 import { useCoverOptions } from "../hooks/useCoverOptions";
+import { useSearchDebounceMs } from "../../../hooks/useSearchDebounceMs";
 
 interface CoverPickerDialogProps {
   open: boolean;
@@ -70,7 +71,7 @@ function CoverPickerDialogContent({
 }: Omit<CoverPickerDialogProps, "open">) {
   const { t } = useTranslation();
   const [searchInput, setSearchInput] = useState(initialQuery.slice(0, SEARCH_MAX_LENGTH));
-  const [debouncedQuery, flushQuery] = useDebouncedValue(searchInput.trim(), SEARCH_DEBOUNCE_MS);
+  const [debouncedQuery, flushQuery] = useDebouncedValue(searchInput.trim(), useSearchDebounceMs());
   // The picked match is remembered together with the query it was picked for, so a new search term evaluates to
   // "no override" (server ranking applies) in the same render instead of a reset effect - the same state-pairing
   // trick GamesView uses for its page reset.

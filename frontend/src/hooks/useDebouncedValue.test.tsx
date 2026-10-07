@@ -58,4 +58,16 @@ describe("useDebouncedValue", () => {
     act(() => result.current[1]());
     expect(result.current[0]).toBe("celeste");
   });
+
+  it("flush with an argument applies that value immediately and the pending timer changes nothing", () => {
+    const { result, rerender } = renderHook(({ value }) => useDebouncedValue(value, 1000), {
+      initialProps: { value: "hades" },
+    });
+    rerender({ value: "celeste" });
+    act(() => result.current[1]("celeste"));
+    expect(result.current[0]).toBe("celeste");
+
+    act(() => vi.advanceTimersByTime(1000));
+    expect(result.current[0]).toBe("celeste");
+  });
 });

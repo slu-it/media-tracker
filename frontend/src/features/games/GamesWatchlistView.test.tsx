@@ -179,7 +179,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesWatchlistView searchDebounceMs={300} />);
+    renderWithProviders(<GamesWatchlistView />, { searchDebounceMs: 300 });
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
@@ -193,6 +193,42 @@ describe("GamesWatchlistView", () => {
       `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&ownership=watchlist&sort=release_asc`,
       `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&search=wilds&ownership=watchlist&sort=release_asc`,
     ]);
+  });
+
+  it("clears the search immediately with the clear button and drops the search param", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      "GET /api/games": (_call, url) => {
+        const page = Number(url.searchParams.get("page"));
+        const search = (url.searchParams.get("search") ?? "").toLowerCase();
+        if (search.length === 0) return jsonResponse(pageOf([hades], page, 1));
+        const matches = games.filter((g) => g.title.toLowerCase().includes(search));
+        return jsonResponse(pageOf(matches, page, matches.length));
+      },
+      "GET /api/game-platforms": mockPlatforms,
+      "GET /api/games.meta": mockMeta,
+    });
+    // A debounce far beyond the waitFor timeout below: only an explicit flush can bring Hades back in time.
+    renderWithProviders(<GamesWatchlistView />, { searchDebounceMs: 5000 });
+    expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("searchbox", { name: "Search games" }));
+    await user.paste("wilds");
+    await user.keyboard("{Enter}");
+    await screen.findByRole("heading", { name: "Outer Wilds" });
+
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    await waitFor(
+      () => {
+        expect(screen.getByRole("heading", { name: "Hades" })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Outer Wilds" })).not.toBeInTheDocument();
+        expect(gamesUrls(calls).at(-1)).toBe(
+          `/api/games?page=1&pageSize=${GAMES_PAGE_SIZE}&ownership=watchlist&sort=release_asc`,
+        );
+        expect(currentLocation()).not.toContain("search=");
+      },
+      { timeout: 500 },
+    );
   });
 
   it("shows the watchlist-empty state when nothing is on the watchlist", async () => {
@@ -213,7 +249,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesWatchlistView searchDebounceMs={300} />);
+    renderWithProviders(<GamesWatchlistView />);
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("searchbox", { name: "Search games" }));
@@ -373,7 +409,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesWatchlistView searchDebounceMs={300} />);
+    renderWithProviders(<GamesWatchlistView />);
     await waitFor(() => expect(resolvers).toHaveLength(1));
     resolvers[0](jsonResponse(pageOf(games, 1, 2)));
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
@@ -512,11 +548,11 @@ describe("GamesWatchlistView", () => {
       mockApi(mocks());
       renderWithProviders(
         <>
-          <GamesWatchlistView searchDebounceMs={300} />
+          <GamesWatchlistView />
           <HistoryControls />
           <GoTo to={`${WATCHLIST_PATH}?page=2`} />
         </>,
-        { route: WATCHLIST_PATH },
+        { route: WATCHLIST_PATH, searchDebounceMs: 300 },
       );
       await screen.findByRole("heading", { name: "Hades" });
       await user.click(screen.getByRole("button", { name: /^Go to \/games/ }));
