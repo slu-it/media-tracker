@@ -1,0 +1,32 @@
+# Run from the repo root with:  sbx env run
+schemaVersion: "1"
+name: media-tracker
+agent: claude              # built-in Claude Code agent (a v2 kit)
+workspace: .               # mount the repo root (the directory containing this file)
+
+# Overridable with:  sbx env run --env-arg hostFrontendPort=5174 --env-arg hostBackendPort=8081
+args:
+  hostFrontendPort:
+    default: "5173"
+    description: Host port for the frontend dev server
+    pattern: "[1-9][0-9]*"
+  hostBackendPort:
+    default: "8080"
+    description: Host port for the backend dev server
+    pattern: "[1-9][0-9]*"
+  hostDatabasePort:
+    default: "3306"
+    description: Host port for the backend dev server
+    pattern: "[1-9][0-9]*"
+
+kits:
+  - docker.io/sbx/playwright-kit:latest
+  - source: ghcr.io/slu-it/media-tracker-sbx-kit:1.2.0
+
+ports:
+  - sandbox: 5173
+    host: ${{ env.args.hostFrontendPort }}
+  - sandbox: 8080
+    host: ${{ env.args.hostBackendPort }}
+  - sandbox: 3306
+    host: ${{ env.args.hostDatabasePort }}
