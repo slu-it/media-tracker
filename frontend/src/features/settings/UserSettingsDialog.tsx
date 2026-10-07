@@ -4,24 +4,28 @@ import { useTranslation } from "react-i18next";
 import { BaseDialog } from "../../components/dialog/BaseDialog";
 import { ApiKeysTab } from "./components/ApiKeysTab";
 import { ExportImportTab } from "./components/ExportImportTab";
+import { PasswordTab } from "./components/PasswordTab";
 
 interface UserSettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = "apiKeys" | "exportImport";
+type SettingsTab = "password" | "apiKeys" | "exportImport";
 
 const TITLE_ID = "user-settings-title";
+const PASSWORD_TAB_ID = "settings-tab-password";
+const PASSWORD_PANEL_ID = "settings-tabpanel-password";
 const API_KEYS_TAB_ID = "settings-tab-apiKeys";
 const API_KEYS_PANEL_ID = "settings-tabpanel-apiKeys";
 const EXPORT_IMPORT_TAB_ID = "settings-tab-exportImport";
 const EXPORT_IMPORT_PANEL_ID = "settings-tabpanel-exportImport";
 
-/** Per-user settings. Two tabs today (API keys, export/import); more media-kind settings tabs will join them later. */
+/** Per-user settings. Three tabs today (password, API keys, export/import); more media-kind settings tabs will
+ * join them later. Opens on the Password tab. */
 export function UserSettingsDialog({ open, onClose }: UserSettingsDialogProps) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<SettingsTab>("apiKeys");
+  const [tab, setTab] = useState<SettingsTab>("password");
 
   return (
     <BaseDialog open={open} onClose={onClose} maxWidth="sm" titleId={TITLE_ID}>
@@ -30,6 +34,12 @@ export function UserSettingsDialog({ open, onClose }: UserSettingsDialogProps) {
       </Typography>
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
         <Tabs value={tab} onChange={(_event, next: SettingsTab) => setTab(next)} aria-label={t("settings.tabs.label")}>
+          <Tab
+            value="password"
+            label={t("settings.tabs.password")}
+            id={PASSWORD_TAB_ID}
+            aria-controls={PASSWORD_PANEL_ID}
+          />
           <Tab
             value="apiKeys"
             label={t("settings.tabs.apiKeys")}
@@ -43,6 +53,15 @@ export function UserSettingsDialog({ open, onClose }: UserSettingsDialogProps) {
             aria-controls={EXPORT_IMPORT_PANEL_ID}
           />
         </Tabs>
+      </Box>
+      <Box
+        role="tabpanel"
+        id={PASSWORD_PANEL_ID}
+        aria-labelledby={PASSWORD_TAB_ID}
+        tabIndex={0}
+        hidden={tab !== "password"}
+      >
+        {tab === "password" && <PasswordTab />}
       </Box>
       <Box
         role="tabpanel"

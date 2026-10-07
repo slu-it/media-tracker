@@ -24,6 +24,7 @@ a decision was taken), never prose in `CLAUDE.md` ([ADR 0025](decisions/0025-age
 | Game release date and developers | MT-025 | Optional release date whose year overrides the release year; developers as a user-created vocabulary with prefix fulltext autosuggest, created on save; new add/edit field order; `search_game_developers`/`create_game_developer` MCP tools. | [game-release-date-and-developers.md](features/game-release-date-and-developers.md) | 0029 |
 | Game sub-pages | MT-026 | Second tab row for games: overview, watchlist (release sort toggle) and yearly ranking (rated games of one year, year navigator); `sort` and `rated` on `GET /api/games` and `search_games`. | [game-sub-pages.md](features/game-sub-pages.md) | 0030 |
 | URL routes and deep links | MT-032 | `/{kind}` and `/games/{overview,watchlist,ranking}` with search, filters, sort, page and ranking year in the query; Back steps through views and pages; login returns to the deep link through a validated `returnTo`. | [url-routes.md](features/url-routes.md) | 0031 |
+| Change own password | MT-038 | First settings tab: current password plus the new one twice; `PUT /api/me/password` keeps the current session and logs out all others; minimum length shared with `CreateUser`. | [account-password.md](features/account-password.md) | 0032 |
 
 ## Decisions
 
@@ -64,6 +65,7 @@ the checked-out directory:
 | [0029](decisions/0029-game-release-date-and-developers.md) | An optional release date that overrides the year, and developers as user-created vocabulary | `release_date` wins over `release_year` in the domain and is stored; `game_developers` with idempotent case-insensitive create and prefix fulltext lookup; frontend creates new names before saving the game; orphans kept; MUI X DatePicker. |
 | [0030](decisions/0030-game-sub-pages-sort-and-rated-filter.md) | Sub-pages per media kind, and a sort and a rated filter on the game list | `sort` and `rated` on the one list endpoint (and `search_games`); release order year, dated first, date; sub-pages as a second localStorage-backed tab row, no router; the ranking loads a whole year. |
 | [0031](decisions/0031-url-routes-and-login-return.md) | URL routes for media kinds and sub-pages, view state in the query, login returns to the deep link | React Router 8 declarative; paths derived from `MEDIA_KINDS`/`MEDIA_SUB_PAGES`; query codecs per view; push for views and pages, replace for search/filter/sort; localStorage only for the `/` redirects; validated `returnTo` on login. |
+| [0032](decisions/0032-self-service-password-change.md) | Self-service password change that keeps the current session and ends all others | `PUT /api/me/password` with the current password; 403 `wrong_password` instead of 401; other sessions deleted, current kept; `NewPassword` holds the minimum length for CLI and API. |
 
 ## Other documents
 

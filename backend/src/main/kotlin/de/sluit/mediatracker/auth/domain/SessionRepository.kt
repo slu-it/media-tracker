@@ -16,4 +16,10 @@ interface SessionRepository {
     suspend fun find(id: String): StoredSession?
 
     suspend fun delete(id: String): Int
+
+    /**
+     * Deletes every other session of [userId] (self-service password change: all sessions but the one the
+     * caller is currently using, [keepId], are signed out). Returns the number of deleted rows.
+     */
+    suspend fun deleteAllForUserExcept(userId: Long, keepId: String): Int
 }

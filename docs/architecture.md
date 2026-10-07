@@ -43,6 +43,8 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   the string, so they can be raised later without a migration.
 - There is no self-registration. The first user is created with the bootstrap entry point:
   `java -cp media-tracker.jar de.sluit.mediatracker.auth.CreateUser <username>`.
+- A logged-in user changes their own password in the settings dialog (`PUT /api/me/password`). The current
+  session row is kept, every other session of that user is deleted. Decision record 0032.
 
 ## API keys and MCP
 
@@ -100,10 +102,12 @@ de.sluit.mediatracker
 │                       LocalDateColumnType (DATE bound as java.time.LocalDate via JDBC 4.2, zone-free)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
-│   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys) +
+│   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys),
+│   │                   PasswordRoutes (/api/me/password) +
 │   │                   AuthDtos, Security (SESSION_AUTH + API_KEY_AUTH providers and their challenges,
 │   │                   ApiKeyPrincipal), Sessions (cookie + storage plugin), UserSession (principal), DbSessionStorage
-│   ├── domain/         AuthService, ApiKeyService, ApiKeys (ApiKey, ApiKeySlot), PasswordHasher (Argon2id),
+│   ├── domain/         AuthService (login, changePassword), ApiKeyService, ApiKeys (ApiKey, ApiKeySlot),
+│   │                   NewPassword (minimum length for CLI and API), PasswordHasher (Argon2id),
 │   │                   User + UserRepository, StoredSession + SessionRepository
 │   └── persistence/    UsersTable, SessionsTable, ExposedUserRepository (+ *Blocking helpers),
 │                       ExposedSessionRepository
@@ -170,6 +174,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/me` | 200 `{"username"}` | |
 | `GET /api/me/api-keys` | 200 `ApiKeysResponse {primary, secondary}` | each a UUID string or `null` |
 | `POST /api/me/api-keys/{slot}` | 200 `ApiKeysResponse` | `slot` is `primary` or `secondary` (else 400); replaces that key, the old one stops working at once |
+| `PUT /api/me/password` | 204 | body `ChangePasswordRequest {currentPassword, newPassword}`; 400 `validation_error` if the new one is shorter than 8, 403 `wrong_password` if the current one is wrong; keeps the calling session, deletes the user's other sessions |
 | `GET /api/games?page=1&pageSize=50[&search=zelda][&filters]` | 200 `PageResponse<GameResponse>` | 1-based `page`, `pageSize` 1..200 (default 50); ordered by title; with `search` (trimmed, 1..200 chars, blank = absent) fulltext matches on title and description, games with a title hit first, then by `2 * MATCH(title) + 0.75 * MATCH(description)`, then title, id; every word a prefix term, any word matches (decision record 0015); `totalPages` 0 when empty. Four repeatable filter parameters narrow the result: `platformIds`, `ownership`, `progress`, `releaseYear`; repetitions of one parameter mean "any of", different parameters all have to match, and an unknown value is a 400. Any filter takes the same branch as a search, without a term the title order stays (decision record 0021). `rated=true` keeps only rated games; `sort` is `title` (default, the order above), `release_asc`/`release_desc` (year, dated before year-only, date, then title, id) or `rating_desc` (then title, id); a non-default `sort` replaces the relevance order of a search; unknown values are a 400 (decision record 0030) |
 | `POST /api/games` | 201 `GameResponse` + `Location` | body `CreateGameRequest`: `releaseYear` required unless `releaseDate` (`YYYY-MM-DD`, optional) is given, whose year then overrides it (decision record 0029); `platformIds` (at least one seeded platform id), `developerIds` optional, `description` (max 10000 chars), `rating` (0.25..5 in quarter steps) and `coverImageUrl` optional; `ownership` (`watchlist`/`subscription`/`owned`, default `watchlist`), `progress` (`abandoned`/`not_started`/`paused`/`playing`/`finished`/`completed`, default `not_started`) and `hidden` (default `false`) optional, an unknown value is a 400 (decision record 0017) |
 | `PATCH /api/games/{id}` | 200 `GameResponse` | body `UpdateGameRequest`: omit a field to keep it, `null` clears `description`, `rating`, `coverImageUrl` or `releaseDate` (clearing the date keeps the year; a set date overrides the year), `platformIds` and `developerIds` replace the whole set; `ownership`, `progress` and `hidden` cannot be cleared, so an explicit `null` on them means unchanged (as for `title`, `releaseYear` and `platformIds`); 404 for unknown ids |
@@ -223,10 +228,11 @@ frontend/src
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
 │                         ComingSoon
-├── features/settings/    UserSettingsDialog (tab bar; "API Keys" and "Export / Import" tabs) + api/ (settingsApi,
-│                         backupApi, dropboxApi), hooks/ (useApiKeys, useExportImport, useDropbox, useCloudBackup),
-│                         domain/ (downloadJson: Blob download, dropboxValues: code validator, cloudBackupFormat:
-│                         Intl date/size), components/ (ApiKeysTab, ApiKeyField: masked read-only key, reveal,
+├── features/settings/    UserSettingsDialog (tab bar; "Password" (default), "API Keys" and "Export / Import" tabs) +
+│                         api/ (settingsApi, backupApi, dropboxApi), hooks/ (useApiKeys, useExportImport, useDropbox,
+│                         useCloudBackup), domain/ (downloadJson: Blob download, dropboxValues: code validator,
+│                         passwordValues: password validators, cloudBackupFormat: Intl date/size), components/
+│                         (PasswordTab + fields/PasswordField; ApiKeysTab, ApiKeyField: masked read-only key, reveal,
 │                         copy, regenerate; ExportImportTab: export download, file-picker import with per-table
 │                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
 │                         disconnect; fields/AuthorizationCodeField)

@@ -9,13 +9,22 @@ import { UserSettingsDialog } from "./UserSettingsDialog";
 const PRIMARY_KEY = "11111111-1111-1111-1111-111111111111";
 
 describe("UserSettingsDialog", () => {
-  it("shows the title, the API Keys tab and both loaded keys", async () => {
+  it("opens on the Password tab, shown first and selected by default", () => {
+    renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+
+    expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeInTheDocument();
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Password", "API Keys", "Export / Import"]);
+    expect(screen.getByRole("tab", { name: "Password" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByLabelText(/^Current password/)).toBeInTheDocument();
+  });
+
+  it("shows the API Keys tab and both loaded keys once selected", async () => {
     mockApi({ "GET /api/me/api-keys": () => jsonResponse({ primary: PRIMARY_KEY, secondary: null }) });
     const user = userEvent.setup();
     renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
 
-    expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "API Keys" })).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: "API Keys" }));
     await screen.findByRole("textbox", { name: "Primary key" });
 
     const revealPrimary = screen.getByRole("button", { name: "Show Primary key" });
@@ -34,6 +43,7 @@ describe("UserSettingsDialog", () => {
     });
     const user = userEvent.setup();
     renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+    await user.click(screen.getByRole("tab", { name: "API Keys" }));
     await screen.findByRole("textbox", { name: "Secondary key" });
 
     // No confirmation needed: the secondary slot has no key yet.
@@ -51,7 +61,9 @@ describe("UserSettingsDialog", () => {
 
   it("shows an error alert when loading the keys fails", async () => {
     mockApi({ "GET /api/me/api-keys": () => jsonResponse({ error: "internal_error" }, 500) });
+    const user = userEvent.setup();
     renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+    await user.click(screen.getByRole("tab", { name: "API Keys" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load the API keys.");
   });
 
@@ -59,6 +71,7 @@ describe("UserSettingsDialog", () => {
     mockApi({ "GET /api/me/api-keys": () => jsonResponse({ error: "internal_error" }, 500) });
     const user = userEvent.setup();
     renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+    await user.click(screen.getByRole("tab", { name: "API Keys" }));
     await screen.findByRole("alert");
 
     expect(screen.queryByRole("button", { name: /^Generate/ })).not.toBeInTheDocument();
@@ -79,6 +92,7 @@ describe("UserSettingsDialog", () => {
     });
     const user = userEvent.setup();
     renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+    await user.click(screen.getByRole("tab", { name: "API Keys" }));
     await screen.findByRole("textbox", { name: "Primary key" });
 
     await user.click(screen.getByRole("tab", { name: "Export / Import" }));

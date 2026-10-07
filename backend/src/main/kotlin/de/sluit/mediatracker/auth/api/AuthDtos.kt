@@ -18,3 +18,7 @@ data class MeResponse(val username: String)
 data class ApiKeysResponse(val primary: String?, val secondary: String?)
 
 fun ApiKeys.toResponse() = ApiKeysResponse(primary = primary?.toString(), secondary = secondary?.toString())
+
+/** PUT /api/me/password */
+@Serializable
+data class ChangePasswordRequest(val currentPassword: String, val newPassword: String)

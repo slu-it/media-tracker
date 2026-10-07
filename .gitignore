@@ -1,6 +1,9 @@
 # Scratch
 tmp/
 
+# PNPM
+.pnpm-store/
+
 # Playwright MCP screenshots and page snapshots
 .playwright-mcp/
 
@@ -30,3 +33,6 @@ backend/src/main/resources/app/
 # Python
 .claude/hooks/__pycache__/
 .claude/worktrees/
+
+# Docker Sandbox
+local.sbxenv.yaml

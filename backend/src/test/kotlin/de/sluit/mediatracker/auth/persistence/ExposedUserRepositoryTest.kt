@@ -55,6 +55,28 @@ class ExposedUserRepositoryTest {
     }
 
     @Test
+    fun `updatePassword replaces the hash of only that user`() = withFreshDatabase {
+        val repo = ExposedUserRepository()
+        val aliceId = transaction { insertUser("alice", "hash-1") }
+        transaction { insertUser("bob", "hash-1") }
+
+        val updated = repo.updatePassword(aliceId, "hash-2")
+
+        assertTrue(updated)
+        assertEquals("hash-2", repo.findByUsername("alice")?.passwordHash)
+        assertEquals("hash-1", repo.findByUsername("bob")?.passwordHash)
+    }
+
+    @Test
+    fun `updatePassword of an unknown id returns false`() = withFreshDatabase {
+        val repo = ExposedUserRepository()
+
+        val updated = repo.updatePassword(9999L, "hash")
+
+        assertFalse(updated)
+    }
+
+    @Test
     fun `createBlocking rejects a duplicate username`() = withFreshDatabase {
         transaction { insertUser("alice", "hash-1") }
 

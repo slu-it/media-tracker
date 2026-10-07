@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.auth
 
+import de.sluit.mediatracker.auth.domain.NewPassword
 import de.sluit.mediatracker.auth.domain.PasswordHasher
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
@@ -85,7 +86,7 @@ object CreateUser {
     private fun readAndHashPassword(readPassword: () -> CharArray, hasher: PasswordHasher): String {
         val password = readPassword()
         try {
-            if (password.size < 8) fail("password must be at least 8 characters")
+            NewPassword.violation(password.size)?.let { fail("password $it") }
             return hasher.hash(password)
         } finally {
             password.fill('\u0000')

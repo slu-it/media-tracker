@@ -86,7 +86,9 @@ There is no self-registration. Create the first account with the same environmen
 java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <username>
 ```
 
-You are prompted for the password (twice). Add `--reset-password` to change an existing user's password.
+You are prompted for the password (twice). Add `--reset-password` to change an existing user's password. A
+logged-in user can also change their own password in the app under Settings → Password; that logs out their
+other sessions.
 
 In the compose deployment the same CLI runs inside the image. The service may keep running; `run` starts a
 separate container that publishes no ports and gives the prompt a TTY:

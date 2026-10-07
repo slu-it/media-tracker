@@ -2,10 +2,14 @@ package de.sluit.mediatracker
 
 import de.sluit.mediatracker.auth.api.ApiKeysResponse
 import de.sluit.mediatracker.dropbox.api.DropboxStatusResponse
+import io.ktor.client.plugins.cookies.HttpCookies
+import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.parameters
 import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertContains
@@ -85,6 +89,45 @@ class ApplicationSmokeTest {
         assertEquals(HttpStatusCode.OK, root.status)
         assertContains(root.bodyAsText(), "<div id=\"root\">")
     }
+
+    @Test
+    fun `self-service password change keeps the current session, signs out the other, and swaps the password`() =
+        testApplication {
+            val sessionA = appWithUser("alice", "wonderland-1")
+            sessionA.loginAs("alice", "wonderland-1")
+            val sessionB = createClient {
+                followRedirects = false
+                install(HttpCookies)
+            }
+            sessionB.loginAs("alice", "wonderland-1")
+
+            val changed = sessionA.put("/api/me/password") {
+                jsonBody("""{"currentPassword":"wonderland-1","newPassword":"new-wonderland-2"}""")
+            }
+            assertEquals(HttpStatusCode.NoContent, changed.status)
+
+            assertEquals(HttpStatusCode.OK, sessionA.get("/api/me").status)
+            assertEquals(HttpStatusCode.Unauthorized, sessionB.get("/api/me").status)
+
+            // loginAs itself asserts the redirect to "/", i.e. that the new password is accepted.
+            createClient {
+                followRedirects = false
+                install(HttpCookies)
+            }.loginAs("alice", "new-wonderland-2")
+
+            val oldLoginClient = createClient {
+                followRedirects = false
+                install(HttpCookies)
+            }
+            val oldLogin = oldLoginClient.submitForm(
+                "/login",
+                parameters {
+                    append("username", "alice")
+                    append("password", "wonderland-1")
+                },
+            )
+            assertEquals("/login?error=1", oldLogin.headers["Location"])
+        }
 
     @Test
     fun `dropbox status reports unavailable since application-test yaml pins the app key and secret empty`() =
