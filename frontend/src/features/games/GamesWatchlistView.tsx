@@ -13,21 +13,17 @@ import { FilterSelect } from "./components/GameFilterBar";
 import { ReleaseSortToggle } from "./components/ReleaseSortToggle";
 import { WatchlistGameCard } from "./components/WatchlistGameCard";
 import { EMPTY_FILTERS, type GameFilters } from "./domain/gameFilters";
-import { GAMES_PAGE_SIZE, SEARCH_DEBOUNCE_MS } from "./domain/gameValues";
+import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { parseWatchlistParams, watchlistParams, type WatchlistParams } from "./domain/gameViewParams";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
 import { useViewParams } from "./hooks/useViewParams";
 import { usePagedGameActions } from "./hooks/usePagedGameActions";
+import { useSearchDebounceMs } from "../../hooks/useSearchDebounceMs";
 import { useUrlSearchInput } from "./hooks/useUrlSearchInput";
 
-interface GamesWatchlistViewProps {
-  /** Same convention as `GamesView`: tests pass a short value to stay on real timers. */
-  searchDebounceMs?: number;
-}
-
 /** Games on the watchlist (`ownership === "watchlist"`), sorted by release date, oldest or newest first. */
-export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: GamesWatchlistViewProps = {}) {
+export function GamesWatchlistView() {
   const { t } = useTranslation();
   const [searchParams, writeParams] = useViewParams();
   // The URL is the single source of truth for search, platform filter, sort and page (as in GamesView).
@@ -42,10 +38,10 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
   // Search, platform and sort are refinements, not navigation steps: they replace the entry and return to page 1.
   const update = (next: Partial<WatchlistParams>) =>
     writeParams((prev) => watchlistParams({ ...parseWatchlistParams(prev), page: 1, ...next }), { replace: true });
-  const [searchInput, setSearchInput, flushSearch] = useUrlSearchInput(
+  const [searchInput, setSearchInput, flushSearch, clearSearch] = useUrlSearchInput(
     urlSearch,
     (search) => update({ search }),
-    searchDebounceMs,
+    useSearchDebounceMs(),
   );
   // A page change is a navigation step: it pushes, so Back returns to the previous page. The automatic
   // corrections of `usePagedGameActions` pass `replace` and do not add an entry.
@@ -117,7 +113,7 @@ export function GamesWatchlistView({ searchDebounceMs = SEARCH_DEBOUNCE_MS }: Ga
           <GameSearchField
             value={searchInput}
             onChange={setSearchInput}
-            onClear={() => setSearchInput("")}
+            onClear={clearSearch}
             onSubmit={flushSearch}
             fullWidth
           />

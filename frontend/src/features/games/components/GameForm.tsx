@@ -25,8 +25,6 @@ interface GameFormProps {
   platforms: GamePlatformResponse[] | null;
   disabled?: boolean;
   showErrors?: boolean;
-  /** Debounce before a title-suggestion request fires; tests pass a short value to stay on real timers. */
-  titleSuggestionDebounceMs?: number;
   /**
    * Reports whether the release date picker's current edit is valid; a parent gates saving on this in addition
    * to `isDraftValid(value)`, since an invalid in-progress edit does not reach `onChange` (see `ReleaseDateField`).
@@ -39,15 +37,7 @@ interface GameFormProps {
  * `isDraftValid(value)` (plus `onValidityChange`, see above) so the save button and the field errors share one
  * source of truth.
  */
-export function GameForm({
-  value,
-  onChange,
-  platforms,
-  disabled,
-  showErrors,
-  titleSuggestionDebounceMs,
-  onValidityChange,
-}: GameFormProps) {
+export function GameForm({ value, onChange, platforms, disabled, showErrors, onValidityChange }: GameFormProps) {
   const { t } = useTranslation();
   const previewUrl = validateCoverImageUrl(value.coverImageUrl) === null ? value.coverImageUrl : null;
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -103,7 +93,6 @@ export function GameForm({
             disabled={disabled}
             showErrors={showErrors}
             autoFocus
-            suggestionDebounceMs={titleSuggestionDebounceMs}
           />
           <DescriptionField
             value={value.description}

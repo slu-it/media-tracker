@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import type { GameDeveloperResponse } from "../../../types/api";
+import { useSearchDebounceMs } from "../../../hooks/useSearchDebounceMs";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { searchGameDevelopers } from "../api/gamesApi";
-import { DEVELOPER_SUGGESTION_MIN_LENGTH, SEARCH_DEBOUNCE_MS } from "../domain/gameValues";
+import { DEVELOPER_SUGGESTION_MIN_LENGTH } from "../domain/gameValues";
 
 /**
  * Background developer-name suggestions for `DevelopersField`. Modelled on `useTitleSuggestions`: any failure
@@ -26,8 +27,9 @@ export interface DeveloperSuggestions {
   settled: boolean;
 }
 
-export function useDeveloperSuggestions(search: string, debounceMs: number = SEARCH_DEBOUNCE_MS): DeveloperSuggestions {
-  const [debouncedSearch] = useDebouncedValue(search.trim(), debounceMs);
+export function useDeveloperSuggestions(search: string, debounceMs?: number): DeveloperSuggestions {
+  const contextDebounceMs = useSearchDebounceMs();
+  const [debouncedSearch] = useDebouncedValue(search.trim(), debounceMs ?? contextDebounceMs);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const liveSearch = search.trim();
   // `null` below the minimum length, or not yet settled (`debouncedSearch !== liveSearch`, the same guard

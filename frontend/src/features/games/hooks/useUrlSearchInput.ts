@@ -6,14 +6,14 @@ import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
  *
  * The input is local state (typing must not write the URL on every keystroke); it follows the URL when the URL
  * changes from outside (Back/Forward, a link). The debounced input is handed to `writeSearch`, which is
- * expected to replace the history entry and drop the page. Returns `[input, setInput, flush]`; `flush` applies
- * the pending debounce at once (Enter).
+ * expected to replace the history entry and drop the page. Returns `[input, setInput, flush, clear]`; `flush`
+ * applies the pending debounce at once (Enter), `clear` empties the input and searches at once.
  */
 export function useUrlSearchInput(
   urlSearch: string,
   writeSearch: (search: string) => void,
   debounceMs: number,
-): [string, (value: string) => void, () => void] {
+): [string, (value: string) => void, () => void, () => void] {
   const [searchInput, setSearchInput] = useState(urlSearch);
   const [debouncedSearch, flushSearch] = useDebouncedValue(searchInput.trim(), debounceMs);
 
@@ -40,5 +40,11 @@ export function useUrlSearchInput(
     }
   }, [debouncedSearch, searchInput, urlSearch, writeSearch]);
 
-  return [searchInput, setSearchInput, flushSearch];
+  // Clearing searches at once like Enter; flushing "" explicitly because `flushSearch` would close over the old text.
+  const clearSearch = () => {
+    setSearchInput("");
+    flushSearch("");
+  };
+
+  return [searchInput, setSearchInput, () => flushSearch(), clearSearch];
 }

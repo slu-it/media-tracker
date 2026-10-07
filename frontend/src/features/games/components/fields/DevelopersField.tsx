@@ -9,8 +9,6 @@ interface DevelopersFieldProps {
   value: DeveloperDraft[];
   onChange: (value: DeveloperDraft[]) => void;
   disabled?: boolean;
-  /** Debounce before a suggestion request fires; tests pass a short value to stay on real timers. */
-  suggestionDebounceMs?: number;
 }
 
 /**
@@ -24,11 +22,11 @@ interface DevelopersFieldProps {
  * `createGameDeveloper`) before saving. On blur, if an option is keyboard-highlighted (arrow keys, popup open),
  * `autoSelect` commits that highlighted option instead of the typed text.
  */
-export function DevelopersField({ value, onChange, disabled, suggestionDebounceMs }: DevelopersFieldProps) {
+export function DevelopersField({ value, onChange, disabled }: DevelopersFieldProps) {
   const { t } = useTranslation();
   const [inputValue, setInputValue] = useState("");
   const [error, setError] = useState<ValidationCode | null>(null);
-  const { suggestions, settled } = useDeveloperSuggestions(inputValue, suggestionDebounceMs);
+  const { suggestions, settled } = useDeveloperSuggestions(inputValue);
   const suggestionOptions = suggestions.filter(
     (suggestion) => !value.some((selected) => "id" in selected && selected.id === suggestion.id),
   );

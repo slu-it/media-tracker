@@ -20,8 +20,6 @@ interface GameTitleFieldProps {
   /** Show errors even before the field was touched (e.g. after a save attempt). */
   showErrors?: boolean;
   autoFocus?: boolean;
-  /** Debounce before a suggestion request fires; tests pass a short value to stay on real timers. */
-  suggestionDebounceMs?: number;
 }
 
 /**
@@ -39,7 +37,6 @@ export function GameTitleField({
   disabled,
   showErrors,
   autoFocus,
-  suggestionDebounceMs,
 }: GameTitleFieldProps) {
   const { t } = useTranslation();
   const [touched, setTouched] = useState(false);
@@ -51,7 +48,7 @@ export function GameTitleField({
   const code = validateTitle(value);
   const showError = code !== null && (touched || showErrors);
   const suggestionsEnabled = userEdited && onSuggestionPick !== undefined && value !== lastPicked;
-  const suggestions = useTitleSuggestions(value, suggestionsEnabled, suggestionDebounceMs);
+  const suggestions = useTitleSuggestions(value, suggestionsEnabled);
   const options = suggestions.filter((suggestion) => suggestion.name !== value);
   const helperText = showError
     ? t(`validation.${code}`, { max: TITLE_MAX_LENGTH })

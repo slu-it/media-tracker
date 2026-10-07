@@ -27,8 +27,12 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
 - Open MUI selects with `user.click` on the combobox. Enter multi-character text with `user.click(field)` then
   `user.paste("...")`; per-keystroke `user.type` is about 10x slower and hit the CI timeout, keep it for single
   characters whose keystroke behaviour is under test.
-- Derive expected URLs from feature constants (`GAMES_PAGE_SIZE`, `SEARCH_DEBOUNCE_MS`) instead of pinning
-  numbers.
+- Derive expected URLs from feature constants (`GAMES_PAGE_SIZE`) instead of pinning numbers.
+- Search debounces read `SearchDebounceContext` (`src/hooks/useSearchDebounceMs.ts`); `renderWithProviders` sets
+  100 ms (`TEST_SEARCH_DEBOUNCE_MS`). Never add a delay prop to a component. Pass an explicit `{ searchDebounceMs }`
+  only when the test depends on the delay: it asserts something before the debounce fires (no request yet,
+  coalescing, Enter/Clear bypassing it) or waits a fixed time against it. A `waitFor` timeout that must beat the
+  debounce stays well below it. Debounced hooks keep an optional `debounceMs` argument for `renderHook` tests.
 - Vitest runs with `testTimeout: 10_000` and `isolate: false` (one jsdom shared across files). `test-setup.ts`
   runs per file and does the lifecycle itself: explicit `afterEach(cleanup)`, a `beforeAll` setting
   `IS_REACT_ACT_ENVIRONMENT`, then the mocks (incl. `matchMedia`, an `Element.prototype.scrollIntoView` stub
