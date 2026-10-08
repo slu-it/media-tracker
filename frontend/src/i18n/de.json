@@ -113,7 +113,8 @@
     "pages": {
       "overview": "Übersicht",
       "watchlist": "Merkliste",
-      "ranking": "Jahresranking"
+      "ranking": "Jahresranking",
+      "series": "Buchreihen"
     }
   },
   "media": {
@@ -151,6 +152,18 @@
     "deleteQuestion": "„{{title}}“ löschen?",
     "resultCount_one": "{{count}} Buch",
     "resultCount_other": "{{count}} Bücher",
+    "seriesView": {
+      "searchLabel": "Reihen suchen",
+      "searchPlaceholder": "Reihen suchen…",
+      "count_one": "{{count}} Reihe",
+      "count_other": "{{count}} Reihen",
+      "bookCount_one": "{{count}} Buch",
+      "bookCount_other": "{{count}} Bücher",
+      "empty": "Noch keine Reihen. Lege eine an, während du ein Buch bearbeitest.",
+      "noSearchResults": "Keine Reihen passen zu „{{term}}“",
+      "noBooks": "Keine Bücher in dieser Reihe",
+      "positionBadge": "#{{position}}"
+    },
     "search": {
       "label": "Bücher suchen",
       "placeholder": "Bücher suchen…",

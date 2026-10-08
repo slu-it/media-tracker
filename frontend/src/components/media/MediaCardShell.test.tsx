@@ -56,4 +56,20 @@ describe("MediaCardShell", () => {
     renderWithProviders(<MediaCardShell title="Celeste" coverImageUrl={null} onClick={() => {}} />);
     expect(screen.getByRole("button", { name: "Celeste" })).toHaveAccessibleDescription("");
   });
+
+  it("renders a top description before the cover and the title, still as the accessible description", () => {
+    renderWithProviders(
+      <MediaCardShell
+        title="Celeste"
+        coverImageUrl="/c.jpg"
+        onClick={() => {}}
+        description="2018"
+        descriptionPlacement="top"
+      />,
+    );
+    const description = screen.getByText("2018");
+    const title = screen.getByText("Celeste");
+    expect(description.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Celeste" })).toHaveAccessibleDescription("2018");
+  });
 });

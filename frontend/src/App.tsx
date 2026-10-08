@@ -1,4 +1,5 @@
 import { Box, Container } from "@mui/material";
+import CollectionsBookmarkOutlined from "@mui/icons-material/CollectionsBookmarkOutlined";
 import GridViewOutlined from "@mui/icons-material/GridViewOutlined";
 import LeaderboardOutlined from "@mui/icons-material/LeaderboardOutlined";
 import LibraryAddOutlined from "@mui/icons-material/LibraryAddOutlined";
@@ -16,6 +17,7 @@ import {
   type SubPage,
 } from "./components/layout/mediaKinds";
 import { useActiveRoute } from "./hooks/useActiveRoute";
+import { BookSeriesView } from "./features/books/BookSeriesView";
 import { BooksView } from "./features/books/BooksView";
 import { GamesView } from "./features/games/GamesView";
 import { GamesRankingView } from "./features/games/GamesRankingView";
@@ -38,10 +40,12 @@ const SUB_PAGE_ICONS: Record<SubPage, ReactElement> = {
   overview: <GridViewOutlined fontSize="small" />,
   watchlist: <LibraryAddOutlined fontSize="small" />,
   ranking: <LeaderboardOutlined fontSize="small" />,
+  series: <CollectionsBookmarkOutlined fontSize="small" />,
 };
 
 const BOOK_SUB_VIEWS: Record<BookSubPage, ReactElement> = {
   overview: <BooksView />,
+  series: <BookSeriesView />,
 };
 
 const GAME_SUB_VIEWS: Record<GameSubPage, ReactElement> = {

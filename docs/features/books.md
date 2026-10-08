@@ -4,13 +4,14 @@ ADRs: [0034](../decisions/0034-books-and-shared-media-building-blocks.md) (separ
 building blocks), with [0009](../decisions/0009-game-platforms-as-reference-data.md) (types as seeded reference
 data) and [0029](../decisions/0029-game-release-date-and-developers.md) (release date, authors as vocabulary)
 applied to books, and [0035](../decisions/0035-book-series-and-narrators.md) (series with a position per link,
-narrators like authors, MT-042).
+narrators like authors, MT-042). The series view (MT-043) needs no record of its own.
 Code: `backend/src/main/kotlin/de/sluit/mediatracker/books/`, `frontend/src/features/books/`, migrations
 `V012__books.sql`, `V013__book_series_and_narrators.sql`.
 
 Books is the second media kind. Its first version is the games overview equivalent: add, edit, delete and a
-paged, searchable, filterable list at `/books/overview`, plus MCP tools. There are no watchlist or ranking
-sub-pages, no rating, no hidden flag, no expansions and no cover picker yet.
+paged, searchable, filterable list at `/books/overview`, plus MCP tools. A second sub-page, `/books/series`
+(MT-043), lists the series with their books in order. There are no watchlist or ranking sub-pages, no rating, no
+hidden flag, no expansions and no cover picker yet.
 
 ## Domain
 
@@ -50,6 +51,8 @@ sub-pages, no rating, no hidden flag, no expansions and no cover picker yet.
 | `GET`/`POST /api/book-authors` | Lookup (`search`, `limit` 1..50, default 10) and idempotent create (201 new, 200 existing) |
 | `GET`/`POST /api/book-narrators` | As `/api/book-authors` |
 | `GET`/`POST /api/book-series` | As `/api/book-authors`; `BookResponse.series` is `[{id, name, position}]` |
+| `GET /api/book-series.summaries` | Every series, those without books included, as `[{id, name, bookCount}]` by name; unpaged (MT-043) |
+| `GET /api/book-series/{id}/books` | The series' books, unpaged: by position, books without one last, then by title; 404 for an unknown series |
 
 Search matches the title only, as for games (ADR 0033): a fulltext prefix term or `title LIKE 'term%'`, prefix
 hits first (`common/persistence/TitleSearch.kt`).
@@ -84,3 +87,11 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   (`validateSeriesPosition`, `.` or `,` as decimal separator). A number survives when its pending chip is upgraded
   to an existing series. The detail view shows "Mistborn #1", with the number formatted for the active language.
 - Everything kind-neutral is shared, see [games.md](games.md#shared-media-building-blocks).
+- **Series view** (MT-043, `BookSeriesView.tsx`, tab "Book series" / "Buchreihen" at `/books/series`): every series
+  from `/api/book-series.summaries` as one `BookSeriesAccordion` each, by name, with a book-count chip. The search
+  field filters the loaded list in the browser (case- and accent-insensitive substring, `seriesSearch.ts`); it is
+  kept in the URL (`bookSeriesViewParams.ts`) but sends no request. A section's books load only when it is
+  expanded (`unmountOnExit`, `useSeriesBooks`), in the backend's order, as the overview's `BookCard`s with a "#n"
+  badge (`seriesPosition`) centered above the cover for numbered books (the slot is kept empty for unnumbered ones,
+  so covers in a row stay aligned; `MediaCardShell`'s `descriptionPlacement="top"`). A series without books shows a message and loads nothing. Saving,
+  adding or deleting a book in the dialogs reloads the counts and every open section.

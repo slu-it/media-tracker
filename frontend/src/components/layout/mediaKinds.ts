@@ -5,7 +5,7 @@ export const DEFAULT_MEDIA_KIND: MediaKind = "books";
 
 /** Sub-pages within a media kind, in tab order. Kinds without sub-pages have no entry here. */
 export const MEDIA_SUB_PAGES = {
-  books: ["overview"],
+  books: ["overview", "series"],
   games: ["overview", "watchlist", "ranking"],
 } as const satisfies Partial<Record<MediaKind, readonly string[]>>;
 

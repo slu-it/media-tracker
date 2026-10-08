@@ -431,6 +431,29 @@ class BookServiceTest {
     }
 
     @Test
+    fun `listBySeries of an unknown series throws NotFoundException without loading books`() {
+        runBlocking {
+            val unknown = BookSeriesId.new()
+            coEvery { seriesRepository.findByIds(setOf(unknown)) } returns emptyList()
+
+            val exception = assertFailsWith<NotFoundException> { service.listBySeries(unknown) }
+
+            assertEquals(unknown.toString(), exception.id)
+            coVerify(exactly = 0) { books.findBySeries(any()) }
+        }
+    }
+
+    @Test
+    fun `listBySeries returns the books of a known series in repository order`() = runBlocking {
+        val mistborn = series("Mistborn")
+        val found = listOf(book("One"), book("Two"))
+        coEvery { seriesRepository.findByIds(setOf(mistborn.id)) } returns listOf(mistborn)
+        coEvery { books.findBySeries(mistborn.id) } returns found
+
+        assertEquals(found, service.listBySeries(mistborn.id))
+    }
+
+    @Test
     fun `delete delegates to the repository and ignores the count`() = runBlocking {
         val idA = BookId.new()
         val idB = BookId.new()

@@ -65,6 +65,12 @@ class BookService(
             books.search(search, filters, request)
         }
 
+    /** The books of one series in series order; an unknown [seriesId] is not found, an empty series is an empty list. */
+    suspend fun listBySeries(seriesId: BookSeriesId): List<Book> {
+        if (series.findByIds(setOf(seriesId)).isEmpty()) throw NotFoundException(SERIES_RESOURCE, seriesId.toString())
+        return books.findBySeries(seriesId)
+    }
+
     suspend fun listTypes(): List<BookType> = types.findAll()
 
     /** The filter values that actually occur in the stored books, ordered for display. */
@@ -120,5 +126,6 @@ class BookService(
 
     companion object {
         const val RESOURCE = "book"
+        const val SERIES_RESOURCE = "book series"
     }
 }

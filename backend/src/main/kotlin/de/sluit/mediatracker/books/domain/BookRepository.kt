@@ -42,6 +42,12 @@ interface BookRepository {
      * categories the REST filters expose; `missing` is never populated, it has no lookup values to offer.
      */
     suspend fun findUsedFilterValues(): BookFilters
+
+    /**
+     * All books linked to [seriesId], unpaged: ordered by the book's position in that series ascending, books
+     * without a position last (ordered by title), then title, then id.
+     */
+    suspend fun findBySeries(seriesId: BookSeriesId): List<Book>
 }
 
 /**
@@ -101,6 +107,9 @@ interface BookSeriesRepository {
     suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<BookSeries>
 
     suspend fun findByIds(ids: Set<BookSeriesId>): List<BookSeries>
+
+    /** Every series including those without books, with its book count; ordered by name, then id. Unpaged. */
+    suspend fun findSummaries(): List<BookSeriesSummary>
 
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookSeries>

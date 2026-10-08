@@ -14,6 +14,11 @@ interface MediaCardShellProps {
    * date) from screen readers, since it overrides the button's normal "name from content" computation.
    */
   description?: ReactNode;
+  /**
+   * Where the description sits in the centered column: `"bottom"` (default) after the title, `"top"` first, above the
+   * cover. Either way it stays referenced by `aria-describedby`.
+   */
+  descriptionPlacement?: "top" | "bottom";
   /** Cover shape; defaults to the standard cover ratio. */
   coverAspectRatio?: number;
   /** Card body below the title/description, e.g. platform chips and status icons. */
@@ -26,10 +31,12 @@ export function MediaCardShell({
   coverImageUrl,
   onClick,
   description,
+  descriptionPlacement = "bottom",
   coverAspectRatio,
   children,
 }: MediaCardShellProps) {
   const descriptionId = useId();
+  const descriptionBox = description !== undefined && <Box id={descriptionId}>{description}</Box>;
   return (
     <Card variant="outlined">
       <CardActionArea
@@ -39,6 +46,7 @@ export function MediaCardShell({
         sx={{ height: "100%" }}
       >
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
+          {descriptionPlacement === "top" && descriptionBox}
           <CoverImage src={coverImageUrl} alt="" width={CARD_COVER_WIDTH} aspectRatio={coverAspectRatio} />
           <Typography
             variant="subtitle1"
@@ -55,7 +63,7 @@ export function MediaCardShell({
           >
             {title}
           </Typography>
-          {description !== undefined && <Box id={descriptionId}>{description}</Box>}
+          {descriptionPlacement === "bottom" && descriptionBox}
           {children}
         </CardContent>
       </CardActionArea>
