@@ -3,10 +3,13 @@ package de.sluit.mediatracker.games.api
 import de.sluit.mediatracker.common.api.PatchField
 import de.sluit.mediatracker.common.api.PatchFieldSerializer
 import de.sluit.mediatracker.common.api.toPatch
-import de.sluit.mediatracker.common.domain.InvalidValueException
-import de.sluit.mediatracker.games.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.releaseYearFromYearOrDate
 import de.sluit.mediatracker.games.domain.DEFAULT_HIDDEN
-import de.sluit.mediatracker.games.domain.Description
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameDeveloper
 import de.sluit.mediatracker.games.domain.GameDeveloperId
@@ -18,9 +21,6 @@ import de.sluit.mediatracker.games.domain.NewGame
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
-import de.sluit.mediatracker.games.domain.ReleaseYear
-import de.sluit.mediatracker.games.domain.Title
 import kotlinx.serialization.Serializable
 
 // Mirrored by hand in frontend/src/types/api.ts. Keep both in sync.
@@ -108,9 +108,7 @@ data class GameMetaResponse(
 
 fun CreateGameRequest.toNewGame(): NewGame {
     val parsedReleaseDate = releaseDate?.let(ReleaseDate::parse)
-    val year = releaseYear?.let(::ReleaseYear)
-        ?: parsedReleaseDate?.let { ReleaseYear(it.year) }
-        ?: throw InvalidValueException(ReleaseYear.FIELD, "is required unless releaseDate is given")
+    val year = releaseYearFromYearOrDate(releaseYear, parsedReleaseDate)
     return NewGame(
         title = Title(title),
         releaseYear = year,

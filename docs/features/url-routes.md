@@ -8,13 +8,13 @@ Code:
   - `src/routes.ts`: paths derived from `MEDIA_KINDS` and `MEDIA_SUB_PAGES`, plus the stored-route helpers.
   - `hooks/useActiveRoute.ts`, and `App.tsx` (the `<Routes>`).
   - `BrowserRouter` in `main.tsx`.
-  - `features/games/domain/gameViewParams.ts`: the query codecs.
-  - `features/games/hooks/useUrlSearchInput.ts`: the search field ⇄ `search` sync shared by overview and
-    watchlist.
-  - `features/games/hooks/useViewParams.ts`: the URL writer. React Router hands a functional
+  - `src/domain/media/viewParams.ts`: the kind-neutral field codecs; `features/games/domain/gameViewParams.ts`
+    and `features/books/domain/bookViewParams.ts`: each view's query codec.
+  - `src/hooks/useUrlSearchInput.ts`: the search field ⇄ `search` sync shared by every view with a search.
+  - `src/hooks/useViewParams.ts`: the URL writer. React Router hands a functional
     `setSearchParams` the render-time params, so two writes in one commit would overwrite each other. The hook
     merges each update onto the latest written params.
-  - The three games views, and `api/client.ts` (401 → `returnTo`).
+  - The three games views, `BooksView`, and `api/client.ts` (401 → `returnTo`).
 - Backend: `auth/api/ReturnPath.kt` (`safeReturnPath`, `loginUrl`), `auth/api/Security.kt` (the challenge),
   `auth/api/LoginRoutes.kt`, and `login/login.html` (a form without `action`).
 - Tests: `src/routes.test.ts`, `App.test.tsx`, the "URL state" tests of each games view, `gameViewParams.test.ts`.
@@ -24,16 +24,17 @@ Code:
 
 | Path | Query (omitted when default or empty; `*` = repeatable, `?k=a&k=b`) |
 |---|---|
-| `/books`, `/movies`, `/series` | none |
+| `/books/overview` | `search`, `type`* (ids), `ownership`*, `progress`*, `year`*, `page` (ADR 0034) |
+| `/movies`, `/series` | none |
 | `/games/overview` | `search`, `platform`* (ids), `ownership`*, `progress`* (API values), `year`* (release-year filter), `page` |
 | `/games/watchlist` | `search`, `platform`*, `sort=release_desc` (`release_asc` is the default), `page` |
 | `/games/ranking` | `year` (the ranked year; absent = the default year of record 0030) |
 | `/` | redirects to the last-used kind (`mt.mediaTab`, default `books`), including its last sub-page |
-| `/games` | redirects to the last-used sub-page (`mt.gamesPage`, default `overview`) |
+| `/books`, `/games` | redirect to the kind's last-used sub-page (`mt.booksPage`, `mt.gamesPage`, default `overview`) |
 | anything else | redirects to `/` |
 
-- Redirects replace the history entry. The current route keeps writing `mt.mediaTab` and `mt.gamesPage`. Those
-  keys are read only for the two redirects.
+- Redirects replace the history entry. The current route keeps writing `mt.mediaTab` and the kind's sub-page key.
+  Those keys are read only for the redirects.
 - The codec writes keys in a fixed order (search, platform, ownership, progress, year, sort, page) with sorted
   values, so equal state gives an equal URL.
 - Values the backend would reject with a 400 are dropped silently, so a hand-edited or stale link never shows a
@@ -53,7 +54,7 @@ Code:
 - **Push**: a media or sub-page tab click (to the bare path, so filters start clean), a page change, a ranking
   year change.
 - **Replace, dropping `page`**: the debounced search, a filter, the watchlist sort.
-- **Replace**: the automatic page correction of `usePagedGameActions`, when a reload or a delete leaves a later
+- **Replace**: the automatic page correction of `usePagedActions`, when a reload or a delete leaves a later
   page empty. Its `setPage(page, { replace: true })` is the convention for any correction; user navigation calls
   it without the option. The correction only acts on data of the current request (`!loading && data.page ===
   page`), so Back to a page entry is never rewritten from the previous query's stale data.

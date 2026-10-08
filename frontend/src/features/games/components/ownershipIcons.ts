@@ -2,7 +2,7 @@ import LibraryAddOutlinedIcon from "@mui/icons-material/LibraryAddOutlined";
 import LibraryAddCheckOutlinedIcon from "@mui/icons-material/LibraryAddCheckOutlined";
 import VideoLibraryOutlinedIcon from "@mui/icons-material/VideoLibraryOutlined";
 import type { Ownership } from "../domain/gameStatus";
-import type { IconComponent } from "./progressIcons";
+import type { IconComponent } from "../../../components/media/status/iconComponent";
 
 /**
  * Shared by the game row icons, the `StatusFilterToggles` icon bar and `OwnershipToggleBar`. Every ownership value

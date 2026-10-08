@@ -23,8 +23,11 @@ import org.testcontainers.mariadb.MariaDBContainer
 private const val MARIADB_PORT = 3306
 private const val DATABASE_NAME = "media_tracker_test"
 
-/** Seeded once by db/migration/V002__games.sql; truncating it would need re-seeding it by hand, so no test may. */
-private val seedOnlyTableNames = setOf("game_platforms")
+/**
+ * Seeded once by db/migration/V002__games.sql (game_platforms) and V012__books.sql (book_types); truncating them
+ * would need re-seeding by hand, so no test may.
+ */
+private val seedOnlyTableNames = setOf("game_platforms", "book_types")
 
 /**
  * One MariaDB container for the whole test JVM, started lazily on first use. Testcontainers' Ryuk reaper removes

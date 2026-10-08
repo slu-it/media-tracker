@@ -1,16 +1,42 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
+import de.sluit.mediatracker.common.api.VocabularyEntryView
+import de.sluit.mediatracker.common.api.addCreateVocabularyTool
+import de.sluit.mediatracker.common.api.addSearchVocabularyTool
+import de.sluit.mediatracker.common.api.booleanOrNull
+import de.sluit.mediatracker.common.api.intArrayOrNull
+import de.sluit.mediatracker.common.api.intOrNull
+import de.sluit.mediatracker.common.api.putCoverImageUrlProperty
+import de.sluit.mediatracker.common.api.putDescriptionProperty
+import de.sluit.mediatracker.common.api.putEnumArrayProperty
+import de.sluit.mediatracker.common.api.putEnumProperty
+import de.sluit.mediatracker.common.api.putPageSizeProperty
+import de.sluit.mediatracker.common.api.putQueryProperty
+import de.sluit.mediatracker.common.api.putReleaseDateProperty
+import de.sluit.mediatracker.common.api.putReleaseYearProperty
+import de.sluit.mediatracker.common.api.putReleaseYearsFilterProperty
+import de.sluit.mediatracker.common.api.putTitleProperty
+import de.sluit.mediatracker.common.api.putUuidArrayProperty
+import de.sluit.mediatracker.common.api.requireKnownFields
+import de.sluit.mediatracker.common.api.requireNotCleared
+import de.sluit.mediatracker.common.api.sizeOrNull
+import de.sluit.mediatracker.common.api.stringArrayOrNull
+import de.sluit.mediatracker.common.api.stringOrNull
+import de.sluit.mediatracker.common.api.toErrorResult
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.VocabularyCreation
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.domain.requireValid
 import de.sluit.mediatracker.games.domain.CoverOptionsService
-import de.sluit.mediatracker.games.domain.DeveloperName
-import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameFilters
@@ -21,7 +47,6 @@ import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
-import de.sluit.mediatracker.games.domain.ReleaseYear
 import io.modelcontextprotocol.kotlin.sdk.server.Server
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.McpJson
@@ -31,15 +56,10 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.elementNames
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
-import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -148,50 +168,21 @@ private const val SEARCH_GAMES_MAX_SIZE = 100
 // Mirrors the constraints value classes enforce in games/domain/GameValues.kt.
 private val ADD_GAME_SCHEMA = ToolSchema(
     properties = buildJsonObject {
-        putJsonObject("title") {
-            put("type", "string")
-            put("description", "The game's title.")
-            put("minLength", 1)
-            put("maxLength", 256)
-        }
-        putJsonObject("releaseYear") {
-            put("type", "integer")
-            put(
-                "description",
-                "The four-digit release year. Required unless releaseDate is given, whose year then wins.",
-            )
-            put("minimum", 1000)
-            put("maximum", 9999)
-        }
-        putJsonObject("releaseDate") {
-            put("type", "string")
-            put("format", "date")
-            put(
-                "description",
-                "The game's precise release date (YYYY-MM-DD). Optional; when given, its year overrides " +
-                    "releaseYear, which then may be omitted.",
-            )
-        }
-        putJsonObject("platformIds") {
-            put("type", "array")
-            put(
-                "description",
-                "Ids of the platforms this game was released on, from list_game_platforms. " +
-                    "At least one is required.",
-            )
-            putJsonObject("items") {
-                put("type", "string")
-                put("format", "uuid")
-            }
-            put("minItems", 1)
-            put("uniqueItems", true)
-        }
-        putJsonObject("description") {
-            put("type", "string")
-            put("description", "Free-form notes about the game, at most 10000 characters.")
-            put("minLength", 1)
-            put("maxLength", 10000)
-        }
+        putTitleProperty("The game's title.")
+        putReleaseYearProperty(
+            "The four-digit release year. Required unless releaseDate is given, whose year then wins.",
+        )
+        putReleaseDateProperty(
+            "The game's precise release date (YYYY-MM-DD). Optional; when given, its year overrides " +
+                "releaseYear, which then may be omitted.",
+        )
+        putUuidArrayProperty(
+            "platformIds",
+            "Ids of the platforms this game was released on, from list_game_platforms. " +
+                "At least one is required.",
+            minItems = 1,
+        )
+        putDescriptionProperty("Free-form notes about the game, at most 10000 characters.")
         putJsonObject("rating") {
             put("type", "number")
             put("description", "A star rating between 0.25 and 5.0, in quarter-star steps.")
@@ -199,48 +190,28 @@ private val ADD_GAME_SCHEMA = ToolSchema(
             put("maximum", 5.0)
             put("multipleOf", 0.25)
         }
-        putJsonObject("coverImageUrl") {
-            put("type", "string")
-            put("description", "An absolute http(s) URL to a cover image.")
-            put("minLength", 1)
-            put("maxLength", 2048)
-            put("format", "uri")
-        }
-        putJsonObject("ownership") {
-            put("type", "string")
-            putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "Whether the game is owned, available through a subscription (e.g. PlayStation Plus, Game Pass), " +
-                    "or just on the watchlist. Defaults to watchlist.",
-            )
-        }
-        putJsonObject("progress") {
-            put("type", "string")
-            putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "How far the game has been played. completed means fully finished (100%). " +
-                    "Defaults to not_started.",
-            )
-        }
+        putCoverImageUrlProperty("An absolute http(s) URL to a cover image.")
+        putEnumProperty(
+            "ownership",
+            Ownership.entries,
+            "Whether the game is owned, available through a subscription (e.g. PlayStation Plus, Game Pass), " +
+                "or just on the watchlist. Defaults to watchlist.",
+        )
+        putEnumProperty(
+            "progress",
+            Progress.entries,
+            "How far the game has been played. completed means fully finished (100%). " +
+                "Defaults to not_started.",
+        )
         putJsonObject("hidden") {
             put("type", "boolean")
             put("description", "Whether the game is hidden from the default list view. Defaults to false.")
         }
-        putJsonObject("developerIds") {
-            put("type", "array")
-            put(
-                "description",
-                "Ids of the developers who made this game, from search_game_developers (create missing ones " +
-                    "with create_game_developer). Optional.",
-            )
-            putJsonObject("items") {
-                put("type", "string")
-                put("format", "uuid")
-            }
-            put("uniqueItems", true)
-        }
+        putUuidArrayProperty(
+            "developerIds",
+            "Ids of the developers who made this game, from search_game_developers (create missing ones " +
+                "with create_game_developer). Optional.",
+        )
     },
     required = listOf("title", "platformIds"),
 )
@@ -248,70 +219,22 @@ private val ADD_GAME_SCHEMA = ToolSchema(
 // Mirrors GameFilters; the enum arrays are built from the domain entries so the schema cannot drift from it.
 private val SEARCH_GAMES_SCHEMA = ToolSchema(
     properties = buildJsonObject {
-        putJsonObject("query") {
-            put("type", "string")
-            put("description", "Words to search for.")
-            put("minLength", 1)
-            put("maxLength", SearchTerm.MAX_LENGTH)
-        }
-        putJsonObject("platformIds") {
-            put("type", "array")
-            put(
-                "description",
-                "Only games released on one of these platforms, ids from list_game_platforms.",
-            )
-            putJsonObject("items") {
-                put("type", "string")
-                put("format", "uuid")
-            }
-            put("uniqueItems", true)
-            put("maxItems", MAX_FILTER_VALUES)
-        }
-        putJsonObject("ownership") {
-            put("type", "array")
-            put("description", "Only games whose ownership is one of these values.")
-            putJsonObject("items") {
-                put("type", "string")
-                putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            }
-            put("uniqueItems", true)
-            put("maxItems", MAX_FILTER_VALUES)
-        }
-        putJsonObject("progress") {
-            put("type", "array")
-            put("description", "Only games whose progress is one of these values.")
-            putJsonObject("items") {
-                put("type", "string")
-                putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
-            }
-            put("uniqueItems", true)
-            put("maxItems", MAX_FILTER_VALUES)
-        }
-        putJsonObject("releaseYears") {
-            put("type", "array")
-            put("description", "Only games released in one of these years.")
-            putJsonObject("items") {
-                put("type", "integer")
-                put("minimum", ReleaseYear.MIN)
-                put("maximum", ReleaseYear.MAX)
-            }
-            put("uniqueItems", true)
-            put("maxItems", MAX_FILTER_VALUES)
-        }
-        putJsonObject(MissingField.FIELD) {
-            put("type", "array")
-            put(
-                "description",
-                "Only games where at least one of these properties has no value yet. Use it to find games " +
-                    "with incomplete data.",
-            )
-            putJsonObject("items") {
-                put("type", "string")
-                putJsonArray("enum") { MissingField.entries.forEach { add(it.wire) } }
-            }
-            put("uniqueItems", true)
-            put("maxItems", MissingField.entries.size)
-        }
+        putQueryProperty("Words to search for.")
+        putUuidArrayProperty(
+            "platformIds",
+            "Only games released on one of these platforms, ids from list_game_platforms.",
+            maxItems = MAX_FILTER_VALUES,
+        )
+        putEnumArrayProperty("ownership", Ownership.entries, "Only games whose ownership is one of these values.")
+        putEnumArrayProperty("progress", Progress.entries, "Only games whose progress is one of these values.")
+        putReleaseYearsFilterProperty("Only games released in one of these years.")
+        putEnumArrayProperty(
+            MissingField.FIELD,
+            MissingField.entries,
+            "Only games where at least one of these properties has no value yet. Use it to find games " +
+                "with incomplete data.",
+            maxItems = MissingField.entries.size,
+        )
         putJsonObject(GameFilters.RATED_FIELD) {
             put("type", "boolean")
             put(
@@ -319,26 +242,18 @@ private val SEARCH_GAMES_SCHEMA = ToolSchema(
                 "true: only games that already have a rating. false or omitted: no filter on rating.",
             )
         }
-        putJsonObject(GameSort.FIELD) {
-            put("type", "string")
-            putJsonArray("enum") { GameSort.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "How to order the matches. title (default): alphabetically. release_asc/release_desc: by " +
-                    "release date (falling back to releaseYear), oldest/newest first. rating_desc: by rating, " +
-                    "highest first.",
-            )
-        }
-        putJsonObject(PageSize.FIELD) {
-            put("type", "integer")
-            put(
-                "description",
-                "How many games to return at most. Defaults to 10, $SEARCH_GAMES_MAX_SIZE at most.",
-            )
-            put("minimum", 1)
-            put("maximum", SEARCH_GAMES_MAX_SIZE)
-            put("default", SEARCH_GAMES_DEFAULT_SIZE.value)
-        }
+        putEnumProperty(
+            GameSort.FIELD,
+            GameSort.entries,
+            "How to order the matches. title (default): alphabetically. release_asc/release_desc: by " +
+                "release date (falling back to releaseYear), oldest/newest first. rating_desc: by rating, " +
+                "highest first.",
+        )
+        putPageSizeProperty(
+            "How many games to return at most. Defaults to 10, $SEARCH_GAMES_MAX_SIZE at most.",
+            max = SEARCH_GAMES_MAX_SIZE,
+            default = SEARCH_GAMES_DEFAULT_SIZE.value,
+        )
     },
     required = emptyList(),
 )
@@ -351,46 +266,22 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
             put("format", "uuid")
             put("description", "The game's id, as returned by search_games.")
         }
-        putJsonObject("title") {
-            put("type", "string")
-            put("description", "The game's title.")
-            put("minLength", 1)
-            put("maxLength", 256)
-        }
-        putJsonObject("releaseYear") {
-            put("type", "integer")
-            put(
-                "description",
-                "The four-digit release year. On a game that already has a releaseDate (and this call does " +
-                    "not clear it), that date's year is kept and overrides this value instead; set releaseDate " +
-                    "to change the year of a game that has one.",
-            )
-            put("minimum", 1000)
-            put("maximum", 9999)
-        }
-        putJsonObject("platformIds") {
-            put("type", "array")
-            put(
-                "description",
-                "Ids of the platforms this game was released on, from list_game_platforms. Replaces the " +
-                    "full list. At least one is required.",
-            )
-            putJsonObject("items") {
-                put("type", "string")
-                put("format", "uuid")
-            }
-            put("minItems", 1)
-            put("uniqueItems", true)
-        }
-        putJsonObject("description") {
-            putJsonArray("type") {
-                add("string")
-                add("null")
-            }
-            put("description", "Free-form notes about the game, at most 10000 characters. null clears it.")
-            put("minLength", 1)
-            put("maxLength", 10000)
-        }
+        putTitleProperty("The game's title.")
+        putReleaseYearProperty(
+            "The four-digit release year. On a game that already has a releaseDate (and this call does " +
+                "not clear it), that date's year is kept and overrides this value instead; set releaseDate " +
+                "to change the year of a game that has one.",
+        )
+        putUuidArrayProperty(
+            "platformIds",
+            "Ids of the platforms this game was released on, from list_game_platforms. Replaces the " +
+                "full list. At least one is required.",
+            minItems = 1,
+        )
+        putDescriptionProperty(
+            "Free-form notes about the game, at most 10000 characters. null clears it.",
+            clearable = true,
+        )
         putJsonObject("rating") {
             putJsonArray("type") {
                 add("number")
@@ -401,62 +292,32 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
             put("maximum", 5.0)
             put("multipleOf", 0.25)
         }
-        putJsonObject("coverImageUrl") {
-            putJsonArray("type") {
-                add("string")
-                add("null")
-            }
-            put("description", "An absolute http(s) URL to a cover image. null clears it.")
-            put("minLength", 1)
-            put("maxLength", 2048)
-            put("format", "uri")
-        }
-        putJsonObject("ownership") {
-            put("type", "string")
-            putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "Whether the game is owned, available through a subscription (e.g. PlayStation Plus, Game Pass), " +
-                    "or just on the watchlist. Cannot be cleared.",
-            )
-        }
-        putJsonObject("progress") {
-            put("type", "string")
-            putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "How far the game has been played. completed means fully finished (100%). Cannot be cleared.",
-            )
-        }
+        putCoverImageUrlProperty("An absolute http(s) URL to a cover image. null clears it.", clearable = true)
+        putEnumProperty(
+            "ownership",
+            Ownership.entries,
+            "Whether the game is owned, available through a subscription (e.g. PlayStation Plus, Game Pass), " +
+                "or just on the watchlist. Cannot be cleared.",
+        )
+        putEnumProperty(
+            "progress",
+            Progress.entries,
+            "How far the game has been played. completed means fully finished (100%). Cannot be cleared.",
+        )
         putJsonObject("hidden") {
             put("type", "boolean")
             put("description", "Whether the game is hidden from the default list view. Cannot be cleared.")
         }
-        putJsonObject("releaseDate") {
-            putJsonArray("type") {
-                add("string")
-                add("null")
-            }
-            put("format", "date")
-            put(
-                "description",
-                "The game's precise release date (YYYY-MM-DD); its year overrides releaseYear. null clears " +
-                    "the date and keeps the game's current releaseYear.",
-            )
-        }
-        putJsonObject("developerIds") {
-            put("type", "array")
-            put(
-                "description",
-                "Ids of the developers who made this game, from search_game_developers (create missing ones " +
-                    "with create_game_developer). Replaces the full list; an empty array clears it.",
-            )
-            putJsonObject("items") {
-                put("type", "string")
-                put("format", "uuid")
-            }
-            put("uniqueItems", true)
-        }
+        putReleaseDateProperty(
+            "The game's precise release date (YYYY-MM-DD); its year overrides releaseYear. null clears " +
+                "the date and keeps the game's current releaseYear.",
+            clearable = true,
+        )
+        putUuidArrayProperty(
+            "developerIds",
+            "Ids of the developers who made this game, from search_game_developers (create missing ones " +
+                "with create_game_developer). Replaces the full list; an empty array clears it.",
+        )
     },
     required = listOf("id"),
 )
@@ -480,30 +341,19 @@ private val ADD_EXPANSION_SCHEMA = ToolSchema(
             put("format", "uuid")
             put("description", "The game's id, as returned by search_games.")
         }
-        putJsonObject("title") {
-            put("type", "string")
-            put("description", "The expansion's title.")
-            put("minLength", 1)
-            put("maxLength", 256)
-        }
-        putJsonObject("ownership") {
-            put("type", "string")
-            putJsonArray("enum") { Ownership.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "Whether the expansion is owned, available through a subscription, or just on the watchlist. " +
-                    "Defaults to watchlist.",
-            )
-        }
-        putJsonObject("progress") {
-            put("type", "string")
-            putJsonArray("enum") { Progress.entries.forEach { add(it.wire) } }
-            put(
-                "description",
-                "How far the expansion has been played. completed means fully finished (100%). " +
-                    "Defaults to not_started.",
-            )
-        }
+        putTitleProperty("The expansion's title.")
+        putEnumProperty(
+            "ownership",
+            Ownership.entries,
+            "Whether the expansion is owned, available through a subscription, or just on the watchlist. " +
+                "Defaults to watchlist.",
+        )
+        putEnumProperty(
+            "progress",
+            Progress.entries,
+            "How far the expansion has been played. completed means fully finished (100%). " +
+                "Defaults to not_started.",
+        )
     },
     required = listOf("gameId", "title"),
 )
@@ -511,18 +361,8 @@ private val ADD_EXPANSION_SCHEMA = ToolSchema(
 // Mirrors the constraints SearchTerm and ReleaseYear enforce; find_game_cover has no request DTO of its own.
 private val FIND_GAME_COVER_SCHEMA = ToolSchema(
     properties = buildJsonObject {
-        putJsonObject("title") {
-            put("type", "string")
-            put("description", "The game's full official title.")
-            put("minLength", 1)
-            put("maxLength", SearchTerm.MAX_LENGTH)
-        }
-        putJsonObject("releaseYear") {
-            put("type", "integer")
-            put("description", "The four-digit release year; improves ranking when several titles are similar.")
-            put("minimum", ReleaseYear.MIN)
-            put("maximum", ReleaseYear.MAX)
-        }
+        putTitleProperty("The game's full official title.", maxLength = SearchTerm.MAX_LENGTH)
+        putReleaseYearProperty("The four-digit release year; improves ranking when several titles are similar.")
     },
     required = listOf("title"),
 )
@@ -541,36 +381,30 @@ private const val CREATE_GAME_DEVELOPER_DESCRIPTION =
         "returned instead of a duplicate - created is false then. Call search_game_developers first to check " +
         "whether the developer is already tracked before creating a new one."
 
-// Mirrors the constraint DeveloperSearchLimit enforces; search_game_developers has no request DTO of its own.
+// Mirrors the constraint VocabularySearchLimit enforces; search_game_developers has no request DTO of its own.
 private val SEARCH_GAME_DEVELOPERS_SCHEMA = ToolSchema(
     properties = buildJsonObject {
-        putJsonObject("query") {
-            put("type", "string")
-            put("description", "Name prefix to search for. Leave empty to list every developer alphabetically.")
-            put("maxLength", SearchTerm.MAX_LENGTH)
-        }
-        putJsonObject("pageSize") {
-            put("type", "integer")
-            put(
-                "description",
-                "How many developers to return at most. Defaults to 10, ${DeveloperSearchLimit.MAX} at most.",
-            )
-            put("minimum", 1)
-            put("maximum", DeveloperSearchLimit.MAX)
-            put("default", DeveloperSearchLimit.DEFAULT.value)
-        }
+        putQueryProperty(
+            "Name prefix to search for. Leave empty to list every developer alphabetically.",
+            minLength = null,
+        )
+        putPageSizeProperty(
+            "How many developers to return at most. Defaults to 10, ${VocabularySearchLimit.MAX} at most.",
+            max = VocabularySearchLimit.MAX,
+            default = VocabularySearchLimit.DEFAULT.value,
+        )
     },
     required = emptyList(),
 )
 
-// Mirrors the constraints DeveloperName enforces in games/domain/GameValues.kt.
+// Mirrors the constraints VocabularyName enforces in games/domain/GameValues.kt.
 private val CREATE_GAME_DEVELOPER_SCHEMA = ToolSchema(
     properties = buildJsonObject {
         putJsonObject("name") {
             put("type", "string")
             put("description", "The developer's name.")
             put("minLength", 1)
-            put("maxLength", DeveloperName.MAX_LENGTH)
+            put("maxLength", VocabularyName.MAX_LENGTH)
         }
     },
     required = listOf("name"),
@@ -599,10 +433,6 @@ private val SEARCH_GAMES_FIELDS: Set<String> = SEARCH_GAMES_SCHEMA.properties!!.
 // Same reasoning as SEARCH_GAMES_FIELDS: find_game_cover has no request DTO, so the accepted names are derived
 // from FIND_GAME_COVER_SCHEMA's own property keys.
 private val FIND_GAME_COVER_FIELDS: Set<String> = FIND_GAME_COVER_SCHEMA.properties!!.keys
-
-// Same reasoning as FIND_GAME_COVER_FIELDS: search_game_developers has no request DTO, so the accepted names
-// are derived from SEARCH_GAME_DEVELOPERS_SCHEMA's own property keys.
-private val SEARCH_GAME_DEVELOPERS_FIELDS: Set<String> = SEARCH_GAME_DEVELOPERS_SCHEMA.properties!!.keys
 
 // Same reasoning as ADD_EXPANSION_FIELDS: the accepted names are derived from CreateGameDeveloperRequest's
 // serial descriptor, so they cannot drift from the DTO.
@@ -699,8 +529,7 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
             val arguments = request.arguments ?: JsonObject(emptyMap())
             // McpJson ignores unknown keys, which would turn a typo'd filter name (or the singular REST spelling)
             // into a silently unfiltered search instead of an error; reject it here instead, as update_game does.
-            val unknown = arguments.keys - SEARCH_GAMES_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            arguments.requireKnownFields(SEARCH_GAMES_FIELDS)
             val term = SearchTerm.parseOrNull(arguments.stringOrNull("query"), field = "query")
             val filters = GameFilters(
                 platformIds = arguments.stringArrayOrNull("platformIds")
@@ -714,12 +543,8 @@ private fun Server.addSearchGamesTool(gameService: GameService) {
                 ratedOnly = arguments.booleanOrNull(GameFilters.RATED_FIELD) ?: false,
             )
             requireValid("query", term != null || !filters.isEmpty) { "provide a query or at least one filter" }
-            val size = arguments.intOrNull(PageSize.FIELD)?.let { requested ->
-                requireValid(PageSize.FIELD, requested in 1..SEARCH_GAMES_MAX_SIZE) {
-                    "must be between 1 and $SEARCH_GAMES_MAX_SIZE"
-                }
-                PageSize(requested)
-            } ?: SEARCH_GAMES_DEFAULT_SIZE
+            val size = arguments.sizeOrNull(PageSize.FIELD, SEARCH_GAMES_MAX_SIZE)?.let(::PageSize)
+                ?: SEARCH_GAMES_DEFAULT_SIZE
             val sort = arguments.stringOrNull(GameSort.FIELD)?.let(GameSort::from) ?: GameSort.DEFAULT
             val page = gameService.list(PageRequest(PageNumber.FIRST, size), term, filters, sort)
             val games = page.items.map { it.toResponse() }
@@ -766,12 +591,9 @@ private fun Server.addUpdateGameTool(gameService: GameService) {
             val id = GameId.parse(arguments.stringOrNull("id") ?: throw InvalidValueException("id", "is missing"))
             val fields = JsonObject(arguments - "id")
             // McpJson ignores unknown keys, which would turn a typo into a silent no-op; reject it here instead.
-            val unknown = fields.keys - UPDATE_GAME_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            fields.requireKnownFields(UPDATE_GAME_FIELDS)
             requireValid("arguments", fields.isNotEmpty()) { "must change at least one field" }
-            UPDATE_GAME_UNCLEARABLE.forEach { field ->
-                requireValid(field, fields[field] !is JsonNull) { "cannot be cleared" }
-            }
+            fields.requireNotCleared(UPDATE_GAME_UNCLEARABLE)
             val patch = McpJson.decodeFromJsonElement(UpdateGameRequest.serializer(), fields).toPatch()
             val game = gameService.update(id, patch).toResponse()
             CallToolResult(
@@ -802,8 +624,7 @@ private fun Server.addListExpansionsTool(expansionService: ExpansionService) {
     ) { request ->
         try {
             val arguments = request.arguments ?: JsonObject(emptyMap())
-            val unknown = arguments.keys - LIST_EXPANSIONS_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            arguments.requireKnownFields(LIST_EXPANSIONS_FIELDS)
             val gameId = GameId.parse(
                 arguments.stringOrNull("gameId") ?: throw InvalidValueException("gameId", "is missing"),
             )
@@ -846,8 +667,7 @@ private fun Server.addAddExpansionTool(expansionService: ExpansionService) {
             val arguments = request.arguments ?: JsonObject(emptyMap())
             // McpJson ignores unknown keys, which would turn a typo'd field name into a silent no-op instead of
             // an error; reject it here instead, as update_game does.
-            val unknown = arguments.keys - ADD_EXPANSION_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            arguments.requireKnownFields(ADD_EXPANSION_FIELDS)
             val gameId = GameId.parse(
                 arguments.stringOrNull("gameId") ?: throw InvalidValueException("gameId", "is missing"),
             )
@@ -876,85 +696,28 @@ private fun Server.addAddExpansionTool(expansionService: ExpansionService) {
 }
 
 private fun Server.addSearchGameDevelopersTool(developerService: GameDeveloperService) {
-    addTool(
+    addSearchVocabularyTool(
         name = "search_game_developers",
         description = SEARCH_GAME_DEVELOPERS_DESCRIPTION,
         inputSchema = SEARCH_GAME_DEVELOPERS_SCHEMA,
-        toolAnnotations = ToolAnnotations(readOnlyHint = true),
-    ) { request ->
-        try {
-            val arguments = request.arguments ?: JsonObject(emptyMap())
-            val unknown = arguments.keys - SEARCH_GAME_DEVELOPERS_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
-            val term = SearchTerm.parseOrNull(arguments.stringOrNull("query"), field = "query")
-            val limit = arguments.intOrNull("pageSize")?.let { requested ->
-                requireValid("pageSize", requested in 1..DeveloperSearchLimit.MAX) {
-                    "must be between 1 and ${DeveloperSearchLimit.MAX}"
-                }
-                DeveloperSearchLimit(requested)
-            } ?: DeveloperSearchLimit.DEFAULT
-            val developers = developerService.search(term, limit).map { it.toResponse() }
-            CallToolResult(
-                content = listOf(
-                    TextContent(
-                        if (developers.isEmpty()) {
-                            "No developers found."
-                        } else {
-                            developers.joinToString("\n") { "${it.name}: ${it.id}" }
-                        },
-                    ),
-                ),
-                structuredContent = buildJsonObject {
-                    putJsonArray("developers") {
-                        developers.forEach { developer ->
-                            addJsonObject {
-                                put("id", developer.id)
-                                put("name", developer.name)
-                            }
-                        }
-                    }
-                },
-            )
-        } catch (e: InvalidValueException) {
-            e.toErrorResult()
-        }
+        entryNounPlural = "developers",
+    ) { term, limit ->
+        developerService.search(term, limit).map { it.toResponse().let { r -> VocabularyEntryView(r.id, r.name) } }
     }
 }
 
 private fun Server.addCreateGameDeveloperTool(developerService: GameDeveloperService) {
-    addTool(
+    addCreateVocabularyTool(
         name = "create_game_developer",
         description = CREATE_GAME_DEVELOPER_DESCRIPTION,
         inputSchema = CREATE_GAME_DEVELOPER_SCHEMA,
-    ) { request ->
-        try {
-            val arguments = request.arguments ?: JsonObject(emptyMap())
-            val unknown = arguments.keys - CREATE_GAME_DEVELOPER_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
-            val createRequest = McpJson.decodeFromJsonElement(CreateGameDeveloperRequest.serializer(), arguments)
-            val result = developerService.create(DeveloperName.parse(createRequest.name))
-            val response = result.developer.toResponse()
-            CallToolResult(
-                content = listOf(
-                    TextContent(
-                        if (result.created) {
-                            "Created developer \"${response.name}\" with id ${response.id}."
-                        } else {
-                            "Developer \"${response.name}\" already exists with id ${response.id}."
-                        },
-                    ),
-                ),
-                structuredContent = buildJsonObject {
-                    put("id", response.id)
-                    put("name", response.name)
-                    put("created", result.created)
-                },
-            )
-        } catch (e: InvalidValueException) {
-            e.toErrorResult()
-        } catch (e: SerializationException) {
-            e.toErrorResult()
-        }
+        knownFields = CREATE_GAME_DEVELOPER_FIELDS,
+        entryNoun = "developer",
+    ) { arguments ->
+        val createRequest = McpJson.decodeFromJsonElement(CreateGameDeveloperRequest.serializer(), arguments)
+        val result = developerService.create(VocabularyName.parse(createRequest.name))
+        val response = result.entry.toResponse()
+        VocabularyCreation(VocabularyEntryView(response.id, response.name), result.created)
     }
 }
 
@@ -967,8 +730,7 @@ private fun Server.addFindGameCoverTool(coverOptionsService: CoverOptionsService
     ) { request ->
         try {
             val arguments = request.arguments ?: JsonObject(emptyMap())
-            val unknown = arguments.keys - FIND_GAME_COVER_FIELDS
-            requireValid("arguments", unknown.isEmpty()) { "unknown fields: ${unknown.sorted().joinToString()}" }
+            arguments.requireKnownFields(FIND_GAME_COVER_FIELDS)
             val title = SearchTerm.parseOrNull(arguments.stringOrNull("title"), field = "title")
                 ?: throw InvalidValueException("title", "is missing")
             val releaseYear = arguments.intOrNull("releaseYear")?.let(::ReleaseYear)
@@ -1011,52 +773,3 @@ private fun Server.addFindGameCoverTool(coverOptionsService: CoverOptionsService
         }
     }
 }
-
-private fun JsonObject.stringOrNull(field: String): String? = when (val argument = this[field]) {
-    null, is JsonNull -> null
-
-    is JsonPrimitive -> argument.takeIf { it.isString }?.content
-        ?: throw InvalidValueException(field, "must be a string")
-
-    else -> throw InvalidValueException(field, "must be a string")
-}
-
-private fun JsonObject.stringArrayOrNull(field: String): List<String>? = when (val argument = this[field]) {
-    null, is JsonNull -> null
-
-    is JsonArray -> argument.map { element ->
-        (element as? JsonPrimitive)?.takeIf { it.isString }?.content
-            ?: throw InvalidValueException(field, "must be an array of strings")
-    }
-
-    else -> throw InvalidValueException(field, "must be an array of strings")
-}
-
-private fun JsonObject.intArrayOrNull(field: String): List<Int>? = when (val argument = this[field]) {
-    null, is JsonNull -> null
-
-    is JsonArray -> argument.map { element ->
-        (element as? JsonPrimitive)?.intOrNull
-            ?: throw InvalidValueException(field, "must be an array of integers")
-    }
-
-    else -> throw InvalidValueException(field, "must be an array of integers")
-}
-
-private fun JsonObject.intOrNull(field: String): Int? = when (val argument = this[field]) {
-    null, is JsonNull -> null
-    is JsonPrimitive -> argument.intOrNull ?: throw InvalidValueException(field, "must be an integer")
-    else -> throw InvalidValueException(field, "must be an integer")
-}
-
-private fun JsonObject.booleanOrNull(field: String): Boolean? = when (val argument = this[field]) {
-    null, is JsonNull -> null
-
-    is JsonPrimitive -> argument.takeIf { !it.isString }?.booleanOrNull
-        ?: throw InvalidValueException(field, "must be a boolean")
-
-    else -> throw InvalidValueException(field, "must be a boolean")
-}
-
-private fun Exception.toErrorResult(): CallToolResult =
-    CallToolResult(content = listOf(TextContent(message ?: "invalid request")), isError = true)

@@ -1,0 +1,18 @@
+package de.sluit.mediatracker.books.persistence
+
+import de.sluit.mediatracker.common.persistence.ExposedBackupSource
+
+/**
+ * [de.sluit.mediatracker.common.domain.BackupSource] for every table the books domain owns (ADR 0027, 0034).
+ * Parents before the tables that reference them: types and books before the book-to-type junction, authors
+ * before the book-to-author junction.
+ */
+object BooksBackupSource : ExposedBackupSource(
+    listOf(
+        BookTypesTable,
+        BooksTable,
+        BookToTypeTable,
+        BookAuthorsTable,
+        BookToAuthorTable,
+    ),
+)

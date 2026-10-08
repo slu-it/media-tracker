@@ -3,7 +3,8 @@ import { Autocomplete, Box, TextField, Typography } from "@mui/material";
 import VerifiedIcon from "@mui/icons-material/Verified";
 import { useTranslation } from "react-i18next";
 import type { CoverMatchResponse } from "../../../../types/api";
-import { TITLE_MAX_LENGTH, validateTitle } from "../../domain/gameValues";
+import { TITLE_MAX_LENGTH, validateTitle } from "../../../../domain/media/values";
+import { TitleField } from "../../../../components/media/fields/TitleField";
 import { useTitleSuggestions } from "../../hooks/useTitleSuggestions";
 
 interface GameTitleFieldProps {
@@ -30,14 +31,19 @@ interface GameTitleFieldProps {
  * can also fill the release year atomically. Without `onSuggestionPick` (DLC titles, see above), this renders a
  * plain `TextField` instead, keeping textbox semantics and never touching the suggestions hook's request.
  */
-export function GameTitleField({
+export function GameTitleField({ onSuggestionPick, ...props }: GameTitleFieldProps) {
+  if (onSuggestionPick === undefined) return <TitleField {...props} />;
+  return <SuggestingTitleField onSuggestionPick={onSuggestionPick} {...props} />;
+}
+
+function SuggestingTitleField({
   value,
   onChange,
   onSuggestionPick,
   disabled,
   showErrors,
   autoFocus,
-}: GameTitleFieldProps) {
+}: GameTitleFieldProps & { onSuggestionPick: (suggestion: CoverMatchResponse) => void }) {
   const { t } = useTranslation();
   const [touched, setTouched] = useState(false);
   const [userEdited, setUserEdited] = useState(false);
@@ -47,30 +53,12 @@ export function GameTitleField({
   const [lastPicked, setLastPicked] = useState<string | null>(null);
   const code = validateTitle(value);
   const showError = code !== null && (touched || showErrors);
-  const suggestionsEnabled = userEdited && onSuggestionPick !== undefined && value !== lastPicked;
+  const suggestionsEnabled = userEdited && value !== lastPicked;
   const suggestions = useTitleSuggestions(value, suggestionsEnabled);
   const options = suggestions.filter((suggestion) => suggestion.name !== value);
   const helperText = showError
     ? t(`validation.${code}`, { max: TITLE_MAX_LENGTH })
     : `${value.trim().length}/${TITLE_MAX_LENGTH}`;
-
-  if (onSuggestionPick === undefined) {
-    return (
-      <TextField
-        fullWidth
-        disabled={disabled}
-        label={t("games.fields.title")}
-        required
-        autoFocus={autoFocus}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={() => setTouched(true)}
-        error={showError}
-        helperText={helperText}
-        slotProps={{ htmlInput: { maxLength: TITLE_MAX_LENGTH } }}
-      />
-    );
-  }
 
   return (
     <Autocomplete<CoverMatchResponse, false, true, true>
@@ -122,7 +110,7 @@ export function GameTitleField({
       renderInput={(params) => (
         <TextField
           {...params}
-          label={t("games.fields.title")}
+          label={t("media.fields.title")}
           required
           autoFocus={autoFocus}
           error={showError}

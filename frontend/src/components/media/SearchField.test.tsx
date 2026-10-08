@@ -1,0 +1,50 @@
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { renderWithProviders } from "../../test/renderWithProviders";
+import { SearchField } from "./SearchField";
+
+describe("SearchField", () => {
+  it("shows the clear button only while there is text", () => {
+    const { rerender } = renderWithProviders(
+      <SearchField label="Search games" placeholder="Search games…" value="" onChange={() => {}} onClear={() => {}} />,
+    );
+    expect(screen.queryByRole("button", { name: "Clear search" })).not.toBeInTheDocument();
+
+    rerender(
+      <SearchField
+        label="Search games"
+        placeholder="Search games…"
+        value="hades"
+        onChange={() => {}}
+        onClear={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Clear search" })).toBeInTheDocument();
+  });
+
+  it("reports typed text and clearing to the callbacks", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onClear = vi.fn();
+    const { rerender } = renderWithProviders(
+      <SearchField label="Search games" placeholder="Search games…" value="" onChange={onChange} onClear={onClear} />,
+    );
+    const input = screen.getByRole("searchbox", { name: "Search games" });
+    await user.click(input);
+    await user.paste("hades");
+    expect(onChange).toHaveBeenCalledWith("hades");
+
+    rerender(
+      <SearchField
+        label="Search games"
+        placeholder="Search games…"
+        value="hades"
+        onChange={onChange}
+        onClear={onClear}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(onClear).toHaveBeenCalled();
+  });
+});

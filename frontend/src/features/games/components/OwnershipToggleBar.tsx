@@ -2,7 +2,7 @@ import type { SxProps, Theme } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { OWNERSHIP_VALUES, type Ownership } from "../domain/gameStatus";
 import { OWNERSHIP_ICONS } from "./ownershipIcons";
-import { StatusToggleBar } from "./StatusToggleBar";
+import { StatusToggleBar } from "../../../components/media/status/StatusToggleBar";
 
 interface OwnershipToggleBarProps {
   value: Ownership;
@@ -32,7 +32,7 @@ export function OwnershipToggleBar({
       values={OWNERSHIP_VALUES}
       icons={OWNERSHIP_ICONS}
       getLabel={(ownership) => t(`games.ownership.${ownership}`)}
-      groupLabel={t("games.fields.ownership")}
+      groupLabel={t("media.fields.ownership")}
       value={value}
       onChange={onChange}
       disabled={disabled}

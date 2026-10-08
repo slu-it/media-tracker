@@ -16,7 +16,7 @@ describe("RankingGameCard", () => {
     expect(screen.getByRole("img", { name: "4.5 Stars" })).toBeInTheDocument();
     expect(screen.queryByText("PC")).not.toBeInTheDocument();
     // The explicit aria-label on the card's button would otherwise hide the rating from screen readers; wired
-    // as an accessible description instead (see GameCardShell), so it is still announced alongside the title.
+    // as an accessible description instead (see MediaCardShell), so it is still announced alongside the title.
     expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("4.5 stars");
   });
 

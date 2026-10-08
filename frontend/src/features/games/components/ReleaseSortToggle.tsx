@@ -2,8 +2,8 @@ import { useId } from "react";
 import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { WatchlistSort } from "../domain/gameViewParams";
-import { FieldLegend } from "./fields/FieldLegend";
-import { LEGEND_GAP_SX } from "./fields/legendGap";
+import { FieldLegend } from "../../../components/media/fields/FieldLegend";
+import { LEGEND_GAP_SX } from "../../../components/media/fields/legendGap";
 
 interface ReleaseSortToggleProps {
   value: WatchlistSort;

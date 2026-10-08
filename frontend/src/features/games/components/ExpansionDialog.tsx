@@ -199,8 +199,8 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
       )}
       {mode === "view" && current !== null ? (
         <Stack spacing={2}>
-          <Field label={t("games.fields.title")}>{current.title}</Field>
-          <Field label={t("games.fields.ownership")} labelId={ownershipLabelId}>
+          <Field label={t("media.fields.title")}>{current.title}</Field>
+          <Field label={t("media.fields.ownership")} labelId={ownershipLabelId}>
             <OwnershipToggleBar
               value={pending?.ownership ?? current.ownership}
               onChange={(next) => void changeOwnership(next)}
@@ -208,7 +208,7 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
               aria-labelledby={ownershipLabelId}
             />
           </Field>
-          <Field label={t("games.fields.progress")} labelId={progressLabelId}>
+          <Field label={t("media.fields.progress")} labelId={progressLabelId}>
             <ProgressToggleBar
               value={pending?.progress ?? current.progress}
               onChange={(next) => void changeProgress(next)}
@@ -225,7 +225,7 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
             disabled={busy}
             autoFocus
           />
-          <Field label={t("games.fields.ownership")} labelId={ownershipLabelId}>
+          <Field label={t("media.fields.ownership")} labelId={ownershipLabelId}>
             <OwnershipToggleBar
               value={draft.ownership}
               onChange={(ownership) => setDraft({ ...draft, ownership })}
@@ -233,7 +233,7 @@ function ExpansionDialogContent({ gameId, expansion, onClose, onChanged }: Omit<
               aria-labelledby={ownershipLabelId}
             />
           </Field>
-          <Field label={t("games.fields.progress")} labelId={progressLabelId}>
+          <Field label={t("media.fields.progress")} labelId={progressLabelId}>
             <ProgressToggleBar
               value={draft.progress}
               onChange={(progress) => setDraft({ ...draft, progress })}

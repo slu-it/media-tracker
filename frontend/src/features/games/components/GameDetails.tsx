@@ -1,14 +1,16 @@
-import { Box, Chip, Stack, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { Ownership, Progress } from "../domain/gameStatus";
 import type { ExpansionResponse, GameResponse } from "../../../types/api";
 import { CoverImage } from "../../../components/CoverImage";
-import { formatReleaseDate } from "../domain/releaseDate";
-import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
+import { COVER_UNDER_GAP, CoverAndInfoLayout } from "../../../components/media/CoverAndInfoLayout";
 import { ExpansionList } from "./ExpansionList";
 import { GameStatusIcons } from "./GameStatusIcons";
 import { OwnershipToggleBar } from "./OwnershipToggleBar";
-import { PlatformChips } from "./PlatformChips";
+import { DetailField } from "../../../components/media/DetailField";
+import { NameChips } from "../../../components/media/NameChips";
+import { ReleaseDetail } from "../../../components/media/ReleaseDetail";
+import { ColorChips } from "../../../components/media/ColorChips";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 import { RatingField } from "./fields/RatingField";
 
@@ -96,36 +98,17 @@ export function GameDetails({
             {game.description}
           </Typography>
         )}
-        {game.releaseDate === null ? (
-          <Field label={t("games.fields.releaseYear")}>{game.releaseYear}</Field>
-        ) : (
-          <Field label={t("games.fields.releaseDate")}>{formatReleaseDate(game.releaseDate)}</Field>
-        )}
-        <Field label={t("games.fields.platforms")}>
-          <PlatformChips platforms={game.platforms} />
-        </Field>
+        <ReleaseDetail releaseDate={game.releaseDate} releaseYear={game.releaseYear} />
+        <DetailField label={t("games.fields.platforms")}>
+          <ColorChips items={game.platforms} />
+        </DetailField>
         {game.developers.length > 0 && (
-          <Field label={t("games.fields.developers")}>
-            <Stack direction="row" useFlexGap spacing={1} sx={{ flexWrap: "wrap" }}>
-              {game.developers.map((developer) => (
-                <Chip key={developer.id} label={developer.name} variant="outlined" size="small" />
-              ))}
-            </Stack>
-          </Field>
+          <DetailField label={t("games.fields.developers")}>
+            <NameChips items={game.developers} />
+          </DetailField>
         )}
         <ExpansionList expansions={expansions} onSelect={onSelectExpansion} onMove={onMoveExpansion} />
       </Stack>
     </CoverAndInfoLayout>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <Typography variant="overline" color="text.secondary" component="div">
-        {label}
-      </Typography>
-      <Typography component="div">{children}</Typography>
-    </div>
   );
 }

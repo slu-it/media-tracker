@@ -19,7 +19,7 @@ import { validateRating } from "../domain/gameValues";
 import { useExpansions } from "../hooks/useExpansions";
 import { CoverPickerDialog } from "./CoverPickerDialog";
 import { ExpansionDialog } from "./ExpansionDialog";
-import { GAME_DIALOG_HEIGHT } from "./gameDialogLayout";
+import { MEDIA_DIALOG_HEIGHT } from "../../../components/media/dialogLayout";
 import { GameDetails } from "./GameDetails";
 import { GameForm } from "./GameForm";
 
@@ -226,7 +226,7 @@ function GameDetailDialogContent({
       bottomActions={bottomActions}
       titleId={mode === "view" ? TITLE_ID : undefined}
       ariaLabel={mode === "edit" ? t("games.editGame") : undefined}
-      height={GAME_DIALOG_HEIGHT}
+      height={MEDIA_DIALOG_HEIGHT}
       contentScroll="children"
     >
       {error && (

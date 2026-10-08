@@ -1,8 +1,18 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.applyTo
+import de.sluit.mediatracker.common.domain.effectiveReleaseYear
+import de.sluit.mediatracker.common.domain.requireReleaseYearMatches
 import de.sluit.mediatracker.common.domain.requireValid
+import de.sluit.mediatracker.common.domain.resolvePatchedReleaseYear
 
 /** A selectable platform a game can be played on; the four rows are seeded by the games migration. */
 data class GamePlatform(val id: GamePlatformId, val label: PlatformLabel, val color: HexColor)
@@ -12,7 +22,7 @@ fun List<GamePlatform>.sortedForGame(): List<GamePlatform> = distinctBy { it.id 
     .sortedWith(compareBy({ it.label.value.lowercase() }, { it.id.toString() }))
 
 /** A developer the user has added to the vocabulary (MT-025, ADR 0029); grown on the fly, unlike [GamePlatform]. */
-data class GameDeveloper(val id: GameDeveloperId, val name: DeveloperName)
+data class GameDeveloper(val id: GameDeveloperId, val name: VocabularyName)
 
 /**
  * Sorts by name case-insensitively, then id, so the order is deterministic and duplicate-free. Named
@@ -51,11 +61,7 @@ data class Game(
         requireValid(GameDeveloperId.FIELD, developers == developers.sortedByNameForGame()) {
             "must be sorted by name"
         }
-        if (releaseDate != null) {
-            requireValid(ReleaseDate.FIELD, releaseYear.value == releaseDate.year) {
-                "year must match releaseYear when set"
-            }
-        }
+        requireReleaseYearMatches(releaseYear, releaseDate)
     }
 }
 
@@ -81,7 +87,7 @@ data class NewGame(
         requireValid(GamePlatformId.FIELD, platformIds.isNotEmpty()) { "must not be empty" }
     }
 
-    val effectiveReleaseYear: ReleaseYear get() = releaseDate?.let { ReleaseYear(it.year) } ?: releaseYear
+    val effectiveReleaseYear: ReleaseYear get() = effectiveReleaseYear(releaseYear, releaseDate)
 }
 
 /**
@@ -119,8 +125,7 @@ data class GamePatch(
      */
     fun applyTo(game: Game, platforms: List<GamePlatform>, developers: List<GameDeveloper>): Game {
         val resolvedReleaseDate = releaseDate.applyTo(game.releaseDate)
-        val resolvedReleaseYear =
-            resolvedReleaseDate?.let { ReleaseYear(it.year) } ?: (releaseYear ?: game.releaseYear)
+        val resolvedReleaseYear = resolvePatchedReleaseYear(releaseYear, resolvedReleaseDate, game.releaseYear)
         return game.copy(
             title = title ?: game.title,
             releaseYear = resolvedReleaseYear,

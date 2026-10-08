@@ -13,4 +13,8 @@ describe("coverHeight", () => {
   it("derives the height for the cover picker thumbnail", () => {
     expect(coverHeight(120)).toBe(169);
   });
+
+  it("derives the height for a 2:3 cover", () => {
+    expect(coverHeight(168, 2 / 3)).toBe(252);
+  });
 });

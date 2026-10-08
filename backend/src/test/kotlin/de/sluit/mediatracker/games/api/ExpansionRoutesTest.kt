@@ -3,6 +3,7 @@ package de.sluit.mediatracker.games.api
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionId
@@ -13,7 +14,6 @@ import de.sluit.mediatracker.games.domain.NewExpansion
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.SequenceNumber
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.handlerApp
 import de.sluit.mediatracker.jsonBody
 import de.sluit.mediatracker.loginAsMocked

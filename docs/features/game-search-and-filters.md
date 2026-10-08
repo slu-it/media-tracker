@@ -34,7 +34,7 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
     progress and ownership toggle bars, then Platform and Release year.
   - Platform and Release year are `-all-` multi-selects in `components/GameFilterBar.tsx`, fed by
     `hooks/useGamesMeta.ts`. MT-012 set the page size to 36.
-  - Here they use the `standard` variant of `FilterSelect` (underline only) at `OVERVIEW_SELECT_WIDTH`
+  - Here they use the `standard` variant of the shared `FilterSelect` (`src/components/media/filters/`) (underline only) at `OVERVIEW_SELECT_WIDTH`
     (200px). Below `sm` they share one full-width line.
   - Instead of MUI's floating label they carry a `FieldLegend` (legend label mode), the same as the toggle
     bars. It names the combobox via `aria-labelledby`.
@@ -45,7 +45,7 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
   - Each select with a selection shows a × end adornment that resets it to `-all-` and returns focus to the
     select. MUI `Select` has no built-in clear.
   - A filter change replaces the URL entry and drops `page` ([url-routes.md](url-routes.md)).
-- Progress and ownership are icon toggle groups (`components/StatusFilterToggles.tsx`):
+- Progress and ownership are icon toggle groups (`components/StatusFilterToggles.tsx`, two shared `StatusFilterBar`s from `src/components/media/status/`):
   - Each has a centred legend above the bar ("Progress", "Ownership"), as in the dialogs. Its `legendSx`
     adds the 4px gap to the bar that the select legends share.
   - Two `StatusToggleBar`s in `multiple` mode, with all six progress and all three ownership values in

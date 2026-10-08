@@ -1,7 +1,8 @@
-import { Box, Tooltip } from "@mui/material";
+import { Box } from "@mui/material";
 import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
 import { useTranslation } from "react-i18next";
 import type { Ownership, Progress } from "../domain/gameStatus";
+import { StatusIcon } from "../../../components/media/status/StatusIcon";
 import { OWNERSHIP_ICONS } from "./ownershipIcons";
 import { PROGRESS_ICONS } from "./progressIcons";
 
@@ -24,40 +25,14 @@ export function GameStatusIcons({
   variant?: "card" | "full";
 }) {
   const { t } = useTranslation();
-  const OwnershipIcon = OWNERSHIP_ICONS[ownership];
   const showOwnership = variant === "full" || ownership !== "owned";
   const showProgress = variant === "full" || ownership !== "watchlist";
-  const ProgressIcon = PROGRESS_ICONS[progress];
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
-      {showOwnership && (
-        <Tooltip title={t(`games.ownership.${ownership}`)}>
-          <OwnershipIcon
-            fontSize="small"
-            titleAccess={t(`games.ownership.${ownership}`)}
-            sx={{ color: "text.secondary" }}
-          />
-        </Tooltip>
-      )}
-      {showProgress && (
-        <Tooltip title={t(`games.progress.${progress}`)}>
-          <ProgressIcon
-            fontSize="small"
-            titleAccess={t(`games.progress.${progress}`)}
-            sx={{ color: "text.secondary" }}
-          />
-        </Tooltip>
-      )}
-      {hidden && (
-        <Tooltip title={t("games.fields.hidden")}>
-          <VisibilityOffOutlinedIcon
-            fontSize="small"
-            titleAccess={t("games.fields.hidden")}
-            sx={{ color: "text.secondary" }}
-          />
-        </Tooltip>
-      )}
+      {showOwnership && <StatusIcon icon={OWNERSHIP_ICONS[ownership]} label={t(`games.ownership.${ownership}`)} />}
+      {showProgress && <StatusIcon icon={PROGRESS_ICONS[progress]} label={t(`games.progress.${progress}`)} />}
+      {hidden && <StatusIcon icon={VisibilityOffOutlinedIcon} label={t("games.fields.hidden")} />}
     </Box>
   );
 }

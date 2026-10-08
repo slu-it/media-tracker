@@ -1,6 +1,7 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.WireEnum
+import de.sluit.mediatracker.common.domain.fromWire
 
 /*
  * Status enums of the games domain (MT-007). Each mirrors its wire representation from `name` so the two never
@@ -17,20 +18,19 @@ const val DEFAULT_HIDDEN = false
  * Declaration order is the order offered in UIs, meta and MCP schemas; the ordinal is never persisted.
  * The frontend mirrors this order in `OWNERSHIP_VALUES`.
  */
-enum class Ownership {
+enum class Ownership : WireEnum {
     WATCHLIST,
     SUBSCRIPTION,
     OWNED,
     ;
 
-    val wire: String get() = name.lowercase()
+    override val wire: String get() = name.lowercase()
 
     companion object {
         const val FIELD = "ownership"
         val DEFAULT = WATCHLIST
 
-        fun from(wire: String): Ownership = entries.firstOrNull { it.wire == wire }
-            ?: throw InvalidValueException(FIELD, "must be one of ${entries.joinToString { it.wire }}")
+        fun from(wire: String): Ownership = entries.fromWire(FIELD, wire)
     }
 }
 
@@ -39,7 +39,7 @@ enum class Ownership {
  * Declaration order is the order offered in UIs, meta and MCP schemas; the ordinal is never persisted.
  * The frontend mirrors this order in `PROGRESS_VALUES`.
  */
-enum class Progress {
+enum class Progress : WireEnum {
     ABANDONED,
     NOT_STARTED,
     PAUSED,
@@ -48,13 +48,12 @@ enum class Progress {
     COMPLETED,
     ;
 
-    val wire: String get() = name.lowercase()
+    override val wire: String get() = name.lowercase()
 
     companion object {
         const val FIELD = "progress"
         val DEFAULT = NOT_STARTED
 
-        fun from(wire: String): Progress = entries.firstOrNull { it.wire == wire }
-            ?: throw InvalidValueException(FIELD, "must be one of ${entries.joinToString { it.wire }}")
+        fun from(wire: String): Progress = entries.fromWire(FIELD, wire)
     }
 }

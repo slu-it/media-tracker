@@ -11,10 +11,12 @@ interface CoverImageProps {
   alt: string;
   width: number | string;
   /**
-   * Omit to use the collection's standard 22:31 cover ratio ({@link COVER_ASPECT_RATIO}): derived from `width`
-   * when it is a number, or via CSS `aspect-ratio` when it is a string.
+   * Omit to use `aspectRatio`: derived from `width` when it is a number, or via CSS `aspect-ratio` when it is a
+   * string.
    */
   height?: number | string;
+  /** Cover shape (width / height); defaults to the standard 22:31 ({@link COVER_ASPECT_RATIO}). */
+  aspectRatio?: number;
   sx?: SxProps<Theme>;
   /** Together with `actionLabel`, makes the whole frame clickable (opens the cover picker), image or placeholder. */
   onClick?: () => void;
@@ -22,25 +24,34 @@ interface CoverImageProps {
 }
 
 /**
- * Frame for cover art, sized to the collection's standard 22:31 cover shape. A cover image of a different shape
+ * Frame for cover art, sized to `aspectRatio` (default the standard 22:31 cover shape). A cover image of a different shape
  * still keeps its own aspect ratio and fills whichever dimension it hits first (`object-fit: contain`), so it
  * letterboxes inside the frame instead of stretching.
  */
-export function CoverImage({ src, alt, width, height, sx, onClick, actionLabel }: CoverImageProps) {
+export function CoverImage({
+  src,
+  alt,
+  width,
+  height,
+  aspectRatio = COVER_ASPECT_RATIO,
+  sx,
+  onClick,
+  actionLabel,
+}: CoverImageProps) {
   const { t } = useTranslation();
   const url = src?.trim() ?? "";
-  const resolvedHeight = height ?? (typeof width === "number" ? coverHeight(width) : undefined);
+  const resolvedHeight = height ?? (typeof width === "number" ? coverHeight(width, aspectRatio) : undefined);
   const content = url ? (
     // Keyed by URL so a failed load is forgotten when the URL changes.
-    <Img key={url} src={url} alt={alt} placeholderLabel={t("games.noCover")} />
+    <Img key={url} src={url} alt={alt} placeholderLabel={t("media.noCover")} />
   ) : (
-    <Placeholder label={t("games.noCover")} />
+    <Placeholder label={t("media.noCover")} />
   );
   return (
     <Box
       sx={{
         width,
-        ...(resolvedHeight === undefined ? { aspectRatio: String(COVER_ASPECT_RATIO) } : { height: resolvedHeight }),
+        ...(resolvedHeight === undefined ? { aspectRatio: String(aspectRatio) } : { height: resolvedHeight }),
         maxWidth: "100%",
         flexShrink: 0,
         display: "grid",

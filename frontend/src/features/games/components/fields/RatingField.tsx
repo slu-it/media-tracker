@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { Box, FormHelperText, Rating, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { validateRating } from "../../domain/gameValues";
-import { FieldLegend } from "./FieldLegend";
+import { FieldLegend } from "../../../../components/media/fields/FieldLegend";
 
 interface RatingFieldProps {
   value: number | null;

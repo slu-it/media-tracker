@@ -3,7 +3,8 @@ import type { CoverMatchResponse } from "../../../types/api";
 import { useSearchDebounceMs } from "../../../hooks/useSearchDebounceMs";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { getTitleSuggestions } from "../api/gamesApi";
-import { SEARCH_MAX_LENGTH, TITLE_SUGGESTION_MIN_LENGTH } from "../domain/gameValues";
+import { TITLE_SUGGESTION_MIN_LENGTH } from "../domain/gameValues";
+import { SEARCH_MAX_LENGTH } from "../../../domain/media/values";
 
 /**
  * Background title suggestions for the add/edit form. Modelled on `useCoverOptions` but much smaller: there is

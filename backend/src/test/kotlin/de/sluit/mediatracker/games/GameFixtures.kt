@@ -1,22 +1,22 @@
 package de.sluit.mediatracker.games
 
-import de.sluit.mediatracker.games.domain.CoverImageUrl
-import de.sluit.mediatracker.games.domain.Description
-import de.sluit.mediatracker.games.domain.DeveloperName
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameDeveloper
 import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
-import de.sluit.mediatracker.games.domain.HexColor
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
-import de.sluit.mediatracker.games.domain.ReleaseYear
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.domain.sortedByNameForGame
 import de.sluit.mediatracker.games.domain.sortedForGame
 import kotlin.uuid.Uuid
@@ -47,7 +47,7 @@ object Platforms {
 
 /** Builds a valid [GameDeveloper] for tests, with a random id unless one is given. */
 fun developer(name: String, id: GameDeveloperId = GameDeveloperId.new()): GameDeveloper =
-    GameDeveloper(id, DeveloperName(name))
+    GameDeveloper(id, VocabularyName(name))
 
 /**
  * Builds a valid [Game] for tests, defaulting to a single platform (PC). When [releaseDate] is given, it

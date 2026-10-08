@@ -1,17 +1,16 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
+import de.sluit.mediatracker.common.api.booleanQueryParameter
+import de.sluit.mediatracker.common.api.queryValues
 import de.sluit.mediatracker.common.domain.InvalidValueException
-import de.sluit.mediatracker.common.domain.requireValid
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
-import de.sluit.mediatracker.games.domain.ReleaseYear
 import io.ktor.server.application.ApplicationCall
-
-/** The most repetitions any one filter category accepts; see [ApplicationCall.gameFilters]. */
-const val MAX_FILTER_VALUES = 50
 
 /**
  * Reads the four repeatable `?platformIds=`, `?ownership=`, `?progress=` and `?releaseYear=` query parameters,
@@ -29,7 +28,7 @@ fun ApplicationCall.gameFilters(): GameFilters = GameFilters(
     platformIds = queryValues(GamePlatformId.FIELD).map(GamePlatformId::parse).toSet(),
     ownership = queryValues(Ownership.FIELD).map(Ownership::from).toSet(),
     progress = queryValues(Progress.FIELD).map(Progress::from).toSet(),
-    releaseYears = queryValues(ReleaseYear.FIELD).map(::parseReleaseYear).toSet(),
+    releaseYears = queryValues(ReleaseYear.FIELD).map(ReleaseYear::parse).toSet(),
     ratedOnly = booleanQueryParameter(GameFilters.RATED_FIELD) ?: false,
 )
 
@@ -42,21 +41,3 @@ fun ApplicationCall.gameFilters(): GameFilters = GameFilters(
  */
 fun ApplicationCall.gameSort(): GameSort =
     request.queryParameters[GameSort.FIELD]?.takeIf { it.isNotBlank() }?.let(GameSort::from) ?: GameSort.DEFAULT
-
-private fun ApplicationCall.queryValues(name: String): List<String> {
-    val values = request.queryParameters.getAll(name)?.filter { it.isNotBlank() } ?: emptyList()
-    requireValid(name, values.size <= MAX_FILTER_VALUES) { "must have at most $MAX_FILTER_VALUES values" }
-    return values
-}
-
-/**
- * Reads a single boolean query parameter; "true"/"false" only, anything else raises [InvalidValueException].
- * A blank value (an empty `?rated=`) means absent, like a blank `?search=` or a blank filter repetition.
- */
-private fun ApplicationCall.booleanQueryParameter(name: String): Boolean? =
-    request.queryParameters[name]?.takeIf { it.isNotBlank() }?.let {
-        it.toBooleanStrictOrNull() ?: throw InvalidValueException(name, "must be true or false")
-    }
-
-internal fun parseReleaseYear(raw: String): ReleaseYear =
-    ReleaseYear(raw.toIntOrNull() ?: throw InvalidValueException(ReleaseYear.FIELD, "must be an integer"))

@@ -2,6 +2,7 @@ package de.sluit.mediatracker.games.domain
 
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
+import de.sluit.mediatracker.common.domain.Title
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify

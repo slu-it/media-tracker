@@ -1,10 +1,10 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.persistence.dbQuery
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GamePlatformRepository
-import de.sluit.mediatracker.games.domain.HexColor
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder

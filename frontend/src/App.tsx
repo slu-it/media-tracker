@@ -8,7 +8,13 @@ import { Navigate, Route, Routes, useNavigate } from "react-router";
 import { AppHeader } from "./components/layout/AppHeader";
 import { MediaTabs } from "./components/layout/MediaTabs";
 import { SubPageTabs } from "./components/layout/SubPageTabs";
-import { MEDIA_SUB_PAGES, type GameSubPage, type MediaKind } from "./components/layout/mediaKinds";
+import {
+  MEDIA_SUB_PAGES,
+  type BookSubPage,
+  type GameSubPage,
+  type MediaKind,
+  type SubPage,
+} from "./components/layout/mediaKinds";
 import { useActiveRoute } from "./hooks/useActiveRoute";
 import { BooksView } from "./features/books/BooksView";
 import { GamesView } from "./features/games/GamesView";
@@ -21,15 +27,21 @@ import {
   allRoutes,
   pathFor,
   rememberRoute,
+  subPagesOf,
   storedPathFor,
   storedStartPath,
   type ActiveRoute,
 } from "./routes";
 
-const GAME_SUB_PAGE_ICONS: Record<GameSubPage, ReactElement> = {
+/** Sub-page icons, shared by every kind (the overview icon is the same everywhere). */
+const SUB_PAGE_ICONS: Record<SubPage, ReactElement> = {
   overview: <GridViewOutlined fontSize="small" />,
   watchlist: <LibraryAddOutlined fontSize="small" />,
   ranking: <LeaderboardOutlined fontSize="small" />,
+};
+
+const BOOK_SUB_VIEWS: Record<BookSubPage, ReactElement> = {
+  overview: <BooksView />,
 };
 
 const GAME_SUB_VIEWS: Record<GameSubPage, ReactElement> = {
@@ -41,7 +53,7 @@ const GAME_SUB_VIEWS: Record<GameSubPage, ReactElement> = {
 function viewFor({ kind, subPage }: ActiveRoute): ReactElement {
   switch (kind) {
     case "books":
-      return <BooksView />;
+      return BOOK_SUB_VIEWS[subPage as BookSubPage];
     case "games":
       return GAME_SUB_VIEWS[subPage as GameSubPage];
     case "movies":
@@ -61,6 +73,7 @@ export function App() {
   const route = useActiveRoute();
   const kind = route?.kind;
   const subPage = route?.subPage;
+  const subPages = (kind === undefined ? [] : subPagesOf(kind)) as readonly SubPage[];
 
   useEffect(() => {
     if (kind !== undefined) rememberRoute({ kind, subPage });
@@ -70,13 +83,14 @@ export function App() {
     <Box sx={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
       <AppHeader />
       <MediaTabs />
-      {kind === "games" && (
+      {kind !== undefined && subPages.length > 0 && (
         <SubPageTabs
-          value={subPage as GameSubPage}
-          options={MEDIA_SUB_PAGES.games}
-          onChange={(next) => void navigate(pathFor("games", next))}
-          getLabel={(page) => t(`subPages.games.${page}`)}
-          getIcon={(page) => GAME_SUB_PAGE_ICONS[page]}
+          value={subPage as SubPage}
+          options={subPages}
+          onChange={(next) => void navigate(pathFor(kind, next))}
+          getLabel={(page) => t(`subPages.pages.${page}`)}
+          ariaLabel={t(`subPages.label.${kind as keyof typeof MEDIA_SUB_PAGES}`)}
+          getIcon={(page) => SUB_PAGE_ICONS[page]}
         />
       )}
       <Container component="main" maxWidth="xl" sx={{ flex: 1, display: "flex", flexDirection: "column", py: 2 }}>

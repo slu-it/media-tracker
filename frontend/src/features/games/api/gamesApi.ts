@@ -13,7 +13,8 @@ import type {
   TitleSuggestionsResponse,
   UpdateGameRequest,
 } from "../../../types/api";
-import { isExistingDeveloper, type DeveloperDraft } from "../domain/developerDraft";
+import { resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
+import type { DeveloperDraft } from "../domain/gameDraft";
 import type { GameFilters } from "../domain/gameFilters";
 import { ALL_GAMES_PAGE_SIZE, DEVELOPER_SEARCH_LIMIT } from "../domain/gameValues";
 
@@ -142,30 +143,7 @@ export function createGameDeveloper(name: string): Promise<GameDeveloperResponse
   return apiFetch<GameDeveloperResponse>("/api/game-developers", { method: "POST", body: JSON.stringify(body) });
 }
 
-/**
- * Resolves a `GameForm` draft's developers to ids right before saving: an existing developer keeps its id; a
- * pending one (free-solo text typed by the user) is created via `createGameDeveloper` - sequentially, one name at
- * a time, so two identical pending names never race each other into two backend rows - then cached by its
- * (trimmed, case-insensitive) name so a repeat of it in the same list is not created twice. The result is
- * deduped: a pending name can resolve to a developer already selected elsewhere in the list.
- */
-export async function resolveDeveloperIds(drafts: DeveloperDraft[]): Promise<string[]> {
-  const idsByPendingName = new Map<string, string>();
-  const ids: string[] = [];
-  for (const draft of drafts) {
-    if (isExistingDeveloper(draft)) {
-      ids.push(draft.id);
-      continue;
-    }
-    const key = draft.name.trim().toLowerCase();
-    const cachedId = idsByPendingName.get(key);
-    if (cachedId !== undefined) {
-      ids.push(cachedId);
-      continue;
-    }
-    const created = await createGameDeveloper(draft.name);
-    idsByPendingName.set(key, created.id);
-    ids.push(created.id);
-  }
-  return [...new Set(ids)];
+/** Resolves a `GameForm` draft's developers to ids right before saving (see `resolveVocabularyIds`). */
+export function resolveDeveloperIds(drafts: DeveloperDraft[]): Promise<string[]> {
+  return resolveVocabularyIds(drafts, createGameDeveloper);
 }

@@ -3,13 +3,13 @@ import { Alert, Box, Button, Divider, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
 import { GameDialogsHost } from "./components/GameDialogsHost";
-import { GameSearchField } from "./components/GameSearchField";
+import { SearchField } from "../../components/media/SearchField";
 import { GamesGrid } from "./components/GamesGrid";
-import { GamesViewHeader } from "./components/GamesViewHeader";
-import { SECTION_GAP } from "./components/gamesLayout";
-import { FILTER_SELECT_SX } from "./components/filterLayout";
-import { FilterRow } from "./components/FilterRow";
-import { FilterSelect } from "./components/GameFilterBar";
+import { MediaViewHeader } from "../../components/media/MediaViewHeader";
+import { SECTION_GAP } from "../../components/media/mediaLayout";
+import { FILTER_SELECT_SX } from "../../components/media/filters/filterLayout";
+import { FilterRow } from "../../components/media/filters/FilterRow";
+import { FilterSelect } from "../../components/media/filters/FilterSelect";
 import { ReleaseSortToggle } from "./components/ReleaseSortToggle";
 import { WatchlistGameCard } from "./components/WatchlistGameCard";
 import { EMPTY_FILTERS, type GameFilters } from "./domain/gameFilters";
@@ -17,10 +17,10 @@ import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { parseWatchlistParams, watchlistParams, type WatchlistParams } from "./domain/gameViewParams";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
-import { useViewParams } from "./hooks/useViewParams";
-import { usePagedGameActions } from "./hooks/usePagedGameActions";
+import { useViewParams } from "../../hooks/useViewParams";
+import { usePagedActions } from "../../hooks/usePagedActions";
 import { useSearchDebounceMs } from "../../hooks/useSearchDebounceMs";
-import { useUrlSearchInput } from "./hooks/useUrlSearchInput";
+import { useUrlSearchInput } from "../../hooks/useUrlSearchInput";
 
 /** Games on the watchlist (`ownership === "watchlist"`), sorted by release date, oldest or newest first. */
 export function GamesWatchlistView() {
@@ -44,7 +44,7 @@ export function GamesWatchlistView() {
     useSearchDebounceMs(),
   );
   // A page change is a navigation step: it pushes, so Back returns to the previous page. The automatic
-  // corrections of `usePagedGameActions` pass `replace` and do not add an entry.
+  // corrections of `usePagedActions` pass `replace` and do not add an entry.
   const setPage = (next: number, { replace = false }: { replace?: boolean } = {}) =>
     writeParams((prev) => watchlistParams({ ...parseWatchlistParams(prev), page: next }), { replace });
 
@@ -67,7 +67,7 @@ export function GamesWatchlistView() {
   );
   const { meta, error: metaError, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<GameResponse | null>(null);
-  const { topPagination, pagination, onDeleted, onUpdated } = usePagedGameActions({
+  const { topPagination, pagination, onDeleted, onUpdated } = usePagedActions({
     data,
     loading,
     page,
@@ -88,7 +88,7 @@ export function GamesWatchlistView() {
 
   return (
     <Box sx={{ pb: 12 }}>
-      <GamesViewHeader
+      <MediaViewHeader
         facts={
           // Hidden only for a watchlist without a single game; a platform filter without results stays visible so it
           // can be undone (the sort never causes zero results).
@@ -110,7 +110,9 @@ export function GamesWatchlistView() {
           ) : undefined
         }
         search={
-          <GameSearchField
+          <SearchField
+            label={t("games.search.label")}
+            placeholder={t("games.search.placeholder")}
             value={searchInput}
             onChange={setSearchInput}
             onClear={clearSearch}
@@ -119,6 +121,7 @@ export function GamesWatchlistView() {
           />
         }
         count={data?.totalItems ?? null}
+        formatCount={(count) => t("games.resultCount", { count })}
         pagination={topPagination}
       />
       {error && (

@@ -1,16 +1,19 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.persistence.countStatements
 import de.sluit.mediatracker.common.persistence.withFreshDatabase
 import de.sluit.mediatracker.games.Platforms
-import de.sluit.mediatracker.games.domain.CoverImageUrl
-import de.sluit.mediatracker.games.domain.Description
-import de.sluit.mediatracker.games.domain.DeveloperName
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameSort
@@ -18,9 +21,6 @@ import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
-import de.sluit.mediatracker.games.domain.ReleaseYear
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -895,8 +895,8 @@ class ExposedGameRepositoryTest {
     @Test
     fun `insert then findById returns the game with developers sorted by name`() = withFreshDatabase {
         val developerRepo = ExposedGameDeveloperRepository()
-        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
-        val monolith = developerRepo.create(DeveloperName("Monolith Soft")).developer
+        val nintendo = developerRepo.create(VocabularyName("Nintendo EPD")).entry
+        val monolith = developerRepo.create(VocabularyName("Monolith Soft")).entry
         val repo = ExposedGameRepository()
         val inserted = game("Xenoblade", developers = listOf(nintendo, monolith))
         repo.insert(inserted)
@@ -961,8 +961,8 @@ class ExposedGameRepositoryTest {
     @Test
     fun `update replaces the developer links exactly`() = withFreshDatabase {
         val developerRepo = ExposedGameDeveloperRepository()
-        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
-        val monolith = developerRepo.create(DeveloperName("Monolith Soft")).developer
+        val nintendo = developerRepo.create(VocabularyName("Nintendo EPD")).entry
+        val monolith = developerRepo.create(VocabularyName("Monolith Soft")).entry
         val repo = ExposedGameRepository()
         val original = game("Xenoblade", developers = listOf(nintendo))
         repo.insert(original)
@@ -982,7 +982,7 @@ class ExposedGameRepositoryTest {
     @Test
     fun `update clears the developer links when the game has none anymore`() = withFreshDatabase {
         val developerRepo = ExposedGameDeveloperRepository()
-        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
+        val nintendo = developerRepo.create(VocabularyName("Nintendo EPD")).entry
         val repo = ExposedGameRepository()
         val original = game("Xenoblade", developers = listOf(nintendo))
         repo.insert(original)
@@ -997,7 +997,7 @@ class ExposedGameRepositoryTest {
     @Test
     fun `findPage loads the developers of a page with a constant number of queries`() = withFreshDatabase { db ->
         val developerRepo = ExposedGameDeveloperRepository()
-        val nintendo = developerRepo.create(DeveloperName("Nintendo EPD")).developer
+        val nintendo = developerRepo.create(VocabularyName("Nintendo EPD")).entry
         val repo = ExposedGameRepository()
         (1..2).forEach { repo.insert(game("G$it", developers = listOf(nintendo))) }
 

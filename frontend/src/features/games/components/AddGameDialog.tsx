@@ -8,7 +8,7 @@ import { DialogActionButton } from "../../../components/dialog/DialogActionButto
 import type { GamePlatformResponse, GameResponse } from "../../../types/api";
 import { createGame, resolveDeveloperIds } from "../api/gamesApi";
 import { emptyGameDraft, isDraftValid, toCreateRequest } from "../domain/gameDraft";
-import { GAME_DIALOG_HEIGHT } from "./gameDialogLayout";
+import { MEDIA_DIALOG_HEIGHT } from "../../../components/media/dialogLayout";
 import { GameForm } from "./GameForm";
 
 interface AddGameDialogProps {
@@ -61,7 +61,7 @@ function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDia
       onClose={onClose}
       actions={actions}
       ariaLabel={t("games.addGame")}
-      height={GAME_DIALOG_HEIGHT}
+      height={MEDIA_DIALOG_HEIGHT}
       contentScroll="children"
     >
       {error && (

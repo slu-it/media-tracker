@@ -10,9 +10,6 @@
 
 import type { Ownership, Progress } from "../../../types/api";
 
-/** Mirrors `MAX_FILTER_VALUES` (backend): the most values one repeatable filter may carry before the API answers 400. */
-export const MAX_FILTER_VALUES = 50;
-
 export interface GameFilters {
   platformIds: string[];
   ownership: Ownership[];

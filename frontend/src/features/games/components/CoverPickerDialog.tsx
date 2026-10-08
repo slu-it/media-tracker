@@ -20,7 +20,7 @@ import { focusVisibleRingSx } from "../../../theme/focusRing";
 import type { CoverMatchResponse, CoverOptionResponse } from "../../../types/api";
 import { CoverThumbnail } from "./CoverThumbnail";
 import { COVER_TYPES, DEFAULT_COVER_TYPE, type CoverType } from "../domain/coverTypes";
-import { SEARCH_MAX_LENGTH } from "../domain/gameValues";
+import { SEARCH_MAX_LENGTH } from "../../../domain/media/values";
 import { useCoverOptions } from "../hooks/useCoverOptions";
 import { useSearchDebounceMs } from "../../../hooks/useSearchDebounceMs";
 

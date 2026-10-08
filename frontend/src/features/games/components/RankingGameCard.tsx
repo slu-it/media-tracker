@@ -1,11 +1,11 @@
 import { Box, Rating } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../../types/api";
-import { GameCardShell } from "./GameCardShell";
+import { MediaCardShell } from "../../../components/media/MediaCardShell";
 
 // The standard visually-hidden pattern (offscreen but still in the accessibility tree): `aria-describedby`'s
 // computed description only ever uses "name from content" (visible text), never a descendant's own `aria-label`
-// (that is spec'd for accessible *name* computation, not description; see `GameCardShell`). The `Rating` widget
+// (that is spec'd for accessible *name* computation, not description; see `MediaCardShell`). The `Rating` widget
 // below has no visible text of its own (just SVG stars), so a plain-text stand-in is added alongside it.
 const VISUALLY_HIDDEN_SX = {
   position: "absolute",
@@ -28,7 +28,7 @@ export function RankingGameCard({ game, onOpen }: { game: GameResponse; onOpen: 
   const ratingText =
     game.rating === null ? t("games.notRated") : t("games.ranking.ratingValue", { rating: game.rating });
   return (
-    <GameCardShell
+    <MediaCardShell
       title={game.title}
       coverImageUrl={game.coverImageUrl}
       onClick={() => onOpen(game)}

@@ -1,7 +1,7 @@
 # Export / Import (MT-023)
 
 ADR: [0027](../decisions/0027-json-backup-per-domain-sources.md). Code: `common/domain/BackupSource.kt`,
-`common/persistence/ExposedBackupSource.kt`, `games/persistence/GamesBackupSource.kt`, `backup/domain/BackupService.kt`,
+`common/persistence/ExposedBackupSource.kt`, `games/persistence/GamesBackupSource.kt`, `books/persistence/BooksBackupSource.kt`, `backup/domain/BackupService.kt`,
 `backup/api/BackupRoutes.kt`, `backupSources` in `Schema.kt`,
 `frontend/src/features/settings/components/ExportImportTab.tsx`, `frontend/src/features/settings/api/backupApi.ts`.
 

@@ -13,6 +13,11 @@ import de.sluit.mediatracker.backup.api.BackupScheduler
 import de.sluit.mediatracker.backup.api.JsonBackupCodec
 import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.backup.domain.CloudBackupService
+import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.persistence.ExposedBookAuthorRepository
+import de.sluit.mediatracker.books.persistence.ExposedBookRepository
+import de.sluit.mediatracker.books.persistence.ExposedBookTypeRepository
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.config.SessionConfig
@@ -55,6 +60,8 @@ class Services(
     val dropbox: DropboxService,
     val cloudBackup: CloudBackupService,
     val gameDevelopers: GameDeveloperService,
+    val books: BookService,
+    val bookAuthors: BookAuthorService,
 )
 
 /**
@@ -102,6 +109,9 @@ fun Application.module() {
     val gameDeveloperRepository = ExposedGameDeveloperRepository()
     val gameService = GameService(gameRepository, ExposedGamePlatformRepository(), gameDeveloperRepository)
     val gameDeveloperService = GameDeveloperService(gameDeveloperRepository)
+    val bookAuthorRepository = ExposedBookAuthorRepository()
+    val bookService = BookService(ExposedBookRepository(), ExposedBookTypeRepository(), bookAuthorRepository)
+    val bookAuthorService = BookAuthorService(bookAuthorRepository)
     val apiKeyService = ApiKeyService(userRepository)
     val expansionService = ExpansionService(gameRepository, ExposedExpansionRepository())
 
@@ -144,6 +154,8 @@ fun Application.module() {
         dropboxService,
         cloudBackupService,
         gameDeveloperService,
+        bookService,
+        bookAuthorService,
     )
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))

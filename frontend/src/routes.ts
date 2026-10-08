@@ -4,7 +4,7 @@ import { DEFAULT_MEDIA_KIND, MEDIA_KINDS, MEDIA_SUB_PAGES, type MediaKind } from
 export const MEDIA_TAB_STORAGE_KEY = "mt.mediaTab";
 
 /** localStorage key of the last visited sub-page, per media kind that has sub-pages. */
-export const SUB_PAGE_STORAGE_KEYS = { games: "mt.gamesPage" } as const satisfies Record<
+export const SUB_PAGE_STORAGE_KEYS = { books: "mt.booksPage", games: "mt.gamesPage" } as const satisfies Record<
   keyof typeof MEDIA_SUB_PAGES,
   string
 >;

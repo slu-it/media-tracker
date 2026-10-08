@@ -9,6 +9,8 @@ import de.sluit.mediatracker.auth.api.apiKeyRoutes
 import de.sluit.mediatracker.auth.api.meRoutes
 import de.sluit.mediatracker.auth.api.passwordRoutes
 import de.sluit.mediatracker.backup.api.backupRoutes
+import de.sluit.mediatracker.books.api.addBookTools
+import de.sluit.mediatracker.books.api.bookRoutes
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.HealthResponse
 import de.sluit.mediatracker.dropbox.api.dropboxRoutes
@@ -43,6 +45,8 @@ fun Route.apiRoutes(services: Services) {
 
             gameRoutes(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
 
+            bookRoutes(services.books, services.bookAuthors)
+
             backupRoutes(services.backup, services.cloudBackup)
 
             dropboxRoutes(services.dropbox)
@@ -66,6 +70,7 @@ fun Route.mcpRoutes(services: Services) {
         mcpEndpoint {
             newMcpServer().apply {
                 addGameTools(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
+                addBookTools(services.books, services.bookAuthors)
             }
         }
     }

@@ -1,6 +1,6 @@
 import type { CreateExpansionRequest, ExpansionResponse, UpdateExpansionRequest } from "../../../types/api";
 import { DEFAULT_OWNERSHIP, DEFAULT_PROGRESS, type Ownership, type Progress } from "./gameStatus";
-import { validateTitle } from "./gameValues";
+import { validateTitle } from "../../../domain/media/values";
 
 /** What the form edits: raw field values, possibly incomplete or invalid. */
 export interface ExpansionDraft {
