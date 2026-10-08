@@ -6,6 +6,7 @@ import de.sluit.mediatracker.books.api.BookMetaResponse
 import de.sluit.mediatracker.books.api.BookNarratorResponse
 import de.sluit.mediatracker.books.api.BookResponse
 import de.sluit.mediatracker.books.api.BookSeriesResponse
+import de.sluit.mediatracker.books.api.BookSeriesSummaryResponse
 import de.sluit.mediatracker.books.api.BookTypeResponse
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
 import de.sluit.mediatracker.books.persistence.BookNarratorsTable
@@ -88,6 +89,25 @@ class BooksSmokeTest {
         }.decodeBody<BookResponse>()
         assertEquals(emptyList(), cleared.narrators)
         assertEquals(emptyList(), cleared.series)
+    }
+
+    @Test
+    fun `series summaries and series books list counts and books in series order`() = testApplication {
+        val client = loggedInClient()
+        val mistborn = client.createdSeries("Mistborn")
+        val empty = client.createdSeries("Another Series")
+        listOf("Unnumbered" to null, "Second" to 2, "First" to 1).forEach { (title, position) ->
+            val link = """{"seriesId":"${mistborn.id}"${position?.let { ""","position":$it""" }.orEmpty()}}"""
+            client.createBook("""{"title":"$title","releaseYear":2006,"series":[$link]}""")
+        }
+
+        val summaries = client.get("/api/book-series.summaries").decodeBody<List<BookSeriesSummaryResponse>>()
+        val books = client.get("/api/book-series/${mistborn.id}/books").decodeBody<List<BookResponse>>()
+        val noBooks = client.get("/api/book-series/${empty.id}/books").decodeBody<List<BookResponse>>()
+
+        assertEquals(listOf("Another Series" to 0, "Mistborn" to 3), summaries.map { it.name to it.bookCount })
+        assertEquals(listOf("First", "Second", "Unnumbered"), books.map { it.title })
+        assertEquals(emptyList(), noBooks)
     }
 
     @Test

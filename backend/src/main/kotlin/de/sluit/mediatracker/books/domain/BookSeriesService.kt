@@ -13,6 +13,9 @@ import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 class BookSeriesService(private val series: BookSeriesRepository) {
     suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<BookSeries> = series.search(term, limit)
 
+    /** All series with their book counts, including empty ones, ordered by name. */
+    suspend fun summaries(): List<BookSeriesSummary> = series.findSummaries()
+
     /** Idempotent: an existing case-insensitive name match is returned instead of a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookSeries> = series.create(name)
 }

@@ -11,10 +11,12 @@ import {
   createBookSeries,
   deleteBook,
   getBooksMeta,
+  listBookSeriesSummaries,
   listBookTypes,
   listBooks,
   resolveAuthorIds,
   resolveNarratorIds,
+  listSeriesBooks,
   resolveSeries,
   searchBookAuthors,
   searchBookNarrators,
@@ -25,6 +27,19 @@ import {
 const page: PageResponse<BookResponse> = { items: [dune], page: 1, pageSize: 36, totalItems: 1, totalPages: 1 };
 
 describe("booksApi", () => {
+  it("lists the series summaries", async () => {
+    const summaries = [{ id: "series-1", name: "Mistborn", bookCount: 3 }];
+    const calls = mockApi({ "GET /api/book-series.summaries": () => jsonResponse(summaries) });
+    expect(await listBookSeriesSummaries()).toEqual(summaries);
+    expect(calls[0].url).toBe("/api/book-series.summaries");
+  });
+
+  it("lists the books of a series", async () => {
+    const calls = mockApi({ "GET /api/book-series/:id/books": () => jsonResponse([dune]) });
+    expect(await listSeriesBooks("series-1")).toEqual([dune]);
+    expect(calls[0].url).toBe("/api/book-series/series-1/books");
+  });
+
   it("lists with only page and pageSize for empty search and filters", async () => {
     const calls = mockApi({ "GET /api/books": () => jsonResponse(page) });
     expect(await listBooks(1, 36, "  ", EMPTY_BOOK_FILTERS)).toEqual(page);

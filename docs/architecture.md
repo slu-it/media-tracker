@@ -143,12 +143,14 @@ de.sluit.mediatracker
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 ├── books/              second media kind (decision record 0034), same layers as games, no integration:
 │   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types,
-│   │                   /api/book-authors, /api/book-narrators, /api/book-series), BookFilterParams,
+│   │                   /api/book-authors, /api/book-narrators, /api/book-series, /api/book-series.summaries,
+│   │                   /api/book-series/{id}/books), BookFilterParams,
 │   │                   BookMcpTools (list_book_types, add_book, search_books, update_book, search/create for
 │   │                   book authors, narrators and series)
 │   ├── domain/         BookValues (BookId, BookTypeId, BookTypeLabel, BookAuthorId, BookNarratorId,
 │   │                   BookSeriesId, BookSeriesPosition), BookStatus (BookOwnership, BookProgress),
-│   │                   Book/NewBook/BookPatch, BookType, BookAuthor, BookNarrator, BookSeries/BookSeriesEntry,
+│   │                   Book/NewBook/BookPatch, BookType, BookAuthor, BookNarrator, BookSeries/BookSeriesEntry/
+│   │                   BookSeriesSummary,
 │   │                   BookFilters (incl. BookMissingField)/BookMeta, BookRepository, BookTypeRepository,
 │   │                   BookAuthorRepository, BookNarratorRepository, BookSeriesRepository (interfaces),
 │   │                   BookService, BookAuthorService, BookNarratorService, BookSeriesService
@@ -225,6 +227,8 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/book-authors?search=le&limit=10` / `POST /api/book-authors` | 200 `BookAuthorResponse[]` / 201 or 200 `BookAuthorResponse` | as `/api/game-developers` |
 | `GET /api/book-narrators` / `POST /api/book-narrators` | 200 `BookNarratorResponse[]` / 201 or 200 `BookNarratorResponse` | as `/api/game-developers` |
 | `GET /api/book-series` / `POST /api/book-series` | 200 `BookSeriesResponse[]` / 201 or 200 `BookSeriesResponse` | as `/api/game-developers`; a book's links come back as `BookResponse.series` `[{id, name, position}]` (decision record 0035) |
+| `GET /api/book-series.summaries` | 200 `BookSeriesSummaryResponse[]` | every series (also those without books) with `id`, `name`, `bookCount`, ordered by name; unpaged; feeds the series view (MT-043) |
+| `GET /api/book-series/{id}/books` | 200 `BookResponse[]` | the books of one series, unpaged, ordered by their position in it (books without one last), then title; 404 for an unknown series |
 | `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
 | `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, a missing non-nullable column (a missing nullable one is `null`), wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 | `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
@@ -285,9 +289,11 @@ frontend/src
 │                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
 │                         disconnect; fields/AuthorizationCodeField)
 ├── features/<kind>/      one standalone view per media kind; movies and series are "coming soon"
-├── features/books/       BooksView (overview at /books/overview) + api/booksApi, hooks/ (useBooksPage,
-│                         useBooksMeta, useBookTypes), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio,
-│                         bookFilters, bookDraft, bookViewParams, seriesLabel), components/ (BookCard, BookStatusIcons,
+├── features/books/       BooksView (overview at /books/overview), BookSeriesView (series accordion at
+│                         /books/series, MT-043) + api/booksApi, hooks/ (useBooksPage, useBooksMeta, useBookTypes,
+│                         useBookSeriesSummaries, useSeriesBooks), domain/ (bookStatus, bookValues incl. the 2:3
+│                         cover ratio, bookFilters, bookDraft, bookViewParams, bookSeriesViewParams, seriesLabel,
+│                         seriesSearch), components/ (BookCard, BookSeriesAccordion, BookStatusIcons,
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
 │                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,

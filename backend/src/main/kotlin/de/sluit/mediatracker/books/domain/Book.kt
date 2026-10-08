@@ -40,6 +40,9 @@ data class BookNarrator(override val id: BookNarratorId, override val name: Voca
 /** A series the user has added to the vocabulary; works like [BookAuthor], the position is on the link. */
 data class BookSeries(override val id: BookSeriesId, override val name: VocabularyName) : BookNamedEntry
 
+/** A series with the number of books linked to it (0 for a series nobody references yet). */
+data class BookSeriesSummary(val series: BookSeries, val bookCount: Int)
+
 /** A book's link to one [series], with the book's optional [position] (number) in it. */
 data class BookSeriesEntry(val series: BookSeries, val position: BookSeriesPosition? = null) : BookNamedEntry {
     override val id: Any get() = series.id

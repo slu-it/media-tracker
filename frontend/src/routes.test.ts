@@ -43,6 +43,7 @@ describe("routes", () => {
     "/books",
     "/books/x",
     "/books/overview/x",
+    "/books/series/x",
     "/movies/x",
     "/games",
     "/games/nope",

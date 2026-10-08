@@ -6,6 +6,7 @@ import type {
   BookResponse,
   BookSeriesLinkRequest,
   BookSeriesResponse,
+  BookSeriesSummaryResponse,
   BookTypeResponse,
   CreateBookAuthorRequest,
   CreateBookNarratorRequest,
@@ -132,4 +133,14 @@ export async function resolveSeries(drafts: SeriesDraft[]): Promise<BookSeriesLi
     }
   });
   return [...links.values()];
+}
+
+/** Every series with its book count (including 0), alphabetical; unpaged. */
+export function listBookSeriesSummaries(): Promise<BookSeriesSummaryResponse[]> {
+  return apiFetch<BookSeriesSummaryResponse[]>("/api/book-series.summaries");
+}
+
+/** The books of one series in position order (unnumbered last, then by title); 404 for an unknown series. */
+export function listSeriesBooks(seriesId: string, signal?: AbortSignal): Promise<BookResponse[]> {
+  return apiFetch<BookResponse[]>(`/api/book-series/${encodeURIComponent(seriesId)}/books`, { signal });
 }

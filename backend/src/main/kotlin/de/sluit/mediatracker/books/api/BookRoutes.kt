@@ -4,6 +4,7 @@ import de.sluit.mediatracker.books.domain.Book
 import de.sluit.mediatracker.books.domain.BookAuthorService
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookNarratorService
+import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.common.api.intQueryParameter
@@ -115,8 +116,22 @@ fun Route.bookRoutes(
             val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
             call.respond(status, result.entry.toResponse())
         }
+        route("/{id}") {
+            // Unpaged; ordered by position (unnumbered last), title, id. Unknown series is a 404.
+            get("/books") {
+                call.respond(bookService.listBySeries(call.bookSeriesId()).map { it.toResponse() })
+            }
+        }
+    }
+    route("/book-series.summaries") {
+        get {
+            call.respond(bookSeriesService.summaries().map { it.toResponse() })
+        }
     }
 }
 
 internal fun ApplicationCall.bookId(): BookId =
     BookId.parse(parameters["id"] ?: throw InvalidValueException(BookId.FIELD, "is missing"))
+
+private fun ApplicationCall.bookSeriesId(): BookSeriesId =
+    BookSeriesId.parse(parameters["id"] ?: throw InvalidValueException(BookSeriesId.FIELD, "is missing"))

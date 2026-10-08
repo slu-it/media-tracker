@@ -1,5 +1,8 @@
 package de.sluit.mediatracker.books.persistence
 
+import de.sluit.mediatracker.books.book
+import de.sluit.mediatracker.books.domain.BookSeriesSummary
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
@@ -78,5 +81,51 @@ class ExposedBookSeriesRepositoryTest {
             BookSeriesTable.selectAll().where { BookSeriesTable.name eq name.value }.count()
         }
         assertEquals(1, rowCount)
+    }
+
+    @Test
+    fun `findSummaries counts books per series including empty ones`() = withFreshDatabase {
+        val repo = ExposedBookSeriesRepository()
+        val bookRepo = ExposedBookRepository()
+        val mistborn = repo.create(VocabularyName("Mistborn")).entry
+        val empty = repo.create(VocabularyName("Empty")).entry
+        bookRepo.insert(book("One", series = listOf(seriesEntry(mistborn, 1.0))))
+        bookRepo.insert(book("Two", series = listOf(seriesEntry(mistborn))))
+
+        val result = repo.findSummaries()
+
+        assertEquals(
+            listOf(BookSeriesSummary(empty, 0), BookSeriesSummary(mistborn, 2)),
+            result,
+        )
+    }
+
+    @Test
+    fun `findSummaries orders by name accent-insensitively`() = withFreshDatabase {
+        val repo = ExposedBookSeriesRepository()
+        repo.create(VocabularyName("Zed"))
+        repo.create(VocabularyName("Ärger"))
+        repo.create(VocabularyName("Beta"))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf("Ärger", "Beta", "Zed"), result.map { it.series.name.value })
+    }
+
+    @Test
+    fun `findSummaries counts a book in two series in both`() = withFreshDatabase {
+        val repo = ExposedBookSeriesRepository()
+        val a = repo.create(VocabularyName("A Series")).entry
+        val b = repo.create(VocabularyName("B Series")).entry
+        ExposedBookRepository().insert(book("Shared", series = listOf(seriesEntry(a, 1.0), seriesEntry(b))))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf(1, 1), result.map { it.bookCount })
+    }
+
+    @Test
+    fun `findSummaries is empty without series`() = withFreshDatabase {
+        assertEquals(emptyList(), ExposedBookSeriesRepository().findSummaries())
     }
 }

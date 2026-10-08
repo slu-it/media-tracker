@@ -18,6 +18,7 @@ import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
+import de.sluit.mediatracker.books.domain.BookSeriesSummary
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
@@ -131,6 +132,8 @@ class BookRoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-narrators").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-series").status)
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-series").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-series.summaries").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-series/${BookSeriesId.new()}/books").status)
     }
 
     // ---- create ----
@@ -682,6 +685,64 @@ class BookRoutesTest {
 
         client.post("/api/book-authors") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
         coVerify(exactly = 0) { authors.create(any()) }
+    }
+
+    // ---- series view ----
+
+    @Test
+    fun `series summaries mirror the domain summaries including empty series`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = loggedInClient(series = seriesService)
+        val mistborn = series("Mistborn")
+        val empty = series("Zed")
+        coEvery { seriesService.summaries() } returns
+            listOf(BookSeriesSummary(mistborn, 3), BookSeriesSummary(empty, 0))
+
+        val response = client.get("/api/book-series.summaries")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(
+            listOf(
+                BookSeriesSummaryResponse(mistborn.id.toString(), "Mistborn", 3),
+                BookSeriesSummaryResponse(empty.id.toString(), "Zed", 0),
+            ),
+            response.decodeBody<List<BookSeriesSummaryResponse>>(),
+        )
+    }
+
+    @Test
+    fun `series books returns the fully mapped books in service order`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val mistborn = series("Mistborn")
+        val first = book("The Final Empire", series = listOf(seriesEntry(mistborn, 1.0)))
+        val second = book("Unnumbered", series = listOf(seriesEntry(mistborn)))
+        coEvery { books.listBySeries(mistborn.id) } returns listOf(first, second)
+
+        val response = client.get("/api/book-series/${mistborn.id}/books")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val decoded = response.decodeBody<List<BookResponse>>()
+        assertEquals(listOf("The Final Empire", "Unnumbered"), decoded.map { it.title })
+        assertEquals(listOf(1.0, null), decoded.map { it.series.single().position })
+    }
+
+    @Test
+    fun `series books of an unknown series is 404`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = BookSeriesId.new()
+        coEvery { books.listBySeries(id) } throws NotFoundException("book series", id.toString())
+
+        client.get("/api/book-series/$id/books").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `series books with a malformed id is a 400`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+
+        client.get("/api/book-series/not-a-uuid/books").assertValidationError("series")
     }
 
     // ---- narrators and series on books ----

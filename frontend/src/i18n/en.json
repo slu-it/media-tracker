@@ -113,7 +113,8 @@
     "pages": {
       "overview": "Overview",
       "watchlist": "Watchlist",
-      "ranking": "Yearly ranking"
+      "ranking": "Yearly ranking",
+      "series": "Book series"
     }
   },
   "media": {
@@ -151,6 +152,18 @@
     "deleteQuestion": "Delete \"{{title}}\"?",
     "resultCount_one": "{{count}} book",
     "resultCount_other": "{{count}} books",
+    "seriesView": {
+      "searchLabel": "Search series",
+      "searchPlaceholder": "Search series…",
+      "count_one": "{{count}} series",
+      "count_other": "{{count}} series",
+      "bookCount_one": "{{count}} book",
+      "bookCount_other": "{{count}} books",
+      "empty": "No series yet. Add one while editing a book.",
+      "noSearchResults": "No series match \"{{term}}\"",
+      "noBooks": "No books in this series",
+      "positionBadge": "#{{position}}"
+    },
     "search": {
       "label": "Search books",
       "placeholder": "Search books…",

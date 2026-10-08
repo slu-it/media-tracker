@@ -4,6 +4,7 @@ import type {
   BookNarratorResponse,
   BookResponse,
   BookSeriesResponse,
+  BookSeriesSummaryResponse,
   BookTypeResponse,
 } from "../../types/api";
 
@@ -76,3 +77,22 @@ export const meta: BookMetaResponse = {
   progress: ["not_started", "reading"],
   releaseYears: [1968, 1965],
 };
+
+export const mistbornSummary: BookSeriesSummaryResponse = { id: mistborn.id, name: "Mistborn", bookCount: 3 };
+export const duneSagaSummary: BookSeriesSummaryResponse = { id: duneSaga.id, name: "Dune Saga", bookCount: 1 };
+export const emptySeriesSummary: BookSeriesSummaryResponse = { id: "series-3", name: "Éowyn Chronicles", bookCount: 0 };
+export const seriesSummaries: BookSeriesSummaryResponse[] = [duneSagaSummary, emptySeriesSummary, mistbornSummary];
+
+const mistbornBook = (id: string, title: string, position: number | null): BookResponse => ({
+  ...earthsea,
+  id,
+  title,
+  series: [{ id: mistborn.id, name: mistborn.name, position }],
+});
+
+/** Mistborn books in the order the backend returns them: numbered by position, then unnumbered. */
+export const mistbornBooks: BookResponse[] = [
+  mistbornBook("book-m1", "The Final Empire", 1),
+  mistbornBook("book-m2", "The Well of Ascension", 2.5),
+  mistbornBook("book-m3", "Secret History", null),
+];

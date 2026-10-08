@@ -197,16 +197,38 @@ class ExposedBookRepository : BookRepository {
     }
 
     /**
-     * Maps a page of rows (with or without the extra `score` column) to a [Page] of [Book], loading types and
-     * authors, narrators and series with one join query each, regardless of page size.
+     * One SELECT of the series' books (inner join on the link table), ordered by `position IS NULL` first
+     * (MariaDB has no `NULLS LAST`; a plain ASC sort puts NULLs first), then position, title and id; then the
+     * shared batch loaders, so the query count is constant.
      */
-    private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Book> {
+    override suspend fun findBySeries(seriesId: BookSeriesId): List<Book> = dbQuery {
+        val rows = (BooksTable innerJoin BookToSeriesTable)
+            .select(BooksTable.columns)
+            .where { BookToSeriesTable.seriesId eq seriesId.toString() }
+            .orderBy(
+                BookToSeriesTable.position.isNull() to SortOrder.ASC,
+                BookToSeriesTable.position to SortOrder.ASC,
+                BooksTable.title to SortOrder.ASC,
+                BooksTable.id to SortOrder.ASC,
+            )
+            .toList()
+        hydrate(rows)
+    }
+
+    private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Book> =
+        Page(hydrate(rows), request.page, request.size, total)
+
+    /**
+     * Maps rows (with or without the extra `score` column) to [Book]s, loading types and
+     * authors, narrators and series with one join query each, regardless of row count.
+     */
+    private fun hydrate(rows: List<ResultRow>): List<Book> {
         val bookIds = rows.map { it[BooksTable.id] }.toSet()
         val typesByBook = typesFor(bookIds)
         val authorsByBook = authorsFor(bookIds)
         val narratorsByBook = narratorsFor(bookIds)
         val seriesByBook = seriesFor(bookIds)
-        val items = rows.map { row ->
+        return rows.map { row ->
             row.toBook(
                 typesByBook[row[BooksTable.id]].orEmpty().sortedForBook(),
                 authorsByBook[row[BooksTable.id]].orEmpty().sortedByNameForBook(),
@@ -214,7 +236,6 @@ class ExposedBookRepository : BookRepository {
                 seriesByBook[row[BooksTable.id]].orEmpty().sortedByNameForBook(),
             )
         }
-        return Page(items, request.page, request.size, total)
     }
 
     /** One query for all requested book ids: no N+1 when loading a page of books. */

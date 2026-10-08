@@ -13,6 +13,7 @@ import de.sluit.mediatracker.books.domain.BookSeries
 import de.sluit.mediatracker.books.domain.BookSeriesEntry
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesPosition
+import de.sluit.mediatracker.books.domain.BookSeriesSummary
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
@@ -96,6 +97,10 @@ data class CreateBookNarratorRequest(val name: String)
 
 @Serializable
 data class BookSeriesResponse(val id: String, val name: String)
+
+/** GET /api/book-series.summaries: a series with the number of books linked to it (0 allowed). */
+@Serializable
+data class BookSeriesSummaryResponse(val id: String, val name: String, val bookCount: Int)
 
 /** POST /book-series */
 @Serializable
@@ -183,6 +188,9 @@ fun BookAuthor.toResponse() = BookAuthorResponse(id = id.toString(), name = name
 fun BookNarrator.toResponse() = BookNarratorResponse(id = id.toString(), name = name.value)
 
 fun BookSeries.toResponse() = BookSeriesResponse(id = id.toString(), name = name.value)
+
+fun BookSeriesSummary.toResponse() =
+    BookSeriesSummaryResponse(id = series.id.toString(), name = series.name.value, bookCount = bookCount)
 
 fun BookSeriesEntry.toResponse() =
     BookSeriesEntryResponse(id = series.id.toString(), name = series.name.value, position = position?.value?.toDouble())
