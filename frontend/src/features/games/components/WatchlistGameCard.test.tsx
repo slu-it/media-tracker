@@ -11,7 +11,7 @@ describe("WatchlistGameCard", () => {
     renderWithProviders(<WatchlistGameCard game={dated} onOpen={() => {}} />);
     expect(screen.getByText("2020-09-17")).toBeInTheDocument();
     // The explicit aria-label on the card's button would otherwise hide the date from screen readers; wired as
-    // an accessible description instead (see GameCardShell), so it is still announced alongside the title.
+    // an accessible description instead (see MediaCardShell), so it is still announced alongside the title.
     expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2020-09-17");
   });
 

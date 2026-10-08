@@ -9,79 +9,42 @@
  * - repeatable params are written as `?k=a&k=b`, de-duplicated and sorted, and keys come in a fixed order, so
  *   equal state always serializes to the same URL.
  *
- * The field codecs below are exported so the watchlist and ranking views reuse the very same parsing; the
- * overview, watchlist and ranking scheme each get one parse/serialize pair at the bottom.
+ * The kind-neutral field codecs live in `domain/media/viewParams.ts`; the overview, watchlist and ranking scheme
+ * each get one parse/serialize pair here.
  */
 
 import type { GameSort } from "../../../types/api";
-import { MAX_FILTER_VALUES, type GameFilters } from "./gameFilters";
-import { RELEASE_YEAR_MAX_DIGITS, RELEASE_YEAR_MIN_DIGITS, SEARCH_MAX_LENGTH } from "./gameValues";
+import {
+  parseEnumValues,
+  parsePage,
+  parseSearch,
+  parseSingleYear,
+  parseUuids,
+  parseYears,
+  writePage,
+  writeSearch,
+  writeUuids,
+  writeValues,
+  writeYears,
+  YEAR_PARAM,
+} from "../../../domain/media/viewParams";
+import type { GameFilters } from "./gameFilters";
 import { OWNERSHIP_VALUES, PROGRESS_VALUES, type Ownership, type Progress } from "./gameStatus";
 
-export const SEARCH_PARAM = "search";
 export const PLATFORM_PARAM = "platform";
 export const OWNERSHIP_PARAM = "ownership";
 export const PROGRESS_PARAM = "progress";
-export const YEAR_PARAM = "year";
-export const PAGE_PARAM = "page";
 export const SORT_PARAM = "sort";
 
 // ---- field codecs ---------------------------------------------------------------------------------------------
 
-const DIGITS = /^\d+$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** The backend reads `page` as an Int; larger values answer 400. */
-const MAX_PAGE = 2 ** 31 - 1;
-
-function parseNonNegativeInteger(value: string): number | null {
-  if (!DIGITS.test(value)) return null;
-  const number = Number(value);
-  return Number.isSafeInteger(number) ? number : null;
-}
-
-/** The trimmed `search` value, `""` when absent or longer than `SEARCH_MAX_LENGTH` (the backend answers 400). */
-export function parseSearch(params: URLSearchParams): string {
-  const search = (params.get(SEARCH_PARAM) ?? "").trim();
-  return search.length <= SEARCH_MAX_LENGTH ? search : "";
-}
-
-export function writeSearch(params: URLSearchParams, search: string): void {
-  const trimmed = search.trim();
-  if (trimmed.length > 0) params.set(SEARCH_PARAM, trimmed);
-}
-
-/** Integer in 1..2^31-1, `1` when absent or invalid. */
-export function parsePage(params: URLSearchParams): number {
-  const page = parseNonNegativeInteger(params.get(PAGE_PARAM) ?? "");
-  return page !== null && page >= 1 && page <= MAX_PAGE ? page : 1;
-}
-
-export function writePage(params: URLSearchParams, page: number): void {
-  if (Number.isSafeInteger(page) && page > 1) params.set(PAGE_PARAM, String(page));
-}
-
 /** Platform ids that are UUIDs, lowercased (the backend's form), de-duplicated and sorted; at most `MAX_FILTER_VALUES` (the first ones). */
 export function parsePlatformIds(params: URLSearchParams): string[] {
-  const ids = new Set(
-    params
-      .getAll(PLATFORM_PARAM)
-      .filter((id) => UUID.test(id))
-      .map((id) => id.toLowerCase()),
-  );
-  return [...ids].slice(0, MAX_FILTER_VALUES).sort();
+  return parseUuids(params, PLATFORM_PARAM);
 }
 
 export function writePlatformIds(params: URLSearchParams, ids: readonly string[]): void {
-  for (const id of [...new Set(ids)].filter((value) => value.length > 0).sort()) params.append(PLATFORM_PARAM, id);
-}
-
-function parseEnumValues<T extends string>(params: URLSearchParams, key: string, allowed: readonly T[]): T[] {
-  const found = new Set<T>();
-  for (const value of params.getAll(key)) {
-    const match = allowed.find((candidate) => candidate === value);
-    if (match !== undefined) found.add(match);
-  }
-  return [...found].slice(0, MAX_FILTER_VALUES).sort();
+  writeUuids(params, PLATFORM_PARAM, ids);
 }
 
 export function parseOwnership(params: URLSearchParams): Ownership[] {
@@ -90,37 +53,6 @@ export function parseOwnership(params: URLSearchParams): Ownership[] {
 
 export function parseProgress(params: URLSearchParams): Progress[] {
   return parseEnumValues(params, PROGRESS_PARAM, PROGRESS_VALUES);
-}
-
-function writeValues(params: URLSearchParams, key: string, values: readonly string[]): void {
-  for (const value of [...new Set(values)].sort()) params.append(key, value);
-}
-
-/** A release year the backend accepts (four digits), `null` otherwise. */
-function parseReleaseYear(value: string): number | null {
-  const year = parseNonNegativeInteger(value);
-  return year !== null && year >= RELEASE_YEAR_MIN_DIGITS && year <= RELEASE_YEAR_MAX_DIGITS ? year : null;
-}
-
-/** Release years of the overview filter: valid years only, de-duplicated and ascending; at most `MAX_FILTER_VALUES`. */
-export function parseYears(params: URLSearchParams): number[] {
-  const years = new Set<number>();
-  for (const value of params.getAll(YEAR_PARAM)) {
-    const year = parseReleaseYear(value);
-    if (year !== null) years.add(year);
-  }
-  return [...years].slice(0, MAX_FILTER_VALUES).sort((a, b) => a - b);
-}
-
-export function writeYears(params: URLSearchParams, years: readonly number[]): void {
-  for (const year of [...new Set(years)].filter(Number.isSafeInteger).sort((a, b) => a - b)) {
-    params.append(YEAR_PARAM, String(year));
-  }
-}
-
-/** The single `year` of the ranking view, `null` when absent or invalid. */
-export function parseSingleYear(params: URLSearchParams): number | null {
-  return parseReleaseYear(params.get(YEAR_PARAM) ?? "");
 }
 
 // ---- overview -------------------------------------------------------------------------------------------------

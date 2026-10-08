@@ -2,7 +2,10 @@ package de.sluit.mediatracker.games.api
 
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.common.api.ErrorResponse
+import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
 import de.sluit.mediatracker.common.api.PageResponse
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
@@ -10,16 +13,17 @@ import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyCreation
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.developer
-import de.sluit.mediatracker.games.domain.CoverImageUrl
-import de.sluit.mediatracker.games.domain.Description
-import de.sluit.mediatracker.games.domain.DeveloperName
-import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
-import de.sluit.mediatracker.games.domain.GameDeveloperCreation
 import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameFilters
@@ -33,9 +37,6 @@ import de.sluit.mediatracker.games.domain.NewGame
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
-import de.sluit.mediatracker.games.domain.ReleaseYear
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import de.sluit.mediatracker.handlerApp
 import de.sluit.mediatracker.jsonBody
@@ -1149,12 +1150,12 @@ class GameRoutesTest {
         val games = mockk<GameService>()
         val developers = mockk<GameDeveloperService>()
         val client = loggedInHandlerClient(games, developers)
-        coEvery { developers.search(SearchTerm("nin"), DeveloperSearchLimit.DEFAULT) } returns emptyList()
+        coEvery { developers.search(SearchTerm("nin"), VocabularySearchLimit.DEFAULT) } returns emptyList()
 
         client.get("/api/game-developers?search=nin")
 
         coVerify {
-            developers.search(SearchTerm("nin"), DeveloperSearchLimit.DEFAULT)
+            developers.search(SearchTerm("nin"), VocabularySearchLimit.DEFAULT)
         }
     }
 
@@ -1163,11 +1164,11 @@ class GameRoutesTest {
         val games = mockk<GameService>()
         val developers = mockk<GameDeveloperService>()
         val client = loggedInHandlerClient(games, developers)
-        coEvery { developers.search(null, DeveloperSearchLimit(5)) } returns emptyList()
+        coEvery { developers.search(null, VocabularySearchLimit(5)) } returns emptyList()
 
         client.get("/api/game-developers?limit=5")
 
-        coVerify { developers.search(null, DeveloperSearchLimit(5)) }
+        coVerify { developers.search(null, VocabularySearchLimit(5)) }
     }
 
     @Test
@@ -1185,7 +1186,7 @@ class GameRoutesTest {
         val developers = mockk<GameDeveloperService>()
         val client = loggedInHandlerClient(games, developers)
         val created = developer("Nintendo EPD")
-        coEvery { developers.create(DeveloperName("Nintendo EPD")) } returns GameDeveloperCreation(created, true)
+        coEvery { developers.create(VocabularyName("Nintendo EPD")) } returns VocabularyCreation(created, true)
 
         val response = client.post("/api/game-developers") { jsonBody("""{"name":"Nintendo EPD"}""") }
 
@@ -1199,7 +1200,7 @@ class GameRoutesTest {
         val developers = mockk<GameDeveloperService>()
         val client = loggedInHandlerClient(games, developers)
         val existing = developer("Nintendo EPD")
-        coEvery { developers.create(DeveloperName("Nintendo EPD")) } returns GameDeveloperCreation(existing, false)
+        coEvery { developers.create(VocabularyName("Nintendo EPD")) } returns VocabularyCreation(existing, false)
 
         val response = client.post("/api/game-developers") { jsonBody("""{"name":"Nintendo EPD"}""") }
 
@@ -1214,7 +1215,7 @@ class GameRoutesTest {
 
         client.post("/api/game-developers") { jsonBody("""{"name":"   "}""") }
             .assertValidationError("name")
-        // any() would construct a witness DeveloperName from a random string to set up the matcher, which risks
+        // any() would construct a witness VocabularyName from a random string to set up the matcher, which risks
         // tripping its blank/whitespace/length validation (see the MockK value-class matcher note); confirming
         // zero interactions on the mock proves the same thing without that risk.
         confirmVerified(developers)

@@ -5,9 +5,9 @@ import de.sluit.mediatracker.common.api.pageRequest
 import de.sluit.mediatracker.common.api.searchTerm
 import de.sluit.mediatracker.common.api.toResponse
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.games.domain.CoverOptionsService
-import de.sluit.mediatracker.games.domain.DeveloperName
-import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameDeveloperService
@@ -82,15 +82,15 @@ fun Route.gameRoutes(
     route("/game-developers") {
         get {
             val term = call.searchTerm()
-            val limit = call.intQueryParameter(DeveloperSearchLimit.FIELD)?.let(::DeveloperSearchLimit)
-                ?: DeveloperSearchLimit.DEFAULT
+            val limit = call.intQueryParameter(VocabularySearchLimit.FIELD)?.let(::VocabularySearchLimit)
+                ?: VocabularySearchLimit.DEFAULT
             call.respond(developerService.search(term, limit).map { it.toResponse() })
         }
         post {
             val request = call.receive<CreateGameDeveloperRequest>()
-            val result = developerService.create(DeveloperName.parse(request.name))
+            val result = developerService.create(VocabularyName.parse(request.name))
             val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
-            call.respond(status, result.developer.toResponse())
+            call.respond(status, result.entry.toResponse())
         }
     }
 }

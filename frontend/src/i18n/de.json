@@ -106,11 +106,76 @@
     "series": "Serien"
   },
   "subPages": {
-    "label": "Spiele-Seiten",
-    "games": {
+    "label": {
+      "books": "Buch-Seiten",
+      "games": "Spiele-Seiten"
+    },
+    "pages": {
       "overview": "Übersicht",
       "watchlist": "Merkliste",
       "ranking": "Jahresranking"
+    }
+  },
+  "media": {
+    "noCover": "Kein Coverbild",
+    "coverPreview": "Cover-Vorschau",
+    "search": {
+      "clear": "Suche löschen"
+    },
+    "filters": {
+      "all": "-alle-",
+      "clear": "{{label}} zurücksetzen",
+      "ownership": "Besitzstatus",
+      "progress": "Fortschritt",
+      "releaseYear": "Erscheinungsjahr"
+    },
+    "fields": {
+      "title": "Titel",
+      "description": "Beschreibung",
+      "releaseYear": "Erscheinungsjahr",
+      "releaseDate": "Erscheinungsdatum",
+      "coverImageUrl": "Coverbild-URL",
+      "coverImageUrlHint": "Optional. Leer lassen für kein Cover.",
+      "ownership": "Besitzstatus",
+      "progress": "Fortschritt"
+    },
+    "vocabulary": {
+      "add": "„{{name}}“ hinzufügen"
+    }
+  },
+  "books": {
+    "addBook": "Buch hinzufügen",
+    "bookDetails": "Buchdetails",
+    "editBook": "Buch bearbeiten",
+    "empty": "Noch keine Bücher. Mit dem +-Button legst du das erste an.",
+    "deleteQuestion": "„{{title}}“ löschen?",
+    "resultCount_one": "{{count}} Buch",
+    "resultCount_other": "{{count}} Bücher",
+    "search": {
+      "label": "Bücher suchen",
+      "placeholder": "Bücher suchen…",
+      "noResults": "Keine Bücher passen zu „{{term}}“"
+    },
+    "filters": {
+      "type": "Typ",
+      "noBooks": "Keine Bücher",
+      "noResults": "Keine Bücher passen zu den gewählten Filtern."
+    },
+    "fields": {
+      "types": "Typen",
+      "authors": "Autoren",
+      "authorsHint": "Namen eingeben und Enter drücken, um einen neuen Autor hinzuzufügen"
+    },
+    "ownership": {
+      "watchlist": "Merkliste",
+      "owned": "Besitz"
+    },
+    "progress": {
+      "abandoned": "Abgebrochen",
+      "not_started": "Nicht begonnen",
+      "paused": "Pausiert",
+      "reading": "Wird gelesen",
+      "finished": "Gelesen"
     }
   },
   "games": {
@@ -118,25 +183,17 @@
     "gameDetails": "Spieldetails",
     "editGame": "Spiel bearbeiten",
     "empty": "Noch keine Spiele. Mit dem +-Button legst du das erste an.",
-    "noCover": "Kein Coverbild",
-    "coverPreview": "Cover-Vorschau",
     "deleteQuestion": "„{{title}}“ löschen?",
     "resultCount_one": "{{count}} Spiel",
     "resultCount_other": "{{count}} Spiele",
     "search": {
       "label": "Spiele suchen",
       "placeholder": "Spiele suchen…",
-      "clear": "Suche löschen",
       "noResults": "Keine Spiele passen zu „{{term}}“"
     },
     "filters": {
-      "all": "-alle-",
       "noGames": "Keine Spiele",
-      "clear": "{{label}} zurücksetzen",
       "platform": "Plattform",
-      "ownership": "Besitzstatus",
-      "progress": "Fortschritt",
-      "releaseYear": "Erscheinungsjahr",
       "noResults": "Keine Spiele passen zu den gewählten Filtern."
     },
     "sort": {
@@ -157,21 +214,12 @@
       "empty": "Keine bewerteten Spiele aus {{year}}."
     },
     "fields": {
-      "title": "Titel",
-      "releaseYear": "Erscheinungsjahr",
-      "releaseDate": "Erscheinungsdatum",
       "platforms": "Plattformen",
-      "description": "Beschreibung",
       "rating": "Bewertung",
-      "coverImageUrl": "Coverbild-URL",
-      "coverImageUrlHint": "Optional. Leer lassen für kein Cover.",
-      "ownership": "Besitzstatus",
-      "progress": "Fortschritt",
       "hidden": "Ausgeblendet",
       "titleSuggestionVerified": "Verifiziert",
       "developers": "Entwickler",
-      "developersHint": "Namen eingeben und Enter drücken, um einen neuen Entwickler hinzuzufügen",
-      "developersAdd": "„{{name}}“ hinzufügen"
+      "developersHint": "Namen eingeben und Enter drücken, um einen neuen Entwickler hinzuzufügen"
     },
     "ownership": {
       "watchlist": "Merkliste",

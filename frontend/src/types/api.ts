@@ -1,6 +1,6 @@
 // Hand-written mirrors of the Kotlin DTOs in backend/src/main/kotlin/de/sluit/mediatracker/common/api/Dtos.kt,
 // .../auth/api/AuthDtos.kt (MeResponse, ApiKeysResponse, ChangePasswordRequest), .../games/api/GameDtos.kt,
-// .../games/api/ExpansionDtos.kt, .../games/api/CoverOptionDtos.kt, .../backup/api/BackupDtos.kt and
+// .../games/api/ExpansionDtos.kt, .../books/api/BookDtos.kt, .../games/api/CoverOptionDtos.kt, .../backup/api/BackupDtos.kt and
 // .../dropbox/api/DropboxDtos.kt. Keep them in sync.
 
 /** Mirrors the Kotlin `Ownership` enum in games/domain/GameStatus.kt. */
@@ -246,4 +246,94 @@ export interface StoredFileDto {
  */
 export interface CloudBackupResponse {
   lastBackup: StoredFileDto | null;
+}
+
+/** Mirrors the Kotlin `BookOwnership` enum in books/domain/BookStatus.kt. */
+export type BookOwnership = "watchlist" | "owned";
+
+/** Mirrors the Kotlin `BookProgress` enum in books/domain/BookStatus.kt. */
+export type BookProgress = "abandoned" | "not_started" | "paused" | "reading" | "finished";
+
+/** A selectable book type (Hardcover, Kindle, ...); mirrors `BookTypeResponse` in books/api/BookDtos.kt. `associatedColor` is `"RRGGBB"`. */
+export interface BookTypeResponse {
+  id: string;
+  label: string;
+  associatedColor: string;
+}
+
+/** A book author; mirrors `BookAuthorResponse` in books/api/BookDtos.kt. */
+export interface BookAuthorResponse {
+  id: string;
+  name: string;
+}
+
+/** Body of `POST /api/book-authors`; mirrors `CreateBookAuthorRequest` in books/api/BookDtos.kt. */
+export interface CreateBookAuthorRequest {
+  name: string;
+}
+
+/** The filter values that actually occur in the stored books; mirrors `BookMetaResponse` in books/api/BookDtos.kt. */
+export interface BookMetaResponse {
+  /** Only types in use, alphabetically by label. */
+  types: BookTypeResponse[];
+  /** Only values in use, in enum declaration order. */
+  ownership: BookOwnership[];
+  /** Only values in use, in enum declaration order. */
+  progress: BookProgress[];
+  /** Only years in use, newest first. */
+  releaseYears: number[];
+}
+
+/** Mirrors `BookResponse` in books/api/BookDtos.kt. */
+export interface BookResponse {
+  id: string;
+  title: string;
+  releaseYear: number;
+  /** ISO-8601 `YYYY-MM-DD`; `null` when only the release year is known. */
+  releaseDate: string | null;
+  /** Free text, at most 10000 characters; `null` when not set. */
+  description: string | null;
+  coverImageUrl: string | null;
+  ownership: BookOwnership;
+  progress: BookProgress;
+  /** Zero or more, sorted by label. */
+  types: BookTypeResponse[];
+  /** Sorted by name. */
+  authors: BookAuthorResponse[];
+}
+
+export interface CreateBookRequest {
+  title: string;
+  /** Required unless `releaseDate` is given, in which case the date's year is used instead. */
+  releaseYear?: number | null;
+  /** ISO-8601 `YYYY-MM-DD`; omit when only the release year is known. */
+  releaseDate?: string | null;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  /** Omit for the default (`"watchlist"`); can never be cleared. */
+  ownership?: BookOwnership | null;
+  /** Omit for the default (`"not_started"`); can never be cleared. */
+  progress?: BookProgress | null;
+  /** Omit for the default (no types). */
+  typeIds?: string[];
+  /** Omit for the default (no authors). */
+  authorIds?: string[];
+}
+
+/** PATCH body: omit a key to leave the field unchanged; `null` clears `description`/`coverImageUrl`/`releaseDate`. */
+export interface UpdateBookRequest {
+  title?: string;
+  releaseYear?: number;
+  /** Omit to leave unchanged; `null` clears it back to "only the release year is known". */
+  releaseDate?: string | null;
+  description?: string | null;
+  coverImageUrl?: string | null;
+  /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
+  ownership?: BookOwnership;
+  /** Omit to leave unchanged; can never be cleared, so there is no `null` variant. */
+  progress?: BookProgress;
+  /** Omit to leave unchanged; replaces the full set (may be empty). */
+  typeIds?: string[];
+  /** Omit to leave unchanged; replaces the full set (may be empty). */
+  authorIds?: string[];
 }

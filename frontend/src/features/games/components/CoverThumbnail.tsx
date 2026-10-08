@@ -8,7 +8,7 @@ interface CoverThumbnailProps {
   thumbnailUrl: string;
   imageUrl: string;
   width: number;
-  /** Omit to use the collection's standard 22:31 cover ratio, derived from `width`. */
+  /** Omit to use the collection's standard cover ratio, derived from `width`. */
   height?: number;
 }
 

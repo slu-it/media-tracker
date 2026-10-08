@@ -17,12 +17,16 @@ describe("routes", () => {
   beforeEach(() => localStorage.clear());
 
   it("builds paths for kinds with and without sub-pages", () => {
-    expect(pathFor("books")).toBe(`/${MEDIA_KINDS[0]}`);
+    expect(pathFor("movies")).toBe("/movies");
+    expect(pathFor("books", MEDIA_SUB_PAGES.books[0])).toBe(`/books/${MEDIA_SUB_PAGES.books[0]}`);
     expect(pathFor("games", MEDIA_SUB_PAGES.games[1])).toBe(`/games/${MEDIA_SUB_PAGES.games[1]}`);
   });
 
   it("lists one route per kind without sub-pages and one per sub-page otherwise", () => {
-    const expected = MEDIA_KINDS.reduce((sum, kind) => sum + (kind === "games" ? MEDIA_SUB_PAGES.games.length : 1), 0);
+    const expected = MEDIA_KINDS.reduce(
+      (sum, kind) => sum + (kind === "books" || kind === "games" ? MEDIA_SUB_PAGES[kind].length : 1),
+      0,
+    );
     expect(allRoutes()).toHaveLength(expected);
   });
 
@@ -30,23 +34,36 @@ describe("routes", () => {
     for (const route of allRoutes()) {
       expect(parseRoute(pathFor(route.kind, route.subPage))).toEqual(route);
     }
-    expect(parseRoute(`${pathFor("books")}/`)).toEqual({ kind: "books" });
+    expect(parseRoute(`${pathFor("movies")}/`)).toEqual({ kind: "movies" });
   });
 
-  it.each(["/", "/nope", "/books/x", "/games", "/games/nope", "/games/overview/x"])("rejects %s", (path) => {
+  it.each([
+    "/",
+    "/nope",
+    "/books",
+    "/books/x",
+    "/books/overview/x",
+    "/movies/x",
+    "/games",
+    "/games/nope",
+    "/games/overview/x",
+  ])("rejects %s", (path) => {
     expect(parseRoute(path)).toBeUndefined();
   });
 
   it("falls back to the defaults without stored values", () => {
     expect(storedKind()).toBe(DEFAULT_MEDIA_KIND);
     expect(storedSubPage("games")).toBe(MEDIA_SUB_PAGES.games[0]);
-    expect(storedSubPage("books")).toBeUndefined();
-    expect(storedStartPath()).toBe(pathFor(DEFAULT_MEDIA_KIND));
+    expect(storedSubPage("books")).toBe(MEDIA_SUB_PAGES.books[0]);
+    expect(storedSubPage("movies")).toBeUndefined();
+    expect(storedStartPath()).toBe(pathFor(DEFAULT_MEDIA_KIND, MEDIA_SUB_PAGES.books[0]));
   });
 
   it("ignores invalid stored values", () => {
     localStorage.setItem(MEDIA_TAB_STORAGE_KEY, "bogus");
     localStorage.setItem(SUB_PAGE_STORAGE_KEYS.games, "bogus");
+    localStorage.setItem(SUB_PAGE_STORAGE_KEYS.books, "bogus");
+    expect(storedSubPage("books")).toBe(MEDIA_SUB_PAGES.books[0]);
     expect(storedKind()).toBe(DEFAULT_MEDIA_KIND);
     expect(storedSubPage("games")).toBe(MEDIA_SUB_PAGES.games[0]);
   });

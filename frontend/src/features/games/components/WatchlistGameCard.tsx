@@ -1,7 +1,7 @@
 import { Typography } from "@mui/material";
 import type { GameResponse } from "../../../types/api";
-import { formatReleaseDate } from "../domain/releaseDate";
-import { GameCardShell } from "./GameCardShell";
+import { formatReleaseDate } from "../../../domain/media/releaseDate";
+import { MediaCardShell } from "../../../components/media/MediaCardShell";
 
 /**
  * Cover with the title and one line of release info centered underneath: the exact date when known, otherwise
@@ -11,7 +11,7 @@ import { GameCardShell } from "./GameCardShell";
  */
 export function WatchlistGameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: GameResponse) => void }) {
   return (
-    <GameCardShell
+    <MediaCardShell
       title={game.title}
       coverImageUrl={game.coverImageUrl}
       onClick={() => onOpen(game)}

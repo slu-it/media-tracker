@@ -1,12 +1,18 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.persistence.TitleSearch
 import de.sluit.mediatracker.common.persistence.dbQuery
-import de.sluit.mediatracker.games.domain.CoverImageUrl
-import de.sluit.mediatracker.games.domain.Description
-import de.sluit.mediatracker.games.domain.DeveloperName
+import de.sluit.mediatracker.common.persistence.inListIfAny
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameDeveloper
 import de.sluit.mediatracker.games.domain.GameDeveloperId
@@ -16,23 +22,17 @@ import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameRepository
 import de.sluit.mediatracker.games.domain.GameSort
-import de.sluit.mediatracker.games.domain.HexColor
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
-import de.sluit.mediatracker.games.domain.ReleaseYear
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.domain.sortedByNameForGame
 import de.sluit.mediatracker.games.domain.sortedForGame
 import org.jetbrains.exposed.v1.core.Expression
-import org.jetbrains.exposed.v1.core.LikePattern
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.compoundAnd
 import org.jetbrains.exposed.v1.core.compoundOr
 import org.jetbrains.exposed.v1.core.eq
@@ -41,8 +41,6 @@ import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.like
-import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -108,7 +106,7 @@ class ExposedGameRepository : GameRepository {
      * down to nothing, e.g. `"+++"`), the ordering is [sort] alone, [GameSort.TITLE] being title then id, same
      * as [findPage] - filters must not silently vanish in that case, so this falls back to the filtered listing
      * rather than [findPage]. A term matches the title only: a title fulltext hit or a `title LIKE 'term%'` prefix
-     * match (escaped through [LikePattern.ofLiteral]; it finds titles InnoDB does not index, such as those under
+     * match (escaped, see [TitleSearch]; it finds titles InnoDB does not index, such as those under
      * three characters or stopwords). With a term and the default [sort], prefix hits come first, then fulltext
      * relevance, then title, then id; any other [sort] overrides that ordering entirely, though the match
      * still filters. Fulltext entries become visible once the inserting transaction commits.
@@ -118,44 +116,39 @@ class ExposedGameRepository : GameRepository {
         filters: GameFilters,
         request: PageRequest,
         sort: GameSort,
-    ): Page<Game> {
-        val booleanQuery = term?.let { FulltextQuery.booleanMode(it.value) }
-        return dbQuery {
-            if (term == null || booleanQuery == null) {
-                // No term (or nothing left of one): the same predicate feeds both the count and the page
-                // query, built once here so the two `.where` calls below share the identical Op instance.
-                val predicate = filterOp(filters) ?: Op.TRUE
-                val total = GamesTable.selectAll().where { predicate }.count()
-                val rows = GamesTable.selectAll().where { predicate }
-                    .orderBy(*orderingFor(sort))
-                    .limit(request.size.value)
-                    .offset(request.offset)
-                    .toList()
-                pageOf(rows, request, total)
+    ): Page<Game> = dbQuery {
+        // Built inside the transaction: LikePattern.ofLiteral reads the current dialect.
+        val titleSearch = TitleSearch.of(GamesTable.title, term)
+        if (titleSearch == null) {
+            // No term (or nothing left of one): the same predicate feeds both the count and the page
+            // query, built once here so the two `.where` calls below share the identical Op instance.
+            val predicate = filterOp(filters) ?: Op.TRUE
+            val total = GamesTable.selectAll().where { predicate }.count()
+            val rows = GamesTable.selectAll().where { predicate }
+                .orderBy(*orderingFor(sort))
+                .limit(request.size.value)
+                .offset(request.offset)
+                .toList()
+            pageOf(rows, request, total)
+        } else {
+            // matches is an OrOp; compoundAnd() parenthesises it inside the AndOp automatically.
+            val predicate = listOfNotNull(titleSearch.matches, filterOp(filters)).compoundAnd()
+            val total = GamesTable.selectAll().where { predicate }.count()
+            val score = titleSearch.score
+            val ordering = if (sort == GameSort.TITLE) {
+                (
+                    titleSearch.relevanceOrdering() +
+                        listOf(GamesTable.title to SortOrder.ASC, GamesTable.id to SortOrder.ASC)
+                    ).toTypedArray()
             } else {
-                val prefixMatch = GamesTable.title like (LikePattern.ofLiteral(term.value) + "%")
-                // matches is an OrOp; compoundAnd() parenthesises it inside the AndOp automatically.
-                val matches = MatchesFulltext(GamesTable.title, booleanQuery) or prefixMatch
-                val predicate = listOfNotNull(matches, filterOp(filters)).compoundAnd()
-                val total = GamesTable.selectAll().where { predicate }.count()
-                val score = MatchScore(GamesTable.title, booleanQuery).alias("score")
-                val ordering = if (sort == GameSort.TITLE) {
-                    arrayOf(
-                        prefixMatch to SortOrder.DESC,
-                        score to SortOrder.DESC,
-                        GamesTable.title to SortOrder.ASC,
-                        GamesTable.id to SortOrder.ASC,
-                    )
-                } else {
-                    orderingFor(sort)
-                }
-                val rows = GamesTable.select(GamesTable.columns + score).where { predicate }
-                    .orderBy(*ordering)
-                    .limit(request.size.value)
-                    .offset(request.offset)
-                    .toList()
-                pageOf(rows, request, total)
+                orderingFor(sort)
             }
+            val rows = GamesTable.select(GamesTable.columns + score).where { predicate }
+                .orderBy(*ordering)
+                .limit(request.size.value)
+                .offset(request.offset)
+                .toList()
+            pageOf(rows, request, total)
         }
     }
 
@@ -209,12 +202,10 @@ class ExposedGameRepository : GameRepository {
                     .where { GameToPlatformTable.platformId inList ids.map { it.toString() } },
             )
         }
-        // The takeIf guards are not cosmetic: Exposed renders inList(emptyList()) as the literal FALSE, so an
-        // empty set would silently return zero rows instead of "no filter on this category".
-        filters.ownership.takeIf { it.isNotEmpty() }?.let { add(GamesTable.ownership inList it.map(Ownership::wire)) }
-        filters.progress.takeIf { it.isNotEmpty() }?.let { add(GamesTable.progress inList it.map(Progress::wire)) }
-        filters.releaseYears.takeIf { it.isNotEmpty() }
-            ?.let { add(GamesTable.releaseYear inList it.map { y -> y.value }) }
+        // inListIfAny skips an empty set: inList(emptyList()) would render FALSE and return zero rows.
+        GamesTable.ownership.inListIfAny(filters.ownership.map(Ownership::wire))?.let { add(it) }
+        GamesTable.progress.inListIfAny(filters.progress.map(Progress::wire))?.let { add(it) }
+        GamesTable.releaseYear.inListIfAny(filters.releaseYears.map { y -> y.value })?.let { add(it) }
         filters.missing.takeIf { it.isNotEmpty() }?.let { fields -> add(fields.map(::missingOp).compoundOr()) }
         if (filters.ratedOnly) add(GamesTable.rating.isNotNull())
     }.takeIf { it.isNotEmpty() }?.compoundAnd()
@@ -317,7 +308,7 @@ class ExposedGameRepository : GameRepository {
 
     private fun ResultRow.toGameDeveloper() = GameDeveloper(
         id = GameDeveloperId(Uuid.parseHexDash(this[GameDevelopersTable.id])),
-        name = DeveloperName(this[GameDevelopersTable.name]),
+        name = VocabularyName(this[GameDevelopersTable.name]),
     )
 
     // Re-running the value-object validation on read is intentional: a corrupt row (e.g. one with no

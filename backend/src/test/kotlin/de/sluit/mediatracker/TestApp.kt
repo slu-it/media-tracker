@@ -7,6 +7,8 @@ import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.backup.domain.CloudBackupService
+import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.common.persistence.sharedTestDatabase
 import de.sluit.mediatracker.common.persistence.testDatabaseConfig
 import de.sluit.mediatracker.config.SessionConfig
@@ -114,10 +116,24 @@ fun ApplicationTestBuilder.handlerApp(
     dropbox: DropboxService = mockk(),
     cloudBackup: CloudBackupService = mockk(),
     gameDevelopers: GameDeveloperService = mockk(),
+    books: BookService = mockk(),
+    bookAuthors: BookAuthorService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
-            Services(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup, gameDevelopers),
+            Services(
+                auth,
+                games,
+                apiKeys,
+                expansions,
+                coverOptions,
+                backup,
+                dropbox,
+                cloudBackup,
+                gameDevelopers,
+                books,
+                bookAuthors,
+            ),
             testSessionConfig,
             SessionStorageMemory(),
         )

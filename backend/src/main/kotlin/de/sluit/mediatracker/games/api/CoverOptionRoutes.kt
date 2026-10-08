@@ -3,11 +3,11 @@ package de.sluit.mediatracker.games.api
 import de.sluit.mediatracker.common.api.intQueryParameter
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.PageNumber
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSourceGameId
 import de.sluit.mediatracker.games.domain.CoverType
-import de.sluit.mediatracker.games.domain.ReleaseYear
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -48,7 +48,7 @@ private fun ApplicationCall.coverQuery(): SearchTerm =
         ?: throw InvalidValueException(QUERY_FIELD, "must not be blank")
 
 private fun ApplicationCall.coverReleaseYear(): ReleaseYear? =
-    request.queryParameters[ReleaseYear.FIELD]?.trim()?.takeIf { it.isNotEmpty() }?.let(::parseReleaseYear)
+    request.queryParameters[ReleaseYear.FIELD]?.trim()?.takeIf { it.isNotEmpty() }?.let(ReleaseYear::parse)
 
 private fun ApplicationCall.coverMatch(): CoverSourceGameId? =
     request.queryParameters[CoverSourceGameId.FIELD]?.trim()?.takeIf { it.isNotEmpty() }?.let(CoverSourceGameId::parse)

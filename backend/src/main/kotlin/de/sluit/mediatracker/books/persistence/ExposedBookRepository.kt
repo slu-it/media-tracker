@@ -1,0 +1,275 @@
+package de.sluit.mediatracker.books.persistence
+
+import de.sluit.mediatracker.books.domain.Book
+import de.sluit.mediatracker.books.domain.BookAuthor
+import de.sluit.mediatracker.books.domain.BookAuthorId
+import de.sluit.mediatracker.books.domain.BookFilters
+import de.sluit.mediatracker.books.domain.BookId
+import de.sluit.mediatracker.books.domain.BookMissingField
+import de.sluit.mediatracker.books.domain.BookOwnership
+import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookRepository
+import de.sluit.mediatracker.books.domain.BookType
+import de.sluit.mediatracker.books.domain.BookTypeId
+import de.sluit.mediatracker.books.domain.BookTypeLabel
+import de.sluit.mediatracker.books.domain.sortedByNameForBook
+import de.sluit.mediatracker.books.domain.sortedForBook
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
+import de.sluit.mediatracker.common.domain.Page
+import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.persistence.TitleSearch
+import de.sluit.mediatracker.common.persistence.dbQuery
+import de.sluit.mediatracker.common.persistence.inListIfAny
+import org.jetbrains.exposed.v1.core.Op
+import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.compoundAnd
+import org.jetbrains.exposed.v1.core.compoundOr
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.inSubQuery
+import org.jetbrains.exposed.v1.core.innerJoin
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
+import org.jetbrains.exposed.v1.jdbc.batchInsert
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.uuid.Uuid
+
+/** [BookRepository] on Exposed/JDBC. Maps rows to domain objects and back; nothing else knows the table. */
+class ExposedBookRepository : BookRepository {
+    override suspend fun insert(book: Book) {
+        dbQuery {
+            BooksTable.insert { it.writeBook(book) }
+            insertTypeLinks(book)
+            insertAuthorLinks(book)
+        }
+    }
+
+    override suspend fun findById(id: BookId): Book? = dbQuery {
+        BooksTable.selectAll().where { BooksTable.id eq id.toString() }.singleOrNull()?.let { row ->
+            row.toBook(
+                typesFor(setOf(id.toString()))[id.toString()].orEmpty().sortedForBook(),
+                authorsFor(setOf(id.toString()))[id.toString()].orEmpty().sortedByNameForBook(),
+            )
+        }
+    }
+
+    override suspend fun exists(id: BookId): Boolean = dbQuery {
+        BooksTable.select(BooksTable.id).where { BooksTable.id eq id.toString() }.limit(1).any()
+    }
+
+    override suspend fun update(book: Book): Boolean = dbQuery {
+        val updated = BooksTable.update({ BooksTable.id eq book.id.toString() }) { it.writeBook(book) } == 1
+        if (updated) {
+            BookToTypeTable.deleteWhere { BookToTypeTable.bookId eq book.id.toString() }
+            insertTypeLinks(book)
+            BookToAuthorTable.deleteWhere { BookToAuthorTable.bookId eq book.id.toString() }
+            insertAuthorLinks(book)
+        }
+        updated
+    }
+
+    override suspend fun deleteById(id: BookId): Int = dbQuery {
+        // The FKs on book_to_type and book_to_author cascade on delete; no explicit junction cleanup needed.
+        BooksTable.deleteWhere { BooksTable.id eq id.toString() }
+    }
+
+    override suspend fun findPage(request: PageRequest): Page<Book> = dbQuery {
+        val total = BooksTable.selectAll().count()
+        val rows = BooksTable.selectAll()
+            .orderBy(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
+            .limit(request.size.value)
+            .offset(request.offset)
+            .toList()
+        pageOf(rows, request, total)
+    }
+
+    /**
+     * Four SELECTs: the total match count, the page of books, and one join query each for the types and the
+     * authors of every book on the page. [filters] AND across categories, OR (IN) inside one; combined with
+     * [term]'s title match, if any, by AND as well. Without a [term] (or one that the fulltext parser strips
+     * down to nothing, e.g. `"+++"`), the ordering is title then id, same as [findPage] - filters must not
+     * silently vanish in that case, so this falls back to the filtered listing rather than [findPage]. A term
+     * matches the title only: a title fulltext hit or a `title LIKE 'term%'` prefix match (escaped, see
+     * [TitleSearch]; it finds titles InnoDB does not index, such as those under three characters or stopwords).
+     * Prefix hits come first, then fulltext relevance, then title, then id. Fulltext entries become visible
+     * once the inserting transaction commits.
+     */
+    override suspend fun search(term: SearchTerm?, filters: BookFilters, request: PageRequest): Page<Book> = dbQuery {
+        // Built inside the transaction: LikePattern.ofLiteral reads the current dialect.
+        val titleSearch = TitleSearch.of(BooksTable.title, term)
+        if (titleSearch == null) {
+            // No term (or nothing left of one): the same predicate feeds both the count and the page
+            // query, built once here so the two `.where` calls below share the identical Op instance.
+            val predicate = filterOp(filters) ?: Op.TRUE
+            val total = BooksTable.selectAll().where { predicate }.count()
+            val rows = BooksTable.selectAll().where { predicate }
+                .orderBy(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
+                .limit(request.size.value)
+                .offset(request.offset)
+                .toList()
+            pageOf(rows, request, total)
+        } else {
+            // matches is an OrOp; compoundAnd() parenthesises it inside the AndOp automatically.
+            val predicate = listOfNotNull(titleSearch.matches, filterOp(filters)).compoundAnd()
+            val total = BooksTable.selectAll().where { predicate }.count()
+            val ordering = (
+                titleSearch.relevanceOrdering() +
+                    listOf(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
+                ).toTypedArray()
+            val rows = BooksTable.select(BooksTable.columns + titleSearch.score).where { predicate }
+                .orderBy(*ordering)
+                .limit(request.size.value)
+                .offset(request.offset)
+                .toList()
+            pageOf(rows, request, total)
+        }
+    }
+
+    /**
+     * `null` when nothing is filtered; AND across the categories, OR (IN) inside one. The type filter is an
+     * uncorrelated `IN` subquery rather than an `innerJoin`: a book of two selected types would otherwise come
+     * back twice and corrupt both `count()` and the LIMIT/OFFSET window, and MariaDB can still read the inner
+     * side straight off `idx_book_to_type_type`. The `missing` category ORs `IS NULL` checks over the listed
+     * [BookMissingField]s instead of an `IN` list.
+     */
+    private fun filterOp(filters: BookFilters): Op<Boolean>? = buildList {
+        filters.typeIds.takeIf { it.isNotEmpty() }?.let { ids ->
+            add(
+                BooksTable.id inSubQuery BookToTypeTable
+                    .select(BookToTypeTable.bookId)
+                    .where { BookToTypeTable.typeId inList ids.map { it.toString() } },
+            )
+        }
+        // inListIfAny skips an empty set: inList(emptyList()) would render FALSE and return zero rows.
+        BooksTable.ownership.inListIfAny(filters.ownership.map(BookOwnership::wire))?.let { add(it) }
+        BooksTable.progress.inListIfAny(filters.progress.map(BookProgress::wire))?.let { add(it) }
+        BooksTable.releaseYear.inListIfAny(filters.releaseYears.map { y -> y.value })?.let { add(it) }
+        filters.missing.takeIf { it.isNotEmpty() }?.let { fields -> add(fields.map(::missingOp).compoundOr()) }
+    }.takeIf { it.isNotEmpty() }?.compoundAnd()
+
+    /** `IS NULL` is the whole test: `Description` forbids a blank value, so a stored text is never empty. */
+    private fun missingOp(field: BookMissingField): Op<Boolean> = when (field) {
+        BookMissingField.DESCRIPTION -> BooksTable.description.isNull()
+        BookMissingField.COVER_IMAGE_URL -> BooksTable.coverImageUrl.isNull()
+    }
+
+    /** Four DISTINCT selects in one transaction; see [BookRepository.findUsedFilterValues]. */
+    override suspend fun findUsedFilterValues(): BookFilters = dbQuery {
+        val typeIds = BookToTypeTable.select(BookToTypeTable.typeId).withDistinct()
+            .map { BookTypeId.parse(it[BookToTypeTable.typeId]) }
+            .toSet()
+        val ownership = BooksTable.select(BooksTable.ownership).withDistinct()
+            .map { BookOwnership.from(it[BooksTable.ownership]) }
+            .toSet()
+        val progress = BooksTable.select(BooksTable.progress).withDistinct()
+            .map { BookProgress.from(it[BooksTable.progress]) }
+            .toSet()
+        val releaseYears = BooksTable.select(BooksTable.releaseYear).withDistinct()
+            .map { ReleaseYear(it[BooksTable.releaseYear]) }
+            .toSet()
+        BookFilters(typeIds, ownership, progress, releaseYears)
+    }
+
+    /**
+     * Maps a page of rows (with or without the extra `score` column) to a [Page] of [Book], loading types and
+     * authors with one join query each, regardless of page size.
+     */
+    private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Book> {
+        val bookIds = rows.map { it[BooksTable.id] }.toSet()
+        val typesByBook = typesFor(bookIds)
+        val authorsByBook = authorsFor(bookIds)
+        val items = rows.map { row ->
+            row.toBook(
+                typesByBook[row[BooksTable.id]].orEmpty().sortedForBook(),
+                authorsByBook[row[BooksTable.id]].orEmpty().sortedByNameForBook(),
+            )
+        }
+        return Page(items, request.page, request.size, total)
+    }
+
+    /** One query for all requested book ids: no N+1 when loading a page of books. */
+    private fun typesFor(bookIds: Set<String>): Map<String, List<BookType>> {
+        if (bookIds.isEmpty()) return emptyMap()
+        return (BookToTypeTable innerJoin BookTypesTable)
+            .select(
+                BookToTypeTable.bookId,
+                BookTypesTable.id,
+                BookTypesTable.label,
+                BookTypesTable.associatedColor,
+            )
+            .where { BookToTypeTable.bookId inList bookIds }
+            .groupBy({ it[BookToTypeTable.bookId] }, { it.toBookType() })
+    }
+
+    /** One query for all requested book ids: no N+1 when loading a page of books. */
+    private fun authorsFor(bookIds: Set<String>): Map<String, List<BookAuthor>> {
+        if (bookIds.isEmpty()) return emptyMap()
+        return (BookToAuthorTable innerJoin BookAuthorsTable)
+            .select(BookToAuthorTable.bookId, BookAuthorsTable.id, BookAuthorsTable.name)
+            .where { BookToAuthorTable.bookId inList bookIds }
+            .groupBy({ it[BookToAuthorTable.bookId] }, { it.toBookAuthor() })
+    }
+
+    private fun insertTypeLinks(book: Book) {
+        BookToTypeTable.batchInsert(book.types) { type ->
+            this[BookToTypeTable.bookId] = book.id.toString()
+            this[BookToTypeTable.typeId] = type.id.toString()
+        }
+    }
+
+    private fun insertAuthorLinks(book: Book) {
+        BookToAuthorTable.batchInsert(book.authors) { author ->
+            this[BookToAuthorTable.bookId] = book.id.toString()
+            this[BookToAuthorTable.authorId] = author.id.toString()
+        }
+    }
+
+    private fun UpdateBuilder<*>.writeBook(book: Book) {
+        this[BooksTable.id] = book.id.toString()
+        this[BooksTable.title] = book.title.value
+        this[BooksTable.releaseYear] = book.releaseYear.value
+        this[BooksTable.releaseDate] = book.releaseDate?.value
+        this[BooksTable.description] = book.description?.value
+        this[BooksTable.coverImageUrl] = book.coverImageUrl?.value
+        this[BooksTable.ownership] = book.ownership.wire
+        this[BooksTable.progress] = book.progress.wire
+    }
+
+    private fun ResultRow.toBookType() = BookType(
+        id = BookTypeId(Uuid.parseHexDash(this[BookTypesTable.id])),
+        label = BookTypeLabel(this[BookTypesTable.label]),
+        color = HexColor(this[BookTypesTable.associatedColor]),
+    )
+
+    private fun ResultRow.toBookAuthor() = BookAuthor(
+        id = BookAuthorId(Uuid.parseHexDash(this[BookAuthorsTable.id])),
+        name = VocabularyName(this[BookAuthorsTable.name]),
+    )
+
+    // Re-running the value-object validation on read is intentional: a corrupt row surfaces as a 400
+    // validation_error instead of leaking invalid data into the domain.
+    private fun ResultRow.toBook(types: List<BookType>, authors: List<BookAuthor>) = Book(
+        id = BookId(Uuid.parseHexDash(this[BooksTable.id])),
+        title = Title(this[BooksTable.title]),
+        releaseYear = ReleaseYear(this[BooksTable.releaseYear]),
+        types = types,
+        authors = authors,
+        description = this[BooksTable.description]?.let(::Description),
+        coverImageUrl = this[BooksTable.coverImageUrl]?.let(::CoverImageUrl),
+        ownership = BookOwnership.from(this[BooksTable.ownership]),
+        progress = BookProgress.from(this[BooksTable.progress]),
+        releaseDate = this[BooksTable.releaseDate]?.let(::ReleaseDate),
+    )
+}

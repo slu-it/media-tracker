@@ -8,12 +8,13 @@ Code:
 - Frontend: `components/layout/SubPageTabs.tsx`, `MEDIA_SUB_PAGES` in `components/layout/mediaKinds.ts`,
   `src/routes.ts`, `features/games/GamesWatchlistView.tsx`,
   `features/games/GamesRankingView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
-  `features/games/components/GameCardShell.tsx` and `features/games/hooks/usePagedGameActions.tsx`.
+  `components/media/MediaCardShell.tsx` and `hooks/usePagedActions.tsx`.
 
 ## Navigation
 
 - A second, smaller tab row sits under the media tabs. It is shown only for kinds listed in `MEDIA_SUB_PAGES`,
-  which today is games only (`overview`, `watchlist`, `ranking`). Each tab has a decorative start icon
+  which today are games (`overview`, `watchlist`, `ranking`) and books (`overview` only, ADR 0034). Tab labels are
+  kind-neutral (`subPages.pages.*`), the tablist label is per kind (`subPages.label.<kind>`). Each tab has a decorative start icon
   (`GridViewOutlined`, `LibraryAddOutlined` like the watchlist status icon, `LeaderboardOutlined`), mapped in
   `App.tsx` and passed to `SubPageTabs` as `getIcon`.
 - Each sub-page is a route, `/games/{overview|watchlist|ranking}`, with its search, filters, sort, page or
@@ -22,14 +23,14 @@ Code:
 - Every sub-page renders `GameDialogsHost`: the FAB, the add dialog and the detail dialog, including editing,
   deleting and expansions. The page owns the selected game and reloads its list and `/api/games.meta` after a
   create, an update or a delete.
-- Cards are `GameCardShell` (cover, title, click) with a page-specific body. `GamesGrid` takes a `renderCard`
+- Cards are `MediaCardShell` (cover, title, click) with a page-specific body. `GamesGrid` takes a `renderCard`
   prop.
 
 ## Watchlist
 
 - Shows games with ownership `watchlist`; the tab carries the ownership label ("Watchlist", German
   "Merkliste").
-- Header (`GamesViewHeader` as on the overview): the search field, then the results row. There is no
+- Header (`MediaViewHeader` as on the overview): the search field, then the results row. There is no
   controls row.
   - The results row holds the count chip, then the sort toggle, then the platform select, all bottom-aligned
     with the pagination, as on the overview ([game-search-and-filters.md](game-search-and-filters.md)).
@@ -45,7 +46,7 @@ Code:
 - Paging and the results bar work as on the overview: `GAMES_PAGE_SIZE`, the count and the
   top `PaginationBar` in the header's results bar, and a second `PaginationBar` below the grid. A change of the
   search, the filter or the sort returns to page 1 (it drops `page` from the URL).
-- `usePagedGameActions` (shared with the overview) reloads after a create, an update or a delete. When a reload
+- `usePagedActions` (shared with the overview) reloads after a create, an update or a delete. When a reload
   leaves a later page empty, it steps back to the last page. On the watchlist this happens, for example, when
   the only game on the last page is set to owned.
 - Cards show cover, title and the formatted release date, or the year when no date is set.
@@ -58,7 +59,7 @@ Code:
 - The year is loaded as a whole: `listAllGames` walks pages of `ALL_GAMES_PAGE_SIZE` (200).
 - `YearNavigator` sits centered above and below the grid. It has an older/newer IconButton on each side of a
   single-select year Select, and both copies share one state. The top copy is the first row of
-  `GamesViewHeader` (`controlsLayout="center"`, no search row). Its results bar shows the number of ranked
+  `MediaViewHeader` (`controlsLayout="center"`, no search row). Its results bar shows the number of ranked
   games in that year, centered because there is no pagination. It shows no count while the year loads.
 - The years are `releaseYears` from `/api/games.meta` up to the current year, plus the current year
   (`domain/rankingYears.ts`). Future years are not offered. The page starts on the current year, and a year

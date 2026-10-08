@@ -1,6 +1,10 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.WireEnum
+import de.sluit.mediatracker.common.domain.fromWire
 
 /**
  * Narrows a game listing: empty per-category sets mean "no filter on that category", non-empty sets OR their
@@ -36,7 +40,7 @@ data class GameFilters(
  * `FIELD` constant, which the DTOs in `games/api/GameDtos.kt` mirror, so an agent passes back exactly the
  * field it saw as `null` in a game.
  */
-enum class MissingField(val wire: String) {
+enum class MissingField(override val wire: String) : WireEnum {
     DESCRIPTION(Description.FIELD),
     COVER_IMAGE_URL(CoverImageUrl.FIELD),
     ;
@@ -44,8 +48,7 @@ enum class MissingField(val wire: String) {
     companion object {
         const val FIELD = "hasMissing"
 
-        fun from(wire: String): MissingField = entries.firstOrNull { it.wire == wire }
-            ?: throw InvalidValueException(FIELD, "must be one of ${entries.joinToString { it.wire }}")
+        fun from(wire: String): MissingField = entries.fromWire(FIELD, wire)
     }
 }
 

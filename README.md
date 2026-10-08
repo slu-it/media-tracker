@@ -126,6 +126,12 @@ not with the browser session:
    `create_game_developer` (look up or create the ids for `developerIds`; creating an existing name returns it), and, when
    `STEAMGRIDDB_API_KEY` is set, `find_game_cover` (`title`, optional `releaseYear`; returns the first static
    SteamGridDB cover URL and the game it matched, ready for `coverImageUrl`).
+   Books: `list_book_types` (the seeded Hardcover, Paperback, Kindle and Audible ids), `add_book` (`title` and
+   `releaseYear` required, the year optional when `releaseDate` is given; `typeIds`, `authorIds`, `description`,
+   `coverImageUrl`, `ownership`, `progress` optional), `search_books` (optional `query` next to the `typeIds`,
+   `ownership`, `progress` and `releaseYears` filters and `hasMissing`; `pageSize` up to 100, 10 by default),
+   `update_book` (`id` required, only the fields passed change), and `search_book_authors` /
+   `create_book_author` for the `authorIds`.
 
 Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
 regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in

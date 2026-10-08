@@ -92,6 +92,7 @@ colours in the database. The question was whether these three follow that patter
 
 - The next media kind copies `GameStatus.kt` for its own closed sets; ownership and progress are likely to be
   shared vocabulary across kinds (a book is read, a series watched), so the first kind that needs the same values
-  should consider moving these enums to `common/domain` rather than duplicating them.
+  should consider moving these enums to `common/domain` rather than duplicating them. (Amended by record 0034:
+  books needs different value sets, so each kind keeps its own enums and only the `WireEnum` mechanism is shared.)
 - Search, listing and paging are untouched: hidden games are still listed, and the new columns are not indexed.
   A later filter story adds the index together with the query.

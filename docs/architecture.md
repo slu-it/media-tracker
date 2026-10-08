@@ -68,7 +68,11 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   `search_games`; `add_expansion` appends) and `find_game_cover` (`title`, optional `releaseYear`: the first static
   SteamGridDB cover of the best match, only registered when `STEAMGRIDDB_API_KEY` is set), plus
   `search_game_developers` and `create_game_developer` (idempotent) for the `developerIds` of `add_game`/`update_game`
-  (decision record 0029), all in `games/api/GameMcpTools.kt`. The `ownership` and `progress` arguments
+  (decision record 0029), all in `games/api/GameMcpTools.kt`. Books contributes the equivalents in
+  `books/api/BookMcpTools.kt` (decision record 0034): `list_book_types`, `add_book`, `search_books` (query and the
+  filters `typeIds`, `ownership`, `progress`, `releaseYears`, `hasMissing`, `pageSize`; no `sort`/`rated`),
+  `update_book` (`description`, `coverImageUrl` and `releaseDate` clearable), `search_book_authors` and
+  `create_book_author`; neither kind has a delete tool. The `ownership` and `progress` arguments
   advertise their allowed values as a JSON-schema `enum` built from the domain enums, so the tool contract cannot
   drift from the code (decision record 0017). The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
@@ -91,15 +95,25 @@ de.sluit.mediatracker
 ├── common/             shared code in the same three layers as a feature; knows no feature:
 │   ├── api/            shared DTOs (ErrorResponse, HealthResponse, PageResponse<T>; mirrored in
 │   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing),
-│   │                   Search (?search parsing)
+│   │                   Search (?search parsing), QueryParams (repeatable filter values, MAX_FILTER_VALUES,
+│   │                   booleans), McpToolArguments (argument readers and checks), McpSchemas (JSON-schema
+│   │                   fragments of the shared value classes and WireEnums), VocabularyMcpTools (search/create
+│   │                   tools of a name vocabulary)
 │   ├── domain/         InvalidValueException/NotFoundException/requireValid,
 │   │                   ExternalSourceUnavailableException/ExternalSourceException (an outbound source's
 │   │                   503/502, coded by source name), PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm,
 │   │                   BackupSource (port: a domain's tables as plain rows, export + insert-if-absent import),
-│   │                   CloudStorage + StoredFile (port: upload a file, find its metadata)
+│   │                   CloudStorage + StoredFile (port: upload a file, find its metadata),
+│   │                   MediaValues (Title, ReleaseYear, ReleaseDate, Description, CoverImageUrl, HexColor),
+│   │                   ReleaseDating (the date-beats-year rules), WireEnum (+ fromWire), Vocabulary
+│   │                   (VocabularyName, VocabularySearchLimit, VocabularyCreation; decision record 0034)
 │   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery(),
 │                       ExposedBackupSource (generic BackupSource over a list of Exposed tables),
-│                       LocalDateColumnType (DATE bound as java.time.LocalDate via JDBC 4.2, zone-free)
+│                       LocalDateColumnType (DATE bound as java.time.LocalDate via JDBC 4.2, zone-free),
+│                       FulltextQuery (boolean-mode text), FulltextExpressions (MATCH ... AGAINST predicate,
+│                       clamped MatchScore), TitleSearch (fulltext or LIKE prefix match + relevance order),
+│                       FilterOps (inListIfAny), ExposedNameVocabulary (search, findByIds, race-safe idempotent
+│                       create of a unique-name vocabulary)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
 │   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys),
@@ -126,7 +140,18 @@ de.sluit.mediatracker
 │   └── persistence/    OAuthConnectionsTable (system table), ExposedDropboxConnectionRepository
 ├── mcp/                technical domain, api layer only, knows no feature:
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
-└── games/              first media kind (MT-001), the template for Books/Movies/Series (decision record 0007):
+├── books/              second media kind (decision record 0034), same layers as games, no integration:
+│   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types,
+│   │                   /api/book-authors), BookFilterParams, BookMcpTools (list_book_types, add_book,
+│   │                   search_books, update_book, search_book_authors, create_book_author)
+│   ├── domain/         BookValues (BookId, BookTypeId, BookTypeLabel, BookAuthorId), BookStatus (BookOwnership,
+│   │                   BookProgress), Book/NewBook/BookPatch, BookType, BookAuthor, BookFilters (incl.
+│   │                   BookMissingField)/BookMeta, BookRepository, BookTypeRepository, BookAuthorRepository
+│   │                   (interfaces), BookService, BookAuthorService
+│   └── persistence/    BooksTable, BookTypesTable, BookToTypeTable, BookAuthorsTable, BookToAuthorTable,
+│                       ExposedBookRepository, ExposedBookTypeRepository, ExposedBookAuthorRepository
+│                       (delegates to ExposedNameVocabulary), BooksBackupSource (the five books tables)
+└── games/              first media kind (MT-001, decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms, /api/game-developers), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
@@ -135,8 +160,7 @@ de.sluit.mediatracker
     │                   list_game_platforms, add_game,
     │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion,
     │                   find_game_cover, search_game_developers, create_game_developer)
-    ├── domain/         GameValues (GameId, Title, ReleaseYear, ReleaseDate, Description, Rating, CoverImageUrl,
-    │                   GamePlatformId, PlatformLabel, HexColor, GameDeveloperId, DeveloperName), GameStatus (Ownership, Progress,
+    ├── domain/         GameValues (GameId, Rating, GamePlatformId, PlatformLabel, GameDeveloperId), GameStatus (Ownership, Progress,
     │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
     │                   GameRepository, GamePlatformRepository and GameDeveloperRepository (interfaces), GameService,
     │                   GameDeveloperService,
@@ -150,10 +174,8 @@ de.sluit.mediatracker
     │                   GameDevelopersTable, GameToDeveloperTable (Exposed),
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by title prefix/fulltext and filters, findUsedFilterValues),
-    │                   FulltextQuery (boolean-mode text),
-    │                   FulltextExpressions (MATCH ... AGAINST predicate, clamped MatchScore),
-    │                   ExposedGamePlatformRepository, ExposedGameDeveloperRepository (fulltext + LIKE prefix
-    │                   search, idempotent create), GamesBackupSource (the six games tables, parents first)
+    │                   ExposedGamePlatformRepository, ExposedGameDeveloperRepository (delegates to
+    │                   ExposedNameVocabulary), GamesBackupSource (the six games tables, parents first)
     └── integration/    outbound adapters (decision record 0024): SteamGridDbCoverSource (Ktor client, Java
                         engine) + SteamGridDbDtos (the provider's wire JSON)
 ```
@@ -189,6 +211,13 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 | `GET /api/game-developers?search=nin&limit=10` | 200 `GameDeveloperResponse[]` | `id`, `name`; prefix fulltext match on the name plus `name LIKE 'term%'` for names InnoDB does not index (under three characters, stopwords), with LIKE hits first, `limit` 1..50 (default 10), blank `search` lists by name (decision record 0029) |
 | `POST /api/game-developers` | 201 / 200 `GameDeveloperResponse` | body `{name}` (trimmed, 1..128 chars); 201 when created, 200 with the existing row when the name exists (case-insensitive) |
+| `GET /api/books?page=1&pageSize=50[&search=dune][&filters]` | 200 `PageResponse<BookResponse>` | as `GET /api/games` (paging, title-only search and its order), with the repeatable filters `typeIds`, `ownership` (`watchlist`/`owned`), `progress` (`abandoned`/`not_started`/`paused`/`reading`/`finished`), `releaseYear`; the type filter is a semi-join; no `sort`, no `rated` (decision record 0034) |
+| `POST /api/books` | 201 `BookResponse` + `Location` | body `CreateBookRequest`: `title`, `releaseYear` required unless `releaseDate` is given, `typeIds` and `authorIds` optional (default `[]`, a book may have no type), `description`, `coverImageUrl`, `ownership` (default `watchlist`), `progress` (default `not_started`) optional |
+| `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds` replace the set (may be empty); 404 for unknown ids |
+| `DELETE /api/books/{id}` | 204 | idempotent; junction rows cascade |
+| `GET /api/books.meta` | 200 `BookMetaResponse` | `types`, `ownership`, `progress`, `releaseYears` in use, ordered as for games |
+| `GET /api/book-types` | 200 `BookTypeResponse[]` | seeded (Hardcover, Paperback, Kindle, Audible; `id`, `label`, `associatedColor`), ordered by label |
+| `GET /api/book-authors?search=le&limit=10` / `POST /api/book-authors` | 200 `BookAuthorResponse[]` / 201 or 200 `BookAuthorResponse` | as `/api/game-developers` |
 | `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
 | `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, a missing non-nullable column (a missing nullable one is `null`), wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 | `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
@@ -216,7 +245,7 @@ frontend/src
 │                                           LocalizationProvider (dayjs, de/en), shell (AppHeader, MediaTabs,
 │                                           SubPageTabs, <Routes> with the redirects)
 ├── routes.ts             paths derived from MEDIA_KINDS / MEDIA_SUB_PAGES, last-used route in localStorage
-│                         (mt.mediaTab, mt.gamesPage) for the / and /{kind} redirects (record 0031)
+│                         (mt.mediaTab, mt.booksPage, mt.gamesPage) for the / and /{kind} redirects (record 0031)
 ├── theme/                MUI theme: login-page palette, system font stack; light/dark from the header
 │                         toggle (mode.ts: localStorage key mt.mode, default "system" = OS preference)
 ├── i18n/                 i18next setup, en.json / de.json bundles (typed keys via i18next.d.ts), language storage
@@ -224,11 +253,22 @@ frontend/src
 │                         parsed ErrorResponse)
 ├── types/api.ts          hand-written mirrors of the backend DTOs
 ├── hooks/                useActiveRoute (kind + sub-page of the location), useDebouncedValue (search fields),
-│                         useSearchDebounceMs (SEARCH_DEBOUNCE_MS + context, tests shorten it)
+│                         useSearchDebounceMs (SEARCH_DEBOUNCE_MS + context, tests shorten it), useViewParams,
+│                         useUrlSearchInput, usePagedActions (pagination bars + page corrections), useLoadOnce
+│                         (meta and reference lists), useVocabularySuggestions (debounced vocabulary lookup)
+├── domain/media/         kind-neutral pure TS (record 0034): values (validators returning i18n codes),
+│                         releaseDate (fixed YYYY-MM-DD format), draft (normalisers, withReleaseDate),
+│                         vocabularyDraft (pending names, resolveVocabularyIds), viewParams (URL field codecs)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
-│                         DialogActionButton), CoverImage (optionally a button, for the cover picker),
-│                         ComingSoon
+│                         DialogActionButton), CoverImage (optionally a button, for the cover picker; aspect
+│                         ratio per kind, coverFrame), ComingSoon, media/ (kind-neutral media UI, record 0034:
+│                         MediaViewHeader, SearchField, ResultsBar, PaginationBar, MediaGrid, MediaCardShell,
+│                         CoverAndInfoLayout, ColorChip(s), DetailField, ReleaseDetail, NameChips, status/
+│                         (StatusToggleBar: exclusive or multiple icon toggles, StatusFilterBar, StatusIcon),
+│                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
+│                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField,
+│                         ColoredOptionsField, FieldLegend))
 ├── features/settings/    UserSettingsDialog (tab bar; "Password" (default), "API Keys" and "Export / Import" tabs) +
 │                         api/ (settingsApi, backupApi, dropboxApi), hooks/ (useApiKeys, useExportImport, useDropbox,
 │                         useCloudBackup), domain/ (downloadJson: Blob download, dropboxValues: code validator,
@@ -237,25 +277,29 @@ frontend/src
 │                         copy, regenerate; ExportImportTab: export download, file-picker import with per-table
 │                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
 │                         disconnect; fields/AuthorizationCodeField)
-├── features/<kind>/      one standalone view per media kind; books, movies, series are "coming soon"
-└── features/games/       GamesView (overview: GamesViewHeader = search field / filter bar /
-                          GameResultsBar: count + top pagination),
+├── features/<kind>/      one standalone view per media kind; movies and series are "coming soon"
+├── features/books/       BooksView (overview at /books/overview) + api/booksApi, hooks/ (useBooksPage,
+│                         useBooksMeta, useBookTypes), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio,
+│                         bookFilters, bookDraft, bookViewParams), components/ (BookCard, BookStatusIcons,
+│                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
+│                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
+│                         BookDialogsHost, fields/AuthorsField, fields/BookTypesField)
+└── features/games/       GamesView (overview: MediaViewHeader = search field / filter bar /
+                          ResultsBar: count + top pagination),
                           GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,
                           ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
                           games.meta, cover-options, title-suggestions;
-                          expansionsApi), hooks/ (useGamesPage, useAllGames, usePagedGameActions, useUrlSearchInput, useViewParams, useGamesMeta, useExpansions, useCoverOptions,
-                          useTitleSuggestions, useDeveloperSuggestions), domain/ (gameValues validators,
-                          gameDraft, developerDraft, releaseDate: fixed YYYY-MM-DD
-                          format, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
+                          expansionsApi), hooks/ (useGamesPage, useAllGames, useGamesMeta, useGamePlatforms, useExpansions, useCoverOptions,
+                          useTitleSuggestions), domain/ (gameValues validators,
+                          gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
                           URL query codecs of the three views, gameStatus:
                           ownership/progress values and defaults, rankingYears: the ranking's year list),
-                          components/ (grid with renderCard, GameCardShell + GameCard/WatchlistGameCard/
+                          components/ (GamesGrid over MediaGrid, GameCard/WatchlistGameCard/
                           RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
-                          YearNavigator, GameSearchField,
-                          GameFilterBar (platform + release year), StatusToggleBar (icon toggles: exclusive or multiple) +
+                          YearNavigator,
+                          GameFilterBar (platform + release year),
                           ProgressToggleBar + OwnershipToggleBar + StatusFilterToggles (overview progress/ownership filter) +
-                          OverviewFilters (toggles + standard selects in the results row),
-                          GamesViewHeader, GameResultsBar (count chip + facts slot), pagination, detail/add dialogs,
+                          OverviewFilters (toggles + standard selects in the results row), detail/add dialogs,
                           fields/, ExpansionList/ExpansionCard:
                           the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
                           SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the
@@ -273,8 +317,8 @@ Beyond React, MUI and i18next, the frontend has two runtime dependencies:
   record 0031).
 
 Browser state: the URL (route and view query, record 0031), `localStorage["mt.language"]` (`en`/`de`), and
-`localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/`series`) plus `["mt.gamesPage"]`, the last-used route
-read only by the `/` and `/games` redirects. The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,
+`localStorage["mt.mediaTab"]` (`books`/`games`/`movies`/`series`) plus `["mt.booksPage"]` and `["mt.gamesPage"]`,
+the last-used route read only by the `/`, `/books` and `/games` redirects. The SPA does not call `/api/me` at startup; being served `index.html` already implies a valid session,
 and any later 401 redirects to the login page. Decision record 0008 covers the UI stack.
 
 ## Build pipeline

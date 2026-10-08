@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GameResponse } from "../../../types/api";
 import { celeste, nintendo, pc, playstation, supergiantGames, teamCherry } from "../../../test/fixtures/games";
+import { withReleaseDate } from "../../../domain/media/draft";
 import {
   draftFromGame,
   emptyGameDraft,
@@ -8,7 +9,6 @@ import {
   isDraftValid,
   toCreateRequest,
   toUpdateRequest,
-  withReleaseDate,
 } from "./gameDraft";
 
 const game: GameResponse = {
@@ -105,16 +105,6 @@ describe("gameDraft", () => {
     const draft = { ...draftFromGame(game), progress: "completed" as const, hidden: true };
     expect(isDraftDirty(game, draft)).toBe(true);
     expect(toUpdateRequest(game, draft, [])).toEqual({ progress: "completed", hidden: true });
-  });
-
-  it("overrides the release year with the release date's year, but leaves it alone when the date is cleared", () => {
-    const draft = withReleaseDate(draftFromGame(game), "2015-06-20");
-    expect(draft.releaseDate).toBe("2015-06-20");
-    expect(draft.releaseYear).toBe(2015);
-
-    const cleared = withReleaseDate(draft, null);
-    expect(cleared.releaseDate).toBeNull();
-    expect(cleared.releaseYear).toBe(2015); // unchanged: the year selector stays editable at its last value
   });
 
   it("sends the changed release date and null to clear it", () => {

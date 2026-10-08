@@ -14,16 +14,25 @@ import { renderWithProviders } from "./test/renderWithProviders";
 const emptyPage = { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 };
 const emptyMeta = { platforms: [], ownership: [], progress: [], releaseYears: [] };
 const [OVERVIEW, WATCHLIST, RANKING] = MEDIA_SUB_PAGES.games;
+const [BOOKS_OVERVIEW] = MEDIA_SUB_PAGES.books;
+const BOOKS_PATH = pathFor("books", BOOKS_OVERVIEW);
 const gamesApi = () => ({
   "GET /api/games": () => jsonResponse(emptyPage),
   "GET /api/game-platforms": () => jsonResponse([]),
   "GET /api/games.meta": () => jsonResponse(emptyMeta),
 });
 const NO_GAMES = /No games yet/;
+const emptyBooksMeta = { types: [], ownership: [], progress: [], releaseYears: [] };
+const booksApi = () => ({
+  "GET /api/books": () => jsonResponse(emptyPage),
+  "GET /api/book-types": () => jsonResponse([]),
+  "GET /api/books.meta": () => jsonResponse(emptyBooksMeta),
+});
+const NO_BOOKS = /No books yet/;
 
 describe("App", () => {
-  it("shows the header, the tabs in order and the books view by default", () => {
-    const calls = mockApi({});
+  it("shows the header, the tabs in order and the books view by default", async () => {
+    const calls = mockApi(booksApi());
     renderWithProviders(<App />);
     expect(screen.getByRole("heading", { level: 1, name: "SLU's Media Tracker" })).toBeInTheDocument();
     // The logout form has no accessible name of its own (a bare HTML POST form), so its `action` attribute
@@ -31,24 +40,53 @@ describe("App", () => {
     // eslint-disable-next-line testing-library/no-node-access -- form action isn't exposed via any ARIA role/text query
     expect(screen.getByRole("button", { name: "Log out" }).closest("form")).toHaveAttribute("action", "/logout");
     expect(screen.getByRole("button", { name: "Language" })).toBeInTheDocument();
-    expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Books", "Games", "Movies", "Series"]);
+    expect(
+      within(screen.getByRole("tablist", { name: "Media kinds" }))
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Books", "Games", "Movies", "Series"]);
     expect(screen.getByRole("tab", { name: "Books" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
-    expect(currentLocation()).toBe(pathFor("books"));
-    expect(calls).toEqual([]); // no /api/me, and no games request while another tab is open
+    expect(screen.getByRole("tablist", { name: "Book pages" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(currentLocation()).toBe(BOOKS_PATH);
+    expect(await screen.findByText(NO_BOOKS)).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+    // Only the books requests: no /api/me, and no games request while another tab is open.
+    expect(calls.map((c) => c.url).every((url) => url.startsWith("/api/book"))).toBe(true);
+    expect(calls.map((c) => c.url)).toContain("/api/books.meta");
+  });
+
+  it("renders the books overview route with the Books tab selected and the real view", async () => {
+    mockApi(booksApi());
+    renderWithProviders(<App />, { route: BOOKS_PATH });
+    expect(screen.getByRole("tab", { name: "Books" })).toHaveAttribute("aria-selected", "true");
+    expect(await screen.findByText(NO_BOOKS)).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
+    expect(currentLocation()).toBe(BOOKS_PATH);
   });
 
   it.each([
-    { path: pathFor("books"), tab: "Books" },
     { path: pathFor("movies"), tab: "Movies" },
     { path: pathFor("series"), tab: "Series" },
   ])("renders $path with the $tab tab selected and the placeholder", ({ path, tab }) => {
-    mockApi({});
+    mockApi({ ...booksApi(), ...gamesApi() });
     renderWithProviders(<App />, { route: path });
     expect(screen.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Coming soon")).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
     expect(currentLocation()).toBe(path);
+  });
+
+  it("shows the books sub-page tab with its icon only for books", () => {
+    mockApi({});
+    renderWithProviders(<App />, { route: pathFor("movies") });
+    expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
+  });
+
+  it("redirects /books to the books overview", async () => {
+    mockApi(booksApi());
+    renderWithProviders(<App />, { route: pathFor("books") });
+    expect(currentLocation()).toBe(BOOKS_PATH);
+    await screen.findByText(NO_BOOKS); // let the books requests settle inside act
   });
 
   it.each([
@@ -98,15 +136,19 @@ describe("App", () => {
     expect(currentLocation()).toBe(pathFor("games", OVERVIEW));
   });
 
-  it.each(["/nope", `${pathFor("books")}/x`, `${pathFor("games")}/nope`, `${pathFor("games", OVERVIEW)}/x`])(
-    "redirects the unknown path %s to / and on to the default kind",
-    (path) => {
-      mockApi({});
-      renderWithProviders(<App />, { route: path });
-      expect(currentLocation()).toBe(pathFor("books"));
-      expect(screen.getByRole("tab", { name: "Books" })).toHaveAttribute("aria-selected", "true");
-    },
-  );
+  it.each([
+    "/nope",
+    `${pathFor("books")}/x`,
+    `${BOOKS_PATH}/x`,
+    `${pathFor("games")}/nope`,
+    `${pathFor("games", OVERVIEW)}/x`,
+  ])("redirects the unknown path %s to / and on to the default kind", async (path) => {
+    mockApi(booksApi());
+    renderWithProviders(<App />, { route: path });
+    expect(currentLocation()).toBe(BOOKS_PATH);
+    expect(screen.getByRole("tab", { name: "Books" })).toHaveAttribute("aria-selected", "true");
+    await screen.findByText(NO_BOOKS); // let the books requests settle inside act
+  });
 
   it("redirects an unknown path to the stored kind", () => {
     localStorage.setItem(MEDIA_TAB_STORAGE_KEY, "series");
@@ -131,8 +173,8 @@ describe("App", () => {
 
   it("navigates on a tab click and stores the visited kind and sub-page", async () => {
     const user = userEvent.setup();
-    mockApi(gamesApi());
-    renderWithProviders(<App />, { route: pathFor("books") });
+    mockApi({ ...booksApi(), ...gamesApi() });
+    renderWithProviders(<App />, { route: BOOKS_PATH });
     await user.click(screen.getByRole("tab", { name: "Games" }));
     expect(currentLocation()).toBe(pathFor("games", OVERVIEW));
     expect(localStorage.getItem(MEDIA_TAB_STORAGE_KEY)).toBe("games");
@@ -155,7 +197,7 @@ describe("App", () => {
 
   it("goes back to the previous route with the browser history", async () => {
     const user = userEvent.setup();
-    mockApi(gamesApi());
+    mockApi({ ...booksApi(), ...gamesApi() });
     renderWithProviders(
       <>
         <App />
@@ -177,7 +219,7 @@ describe("App", () => {
 
   it("opens the settings dialog on the Password tab on demand", async () => {
     const user = userEvent.setup();
-    mockApi({});
+    mockApi(booksApi());
     renderWithProviders(<App />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
@@ -189,7 +231,7 @@ describe("App", () => {
 
   it("switches the language to German and persists it", async () => {
     const user = userEvent.setup();
-    mockApi({});
+    mockApi(booksApi());
     renderWithProviders(<App />);
     await user.click(screen.getByRole("button", { name: "Language" }));
     await user.click(screen.getByRole("menuitem", { name: "Deutsch" }));
@@ -201,7 +243,7 @@ describe("App", () => {
 
   it("closes the language menu on Escape without changing the language", async () => {
     const user = userEvent.setup();
-    mockApi({});
+    mockApi(booksApi());
     renderWithProviders(<App />);
     await user.click(screen.getByRole("button", { name: "Language" }));
     expect(screen.getByRole("menuitem", { name: "Deutsch" })).toBeInTheDocument();
@@ -212,23 +254,28 @@ describe("App", () => {
     expect(localStorage.getItem(LANGUAGE_STORAGE_KEY)).toBeNull();
   });
 
-  it.each(["Books", "Movies", "Series"])("shows the coming-soon placeholder for %s", async (tabName) => {
+  it.each(["Movies", "Series"])("shows the coming-soon placeholder for %s", async (tabName) => {
     const user = userEvent.setup();
-    mockApi(gamesApi());
+    mockApi({ ...booksApi(), ...gamesApi() });
     renderWithProviders(<App />, { route: pathFor("games", OVERVIEW) });
     await screen.findByText(NO_GAMES);
     await user.click(screen.getByRole("tab", { name: tabName }));
     expect(screen.getByText("Coming soon")).toBeInTheDocument();
   });
 
-  it("shows the games sub-page tabs only while the games tab is active", async () => {
+  it("shows the sub-page tabs of the active kind only", async () => {
     const user = userEvent.setup();
-    mockApi(gamesApi());
+    mockApi({ ...booksApi(), ...gamesApi() });
     renderWithProviders(<App />);
-    expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tablist", { name: "Book pages" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "Watchlist" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tab", { name: "Overview" })).getByTestId("GridViewOutlinedIcon"),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole("tab", { name: "Games" }));
     await screen.findByText(NO_GAMES);
+    expect(screen.getByRole("tablist", { name: "Games pages" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Watchlist" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Yearly ranking" })).toBeInTheDocument();

@@ -2,7 +2,7 @@ import type { SxProps, Theme } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { PROGRESS_VALUES, type Progress } from "../domain/gameStatus";
 import { PROGRESS_ICONS } from "./progressIcons";
-import { StatusToggleBar } from "./StatusToggleBar";
+import { StatusToggleBar } from "../../../components/media/status/StatusToggleBar";
 
 interface ProgressToggleBarProps {
   value: Progress;
@@ -32,7 +32,7 @@ export function ProgressToggleBar({
       values={PROGRESS_VALUES}
       icons={PROGRESS_ICONS}
       getLabel={(progress) => t(`games.progress.${progress}`)}
-      groupLabel={t("games.fields.progress")}
+      groupLabel={t("media.fields.progress")}
       value={value}
       onChange={onChange}
       disabled={disabled}

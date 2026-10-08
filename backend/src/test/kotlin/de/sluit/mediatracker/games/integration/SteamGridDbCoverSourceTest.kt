@@ -3,13 +3,13 @@ package de.sluit.mediatracker.games.integration
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.config.SteamGridDbConfig
 import de.sluit.mediatracker.games.domain.COVER_PAGE_SIZE
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSourceGameId
 import de.sluit.mediatracker.games.domain.CoverType
-import de.sluit.mediatracker.games.domain.ReleaseYear
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope

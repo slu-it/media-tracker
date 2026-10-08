@@ -5,12 +5,12 @@ import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
 import { GameDialogsHost } from "./components/GameDialogsHost";
 import { GamesGrid } from "./components/GamesGrid";
-import { GamesViewHeader } from "./components/GamesViewHeader";
+import { MediaViewHeader } from "../../components/media/MediaViewHeader";
 import { RankingGameCard } from "./components/RankingGameCard";
-import { SECTION_GAP } from "./components/gamesLayout";
+import { SECTION_GAP } from "../../components/media/mediaLayout";
 import { YearNavigator } from "./components/YearNavigator";
 import { EMPTY_FILTERS, type GameFilters } from "./domain/gameFilters";
-import { currentYear } from "./domain/gameValues";
+import { currentYear } from "../../domain/media/values";
 import { parseRankingParams, rankingParams } from "./domain/gameViewParams";
 import { rankingYears, resolveRankingYear } from "./domain/rankingYears";
 import { useAllGames } from "./hooks/useAllGames";
@@ -78,7 +78,11 @@ export function GamesRankingView() {
 
   return (
     <Box sx={{ pb: 12 }}>
-      <GamesViewHeader controls={navigatorTop} count={loading ? null : (items?.length ?? null)} />
+      <MediaViewHeader
+        controls={navigatorTop}
+        count={loading ? null : (items?.length ?? null)}
+        formatCount={(count) => t("games.resultCount", { count })}
+      />
       {error && (
         <Alert severity="error" sx={{ mt: SECTION_GAP }} action={<Button onClick={reload}>{t("common.retry")}</Button>}>
           {error}

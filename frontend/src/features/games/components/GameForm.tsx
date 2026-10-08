@@ -3,21 +3,22 @@ import { Box, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { CoverImage } from "../../../components/CoverImage";
 import type { GamePlatformResponse } from "../../../types/api";
-import { type GameDraft, withReleaseDate } from "../domain/gameDraft";
-import { validateCoverImageUrl } from "../domain/gameValues";
-import { COVER_UNDER_GAP, CoverAndInfoLayout } from "./CoverAndInfoLayout";
+import { withReleaseDate } from "../../../domain/media/draft";
+import { type GameDraft } from "../domain/gameDraft";
+import { validateCoverImageUrl } from "../../../domain/media/values";
+import { COVER_UNDER_GAP, CoverAndInfoLayout } from "../../../components/media/CoverAndInfoLayout";
 import { CoverPickerDialog } from "./CoverPickerDialog";
 import { OwnershipToggleBar } from "./OwnershipToggleBar";
 import { ProgressToggleBar } from "./ProgressToggleBar";
-import { CoverImageUrlField } from "./fields/CoverImageUrlField";
-import { DescriptionField } from "./fields/DescriptionField";
+import { CoverImageUrlField } from "../../../components/media/fields/CoverImageUrlField";
+import { DescriptionField } from "../../../components/media/fields/DescriptionField";
 import { DevelopersField } from "./fields/DevelopersField";
 import { GameTitleField } from "./fields/GameTitleField";
 import { HiddenField } from "./fields/HiddenField";
 import { PlatformsField } from "./fields/PlatformsField";
 import { RatingField } from "./fields/RatingField";
-import { ReleaseDateField } from "./fields/ReleaseDateField";
-import { ReleaseYearField } from "./fields/ReleaseYearField";
+import { ReleaseDateField } from "../../../components/media/fields/ReleaseDateField";
+import { ReleaseYearField } from "../../../components/media/fields/ReleaseYearField";
 
 interface GameFormProps {
   value: GameDraft;
@@ -48,7 +49,7 @@ export function GameForm({ value, onChange, platforms, disabled, showErrors, onV
         cover={
           <CoverImage
             src={previewUrl}
-            alt={t("games.coverPreview")}
+            alt={t("media.coverPreview")}
             width={240}
             onClick={disabled ? undefined : () => setPickerOpen(true)}
             actionLabel={t("games.coverPicker.open")}

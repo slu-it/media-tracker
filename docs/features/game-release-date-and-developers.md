@@ -1,9 +1,11 @@
 # Game release date and developers (MT-025)
 
 ADR: [0029](../decisions/0029-game-release-date-and-developers.md).
-Code: `games/domain/` (`ReleaseDate`, `GameDeveloper*`, `GameDeveloperService`), `games/persistence/`
-(`ExposedGameDeveloperRepository`), `common/persistence/LocalDateColumnType`, `frontend/src/features/games/` (`ReleaseDateField`,
-`DevelopersField`, `domain/releaseDate.ts`, `domain/developerDraft.ts`, `hooks/useDeveloperSuggestions.ts`).
+Code: `games/domain/` (`GameDeveloper*`, `GameDeveloperService`), `games/persistence/`
+(`ExposedGameDeveloperRepository`), `common/persistence/LocalDateColumnType`, `frontend/src/features/games/` (`DevelopersField`), shared since ADR 0034:
+`common/domain/MediaValues.kt` (`ReleaseDate`), `common/domain/ReleaseDating.kt`, `common/persistence/ExposedNameVocabulary.kt`, `src/components/media/fields/`
+(`ReleaseDateField`, `VocabularyField`), `src/domain/media/` (`releaseDate.ts`, `vocabularyDraft.ts`),
+`src/hooks/useVocabularySuggestions.ts`.
 
 ## Release date
 
@@ -34,7 +36,7 @@ Code: `games/domain/` (`ReleaseDate`, `GameDeveloper*`, `GameDeveloperService`),
   picks a suggestion with the same name, or else adds a pending `{name}` chip. So do the `Add "<name>"` option
   and blurring the field with valid text in it. On blur, MUI commits an option picked with the arrow keys
   instead of the typed text. Chips are outlined, small and
-  neutral. On save, `resolveDeveloperIds` (`gamesApi.ts`) POSTs every pending name first, then the game is saved
+  neutral. On save, `resolveDeveloperIds` (`gamesApi.ts`, over the shared `resolveVocabularyIds`) POSTs every pending name first, then the game is saved
   with the ids. A failure in either step shows the dialog's error and keeps the draft.
 - The view dialog shows the developers as outlined chips after the platforms.
 

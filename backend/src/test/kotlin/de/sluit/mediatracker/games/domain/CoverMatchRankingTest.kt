@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
 import kotlin.test.Test
 import kotlin.test.assertEquals

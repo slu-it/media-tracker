@@ -10,8 +10,9 @@ a decision was taken), never prose in `CLAUDE.md` ([ADR 0025](decisions/0025-age
 
 | Feature | Tickets | Summary | Details | ADRs |
 |---|---|---|---|---|
-| Games | MT-001 | The one implemented media kind and the template for the others: title, year, optional description, cover URL and quarter-step rating, many-to-many platforms from a seeded table; grid, dialogs, 36 per page. | [games.md](features/games.md) | 0007, 0009 |
-| Books, Movies, Series | - | "Coming soon" tabs in `frontend/src/features/{books,movies,series}/`; copy the games package and dialogs to implement one. | [games.md](features/games.md) | 0007, 0010 |
+| Games | MT-001 | The first media kind: title, year, optional description, cover URL and quarter-step rating, many-to-many platforms from a seeded table; grid, dialogs, 36 per page. | [games.md](features/games.md) | 0007, 0009 |
+| Books | MT-041 | Second media kind on the shared media building blocks: title, authors (user-created vocabulary), year and optional date, optional types (Hardcover, Paperback, Kindle, Audible), ownership `watchlist`/`owned`, progress with `reading`, cover URL; paged overview at `/books/overview` with title search and four filters, 2:3 covers; book MCP tools. | [books.md](features/books.md) | 0034 |
+| Movies, Series | - | "Coming soon" tabs in `frontend/src/features/{movies,series}/`; build one from the shared media building blocks with games and books as templates. | [games.md](features/games.md#shared-media-building-blocks) | 0007, 0010, 0034 |
 | API keys and MCP server | MT-002 | Two per-user API keys (settings dialog) open `POST /mcp`, a stateless MCP server whose tools each feature contributes. | [api-keys-and-mcp.md](features/api-keys-and-mcp.md) | 0013 |
 | Game search and filters | MT-003, MT-011 to MT-015, MT-040 | Title search (fulltext prefix terms plus a `LIKE` prefix match; the description is not searched since MT-040), four filters fed by `GET /api/games.meta`, agent-only `hasMissing` filter and `pageSize` on `search_games`. | [game-search-and-filters.md](features/game-search-and-filters.md) | 0015, 0021, 0022, 0033 |
 | Game status fields | MT-007 | `ownership`, `progress` and `hidden` as Kotlin enums on the game, shown as icons, ignored by search and paging. | [game-status-fields.md](features/game-status-fields.md) | 0017 |
@@ -67,6 +68,7 @@ the checked-out directory:
 | [0031](decisions/0031-url-routes-and-login-return.md) | URL routes for media kinds and sub-pages, view state in the query, login returns to the deep link | React Router 8 declarative; paths derived from `MEDIA_KINDS`/`MEDIA_SUB_PAGES`; query codecs per view; push for views and pages, replace for search/filter/sort; localStorage only for the `/` redirects; validated `returnTo` on login. |
 | [0032](decisions/0032-self-service-password-change.md) | Self-service password change that keeps the current session and ends all others | `PUT /api/me/password` with the current password; 403 `wrong_password` instead of 401; other sessions deleted, current kept; `NewPassword` holds the minimum length for CLI and API. |
 | [0033](decisions/0033-title-only-game-search.md) | Game search matches the title only, with a LIKE prefix fallback | Description no longer searched, `ft_games_description` dropped (V011); `MATCH(title)` or `title LIKE 'term%'`, prefix hits first, then relevance, title, id; no new index. |
+| [0034](decisions/0034-books-and-shared-media-building-blocks.md) | Books as the second media kind, on shared media building blocks with per-kind status enums | Separate books domain and explicit components; kind-neutral code in `common/*` and `src/{components/media,domain/media,hooks}`; `BookOwnership`/`BookProgress` own enums; optional seeded types; authors on the shared vocabulary; `media.*` i18n plus props; cover ratio per kind (books 2:3). |
 
 ## Other documents
 

@@ -1,10 +1,12 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
 import io.mockk.coEvery
 import io.mockk.coVerify

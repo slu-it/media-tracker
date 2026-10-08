@@ -3,20 +3,20 @@ import { Alert, Box, Button, Divider } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { GameResponse } from "../../types/api";
 import { GameDialogsHost } from "./components/GameDialogsHost";
-import { GameSearchField } from "./components/GameSearchField";
+import { SearchField } from "../../components/media/SearchField";
 import { GamesGrid } from "./components/GamesGrid";
 import { OverviewFilters } from "./components/OverviewFilters";
-import { GamesViewHeader } from "./components/GamesViewHeader";
-import { SECTION_GAP } from "./components/gamesLayout";
+import { MediaViewHeader } from "../../components/media/MediaViewHeader";
+import { SECTION_GAP } from "../../components/media/mediaLayout";
 import { hasActiveFilters, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE } from "./domain/gameValues";
 import { overviewParams, parseOverviewParams } from "./domain/gameViewParams";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 import { useGamesPage } from "./hooks/useGamesPage";
-import { useViewParams } from "./hooks/useViewParams";
-import { usePagedGameActions } from "./hooks/usePagedGameActions";
+import { useViewParams } from "../../hooks/useViewParams";
+import { usePagedActions } from "../../hooks/usePagedActions";
 import { useSearchDebounceMs } from "../../hooks/useSearchDebounceMs";
-import { useUrlSearchInput } from "./hooks/useUrlSearchInput";
+import { useUrlSearchInput } from "../../hooks/useUrlSearchInput";
 
 export function GamesView() {
   const { t } = useTranslation();
@@ -39,7 +39,7 @@ export function GamesView() {
       replace: true,
     });
   // A page change is a navigation step: it pushes, so Back returns to the previous page.
-  // The automatic corrections of `usePagedGameActions` pass `replace` and do not add an entry.
+  // The automatic corrections of `usePagedActions` pass `replace` and do not add an entry.
   const setPage = (next: number, { replace = false }: { replace?: boolean } = {}) =>
     writeParams((prev) => overviewParams({ ...parseOverviewParams(prev), page: next }), { replace });
   const { data, loading, error, reload } = useGamesPage(
@@ -51,7 +51,7 @@ export function GamesView() {
   );
   const { meta, error: metaError, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<GameResponse | null>(null);
-  const { topPagination, pagination, onDeleted, onUpdated } = usePagedGameActions({
+  const { topPagination, pagination, onDeleted, onUpdated } = usePagedActions({
     data,
     loading,
     page,
@@ -63,9 +63,11 @@ export function GamesView() {
 
   return (
     <Box sx={{ pb: 12 }}>
-      <GamesViewHeader
+      <MediaViewHeader
         search={
-          <GameSearchField
+          <SearchField
+            label={t("games.search.label")}
+            placeholder={t("games.search.placeholder")}
             value={searchInput}
             onChange={setSearchInput}
             onClear={clearSearch}
@@ -74,6 +76,7 @@ export function GamesView() {
           />
         }
         count={data?.totalItems ?? null}
+        formatCount={(count) => t("games.resultCount", { count })}
         facts={
           // Shown at a count of 0 only when any filter is active, so there is something to undo.
           data?.totalItems !== 0 || hasActiveFilters(filters) ? (

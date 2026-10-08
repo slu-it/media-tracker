@@ -1,21 +1,24 @@
-import type { CreateGameRequest, GameResponse, UpdateGameRequest } from "../../../types/api";
-import { isExistingDeveloper, type DeveloperDraft } from "./developerDraft";
-import { DEFAULT_HIDDEN, DEFAULT_OWNERSHIP, DEFAULT_PROGRESS, type Ownership, type Progress } from "./gameStatus";
+import type { CreateGameRequest, GameDeveloperResponse, GameResponse, UpdateGameRequest } from "../../../types/api";
+import { normalizeCoverImageUrl, normalizeDescription, sameIds } from "../../../domain/media/draft";
 import {
   validateCoverImageUrl,
   validateDescription,
-  validatePlatformIds,
-  validateRating,
   validateReleaseDate,
   validateReleaseYear,
   validateTitle,
-} from "./gameValues";
+} from "../../../domain/media/values";
+import { isExistingEntry, type VocabularyDraft } from "../../../domain/media/vocabularyDraft";
+import { DEFAULT_HIDDEN, DEFAULT_OWNERSHIP, DEFAULT_PROGRESS, type Ownership, type Progress } from "./gameStatus";
+import { validatePlatformIds, validateRating } from "./gameValues";
+
+/** A selected developer chip: an existing developer or a pending free-solo name (see `VocabularyDraft`). */
+export type DeveloperDraft = VocabularyDraft<GameDeveloperResponse>;
 
 /** What the form edits: raw field values, possibly incomplete or invalid. */
 export interface GameDraft {
   title: string;
   releaseYear: number | null;
-  /** ISO-8601 `YYYY-MM-DD`; `null` when only the release year is known. Kept in sync via `withReleaseDate`. */
+  /** ISO-8601 `YYYY-MM-DD`; `null` when only the release year is known. Kept in sync via `withReleaseDate` (`domain/media/draft`). */
   releaseDate: string | null;
   platformIds: string[];
   description: string;
@@ -64,16 +67,6 @@ export function draftFromGame(game: GameResponse): GameDraft {
   };
 }
 
-/**
- * Sets `releaseDate`; a non-null date also overrides `releaseYear` with the date's year, since the backend
- * derives the year from the date when both are given. The one place this stays in sync, so every caller (the
- * form field, tests) goes through it instead of setting both fields separately.
- */
-export function withReleaseDate(draft: GameDraft, releaseDate: string | null): GameDraft {
-  if (releaseDate === null) return { ...draft, releaseDate };
-  return { ...draft, releaseDate, releaseYear: Number(releaseDate.slice(0, 4)) };
-}
-
 export function isDraftValid(draft: GameDraft): boolean {
   return (
     validateTitle(draft.title) === null &&
@@ -86,21 +79,9 @@ export function isDraftValid(draft: GameDraft): boolean {
   );
 }
 
-/** Trimmed URL, or `null` for "no cover". */
-export function normalizeCoverImageUrl(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
-}
-
-/** Trimmed description, or `null` for "no description". */
-export function normalizeDescription(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length === 0 ? null : trimmed;
-}
-
 /** The ids of the draft's already-existing developers; pending (not-yet-created) ones have no id yet. */
 function existingDeveloperIds(draft: GameDraft): string[] {
-  return draft.developers.filter(isExistingDeveloper).map((developer) => developer.id);
+  return draft.developers.filter(isExistingEntry).map((developer) => developer.id);
 }
 
 /**
@@ -108,7 +89,7 @@ function existingDeveloperIds(draft: GameDraft): string[] {
  * compared to the game's ids until `resolveDeveloperIds` runs, which only happens right before saving.
  */
 function hasPendingDeveloper(draft: GameDraft): boolean {
-  return draft.developers.some((developer) => !isExistingDeveloper(developer));
+  return draft.developers.some((developer) => !isExistingEntry(developer));
 }
 
 export function isDraftDirty(game: GameResponse, draft: GameDraft): boolean {
@@ -137,13 +118,6 @@ export function toCreateRequest(draft: GameDraft, developerIds: string[]): Creat
     releaseDate: draft.releaseDate,
     ...(developerIds.length > 0 ? { developerIds } : {}),
   };
-}
-
-function sameIds(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((id, index) => id === sortedB[index]);
 }
 
 /**

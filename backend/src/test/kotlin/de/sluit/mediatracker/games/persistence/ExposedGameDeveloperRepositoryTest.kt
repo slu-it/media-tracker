@@ -1,9 +1,9 @@
 package de.sluit.mediatracker.games.persistence
 
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.persistence.withFreshDatabase
-import de.sluit.mediatracker.games.domain.DeveloperName
-import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
 import de.sluit.mediatracker.games.domain.GameDeveloperId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -21,10 +21,10 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `search with no term lists developers alphabetically`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        repo.create(DeveloperName("Monolith Soft"))
-        repo.create(DeveloperName("Nintendo EPD"))
+        repo.create(VocabularyName("Monolith Soft"))
+        repo.create(VocabularyName("Nintendo EPD"))
 
-        val result = repo.search(null, DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(null, VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf("Monolith Soft", "Nintendo EPD"), result.map { it.name.value })
     }
@@ -32,10 +32,10 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `search matches a name prefix`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val nintendo = repo.create(DeveloperName("Nintendo EPD")).developer
-        repo.create(DeveloperName("Monolith Soft"))
+        val nintendo = repo.create(VocabularyName("Nintendo EPD")).entry
+        repo.create(VocabularyName("Monolith Soft"))
 
-        val result = repo.search(SearchTerm("nin"), DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(SearchTerm("nin"), VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf(nintendo.id), result.map { it.id })
     }
@@ -45,10 +45,10 @@ class ExposedGameDeveloperRepositoryTest {
         // InnoDB never indexes a word shorter than innodb_ft_min_token_size (3), so a name as short as "EA" has
         // no fulltext entry at all; only the LIKE-prefix fallback (MT-025) can find it.
         val repo = ExposedGameDeveloperRepository()
-        val ea = repo.create(DeveloperName("EA")).developer
-        repo.create(DeveloperName("Monolith Soft"))
+        val ea = repo.create(VocabularyName("EA")).entry
+        repo.create(VocabularyName("Monolith Soft"))
 
-        val result = repo.search(SearchTerm("e"), DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(SearchTerm("e"), VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf(ea.id), result.map { it.id })
     }
@@ -56,10 +56,10 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `search finds a two-letter name by its full two-character prefix`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val ea = repo.create(DeveloperName("EA")).developer
-        repo.create(DeveloperName("Monolith Soft"))
+        val ea = repo.create(VocabularyName("EA")).entry
+        repo.create(VocabularyName("Monolith Soft"))
 
-        val result = repo.search(SearchTerm("ea"), DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(SearchTerm("ea"), VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf(ea.id), result.map { it.id })
     }
@@ -69,10 +69,10 @@ class ExposedGameDeveloperRepositoryTest {
         // FulltextQuery.booleanMode strips every operator character; nothing searchable is left, so this falls
         // back to the same alphabetical listing as no term at all - consistent with ExposedGameRepository.search.
         val repo = ExposedGameDeveloperRepository()
-        repo.create(DeveloperName("Nintendo EPD"))
-        repo.create(DeveloperName("Monolith Soft"))
+        repo.create(VocabularyName("Nintendo EPD"))
+        repo.create(VocabularyName("Monolith Soft"))
 
-        val result = repo.search(SearchTerm("+-*"), DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(SearchTerm("+-*"), VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf("Monolith Soft", "Nintendo EPD"), result.map { it.name.value })
     }
@@ -82,11 +82,11 @@ class ExposedGameDeveloperRepositoryTest {
         val repo = ExposedGameDeveloperRepository()
         // "EA" is too short to be indexed, so only the literal "ea sports" LIKE prefix finds this one that way;
         // it also happens to match the fulltext query through its "Sports" word.
-        val eaSports = repo.create(DeveloperName("EA Sports")).developer
+        val eaSports = repo.create(VocabularyName("EA Sports")).entry
         // Matches only through the fulltext "sports*" term, never the literal "ea sports" prefix.
-        val rockstarSports = repo.create(DeveloperName("Rockstar Sports")).developer
+        val rockstarSports = repo.create(VocabularyName("Rockstar Sports")).entry
 
-        val result = repo.search(SearchTerm("ea sports"), DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(SearchTerm("ea sports"), VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf(eaSports.id, rockstarSports.id), result.map { it.id })
     }
@@ -94,9 +94,9 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `search caps the result at the given limit`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        (1..3).forEach { repo.create(DeveloperName("Studio $it")) }
+        (1..3).forEach { repo.create(VocabularyName("Studio $it")) }
 
-        val result = repo.search(null, DeveloperSearchLimit(2))
+        val result = repo.search(null, VocabularySearchLimit(2))
 
         assertEquals(2, result.size)
     }
@@ -104,13 +104,13 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `create is idempotent for a case-insensitive existing name`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val first = repo.create(DeveloperName("Nintendo EPD"))
+        val first = repo.create(VocabularyName("Nintendo EPD"))
         assertTrue(first.created)
 
-        val second = repo.create(DeveloperName("nintendo epd"))
+        val second = repo.create(VocabularyName("nintendo epd"))
 
         assertTrue(!second.created)
-        assertEquals(first.developer.id, second.developer.id)
+        assertEquals(first.entry.id, second.entry.id)
     }
 
     /**
@@ -123,7 +123,7 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `create falls back to the locking read when a competing insert commits mid-transaction`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val name = DeveloperName("Nintendo EPD")
+        val name = VocabularyName("Nintendo EPD")
         var winnerId: GameDeveloperId? = null
 
         val result = repo.create(name) {
@@ -142,7 +142,7 @@ class ExposedGameDeveloperRepositoryTest {
         }
 
         assertTrue(!result.created)
-        assertEquals(winnerId, result.developer.id)
+        assertEquals(winnerId, result.entry.id)
         val rowCount = transaction {
             GameDevelopersTable.selectAll().where { GameDevelopersTable.name eq name.value }.count()
         }
@@ -152,12 +152,12 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `search escapes a literal underscore so it does not act as a single-character wildcard`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val underscoreName = repo.create(DeveloperName("X_")).developer
+        val underscoreName = repo.create(VocabularyName("X_")).entry
         // Both names are too short for fulltext to index at all (below innodb_ft_min_token_size), so only the
         // LIKE-prefix fallback can find either of them, isolating the escaping behaviour under test.
-        repo.create(DeveloperName("XY"))
+        repo.create(VocabularyName("XY"))
 
-        val result = repo.search(SearchTerm("x_"), DeveloperSearchLimit.DEFAULT)
+        val result = repo.search(SearchTerm("x_"), VocabularySearchLimit.DEFAULT)
 
         assertEquals(listOf(underscoreName.id), result.map { it.id })
     }
@@ -165,8 +165,8 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `findByIds returns only the requested developers`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val nintendo = repo.create(DeveloperName("Nintendo EPD")).developer
-        repo.create(DeveloperName("Monolith Soft"))
+        val nintendo = repo.create(VocabularyName("Nintendo EPD")).entry
+        repo.create(VocabularyName("Monolith Soft"))
 
         val result = repo.findByIds(setOf(nintendo.id))
 
@@ -191,13 +191,13 @@ class ExposedGameDeveloperRepositoryTest {
     @Test
     fun `concurrent create for the same name never yields two ids or two rows`() = withFreshDatabase {
         val repo = ExposedGameDeveloperRepository()
-        val name = DeveloperName("Nintendo EPD")
+        val name = VocabularyName("Nintendo EPD")
 
         val results = coroutineScope {
             (1..20).map { async { repo.create(name) } }.awaitAll()
         }
 
-        assertEquals(1, results.map { it.developer.id }.toSet().size)
+        assertEquals(1, results.map { it.entry.id }.toSet().size)
         val rowCount = transaction {
             GameDevelopersTable.selectAll().where { GameDevelopersTable.name eq name.value }.count()
         }

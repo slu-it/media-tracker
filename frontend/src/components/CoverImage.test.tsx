@@ -69,6 +69,13 @@ describe("CoverImage", () => {
     expect(frame).toHaveStyle({ width: "100px", height: "141px" });
   });
 
+  it("derives the height from a custom aspect ratio", () => {
+    renderWithProviders(<CoverImage src={null} alt="Celeste" width={168} aspectRatio={2 / 3} />);
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    const frame = screen.getByTitle("No cover image").closest("div");
+    expect(frame).toHaveStyle({ width: "168px", height: "252px" });
+  });
+
   it("renders the image and falls back to the placeholder when it fails to load", () => {
     renderWithProviders(<CoverImage src="https://img.example/c.png" alt="Celeste" width={100} height={140} />);
     const img = screen.getByRole("img", { name: "Celeste" });

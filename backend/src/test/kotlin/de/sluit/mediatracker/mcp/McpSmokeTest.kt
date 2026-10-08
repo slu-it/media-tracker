@@ -3,6 +3,9 @@ package de.sluit.mediatracker.mcp
 import de.sluit.mediatracker.appWithUser
 import de.sluit.mediatracker.auth.api.API_KEY_HEADER
 import de.sluit.mediatracker.auth.api.ApiKeysResponse
+import de.sluit.mediatracker.books.api.BookResponse
+import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BooksTable
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.api.GameResponse
@@ -78,6 +81,12 @@ class McpSmokeTest {
                     "add_expansion",
                     "search_game_developers",
                     "create_game_developer",
+                    "list_book_types",
+                    "add_book",
+                    "search_books",
+                    "update_book",
+                    "search_book_authors",
+                    "create_book_author",
                 ),
                 toolNames,
             )
@@ -438,6 +447,62 @@ class McpSmokeTest {
         } finally {
             mcp.close()
             transaction { GameDevelopersTable.deleteAll() }
+        }
+    }
+
+    @Test
+    fun `books flow list types create author add book search and update`() = testApplication {
+        val (sessionClient, key) = loggedInClientWithApiKey()
+        val mcp = Client(clientInfo = Implementation(name = "smoke-test", version = "0"))
+        mcp.connect(mcpTransport(key))
+
+        try {
+            val types = mcp.callTool("list_book_types", emptyMap())
+            assertNotEquals(true, types.isError)
+            val kindleId = types.structuredContent!!["types"]!!.jsonArray
+                .first { it.jsonObject["label"]!!.jsonPrimitive.content == "Kindle" }
+                .jsonObject["id"]!!.jsonPrimitive.content
+
+            val author = mcp.callTool("create_book_author", mapOf("name" to "Frank Herbert"))
+            assertNotEquals(true, author.isError)
+            val authorId = author.structuredContent!!["id"]!!.jsonPrimitive.content
+
+            val created = mcp.callTool(
+                "add_book",
+                mapOf(
+                    "title" to "Dune",
+                    "releaseYear" to 1965,
+                    "typeIds" to listOf(kindleId),
+                    "authorIds" to listOf(authorId),
+                ),
+            )
+            assertNotEquals(true, created.isError)
+            val bookId = created.structuredContent!!["id"]!!.jsonPrimitive.content
+
+            val found = mcp.callTool("search_books", mapOf("query" to "dun"))
+            assertNotEquals(true, found.isError)
+            assertEquals(1, found.structuredContent!!["totalMatches"]!!.jsonPrimitive.int)
+            assertEquals(
+                bookId,
+                found.structuredContent!!["books"]!!.jsonArray.single().jsonObject["id"]!!.jsonPrimitive.content,
+            )
+
+            val updated = mcp.callTool(
+                "update_book",
+                mapOf("id" to bookId, "progress" to "reading", "typeIds" to emptyList<String>()),
+            )
+            assertNotEquals(true, updated.isError)
+
+            val listed = sessionClient.get("/api/books").decodeBody<PageResponse<BookResponse>>().items.single()
+            assertEquals("reading", listed.progress)
+            assertEquals(emptyList(), listed.types)
+            assertEquals(listOf("Frank Herbert"), listed.authors.map { it.name })
+        } finally {
+            mcp.close()
+            transaction {
+                BooksTable.deleteAll()
+                BookAuthorsTable.deleteAll()
+            }
         }
     }
 }

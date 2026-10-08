@@ -1,9 +1,15 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.game
 import java.time.LocalDate
@@ -23,31 +29,6 @@ class GameValuesTest {
         GamePlatform(GamePlatformId(id), PlatformLabel(label), HexColor("757575"))
 
     @Test
-    fun `title must be non-blank and at most 256 characters`() {
-        rejects("title") { Title("") }
-        rejects("title") { Title("   ") }
-        rejects("title") { Title("x".repeat(257)) }
-        assertEquals("x".repeat(256), Title("x".repeat(256)).value)
-        assertEquals("Zelda", Title("Zelda").toString())
-    }
-
-    @Test
-    fun `release year is a four-digit number`() {
-        rejects("releaseYear") { ReleaseYear(999) }
-        rejects("releaseYear") { ReleaseYear(10000) }
-        assertEquals(1000, ReleaseYear(1000).value)
-        assertEquals(9999, ReleaseYear(9999).value)
-    }
-
-    @Test
-    fun `description must be non-blank and at most 10000 characters`() {
-        rejects("description") { Description("") }
-        rejects("description") { Description("   ") }
-        rejects("description") { Description("x".repeat(10001)) }
-        assertEquals("x".repeat(10000), Description("x".repeat(10000)).value)
-    }
-
-    @Test
     fun `rating must be a quarter-step between 0_25 and 5_0`() {
         rejects("rating") { Rating(0.0) }
         rejects("rating") { Rating(0.3) }
@@ -60,33 +41,11 @@ class GameValuesTest {
     }
 
     @Test
-    fun `hex color must be a 6-digit hex string without a leading hash`() {
-        rejects("associatedColor") { HexColor("") }
-        rejects("associatedColor") { HexColor("#757575") }
-        rejects("associatedColor") { HexColor("75757") }
-        rejects("associatedColor") { HexColor("7575759") }
-        rejects("associatedColor") { HexColor("GGGGGG") }
-        assertEquals("aa00FF", HexColor("aa00FF").value)
-    }
-
-    @Test
     fun `game platform id parses only the 36-character hex-dash form`() {
         val id = GamePlatformId(Uuid.random())
         assertEquals(id, GamePlatformId.parse(id.toString()))
         rejects("platformIds") { GamePlatformId.parse("nope") }
         rejects("platformIds") { GamePlatformId.parse(id.toString().replace("-", "")) }
-    }
-
-    @Test
-    fun `cover image url must be an absolute http(s) url of bounded length`() {
-        rejects("coverImageUrl") { CoverImageUrl("") }
-        rejects("coverImageUrl") { CoverImageUrl("/covers/zelda.png") }
-        rejects("coverImageUrl") { CoverImageUrl("ftp://example.org/zelda.png") }
-        rejects("coverImageUrl") { CoverImageUrl("http://") }
-        rejects("coverImageUrl") { CoverImageUrl("not a url") }
-        rejects("coverImageUrl") { CoverImageUrl("https://example.org/" + "x".repeat(2048)) }
-        assertEquals("https://example.org/z.png", CoverImageUrl("https://example.org/z.png").value)
-        assertEquals("http://example.org/z.png", CoverImageUrl("http://example.org/z.png").value)
     }
 
     @Test
@@ -189,20 +148,6 @@ class GameValuesTest {
     // release date <-> release year precedence (MT-025, ADR 0029)
 
     @Test
-    fun `release date must have a four-digit year`() {
-        rejects("releaseDate") { ReleaseDate(LocalDate.of(999, 1, 1)) }
-        rejects("releaseDate") { ReleaseDate(LocalDate.of(10000, 1, 1)) }
-        assertEquals(1995, ReleaseDate(LocalDate.of(1995, 11, 21)).year)
-    }
-
-    @Test
-    fun `release date parses only iso dates`() {
-        assertEquals(LocalDate.of(1995, 11, 21), ReleaseDate.parse("1995-11-21").value)
-        rejects("releaseDate") { ReleaseDate.parse("21-11-1995") }
-        rejects("releaseDate") { ReleaseDate.parse("not a date") }
-    }
-
-    @Test
     fun `a game with a release date requires releaseYear to match its year`() {
         rejects("releaseDate") {
             Game(
@@ -281,22 +226,5 @@ class GameValuesTest {
         val id = GameDeveloperId(Uuid.random())
         assertEquals(id, GameDeveloperId.parse(id.toString()))
         rejects("developerIds") { GameDeveloperId.parse("nope") }
-    }
-
-    @Test
-    fun `developer name must be non-blank trimmed and at most 128 characters`() {
-        rejects("name") { DeveloperName("") }
-        rejects("name") { DeveloperName("   ") }
-        rejects("name") { DeveloperName(" Nintendo") }
-        rejects("name") { DeveloperName("x".repeat(129)) }
-        assertEquals("Nintendo", DeveloperName.parse("  Nintendo  ").value)
-    }
-
-    @Test
-    fun `developer search limit is bounded`() {
-        rejects("limit") { DeveloperSearchLimit(0) }
-        rejects("limit") { DeveloperSearchLimit(51) }
-        assertEquals(10, DeveloperSearchLimit.DEFAULT.value)
-        assertEquals(50, DeveloperSearchLimit(50).value)
     }
 }

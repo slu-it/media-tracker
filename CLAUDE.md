@@ -6,9 +6,10 @@ Guidance for Claude Code in this repository. Only what holds for every task live
 
 Self-hosted media-list tracker: one fat JAR (Ktor backend + compiled React SPA + hand-written login page) on a
 Raspberry Pi against MariaDB 11.8. Two Gradle projects, `backend` and `frontend`; JDK 25 and Docker (backend
-tests) are the only local requirements, Node 24 and pnpm 10 are downloaded by Gradle. Games is the only
-implemented media kind (`backend/.../games/`, `frontend/src/features/games/`) and the template for Books, Movies
-and Series.
+tests) are the only local requirements, Node 24 and pnpm 10 are downloaded by Gradle. Games and Books are
+implemented (`backend/.../{games,books}/`, `frontend/src/features/{games,books}/`); Movies and Series are to come.
+Kind-neutral code is shared (`common/*`, `frontend/src/{components/media,domain/media,hooks}`, ADR 0034); each kind
+keeps its own domain and explicit components.
 
 ## Where to read more
 
@@ -52,9 +53,10 @@ and Series.
   - new migration `V<nnn+1>__*.sql` (never edit an applied one) <-> `*Table.kt` + entry in `allTables` (`Schema.kt`)
   - `frontend/src/i18n/en.json` <-> `de.json` (same key set)
   - new `<feature>/api/*Routes.kt` <-> mounted in `apiRoutes` (root `Routes.kt`) inside `authenticate`, before the catch-all
-  - backend value class rule (`requireValid`) <-> frontend validator in `features/<kind>/domain/` + self-validating field component
+  - backend value class rule (`requireValid`) <-> frontend validator + self-validating field component (shared value classes:
+    `src/domain/media/values.ts` + `src/components/media/fields/`; kind-specific: `features/<kind>/domain/` + `components/fields/`)
 - **Onion layers**: `api -> domain <- persistence` (+ `integration -> domain`); the domain imports no
-  Ktor/Exposed/kotlinx (`kotlinx.coroutines` primitives excepted) and only domain types cross layers. Copy the `games` package for a new media kind.
+  Ktor/Exposed/kotlinx (`kotlinx.coroutines` primitives excepted) and only domain types cross layers. A new media kind follows `games`/`books` and reuses the shared media building blocks.
 - **Backend tests need Docker** and are never skipped. The test MariaDB is shared per JVM: seed idempotently or
   clean up.
 - Never write into `backend/src/main/resources/app/` (Gradle copies the built SPA there); never pass

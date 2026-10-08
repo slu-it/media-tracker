@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.persistence.withFreshDatabase
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionId
@@ -7,7 +8,6 @@ import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.SequenceNumber
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import kotlin.test.Test
 import kotlin.test.assertEquals

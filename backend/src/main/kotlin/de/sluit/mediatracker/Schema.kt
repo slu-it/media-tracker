@@ -2,6 +2,12 @@ package de.sluit.mediatracker
 
 import de.sluit.mediatracker.auth.persistence.SessionsTable
 import de.sluit.mediatracker.auth.persistence.UsersTable
+import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BookToAuthorTable
+import de.sluit.mediatracker.books.persistence.BookToTypeTable
+import de.sluit.mediatracker.books.persistence.BookTypesTable
+import de.sluit.mediatracker.books.persistence.BooksBackupSource
+import de.sluit.mediatracker.books.persistence.BooksTable
 import de.sluit.mediatracker.common.domain.BackupSource
 import de.sluit.mediatracker.dropbox.persistence.OAuthConnectionsTable
 import de.sluit.mediatracker.games.persistence.GameDevelopersTable
@@ -27,6 +33,11 @@ val allTables = arrayOf(
     GameExpansionsTable,
     GameDevelopersTable,
     GameToDeveloperTable,
+    BooksTable,
+    BookTypesTable,
+    BookToTypeTable,
+    BookAuthorsTable,
+    BookToAuthorTable,
 )
 
 /**
@@ -35,4 +46,4 @@ val allTables = arrayOf(
  * fails the build instead of silently missing from every export. `users` and `sessions` are system tables,
  * deliberately never backed up.
  */
-val backupSources: List<BackupSource> = listOf(GamesBackupSource)
+val backupSources: List<BackupSource> = listOf(GamesBackupSource, BooksBackupSource)

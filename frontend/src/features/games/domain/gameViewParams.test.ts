@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_FILTERS, MAX_FILTER_VALUES } from "./gameFilters";
-import { SEARCH_MAX_LENGTH } from "./gameValues";
+import { EMPTY_FILTERS } from "./gameFilters";
 import {
   overviewParams,
   parseOverviewParams,
@@ -90,34 +89,6 @@ describe("overview params", () => {
 
   it("drops platform ids that are not UUIDs", () => {
     expect(parse(`platform=whatever%20id&platform=${B}&platform=${A}`).filters.platformIds).toEqual([A, B]);
-  });
-
-  it("drops years outside the release-year range", () => {
-    expect(parse("year=999&year=10000&year=12&year=0&year=1000&year=9999").filters.releaseYears).toEqual([1000, 9999]);
-  });
-
-  it("caps repeatable filters at MAX_FILTER_VALUES", () => {
-    const years = Array.from({ length: MAX_FILTER_VALUES + 10 }, (_, i) => `year=${2000 + i}`).join("&");
-    expect(parse(years).filters.releaseYears).toHaveLength(MAX_FILTER_VALUES);
-    const platforms = Array.from(
-      { length: MAX_FILTER_VALUES + 10 },
-      (_, i) => `platform=00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
-    ).join("&");
-    expect(parse(platforms).filters.platformIds).toHaveLength(MAX_FILTER_VALUES);
-    // Positive control: exactly the limit passes unchanged.
-    expect(parse(years.split("&").slice(0, MAX_FILTER_VALUES).join("&")).filters.releaseYears).toHaveLength(
-      MAX_FILTER_VALUES,
-    );
-  });
-
-  it("drops a search longer than SEARCH_MAX_LENGTH", () => {
-    expect(parse(`search=${"x".repeat(SEARCH_MAX_LENGTH)}`).search).toBe("x".repeat(SEARCH_MAX_LENGTH));
-    expect(parse(`search=${"x".repeat(SEARCH_MAX_LENGTH + 1)}`).search).toBe("");
-  });
-
-  it("drops a page above 2^31-1", () => {
-    expect(parse("page=2147483647").page).toBe(2147483647);
-    expect(parse("page=2147483648").page).toBe(1);
   });
 });
 

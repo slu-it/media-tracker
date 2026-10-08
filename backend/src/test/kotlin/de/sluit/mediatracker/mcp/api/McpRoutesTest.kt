@@ -5,6 +5,8 @@ import de.sluit.mediatracker.auth.domain.ApiKeyService
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.User
 import de.sluit.mediatracker.common.api.ErrorResponse
+import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
@@ -12,25 +14,26 @@ import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.Patch
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyCreation
+import de.sluit.mediatracker.common.domain.VocabularyName
+import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.api.GameResponse
 import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.domain.CoverCandidate
-import de.sluit.mediatracker.games.domain.CoverImageUrl
 import de.sluit.mediatracker.games.domain.CoverLookup
 import de.sluit.mediatracker.games.domain.CoverOption
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSourceGameId
-import de.sluit.mediatracker.games.domain.Description
-import de.sluit.mediatracker.games.domain.DeveloperName
-import de.sluit.mediatracker.games.domain.DeveloperSearchLimit
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionId
 import de.sluit.mediatracker.games.domain.ExpansionService
-import de.sluit.mediatracker.games.domain.GameDeveloperCreation
 import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameFilters
@@ -45,22 +48,16 @@ import de.sluit.mediatracker.games.domain.NewGame
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
-import de.sluit.mediatracker.games.domain.ReleaseYear
 import de.sluit.mediatracker.games.domain.SequenceNumber
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import de.sluit.mediatracker.handlerApp
 import de.sluit.mediatracker.jsonBody
 import de.sluit.mediatracker.loginAsMocked
-import io.ktor.client.HttpClient
-import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
-import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -101,16 +98,6 @@ import kotlin.test.assertTrue
  * encoding guard in [mcpEndpoint]) and the domain values a tool handler hands to the service.
  */
 class McpRoutesTest {
-    private suspend fun HttpClient.postJsonRpc(key: String?, body: String): HttpResponse = post("/mcp") {
-        acceptJsonRpc()
-        if (key != null) header(API_KEY_HEADER, key)
-        jsonBody(body)
-    }
-
-    private fun HttpRequestBuilder.acceptJsonRpc() {
-        header(HttpHeaders.Accept, "application/json, text/event-stream")
-    }
-
     private fun expansion(
         gameId: GameId,
         title: String = "Farewell",
@@ -502,85 +489,92 @@ class McpRoutesTest {
     }
 
     @Test
-    fun `tools list returns exactly the game tools with the add_game and update_game schemas`() = testApplication {
-        val apiKeys = mockk<ApiKeyService>()
-        val client = handlerApp(apiKeys = apiKeys)
-        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
-        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+    fun `tools list returns exactly the game and book tools with the add_game and update_game schemas`() =
+        testApplication {
+            val apiKeys = mockk<ApiKeyService>()
+            val client = handlerApp(apiKeys = apiKeys)
+            val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+            coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
 
-        val response = client.postJsonRpc(key, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
+            val response = client.postJsonRpc(key, """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
 
-        val body = response.bodyAsText()
-        assertEquals(HttpStatusCode.OK, response.status, body)
-        val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
-        assertEquals(
-            setOf(
-                "list_game_platforms",
-                "add_game",
-                "search_games",
-                "update_game",
-                "list_expansions",
-                "add_expansion",
-                "search_game_developers",
-                "create_game_developer",
-            ),
-            tools.map {
-                it.jsonObject["name"]!!.jsonPrimitive.content
-            }.toSet(),
-        )
-        val addGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "add_game" }.jsonObject
-        val addGameProperties = addGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
-        val addGameRequired = addGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
-            it.jsonPrimitive.content
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val tools = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray
+            assertEquals(
+                setOf(
+                    "list_game_platforms",
+                    "add_game",
+                    "search_games",
+                    "update_game",
+                    "list_expansions",
+                    "add_expansion",
+                    "search_game_developers",
+                    "create_game_developer",
+                    "list_book_types",
+                    "add_book",
+                    "search_books",
+                    "update_book",
+                    "search_book_authors",
+                    "create_book_author",
+                ),
+                tools.map {
+                    it.jsonObject["name"]!!.jsonPrimitive.content
+                }.toSet(),
+            )
+            val addGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "add_game" }.jsonObject
+            val addGameProperties = addGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
+            val addGameRequired = addGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
+                it.jsonPrimitive.content
+            }
+            assertEquals(listOf("title", "platformIds"), addGameRequired)
+            assertTrue("releaseYear" !in addGameRequired)
+            assertEquals(
+                listOf("string", "null"),
+                tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }
+                    .jsonObject["inputSchema"]!!.jsonObject["properties"]!!.jsonObject["releaseDate"]!!
+                    .jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals(
+                Ownership.entries.map { it.wire },
+                addGameProperties["ownership"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals(
+                Progress.entries.map { it.wire },
+                addGameProperties["progress"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals("boolean", addGameProperties["hidden"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+            assertTrue("ownership" !in addGameRequired)
+            assertTrue("progress" !in addGameRequired)
+            assertTrue("hidden" !in addGameRequired)
+
+            val updateGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }.jsonObject
+            val updateGameProperties = updateGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
+            val updateGameRequired = updateGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
+                it.jsonPrimitive.content
+            }
+            assertEquals(listOf("id"), updateGameRequired)
+            assertEquals(
+                listOf("number", "null"),
+                updateGameProperties["rating"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals(
+                listOf("string", "null"),
+                updateGameProperties["description"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals(
+                Ownership.entries.map { it.wire },
+                updateGameProperties["ownership"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals(
+                Progress.entries.map { it.wire },
+                updateGameProperties["progress"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
+            )
+            assertEquals("boolean", updateGameProperties["hidden"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+            assertTrue("ownership" !in updateGameRequired)
+            assertTrue("progress" !in updateGameRequired)
+            assertTrue("hidden" !in updateGameRequired)
         }
-        assertEquals(listOf("title", "platformIds"), addGameRequired)
-        assertTrue("releaseYear" !in addGameRequired)
-        assertEquals(
-            listOf("string", "null"),
-            tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }
-                .jsonObject["inputSchema"]!!.jsonObject["properties"]!!.jsonObject["releaseDate"]!!
-                .jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals(
-            Ownership.entries.map { it.wire },
-            addGameProperties["ownership"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals(
-            Progress.entries.map { it.wire },
-            addGameProperties["progress"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals("boolean", addGameProperties["hidden"]!!.jsonObject["type"]!!.jsonPrimitive.content)
-        assertTrue("ownership" !in addGameRequired)
-        assertTrue("progress" !in addGameRequired)
-        assertTrue("hidden" !in addGameRequired)
-
-        val updateGame = tools.first { it.jsonObject["name"]!!.jsonPrimitive.content == "update_game" }.jsonObject
-        val updateGameProperties = updateGame["inputSchema"]!!.jsonObject["properties"]!!.jsonObject
-        val updateGameRequired = updateGame["inputSchema"]!!.jsonObject["required"]!!.jsonArray.map {
-            it.jsonPrimitive.content
-        }
-        assertEquals(listOf("id"), updateGameRequired)
-        assertEquals(
-            listOf("number", "null"),
-            updateGameProperties["rating"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals(
-            listOf("string", "null"),
-            updateGameProperties["description"]!!.jsonObject["type"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals(
-            Ownership.entries.map { it.wire },
-            updateGameProperties["ownership"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals(
-            Progress.entries.map { it.wire },
-            updateGameProperties["progress"]!!.jsonObject["enum"]!!.jsonArray.map { it.jsonPrimitive.content },
-        )
-        assertEquals("boolean", updateGameProperties["hidden"]!!.jsonObject["type"]!!.jsonPrimitive.content)
-        assertTrue("ownership" !in updateGameRequired)
-        assertTrue("progress" !in updateGameRequired)
-        assertTrue("hidden" !in updateGameRequired)
-    }
 
     @Test
     fun `tools call add_game with a non-quarter-step rating is a tool error without calling the service`() =
@@ -2719,7 +2713,7 @@ class McpRoutesTest {
             val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
             coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
             val nintendo = developer("Nintendo EPD")
-            coEvery { developers.search(SearchTerm("nin"), DeveloperSearchLimit(10)) } returns listOf(nintendo)
+            coEvery { developers.search(SearchTerm("nin"), VocabularySearchLimit(10)) } returns listOf(nintendo)
 
             val response = client.postJsonRpc(
                 key,
@@ -2738,7 +2732,7 @@ class McpRoutesTest {
             assertEquals(1, developersJson.size)
             assertEquals(nintendo.id.toString(), developersJson.first().jsonObject["id"]!!.jsonPrimitive.content)
             assertEquals("Nintendo EPD", developersJson.first().jsonObject["name"]!!.jsonPrimitive.content)
-            coVerify { developers.search(SearchTerm("nin"), DeveloperSearchLimit(10)) }
+            coVerify { developers.search(SearchTerm("nin"), VocabularySearchLimit(10)) }
         }
 
     @Test
@@ -2748,7 +2742,7 @@ class McpRoutesTest {
         val client = handlerApp(apiKeys = apiKeys, gameDevelopers = developers)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { developers.search(null, DeveloperSearchLimit(10)) } returns
+        coEvery { developers.search(null, VocabularySearchLimit(10)) } returns
             listOf(developer("Nintendo EPD"), developer("Supergiant Games"))
 
         val response = client.postJsonRpc(
@@ -2761,7 +2755,7 @@ class McpRoutesTest {
         val body = response.bodyAsText()
         assertEquals(HttpStatusCode.OK, response.status, body)
         assertNull(Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["isError"], body)
-        coVerify { developers.search(null, DeveloperSearchLimit(10)) }
+        coVerify { developers.search(null, VocabularySearchLimit(10)) }
     }
 
     @Test
@@ -2771,7 +2765,7 @@ class McpRoutesTest {
         val client = handlerApp(apiKeys = apiKeys, gameDevelopers = developers)
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        coEvery { developers.search(null, DeveloperSearchLimit(25)) } returns emptyList()
+        coEvery { developers.search(null, VocabularySearchLimit(25)) } returns emptyList()
 
         val response = client.postJsonRpc(
             key,
@@ -2782,7 +2776,7 @@ class McpRoutesTest {
 
         val body = response.bodyAsText()
         assertEquals(HttpStatusCode.OK, response.status, body)
-        coVerify { developers.search(null, DeveloperSearchLimit(25)) }
+        coVerify { developers.search(null, VocabularySearchLimit(25)) }
     }
 
     @Test
@@ -2805,7 +2799,7 @@ class McpRoutesTest {
             assertEquals(HttpStatusCode.OK, response.status, body)
             val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-            // any() would construct a witness DeveloperSearchLimit from a random Int to set up the matcher,
+            // any() would construct a witness VocabularySearchLimit from a random Int to set up the matcher,
             // which fails about half the time since its init validates a 1..50 range (see the MockK value-class
             // matcher note); confirming zero interactions on the mock proves the same thing without that risk.
             confirmVerified(developers)
@@ -2833,7 +2827,7 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("querry"), text)
-            // Same reasoning as the pageSize test above: avoid any() witness construction for DeveloperSearchLimit.
+            // Same reasoning as the pageSize test above: avoid any() witness construction for VocabularySearchLimit.
             confirmVerified(developers)
         }
 
@@ -2845,8 +2839,8 @@ class McpRoutesTest {
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
         val nintendo = developer("Nintendo EPD")
-        coEvery { developers.create(DeveloperName("Nintendo EPD")) } returns
-            GameDeveloperCreation(nintendo, created = true)
+        coEvery { developers.create(VocabularyName("Nintendo EPD")) } returns
+            VocabularyCreation(nintendo, created = true)
 
         val response = client.postJsonRpc(
             key,
@@ -2875,8 +2869,8 @@ class McpRoutesTest {
         val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
         val existing = developer("Nintendo EPD")
-        coEvery { developers.create(DeveloperName("nintendo epd")) } returns
-            GameDeveloperCreation(existing, created = false)
+        coEvery { developers.create(VocabularyName("nintendo epd")) } returns
+            VocabularyCreation(existing, created = false)
 
         val response = client.postJsonRpc(
             key,
@@ -2916,7 +2910,7 @@ class McpRoutesTest {
             assertEquals(HttpStatusCode.OK, response.status, body)
             val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-            // any() would construct a witness DeveloperName from a random string to set up the matcher,
+            // any() would construct a witness VocabularyName from a random string to set up the matcher,
             // which risks tripping its blank/whitespace/length validation (see the MockK value-class
             // matcher note); confirming zero interactions on the mock proves the same thing without that risk.
             confirmVerified(developers)
@@ -2942,7 +2936,7 @@ class McpRoutesTest {
             assertEquals(HttpStatusCode.OK, response.status, body)
             val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
-            // any() would construct a witness DeveloperName from a random string to set up the matcher,
+            // any() would construct a witness VocabularyName from a random string to set up the matcher,
             // which risks tripping its blank/whitespace/length validation (see the MockK value-class
             // matcher note); confirming zero interactions on the mock proves the same thing without that risk.
             confirmVerified(developers)
@@ -2970,7 +2964,7 @@ class McpRoutesTest {
             assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean())
             val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
             assertTrue(text.contains("nmae"), text)
-            // any() would construct a witness DeveloperName from a random string to set up the matcher,
+            // any() would construct a witness VocabularyName from a random string to set up the matcher,
             // which risks tripping its blank/whitespace/length validation (see the MockK value-class
             // matcher note); confirming zero interactions on the mock proves the same thing without that risk.
             confirmVerified(developers)

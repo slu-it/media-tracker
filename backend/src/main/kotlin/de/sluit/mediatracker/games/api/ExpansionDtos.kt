@@ -1,12 +1,12 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionPatch
 import de.sluit.mediatracker.games.domain.NewExpansion
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.SequenceNumber
-import de.sluit.mediatracker.games.domain.Title
 import kotlinx.serialization.Serializable
 
 // Mirrored by hand in frontend/src/types/api.ts. Keep both in sync.

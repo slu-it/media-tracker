@@ -1,18 +1,25 @@
 package de.sluit.mediatracker.common.persistence
 
+import de.sluit.mediatracker.books.BookTypes
+import de.sluit.mediatracker.books.book
+import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BooksBackupSource
+import de.sluit.mediatracker.books.persistence.BooksTable
+import de.sluit.mediatracker.books.persistence.ExposedBookAuthorRepository
+import de.sluit.mediatracker.books.persistence.ExposedBookRepository
 import de.sluit.mediatracker.common.domain.BackupRow
+import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.ReleaseDate
+import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.games.Platforms
-import de.sluit.mediatracker.games.domain.Description
-import de.sluit.mediatracker.games.domain.DeveloperName
 import de.sluit.mediatracker.games.domain.Expansion
 import de.sluit.mediatracker.games.domain.ExpansionId
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
-import de.sluit.mediatracker.games.domain.ReleaseDate
 import de.sluit.mediatracker.games.domain.SequenceNumber
-import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.game
 import de.sluit.mediatracker.games.persistence.ExposedExpansionRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameDeveloperRepository
@@ -257,8 +264,8 @@ class ExposedBackupSourceTest {
     fun `export then import reproduces a release date and its developers`() = withFreshDatabase {
         val games = ExposedGameRepository()
         val developers = ExposedGameDeveloperRepository()
-        val nintendo = developers.create(DeveloperName("Nintendo EPD")).developer
-        val monolith = developers.create(DeveloperName("Monolith Soft")).developer
+        val nintendo = developers.create(VocabularyName("Nintendo EPD")).entry
+        val monolith = developers.create(VocabularyName("Monolith Soft")).entry
         val withEverything = game(
             "Chrono Trigger",
             releaseDate = ReleaseDate(LocalDate.of(1995, 3, 11)),
@@ -293,6 +300,39 @@ class ExposedBackupSourceTest {
                 .single()[GamesTable.releaseDate]
         }
         assertNull(storedReleaseDate)
+    }
+
+    // books (ADR 0034)
+
+    @Test
+    fun `export then import reproduces a book with its release date types and author`() = withFreshDatabase {
+        val books = ExposedBookRepository()
+        val herbert = ExposedBookAuthorRepository().create(VocabularyName("Frank Herbert")).entry
+        books.insert(
+            book(
+                "Dune",
+                types = listOf(BookTypes.HARDCOVER, BookTypes.KINDLE),
+                releaseDate = ReleaseDate(LocalDate.of(1965, 8, 1)),
+                authors = listOf(herbert),
+            ),
+        )
+
+        val exported = BooksBackupSource.export()
+
+        // cascades to book_to_type and book_to_author; the seeded book_types stay
+        dbQuery {
+            BooksTable.deleteAll()
+            BookAuthorsTable.deleteAll()
+        }
+
+        val result = BooksBackupSource.import(exported)
+
+        assertEquals(1, result.getValue("books").inserted)
+        assertEquals(0, result.getValue("book_types").inserted)
+        assertEquals(1, result.getValue("book_authors").inserted)
+        assertEquals(2, result.getValue("book_to_type").inserted)
+        assertEquals(1, result.getValue("book_to_author").inserted)
+        assertEquals(exported, BooksBackupSource.export())
     }
 
     private fun validGameRow(

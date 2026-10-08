@@ -3,10 +3,12 @@
 ADRs: [0007](../decisions/0007-layered-domain-modules.md), [0009](../decisions/0009-game-platforms-as-reference-data.md).
 Code: `backend/src/main/kotlin/de/sluit/mediatracker/games/`, `frontend/src/features/games/`.
 
-Games is the first media kind of phase 2 and the template for Books, Movies and Series, which are "coming soon"
-tabs in `frontend/src/features/{books,movies,series}/`. A new media kind copies the `games` package on both
-sides, adds its service to `Services` in `Application.kt` (and to `handlerApp` in the tests), mounts its routes
-in `apiRoutes`, and copies the games dialogs including both scroll flags described below.
+Games is the first media kind of phase 2; [Books](books.md) is the second. Movies and Series are "coming soon"
+tabs in `frontend/src/features/{movies,series}/`. A new media kind builds its own package on both sides from the
+shared building blocks below (ADR 0034), with games and books as the templates: it adds its services to
+`Services` in `Application.kt` (and to `handlerApp` in the tests), mounts its routes in `apiRoutes` and its tools
+in `mcpRoutes`, registers its tables in `allTables` and `backupSources`, and copies the dialogs including both
+scroll flags described below.
 
 ## Domain
 
@@ -32,9 +34,9 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   self-validating field components under `components/fields/`.
 - The list asks for `pageSize=36` explicitly (`GAMES_PAGE_SIZE` in `games/domain/gameValues.ts`, independent of
   the backend default). The games tests derive their expected URLs from that constant instead of pinning it.
-- Above the grid sits `GamesViewHeader`, shared by all three games views. Row 1 holds the search field,
-  centered at `HALF_ROW_WIDTH` (`components/gamesLayout.ts`: full width below `md`, half the row from `md`).
-  Row 2 holds the controls (`controls`, optional), and row 3 is `GameResultsBar`, followed by a divider.
+- Above the grid sits `MediaViewHeader`, shared by all three games views. Row 1 holds the search field,
+  centered at `HALF_ROW_WIDTH` (`components/media/mediaLayout.ts`: full width below `md`, half the row from `md`).
+  Row 2 holds the controls (`controls`, optional), and row 3 is `ResultsBar`, followed by a divider.
   - The watchlist uses the `controlsLayout="half"` controls row.
   - The overview has no controls row. All four filters sit in the results row
     ([game-search-and-filters.md](game-search-and-filters.md)). The results bar shows
@@ -57,7 +59,7 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   no status filter, hides the row as before. The `role="status"` element keeps the same position in the tree
   either way, so the live region never remounts.
 - The vertical gaps between header rows, around both dividers, above the bottom pagination and above an
-  error `Alert` are all `SECTION_GAP` (`components/gamesLayout.ts`, 16px). Empty-state messages keep their own
+  error `Alert` are all `SECTION_GAP` (`components/media/mediaLayout.ts`, 16px). Empty-state messages keep their own
   larger padding.
 - Dialogs build on `components/dialog/BaseDialog` (round protruding close button, optional left action column
   with top and bottom slots, optional fixed height, `contentScroll="children"`); `ConfirmDialog` builds on MUI
@@ -65,5 +67,25 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   games dialogs pair it with `scrollInfo` on `CoverAndInfoLayout`, so from the `sm` breakpoint up the headline,
   cover and rating stay frozen and only the field column scrolls, while at `xs` the layout stacks and scrolls
   as one. jsdom evaluates no MUI breakpoint and has no layout engine, so this is verified by eye.
-- Every cover frame is 22:31 (the 660x930 grid shape) via `COVER_ASPECT_RATIO`/`coverHeight()` in
-  `src/components/coverFrame.ts`; call sites pass a width only.
+- Every games cover frame is 22:31 (the 660x930 grid shape), the default `COVER_ASPECT_RATIO` of `coverHeight()`
+  in `src/components/coverFrame.ts`, so games call sites pass a width only. Books pass 2:3.
+
+## Shared media building blocks
+
+Since books (ADR 0034) the kind-neutral parts of games live in shared files that every kind uses; each kind keeps
+its own explicit components on top.
+
+- Backend: `common/domain` (`MediaValues`, `ReleaseDating`, `WireEnum`, `Vocabulary`), `common/persistence`
+  (`FulltextQuery`, `FulltextExpressions`, `TitleSearch`, `FilterOps`, `ExposedNameVocabulary`), `common/api`
+  (`QueryParams`, `McpToolArguments`, `McpSchemas`, `VocabularyMcpTools`). Status enums stay per kind.
+- Frontend: `src/components/media/` (view header, search field, results bar, pagination, grid, card shell,
+  cover-and-info layout, colour chips, detail helpers, `status/` toggle and filter bars, `filters/FilterSelect`,
+  `fields/`), `src/domain/media/` (validators, release date, draft and vocabulary helpers, URL field codecs),
+  `src/hooks/` (`useViewParams`, `useUrlSearchInput`, `usePagedActions`, `useLoadOnce`,
+  `useVocabularySuggestions`).
+- i18n: kind-neutral strings under `media.*` (field labels, `-all-`, clear, no cover, "Add …"); kind-specific
+  texts (counts, empty states, value labels, dimmed hints) stay under `games.*`/`books.*` and are passed to the
+  shared components as props.
+- The games components keep their names as thin wrappers where they bind games data: `GamesGrid`,
+  `StatusFilterToggles`, `PlatformsField` (`ColoredOptionsField`, required), `DevelopersField`
+  (`VocabularyField`), `GameTitleField` (adds title suggestions to `TitleField`).
