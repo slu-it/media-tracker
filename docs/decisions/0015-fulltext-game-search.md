@@ -1,7 +1,8 @@
 # 0015: Fulltext game search on MariaDB, and Testcontainers MariaDB instead of H2 for every backend test
 
 Status: accepted, 2026-09 (the search field's debounce dropped to 500 ms in MT-015; `search_games`'s fixed page
-size of ten became a configurable `pageSize` in record 0022)
+size of ten became a configurable `pageSize` in record 0022; the search scope, weighting and ranking are
+superseded by record 0033: title only, plus a `LIKE` prefix match, `ft_games_description` dropped)
 
 ## Context
 

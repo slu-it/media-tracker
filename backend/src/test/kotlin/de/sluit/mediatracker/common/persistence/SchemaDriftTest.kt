@@ -39,7 +39,7 @@ class SchemaDriftTest {
             }
         }
 
-        assertEquals(setOf("ft_games_title", "ft_games_description"), indexNames)
+        assertEquals(setOf("ft_games_title"), indexNames)
     }
 
     @Test

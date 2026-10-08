@@ -7,9 +7,6 @@ import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.QueryBuilder
 import org.jetbrains.exposed.v1.core.VarCharColumnType
 
-internal const val TITLE_WEIGHT = 2.0
-internal const val DESCRIPTION_WEIGHT = 0.75
-
 // On a table with exactly one row, once that row's MATCH ... AGAINST hit is served from the on-disk fulltext
 // index rather than MariaDB's in-memory cache (i.e. after a server restart), it evaluates to infinity and any
 // arithmetic on it raises "DOUBLE value is out of range". Real relevance values are small fractions far below
@@ -39,24 +36,8 @@ internal class MatchesFulltext(private val column: Column<*>, private val boolea
 }
 
 /**
- * `(2.0 * LEAST(MATCH(title) ..., 1000000.0) + 0.75 * LEAST(MATCH(description) ..., 1000000.0))`; both MATCH
- * calls bind the same query text.
- */
-internal class WeightedFulltextScore(private val booleanQuery: String) : Function<Double>(DoubleColumnType()) {
-    override fun toQueryBuilder(queryBuilder: QueryBuilder) = queryBuilder {
-        +"("
-        +"$TITLE_WEIGHT * "
-        cappedMatchAgainst(GamesTable.title, booleanQuery)
-        +" + "
-        +"$DESCRIPTION_WEIGHT * "
-        cappedMatchAgainst(GamesTable.description, booleanQuery)
-        +")"
-    }
-}
-
-/**
- * `LEAST(MATCH(col) AGAINST(? IN BOOLEAN MODE), 1000000.0)`, for ranking a single fulltext-indexed column
- * (e.g. `game_developers.name`) where there is no second column to weigh against, unlike [WeightedFulltextScore].
+ * `LEAST(MATCH(col) AGAINST(? IN BOOLEAN MODE), 1000000.0)`, for ranking a single fulltext-indexed column, e.g.
+ * `games.title` and `game_developers.name`.
  */
 internal class MatchScore(private val column: Column<*>, private val booleanQuery: String) :
     Function<Double>(DoubleColumnType()) {

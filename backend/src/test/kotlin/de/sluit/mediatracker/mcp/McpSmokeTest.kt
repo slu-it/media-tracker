@@ -143,7 +143,7 @@ class McpSmokeTest {
             mcp.callTool(
                 "add_game",
                 mapOf(
-                    "title" to "Underworld Chronicles",
+                    "title" to "Hades II",
                     "releaseYear" to 2021,
                     "platformIds" to listOf(pcId),
                     "description" to "A roguelike inspired by Hades",
@@ -160,7 +160,7 @@ class McpSmokeTest {
             assertEquals(2, result.structuredContent!!["totalMatches"]!!.jsonPrimitive.int)
             val titles = result.structuredContent!!["games"]!!.jsonArray
                 .map { it.jsonObject["title"]!!.jsonPrimitive.content }
-            assertEquals(listOf("Hades", "Underworld Chronicles"), titles)
+            assertEquals(listOf("Hades", "Hades II"), titles)
         } finally {
             mcp.close()
             transaction { GamesTable.deleteAll() }

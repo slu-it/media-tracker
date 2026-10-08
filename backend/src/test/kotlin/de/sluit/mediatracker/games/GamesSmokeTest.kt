@@ -181,7 +181,7 @@ class GamesSmokeTest {
             """.trimMargin(),
         )
         client.createGame(
-            """{"title":"Underworld Chronicles","releaseYear":2021,"platformIds":["${SeededPlatforms.PC}"],
+            """{"title":"Return to Hades","releaseYear":2021,"platformIds":["${SeededPlatforms.PC}"],
                 |"description":"A roguelike inspired by Hades"}
             """.trimMargin(),
         )
@@ -189,7 +189,7 @@ class GamesSmokeTest {
 
         val page = client.get("/api/games?search=hades").decodeBody<PageResponse<GameResponse>>()
 
-        assertEquals(listOf("Hades", "Underworld Chronicles"), page.items.map { it.title })
+        assertEquals(listOf("Hades", "Return to Hades"), page.items.map { it.title })
         assertEquals(2, page.totalItems)
     }
 

@@ -46,7 +46,7 @@ fun Route.gameRoutes(
             call.respond(HttpStatusCode.Created, game.toResponse())
         }
         // Ordered by title, id, unless `?sort=` (MT-026) asks for release date or rating order instead; with
-        // `?search=` games with a title hit first, then by relevance (see GameService.list).
+        // `?search=` titles starting with the term first, then by title relevance (see GameService.list).
         // `?platformIds=`/`?ownership=`/`?progress=`/`?releaseYear=` (each repeatable) and `?rated=` narrow the
         // listing further and take the same branch as a search.
         get {
