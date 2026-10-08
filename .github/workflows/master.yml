@@ -1,4 +1,5 @@
-# Master build: same verification as the PR workflow, then the fat JAR is kept as a workflow artifact and the
+# Master build: same verification as the PR workflow (`./gradlew build` split into the jobs `:frontend:build` and
+# `:backend:build`, whose union is exactly `./gradlew build`), then the fat JAR is kept as a workflow artifact and the
 # container image is published to GHCR (ghcr.io/slu-it/media-tracker, linux/arm64 + linux/amd64, tags `latest`
 # and `sha-<short>`). Deploying it to the Pi stays manual (see README "Deploy to the Pi").
 name: Master
@@ -10,15 +11,14 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 concurrency:
   group: master
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build, archive fat JAR, publish image
+  frontend:
+    name: Frontend lint and test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -45,10 +45,58 @@ jobs:
           restore-keys: |
             node-pnpm-${{ runner.os }}-
 
-      # --max-workers=2: the hosted runner has few cores and the frontend tests (Vitest, capped to 3 workers via
-      # CI=true) run in parallel with the backend build and tests.
-      - name: Build, lint and test
-        run: ./gradlew build --max-workers=2
+      # pnpm sees CI=true and installs with --frozen-lockfile, so a stale pnpm-lock.yaml fails the build.
+      - name: Lint, format check, test and build
+        run: ./gradlew :frontend:build
+
+      - name: Upload frontend reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-reports
+          path: |
+            frontend/build/test-results/
+            frontend/build/coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build:
+    name: Build backend, archive fat JAR, publish image
+    # Nothing is published unless the frontend checks passed. This serialises the two jobs on master.
+    needs: frontend
+    # Only this job pushes to GHCR; the frontend job (which runs third-party pnpm install scripts) stays read-only.
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+
+      # On the default branch the Gradle cache is writable; PR builds read from it.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Cache Node, pnpm and the pnpm store
+        uses: actions/cache@v6
+        with:
+          path: |
+            frontend/.gradle/nodejs
+            frontend/.gradle/pnpm
+            ~/.local/share/pnpm/store
+          key: node-pnpm-${{ runner.os }}-${{ hashFiles('frontend/build.gradle.kts', 'frontend/pnpm-lock.yaml') }}
+          restore-keys: |
+            node-pnpm-${{ runner.os }}-
+
+      # The backend build runs the Vite build for the SPA it packages; pnpm installs with --frozen-lockfile (CI=true).
+      - name: Build, lint and test backend
+        run: ./gradlew :backend:build
 
       - name: Archive fat JAR
         uses: actions/upload-artifact@v7

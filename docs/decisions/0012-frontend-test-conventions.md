@@ -57,10 +57,16 @@ Books, Movies and Series will copy `features/games/` and its tests, so the conve
   happens once per worker, so later files would inherit the previous file's DOM and lose the act flag. The setup
   therefore calls `cleanup()` first inside its own `afterEach` (before the console.error and unmocked-request
   checks, so unmount errors are caught and a failing check cannot skip the unmount) and sets the act flag in a
-  per-file `beforeAll`. A test must never rely on module state from another file. `maxWorkers` is capped to 3
-  only when `CI` is set; the workflows pass `--max-workers=2` to Gradle
-  for the same reason, because the backend build and tests run concurrently with Vitest. Locally both stay on
-  their core-based defaults.
+  per-file `beforeAll`. A test must never rely on module state from another file. Vitest and Gradle run on their
+  core-based defaults everywhere: since record 0036 the frontend tests have a CI runner of their own (they used
+  to be capped to 3 workers in CI while the backend build shared the runner).
+- **MUI ripple and transitions are off in tests**: `renderWithProviders` passes `TEST_THEME_OVERRIDES`
+  (`MuiButtonBase` `disableRipple`, `transitions.create` returning `none`, every duration 0) through the optional
+  `themeOverrides` prop of `AppProviders`, merged last into the one `createTheme` call so the CSS-variables colour
+  schemes stay intact. TouchRipple timers (80 ms delay, 550 ms exit) otherwise fire after the last `await` and fail a
+  test with "not wrapped in act" on a slow runner; the ripple is gone entirely. MUI's `Transition` still ends in
+  a `setTimeout` with the (now 0 ms) duration, so `flushAsync` stays required. Local durations did not change
+  measurably; it removes a failure mode and shortens waits for dialogs to open or close.
 - **Multi-character input is entered with `user.click(field)` + `user.paste("...")`, not `user.type`**:
   user-event's `type` dispatches the full key event sequence per character and every keystroke re-renders the
   form through the draft state, its validator and the character counter, roughly 11 ms per character locally and

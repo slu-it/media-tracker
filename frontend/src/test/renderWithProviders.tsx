@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from "react";
 import { render, type RenderResult } from "@testing-library/react";
+import type { ThemeOptions } from "@mui/material/styles";
 import { MemoryRouter } from "react-router";
 import { AppProviders } from "../AppProviders";
 import { SearchDebounceContext } from "../hooks/useSearchDebounceMs";
@@ -7,6 +8,27 @@ import { LocationProbe } from "./LocationProbe";
 
 /** Search debounce in tests: short enough to wait out on real timers, long enough to batch a paste. */
 export const TEST_SEARCH_DEBOUNCE_MS = 100;
+
+/**
+ * Tests only: no ripple and zero-length transitions. TouchRipple timers (80 ms delay, 550 ms exit) fired outside
+ * `act` (CI-only "not wrapped in act" failures); Fade/Grow/Dialog transitions (~225 ms) made `waitFor`/`findBy`
+ * poll through animations and now end in a 0 ms timeout. Production keeps the real theme.
+ */
+const TEST_THEME_OVERRIDES: ThemeOptions = {
+  components: { MuiButtonBase: { defaultProps: { disableRipple: true } } },
+  transitions: {
+    create: () => "none",
+    duration: {
+      shortest: 0,
+      shorter: 0,
+      short: 0,
+      standard: 0,
+      complex: 0,
+      enteringScreen: 0,
+      leavingScreen: 0,
+    },
+  },
+};
 
 /**
  * `render` with the same theme/i18n/date-picker providers as main.tsx inside a `MemoryRouter` starting at `route`
@@ -21,7 +43,7 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <MemoryRouter initialEntries={[route]}>
-        <AppProviders>
+        <AppProviders themeOverrides={TEST_THEME_OVERRIDES}>
           <SearchDebounceContext value={searchDebounceMs}>{children}</SearchDebounceContext>
           <LocationProbe />
         </AppProviders>

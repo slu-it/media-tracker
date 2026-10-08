@@ -70,6 +70,7 @@ the checked-out directory:
 | [0033](decisions/0033-title-only-game-search.md) | Game search matches the title only, with a LIKE prefix fallback | Description no longer searched, `ft_games_description` dropped (V011); `MATCH(title)` or `title LIKE 'term%'`, prefix hits first, then relevance, title, id; no new index. |
 | [0034](decisions/0034-books-and-shared-media-building-blocks.md) | Books as the second media kind, on shared media building blocks with per-kind status enums | Separate books domain and explicit components; kind-neutral code in `common/*` and `src/{components/media,domain/media,hooks}`; `BookOwnership`/`BookProgress` own enums; optional seeded types; authors on the shared vocabulary; `media.*` i18n plus props; cover ratio per kind (books 2:3). |
 | [0035](decisions/0035-book-series-and-narrators.md) | Book series as vocabulary with an optional position per link, and narrators like authors | `book_series`/`book_narrators` on the shared vocabulary; `book_to_series.position DECIMAL(6,2) NULL` (0..9999.99) because the number differs per series; JSON number on the wire; series ordered by name; number inputs below the `VocabularyField` chips. |
+| [0036](decisions/0036-split-ci-frontend-job.md) | CI runs the frontend and the backend build as separate jobs | `:frontend:build` and `:backend:build` on separate runners, union = `./gradlew build`; parallel on PRs, `master` publishes only after both; no CI worker caps. Fixes Vitest timeouts caused by CPU contention with the backend tests. |
 
 ## Other documents
 
