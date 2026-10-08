@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { BookAuthorResponse } from "../../../types/api";
+import type { BookAuthorResponse, BookNarratorResponse, BookSeriesResponse } from "../../../types/api";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { bookTypes, hardcover, herbert } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
@@ -102,6 +102,63 @@ describe("AddBookDialog", () => {
     expect(calls.indexOf(authorPost!)).toBeLessThan(calls.indexOf(bookPost!));
     expect(authorPost!.body).toEqual({ name: "New Author" });
     expect(bookPost!.body).toMatchObject({ authorIds: [created.id, herbert.id] });
+  });
+
+  it("creates a pending narrator and series before creating the book, sending ids and the position", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const narrator: BookNarratorResponse = { id: "narrator-new", name: "New Narrator" };
+    const series: BookSeriesResponse = { id: "series-new", name: "New Series" };
+    const calls = mockApi({
+      "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+      "POST /api/book-narrators": () => jsonResponse(narrator, 201),
+      "GET /api/book-narrators": () => jsonResponse([]),
+      "POST /api/book-series": () => jsonResponse(series, 201),
+      "GET /api/book-series": () => jsonResponse([]),
+    });
+    renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={onCreated} types={bookTypes} />);
+    const dialog = screen.getByRole("dialog");
+    await fillTitleAndYear(dialog, user);
+
+    await user.click(within(dialog).getByRole("combobox", { name: /narrators/i }));
+    await user.paste("New Narrator");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("combobox", { name: /series/i }));
+    await user.paste("New Series");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("textbox", { name: "No. New Series" }));
+    await user.paste("1,5");
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
+
+    const bookPost = calls.find((c) => c.url === "/api/books" && c.method === "POST");
+    const seriesPost = calls.find((c) => c.url === "/api/book-series" && c.method === "POST");
+    const narratorPost = calls.find((c) => c.url === "/api/book-narrators" && c.method === "POST");
+    expect(calls.indexOf(seriesPost!)).toBeLessThan(calls.indexOf(bookPost!));
+    expect(calls.indexOf(narratorPost!)).toBeLessThan(calls.indexOf(bookPost!));
+    expect(bookPost!.body).toMatchObject({
+      narratorIds: [narrator.id],
+      series: [{ seriesId: series.id, position: 1.5 }],
+    });
+  });
+
+  it("blocks saving while a series position is invalid", async () => {
+    const user = userEvent.setup();
+    mockApi({ "GET /api/book-series": () => jsonResponse([]) });
+    renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} />);
+    const dialog = screen.getByRole("dialog");
+    await fillTitleAndYear(dialog, user);
+
+    await user.click(within(dialog).getByRole("combobox", { name: /series/i }));
+    await user.paste("Mistborn");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("textbox", { name: "No. Mistborn" }));
+    await user.paste("abc");
+    await user.tab();
+
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(within(dialog).getByText(/Must be a number from 0 to 9999.99/)).toBeInTheDocument();
   });
 
   it("shows the error and does not create the book when creating an author fails", async () => {

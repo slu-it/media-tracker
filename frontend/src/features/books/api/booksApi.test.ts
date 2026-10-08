@@ -1,18 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { dune, herbert, hardcover } from "../../../test/fixtures/books";
+import { dune, duneSaga, herbert, hardcover, simonVance } from "../../../test/fixtures/books";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import type { PageResponse, BookResponse } from "../../../types/api";
 import { EMPTY_BOOK_FILTERS, type BookFilters } from "../domain/bookFilters";
-import { AUTHOR_SEARCH_LIMIT } from "../domain/bookValues";
+import { AUTHOR_SEARCH_LIMIT, NARRATOR_SEARCH_LIMIT, SERIES_SEARCH_LIMIT } from "../domain/bookValues";
 import {
   createBook,
   createBookAuthor,
+  createBookNarrator,
+  createBookSeries,
   deleteBook,
   getBooksMeta,
   listBookTypes,
   listBooks,
   resolveAuthorIds,
+  resolveNarratorIds,
+  resolveSeries,
   searchBookAuthors,
+  searchBookNarrators,
+  searchBookSeries,
   updateBook,
 } from "./booksApi";
 
@@ -76,5 +82,53 @@ describe("booksApi", () => {
     expect(await createBookAuthor("New")).toEqual({ id: "author-9", name: "New" });
     expect(await resolveAuthorIds([herbert, { name: "New" }])).toEqual([herbert.id, "author-9"]);
     expect(calls).toHaveLength(2);
+  });
+
+  it("searches, creates and resolves narrators", async () => {
+    const calls = mockApi({
+      "GET /api/book-narrators": () => jsonResponse([simonVance]),
+      "POST /api/book-narrators": () => jsonResponse({ id: "narrator-9", name: "New" }, 201),
+    });
+    expect(await searchBookNarrators(" simon ")).toEqual([simonVance]);
+    expect(calls[0].url).toBe(`/api/book-narrators?search=simon&limit=${NARRATOR_SEARCH_LIMIT}`);
+    expect(await createBookNarrator("New")).toEqual({ id: "narrator-9", name: "New" });
+    expect(await resolveNarratorIds([simonVance, { name: "New" }])).toEqual([simonVance.id, "narrator-9"]);
+  });
+
+  it("searches and creates series", async () => {
+    const calls = mockApi({
+      "GET /api/book-series": () => jsonResponse([duneSaga]),
+      "POST /api/book-series": () => jsonResponse({ id: "series-9", name: "New" }, 201),
+    });
+    expect(await searchBookSeries(" dune ")).toEqual([duneSaga]);
+    expect(calls[0].url).toBe(`/api/book-series?search=dune&limit=${SERIES_SEARCH_LIMIT}`);
+    expect(await createBookSeries("New")).toEqual({ id: "series-9", name: "New" });
+    expect(calls[1].body).toEqual({ name: "New" });
+  });
+
+  it("resolves series drafts to links, keeping each position aligned with its series", async () => {
+    const calls = mockApi({
+      "POST /api/book-series": () => jsonResponse({ id: "series-9", name: "New" }, 201),
+    });
+    const links = await resolveSeries([
+      { entry: { name: "New" }, position: "2,5" },
+      { entry: duneSaga, position: "" },
+      { entry: { name: " new " }, position: "7" },
+    ]);
+    expect(links).toEqual([
+      { seriesId: "series-9", position: 2.5 },
+      { seriesId: duneSaga.id, position: null },
+    ]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("prefers the first duplicate series link that has a position", async () => {
+    mockApi({});
+    const links = await resolveSeries([
+      { entry: duneSaga, position: "" },
+      { entry: duneSaga, position: "3" },
+      { entry: duneSaga, position: "4" },
+    ]);
+    expect(links).toEqual([{ seriesId: duneSaga.id, position: 3 }]);
   });
 });

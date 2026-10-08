@@ -3,9 +3,10 @@
 ADRs: [0034](../decisions/0034-books-and-shared-media-building-blocks.md) (separate domain on shared media
 building blocks), with [0009](../decisions/0009-game-platforms-as-reference-data.md) (types as seeded reference
 data) and [0029](../decisions/0029-game-release-date-and-developers.md) (release date, authors as vocabulary)
-applied to books.
-Code: `backend/src/main/kotlin/de/sluit/mediatracker/books/`, `frontend/src/features/books/`, migration
-`V012__books.sql`.
+applied to books, and [0035](../decisions/0035-book-series-and-narrators.md) (series with a position per link,
+narrators like authors, MT-042).
+Code: `backend/src/main/kotlin/de/sluit/mediatracker/books/`, `frontend/src/features/books/`, migrations
+`V012__books.sql`, `V013__book_series_and_narrators.sql`.
 
 Books is the second media kind. Its first version is the games overview equivalent: add, edit, delete and a
 paged, searchable, filterable list at `/books/overview`, plus MCP tools. There are no watchlist or ranking
@@ -22,6 +23,13 @@ sub-pages, no rating, no hidden flag, no expansions and no cover picker yet.
 - **Authors** are a user-created vocabulary in `book_authors` through `book_to_author`, built on the shared
   `ExposedNameVocabulary`: unique case- and accent-insensitive names of at most 128 characters, idempotent create,
   prefix plus fulltext lookup. Authors nobody references are kept.
+- **Narrators** (MT-042) work exactly like authors, in `book_narrators` through `book_to_narrator`. They are
+  meant for audiobooks but can be set on any book.
+- **Series** (MT-042) are the same kind of vocabulary in `book_series`, linked through `book_to_series`, which
+  carries an optional `position DECIMAL(6,2)` (`BookSeriesPosition`: 0 to 9999.99, at most two decimals, so
+  novellas can be #2.5 and prequels #0). A book is in a series at most once, and may be in several, each with its
+  own number (ADR 0035).
+- Authors, narrators and series of a book are ordered by name.
 - **Ownership** `watchlist | owned` and **progress** `abandoned | not_started | paused | reading | finished`
   are `BookOwnership` and `BookProgress` in `books/domain/BookStatus.kt` (declaration order is display order;
   defaults `watchlist` / `not_started`). There is no `subscription` and no `completed` (100 %). Both use the
@@ -34,12 +42,14 @@ sub-pages, no rating, no hidden flag, no expansions and no cover picker yet.
 | Method and path | Purpose |
 |---|---|
 | `GET /api/books?page=&pageSize=&search=&typeIds=&ownership=&progress=&releaseYear=` | Paged list; the four filters repeat, OR within, AND across; the type filter is a semi-join |
-| `POST /api/books` | Create (201); `releaseYear` may be omitted when `releaseDate` is given; `typeIds`/`authorIds` default to `[]` |
-| `PATCH /api/books/{id}` | `PatchField` for description, cover URL and date (`null` clears); `typeIds`/`authorIds` replace the set |
+| `POST /api/books` | Create (201); `releaseYear` may be omitted when `releaseDate` is given; `typeIds`/`authorIds`/`narratorIds`/`series` default to `[]`; `series` is `[{seriesId, position?}]`, a repeated `seriesId` is a 400 |
+| `PATCH /api/books/{id}` | `PatchField` for description, cover URL and date (`null` clears); `typeIds`/`authorIds`/`narratorIds`/`series` replace the set |
 | `DELETE /api/books/{id}` | 204 |
 | `GET /api/books.meta` | Filter values in use: types, ownership, progress, release years (newest first) |
 | `GET /api/book-types` | The seeded types |
 | `GET`/`POST /api/book-authors` | Lookup (`search`, `limit` 1..50, default 10) and idempotent create (201 new, 200 existing) |
+| `GET`/`POST /api/book-narrators` | As `/api/book-authors` |
+| `GET`/`POST /api/book-series` | As `/api/book-authors`; `BookResponse.series` is `[{id, name, position}]` |
 
 Search matches the title only, as for games (ADR 0033): a fulltext prefix term or `title LIKE 'term%'`, prefix
 hits first (`common/persistence/TitleSearch.kt`).
@@ -48,9 +58,10 @@ hits first (`common/persistence/TitleSearch.kt`).
 
 `list_book_types`, `add_book`, `search_books` (query and/or filters `typeIds`, `ownership`, `progress`,
 `releaseYears`, agent-only `hasMissing` with `description`/`coverImageUrl`, `pageSize` default 10, maximum 100),
-`update_book` (description, cover URL and date clearable with `null`), `search_book_authors` and
-`create_book_author`. Agents look up authors first, create missing ones, then add or update the book with
-`authorIds`. There is no delete tool, as for games.
+`update_book` (description, cover URL and date clearable with `null`), `search_book_authors`,
+`create_book_author`, `search_book_narrators`, `create_book_narrator`, `search_book_series` and
+`create_book_series`. Agents look up authors, narrators and series first, create missing ones, then add or update
+the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`, replaced as a whole on update). There is no delete tool, as for games.
 
 ## Frontend
 
@@ -66,6 +77,10 @@ hits first (`common/persistence/TitleSearch.kt`).
 - Book covers use a 2:3 frame (`BOOK_COVER_ASPECT_RATIO` in `domain/bookValues.ts`), passed to the shared
   `CoverImage`, `MediaCardShell` and `MediaGrid`.
 - `BookDetailDialog` mirrors the game dialog: view mode with quick ownership and progress PATCHes, edit with
-  `BookForm`, delete with confirmation. New authors typed in `AuthorsField` are created on save before the book
-  (`resolveAuthorIds`).
+  `BookForm`, delete with confirmation. New authors, narrators and series typed in `AuthorsField`,
+  `NarratorsField` and `SeriesField` are created on save before the book (`resolveAuthorIds`,
+  `resolveNarratorIds`, `resolveSeries`). The form order is authors, narrators, series.
+- `SeriesField` wraps the shared `VocabularyField` and adds one number input per selected series below the chips
+  (`validateSeriesPosition`, `.` or `,` as decimal separator). A number survives when its pending chip is upgraded
+  to an existing series. The detail view shows "Mistborn #1", with the number formatted for the active language.
 - Everything kind-neutral is shared, see [games.md](games.md#shared-media-building-blocks).

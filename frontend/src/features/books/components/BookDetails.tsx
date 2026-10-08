@@ -9,6 +9,7 @@ import { NameChips } from "../../../components/media/NameChips";
 import { ReleaseDetail } from "../../../components/media/ReleaseDetail";
 import type { BookOwnership, BookProgress } from "../domain/bookStatus";
 import { BOOK_COVER_ASPECT_RATIO } from "../domain/bookValues";
+import { formatSeriesEntry } from "../domain/seriesLabel";
 import { BookOwnershipToggleBar } from "./BookOwnershipToggleBar";
 import { BookProgressToggleBar } from "./BookProgressToggleBar";
 import { BookStatusIcons } from "./BookStatusIcons";
@@ -29,7 +30,7 @@ interface BookDetailsProps {
  * ownership and progress bars), which report a change for the caller to save.
  */
 export function BookDetails({ book, titleId, onOwnershipChange, onProgressChange, quickSaveBusy }: BookDetailsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <CoverAndInfoLayout
       scrollInfo
@@ -78,6 +79,21 @@ export function BookDetails({ book, titleId, onOwnershipChange, onProgressChange
         {book.authors.length > 0 && (
           <DetailField label={t("books.fields.authors")}>
             <NameChips items={book.authors} />
+          </DetailField>
+        )}
+        {book.narrators.length > 0 && (
+          <DetailField label={t("books.fields.narrators")}>
+            <NameChips items={book.narrators} />
+          </DetailField>
+        )}
+        {book.series.length > 0 && (
+          <DetailField label={t("books.fields.series")}>
+            <NameChips
+              items={book.series.map((entry) => ({
+                id: entry.id,
+                name: formatSeriesEntry(entry, t, i18n.language),
+              }))}
+            />
           </DetailField>
         )}
       </Stack>

@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { dune, earthsea, herbert } from "../../../test/fixtures/books";
+import { dune, earthsea, herbert, simonVance } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookDetails } from "./BookDetails";
 
@@ -72,5 +72,35 @@ describe("BookDetails", () => {
     await user.click(screen.getByRole("button", { name: "Finished" }));
     expect(onOwnershipChange).not.toHaveBeenCalled();
     expect(onProgressChange).not.toHaveBeenCalled();
+  });
+
+  it("shows narrators and series with formatted positions, in the order authors, narrators, series", () => {
+    renderWithProviders(
+      <BookDetails
+        book={{
+          ...dune,
+          narrators: [simonVance],
+          series: [
+            { id: "s1", name: "Dune Saga", position: 2.5 },
+            { id: "s2", name: "Cosmere", position: null },
+          ],
+        }}
+        titleId="title"
+      />,
+    );
+    const authors = screen.getByText("Authors");
+    const narrators = screen.getByText("Narrators");
+    const series = screen.getByText("Series");
+    expect(authors.compareDocumentPosition(narrators) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(narrators.compareDocumentPosition(series) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText(simonVance.name)).toBeInTheDocument();
+    expect(screen.getByText("Dune Saga #2.5")).toBeInTheDocument();
+    expect(screen.getByText("Cosmere")).toBeInTheDocument();
+  });
+
+  it("hides the narrators and series fields when empty", () => {
+    renderWithProviders(<BookDetails book={dune} titleId="title" />);
+    expect(screen.queryByText("Narrators")).not.toBeInTheDocument();
+    expect(screen.queryByText("Series")).not.toBeInTheDocument();
   });
 });

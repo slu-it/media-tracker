@@ -10,12 +10,20 @@ import de.sluit.mediatracker.books.domain.BookAuthorService
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMeta
+import de.sluit.mediatracker.books.domain.BookNarratorId
+import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSeriesId
+import de.sluit.mediatracker.books.domain.BookSeriesPosition
+import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
+import de.sluit.mediatracker.books.narrator
+import de.sluit.mediatracker.books.series
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
 import de.sluit.mediatracker.common.api.PageResponse
@@ -55,6 +63,7 @@ import io.mockk.coVerify
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -72,9 +81,17 @@ class BookRoutesTest {
     private suspend fun ApplicationTestBuilder.loggedInClient(
         books: BookService = mockk(),
         authors: BookAuthorService = mockk(),
+        narrators: BookNarratorService = mockk(),
+        series: BookSeriesService = mockk(),
     ): HttpClient {
         val auth = mockk<AuthService>()
-        val client = handlerApp(auth, books = books, bookAuthors = authors)
+        val client = handlerApp(
+            auth,
+            books = books,
+            bookAuthors = authors,
+            bookNarrators = narrators,
+            bookSeries = series,
+        )
         client.loginAsMocked(auth)
         return client
     }
@@ -110,6 +127,10 @@ class BookRoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/books.meta").status)
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-authors").status)
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-authors").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-narrators").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-narrators").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-series").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-series").status)
     }
 
     // ---- create ----
@@ -170,6 +191,8 @@ class BookRoutesTest {
         assertContains(body, "\"releaseDate\":null")
         assertContains(body, "\"types\":[]")
         assertContains(body, "\"authors\":[]")
+        assertContains(body, "\"narrators\":[]")
+        assertContains(body, "\"series\":[]")
     }
 
     @Test
@@ -659,5 +682,261 @@ class BookRoutesTest {
 
         client.post("/api/book-authors") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
         coVerify(exactly = 0) { authors.create(any()) }
+    }
+
+    // ---- narrators and series on books ----
+
+    @Test
+    fun `create response mirrors narrators and series with their positions`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val created = book(
+            "The Final Empire",
+            narrators = listOf(narrator("Michael Kramer")),
+            series = listOf(seriesEntry(series("Mistborn"), 2.5), seriesEntry(series("The Cosmere"))),
+        )
+        coEvery { books.create(any()) } returns created
+
+        val body = client.createBook("""{"title":"x","releaseYear":2006}""").bodyAsText()
+        val response = Json.decodeFromString<BookResponse>(body)
+
+        assertEquals(listOf("Michael Kramer"), response.narrators.map { it.name })
+        assertEquals(listOf("Mistborn", "The Cosmere"), response.series.map { it.name })
+        assertEquals(listOf(2.5, null), response.series.map { it.position })
+        assertContains(body, "\"position\":null")
+    }
+
+    @Test
+    fun `create hands narrator ids and series positions to the service`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val captured = slot<NewBook>()
+        coEvery { books.create(capture(captured)) } returns book("Dune")
+        val narratorId = Uuid.random().toString()
+        val withPosition = Uuid.random().toString()
+        val withoutPosition = Uuid.random().toString()
+
+        client.createBook(
+            """{"title":"Dune","releaseYear":1965,"narratorIds":["$narratorId"],
+                |"series":[{"seriesId":"$withPosition","position":2.5},{"seriesId":"$withoutPosition"}]}
+            """.trimMargin(),
+        )
+
+        assertEquals(setOf(BookNarratorId.parse(narratorId)), captured.captured.narratorIds)
+        assertEquals(
+            mapOf(
+                BookSeriesId.parse(withPosition) to BookSeriesPosition.fromDouble(2.5),
+                BookSeriesId.parse(withoutPosition) to null,
+            ),
+            captured.captured.series,
+        )
+    }
+
+    @Test
+    fun `create without narrators and series hands empty collections to the service`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val captured = slot<NewBook>()
+        coEvery { books.create(capture(captured)) } returns book("Dune")
+
+        client.createBook("""{"title":"Dune","releaseYear":1965}""")
+
+        assertEquals(emptySet(), captured.captured.narratorIds)
+        assertEquals(emptyMap(), captured.captured.series)
+    }
+
+    @Test
+    fun `create rejects a malformed narrator id`() = testApplication {
+        val client = loggedInClient()
+
+        client.createBook("""{"title":"x","releaseYear":1965,"narratorIds":["nope"]}""")
+            .assertValidationError("narratorIds")
+    }
+
+    @Test
+    fun `create rejects a malformed series id`() = testApplication {
+        val client = loggedInClient()
+
+        client.createBook("""{"title":"x","releaseYear":1965,"series":[{"seriesId":"nope"}]}""")
+            .assertValidationError("series")
+    }
+
+    @Test
+    fun `create rejects a duplicate series id`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = Uuid.random().toString()
+
+        client.createBook(
+            """{"title":"x","releaseYear":1965,"series":[{"seriesId":"$id","position":1},{"seriesId":"$id"}]}""",
+        ).assertValidationError("series")
+        coVerify(exactly = 0) { books.create(any()) }
+    }
+
+    @Test
+    fun `create rejects invalid series positions`() = testApplication {
+        val client = loggedInClient()
+        val id = Uuid.random().toString()
+
+        listOf("-1", "10000", "1.234").forEach { position ->
+            client.createBook(
+                """{"title":"x","releaseYear":1965,"series":[{"seriesId":"$id","position":$position}]}""",
+            ).assertValidationError("series")
+        }
+    }
+
+    @Test
+    fun `patch maps empty narrator and series lists to cleared collections`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = BookId.new()
+        val captured = patchSlot(books, id)
+
+        client.patchBook(id, """{"narratorIds":[],"series":[]}""")
+
+        assertEquals(emptySet(), captured.captured.narratorIds)
+        assertEquals(emptyMap(), captured.captured.series)
+    }
+
+    @Test
+    fun `patch without narrators and series leaves them unchanged`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = BookId.new()
+        val captured = patchSlot(books, id)
+
+        client.patchBook(id, "{}")
+
+        assertNull(captured.captured.narratorIds)
+        assertNull(captured.captured.series)
+    }
+
+    @Test
+    fun `patch maps series with and without positions`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = BookId.new()
+        val captured = patchSlot(books, id)
+        val seriesId = Uuid.random().toString()
+
+        client.patchBook(id, """{"series":[{"seriesId":"$seriesId","position":0}]}""")
+
+        assertEquals(
+            mapOf(BookSeriesId.parse(seriesId) to BookSeriesPosition.fromDouble(0.0)),
+            captured.captured.series,
+        )
+    }
+
+    @Test
+    fun `patch rejects a duplicate series id`() = testApplication {
+        val client = loggedInClient()
+        val id = BookId.new()
+        val seriesId = Uuid.random().toString()
+
+        client.patchBook(id, """{"series":[{"seriesId":"$seriesId"},{"seriesId":"$seriesId"}]}""")
+            .assertValidationError("series")
+    }
+
+    // ---- narrators ----
+
+    @Test
+    fun `narrator search passes the term and the default limit`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narrators)
+        coEvery { narrators.search(SearchTerm("mic"), VocabularySearchLimit.DEFAULT) } returns
+            listOf(narrator("Michael Kramer"))
+
+        val response = client.get("/api/book-narrators?search=mic").decodeBody<List<BookNarratorResponse>>()
+
+        assertEquals(listOf("Michael Kramer"), response.map { it.name })
+    }
+
+    @Test
+    fun `narrator search rejects a limit above the maximum`() = testApplication {
+        val client = loggedInClient(narrators = mockk<BookNarratorService>())
+
+        client.get("/api/book-narrators?limit=${VocabularySearchLimit.MAX + 1}").assertValidationError("limit")
+    }
+
+    @Test
+    fun `creating a new narrator is 201 and an existing one is 200`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narrators)
+        val kramer = narrator("Michael Kramer")
+        coEvery { narrators.create(VocabularyName("Michael Kramer")) } returns VocabularyCreation(kramer, true)
+        coEvery { narrators.create(VocabularyName("michael kramer")) } returns VocabularyCreation(kramer, false)
+
+        val created = client.post("/api/book-narrators") { jsonBody("""{"name":"Michael Kramer"}""") }
+        val existing = client.post("/api/book-narrators") { jsonBody("""{"name":"michael kramer"}""") }
+
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertEquals(kramer.id.toString(), created.decodeBody<BookNarratorResponse>().id)
+        assertEquals(HttpStatusCode.OK, existing.status, existing.bodyAsText())
+    }
+
+    @Test
+    fun `creating a narrator with a blank name is a 400`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narrators)
+
+        client.post("/api/book-narrators") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
+        coVerify(exactly = 0) { narrators.create(any()) }
+    }
+
+    // ---- series ----
+
+    @Test
+    fun `series search passes the term and the default limit`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = loggedInClient(series = seriesService)
+        coEvery { seriesService.search(SearchTerm("mist"), VocabularySearchLimit.DEFAULT) } returns
+            listOf(series("Mistborn"))
+
+        val response = client.get("/api/book-series?search=mist").decodeBody<List<BookSeriesResponse>>()
+
+        assertEquals(listOf("Mistborn"), response.map { it.name })
+    }
+
+    @Test
+    fun `series search passes an explicit limit and no term when absent`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = loggedInClient(series = seriesService)
+        coEvery { seriesService.search(null, VocabularySearchLimit(5)) } returns emptyList()
+
+        client.get("/api/book-series?limit=5")
+
+        coVerify { seriesService.search(null, VocabularySearchLimit(5)) }
+    }
+
+    @Test
+    fun `series search rejects a limit above the maximum`() = testApplication {
+        val client = loggedInClient(series = mockk<BookSeriesService>())
+
+        client.get("/api/book-series?limit=${VocabularySearchLimit.MAX + 1}").assertValidationError("limit")
+    }
+
+    @Test
+    fun `creating a new series is 201 and an existing one is 200`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = loggedInClient(series = seriesService)
+        val mistborn = series("Mistborn")
+        coEvery { seriesService.create(VocabularyName("Mistborn")) } returns VocabularyCreation(mistborn, true)
+        coEvery { seriesService.create(VocabularyName("mistborn")) } returns VocabularyCreation(mistborn, false)
+
+        val created = client.post("/api/book-series") { jsonBody("""{"name":"Mistborn"}""") }
+        val existing = client.post("/api/book-series") { jsonBody("""{"name":"mistborn"}""") }
+
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertEquals(mistborn.id.toString(), created.decodeBody<BookSeriesResponse>().id)
+        assertEquals(HttpStatusCode.OK, existing.status, existing.bodyAsText())
+    }
+
+    @Test
+    fun `creating a series with a blank name is a 400`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = loggedInClient(series = seriesService)
+
+        client.post("/api/book-series") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
+        coVerify(exactly = 0) { seriesService.create(any()) }
     }
 }

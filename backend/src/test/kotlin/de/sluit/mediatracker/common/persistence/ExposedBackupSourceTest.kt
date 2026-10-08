@@ -3,10 +3,15 @@ package de.sluit.mediatracker.common.persistence
 import de.sluit.mediatracker.books.BookTypes
 import de.sluit.mediatracker.books.book
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BookNarratorsTable
+import de.sluit.mediatracker.books.persistence.BookSeriesTable
 import de.sluit.mediatracker.books.persistence.BooksBackupSource
 import de.sluit.mediatracker.books.persistence.BooksTable
 import de.sluit.mediatracker.books.persistence.ExposedBookAuthorRepository
+import de.sluit.mediatracker.books.persistence.ExposedBookNarratorRepository
 import de.sluit.mediatracker.books.persistence.ExposedBookRepository
+import de.sluit.mediatracker.books.persistence.ExposedBookSeriesRepository
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.BackupRow
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
@@ -333,6 +338,58 @@ class ExposedBackupSourceTest {
         assertEquals(2, result.getValue("book_to_type").inserted)
         assertEquals(1, result.getValue("book_to_author").inserted)
         assertEquals(exported, BooksBackupSource.export())
+    }
+
+    @Test
+    fun `export then import reproduces narrators and series with and without a decimal position`() = withFreshDatabase {
+        val books = ExposedBookRepository()
+        val kramer = ExposedBookNarratorRepository().create(VocabularyName("Michael Kramer")).entry
+        val seriesRepo = ExposedBookSeriesRepository()
+        val mistborn = seriesRepo.create(VocabularyName("Mistborn")).entry
+        val cosmere = seriesRepo.create(VocabularyName("The Cosmere")).entry
+        books.insert(
+            book(
+                "The Final Empire",
+                narrators = listOf(kramer),
+                series = listOf(seriesEntry(mistborn, 2.5), seriesEntry(cosmere)),
+            ),
+        )
+
+        val exported = BooksBackupSource.export()
+
+        // the DECIMAL position is dumped as a JSON number, null stays null
+        val positions = exported.getValue("book_to_series").associate { it["series_id"] to it["position"] }
+        assertEquals(2.5, positions[mistborn.id.toString()])
+        assertNull(positions[cosmere.id.toString()])
+        dbQuery {
+            BooksTable.deleteAll()
+            BookNarratorsTable.deleteAll()
+            BookSeriesTable.deleteAll()
+        }
+
+        val result = BooksBackupSource.import(exported)
+
+        assertEquals(1, result.getValue("book_narrators").inserted)
+        assertEquals(1, result.getValue("book_to_narrator").inserted)
+        assertEquals(2, result.getValue("book_series").inserted)
+        assertEquals(2, result.getValue("book_to_series").inserted)
+        assertEquals(exported, BooksBackupSource.export())
+    }
+
+    @Test
+    fun `import rejects a decimal position that does not fit the column`() {
+        val row = mapOf<String, Any?>(
+            "book_id" to Uuid.random().toString(),
+            "series_id" to Uuid.random().toString(),
+        )
+
+        listOf(10000.0, 1.234, "x").forEach { position ->
+            assertFailsWith<InvalidValueException> {
+                BooksBackupSource.validate(mapOf("book_to_series" to listOf(row + ("position" to position))))
+            }
+        }
+        BooksBackupSource.validate(mapOf("book_to_series" to listOf(row + ("position" to 9999.99))))
+        BooksBackupSource.validate(mapOf("book_to_series" to listOf(row)))
     }
 
     private fun validGameRow(

@@ -4,9 +4,15 @@ import de.sluit.mediatracker.books.domain.Book
 import de.sluit.mediatracker.books.domain.BookAuthor
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookMeta
+import de.sluit.mediatracker.books.domain.BookNarrator
+import de.sluit.mediatracker.books.domain.BookNarratorId
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSeries
+import de.sluit.mediatracker.books.domain.BookSeriesEntry
+import de.sluit.mediatracker.books.domain.BookSeriesId
+import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
@@ -15,6 +21,7 @@ import de.sluit.mediatracker.common.api.PatchFieldSerializer
 import de.sluit.mediatracker.common.api.toPatch
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.Title
@@ -25,8 +32,8 @@ import kotlinx.serialization.Serializable
 
 /**
  * POST /api/books. [releaseYear] is required unless [releaseDate] is given, in which case the date's year is
- * used instead (and overrides a [releaseYear] that contradicts it); see [toNewBook]. [typeIds] and [authorIds]
- * may be empty.
+ * used instead (and overrides a [releaseYear] that contradicts it); see [toNewBook]. [typeIds], [authorIds],
+ * [narratorIds] and [series] may be empty.
  */
 @Serializable
 data class CreateBookRequest(
@@ -39,11 +46,13 @@ data class CreateBookRequest(
     val progress: String? = null,
     val typeIds: List<String> = emptyList(),
     val authorIds: List<String> = emptyList(),
+    val narratorIds: List<String> = emptyList(),
+    val series: List<BookSeriesLinkRequest> = emptyList(),
 )
 
 /**
  * PATCH /api/books/{id}: every field optional; `description`/`coverImageUrl`/`releaseDate: null` clears the
- * field. `typeIds` and `authorIds`, when present, replace the full set and may be empty. `ownership` and
+ * field. `typeIds`, `authorIds`, `narratorIds` and `series`, when present, replace the full set and may be empty. `ownership` and
  * `progress` cannot be cleared, so they are plain nullable fields rather than `PatchField`.
  */
 @Serializable
@@ -60,7 +69,13 @@ data class UpdateBookRequest(
     val progress: String? = null,
     val typeIds: List<String>? = null,
     val authorIds: List<String>? = null,
+    val narratorIds: List<String>? = null,
+    val series: List<BookSeriesLinkRequest>? = null,
 )
+
+/** One book-to-series link in a request: the series and the book's optional number in it (e.g. 1 or 2.5). */
+@Serializable
+data class BookSeriesLinkRequest(val seriesId: String, val position: Double? = null)
 
 @Serializable
 data class BookTypeResponse(val id: String, val label: String, val associatedColor: String)
@@ -71,6 +86,24 @@ data class BookAuthorResponse(val id: String, val name: String)
 /** POST /book-authors */
 @Serializable
 data class CreateBookAuthorRequest(val name: String)
+
+@Serializable
+data class BookNarratorResponse(val id: String, val name: String)
+
+/** POST /book-narrators */
+@Serializable
+data class CreateBookNarratorRequest(val name: String)
+
+@Serializable
+data class BookSeriesResponse(val id: String, val name: String)
+
+/** POST /book-series */
+@Serializable
+data class CreateBookSeriesRequest(val name: String)
+
+/** A series of a book with the book's [position] in it, `null` when it has no number. */
+@Serializable
+data class BookSeriesEntryResponse(val id: String, val name: String, val position: Double?)
 
 @Serializable
 data class BookResponse(
@@ -84,6 +117,8 @@ data class BookResponse(
     val progress: String,
     val types: List<BookTypeResponse>,
     val authors: List<BookAuthorResponse>,
+    val narrators: List<BookNarratorResponse>,
+    val series: List<BookSeriesEntryResponse>,
 )
 
 /** GET /api/books.meta: the filter values that actually occur in the stored books, pre-ordered by the domain. */
@@ -105,6 +140,8 @@ fun CreateBookRequest.toNewBook(): NewBook {
         releaseYear = year,
         typeIds = typeIds.map(BookTypeId::parse).toSet(),
         authorIds = authorIds.map(BookAuthorId::parse).toSet(),
+        narratorIds = narratorIds.map(BookNarratorId::parse).toSet(),
+        series = series.toPositions(),
         description = description?.let(::Description),
         coverImageUrl = coverImageUrl?.let(::CoverImageUrl),
         ownership = ownership?.let(BookOwnership::from) ?: BookOwnership.DEFAULT,
@@ -118,6 +155,8 @@ fun UpdateBookRequest.toPatch() = BookPatch(
     releaseYear = releaseYear?.let(::ReleaseYear),
     typeIds = typeIds?.map(BookTypeId::parse)?.toSet(),
     authorIds = authorIds?.map(BookAuthorId::parse)?.toSet(),
+    narratorIds = narratorIds?.map(BookNarratorId::parse)?.toSet(),
+    series = series?.toPositions(),
     description = description.toPatch(::Description),
     coverImageUrl = coverImageUrl.toPatch(::CoverImageUrl),
     ownership = ownership?.let(BookOwnership::from),
@@ -125,9 +164,28 @@ fun UpdateBookRequest.toPatch() = BookPatch(
     releaseDate = releaseDate.toPatch(ReleaseDate::parse),
 )
 
+/** A series may be linked once per book; a repeated id is a client error, not something to merge silently. */
+private fun List<BookSeriesLinkRequest>.toPositions(): Map<BookSeriesId, BookSeriesPosition?> {
+    val positions = LinkedHashMap<BookSeriesId, BookSeriesPosition?>()
+    forEach { link ->
+        val id = BookSeriesId.parse(link.seriesId)
+        val position = link.position?.let(BookSeriesPosition::fromDouble)
+        if (positions.containsKey(id)) throw InvalidValueException(BookSeriesId.FIELD, "must not contain duplicates")
+        positions[id] = position
+    }
+    return positions
+}
+
 fun BookType.toResponse() = BookTypeResponse(id = id.toString(), label = label.value, associatedColor = color.value)
 
 fun BookAuthor.toResponse() = BookAuthorResponse(id = id.toString(), name = name.value)
+
+fun BookNarrator.toResponse() = BookNarratorResponse(id = id.toString(), name = name.value)
+
+fun BookSeries.toResponse() = BookSeriesResponse(id = id.toString(), name = name.value)
+
+fun BookSeriesEntry.toResponse() =
+    BookSeriesEntryResponse(id = series.id.toString(), name = series.name.value, position = position?.value?.toDouble())
 
 fun Book.toResponse() = BookResponse(
     id = id.toString(),
@@ -140,6 +198,8 @@ fun Book.toResponse() = BookResponse(
     progress = progress.wire,
     types = types.map { it.toResponse() },
     authors = authors.map { it.toResponse() },
+    narrators = narrators.map { it.toResponse() },
+    series = series.map { it.toResponse() },
 )
 
 fun BookMeta.toResponse() = BookMetaResponse(

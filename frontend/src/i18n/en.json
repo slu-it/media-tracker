@@ -164,7 +164,13 @@
     "fields": {
       "types": "Types",
       "authors": "Authors",
-      "authorsHint": "Type a name and press Enter to add a new author"
+      "authorsHint": "Type a name and press Enter to add a new author",
+      "narrators": "Narrators",
+      "narratorsHint": "Type a name and press Enter to add a new narrator",
+      "series": "Series",
+      "seriesHint": "Type a name and press Enter to add a new series",
+      "seriesPosition": "No.",
+      "seriesEntry": "{{name}} #{{position}}"
     },
     "ownership": {
       "watchlist": "Watchlist",
@@ -270,6 +276,7 @@
     "invalidYear": "Must be a four-digit year",
     "invalidRating": "Must be between 0.25 and 5 in steps of 0.25",
     "invalidDate": "Must be a valid date with a four-digit year",
+    "invalidPosition": "Must be a number from 0 to 9999.99 with at most 2 decimals",
     "tooShort": "At least {{min}} characters",
     "mismatch": "Passwords do not match"
   },

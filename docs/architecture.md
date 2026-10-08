@@ -71,8 +71,9 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   (decision record 0029), all in `games/api/GameMcpTools.kt`. Books contributes the equivalents in
   `books/api/BookMcpTools.kt` (decision record 0034): `list_book_types`, `add_book`, `search_books` (query and the
   filters `typeIds`, `ownership`, `progress`, `releaseYears`, `hasMissing`, `pageSize`; no `sort`/`rated`),
-  `update_book` (`description`, `coverImageUrl` and `releaseDate` clearable), `search_book_authors` and
-  `create_book_author`; neither kind has a delete tool. The `ownership` and `progress` arguments
+  `update_book` (`description`, `coverImageUrl` and `releaseDate` clearable), `search_book_authors`,
+  `create_book_author`, `search_book_narrators`, `create_book_narrator`, `search_book_series` and
+  `create_book_series` (decision record 0035); neither kind has a delete tool. The `ownership` and `progress` arguments
   advertise their allowed values as a JSON-schema `enum` built from the domain enums, so the tool contract cannot
   drift from the code (decision record 0017). The route encodes
   JSON-RPC replies with the SDK's `McpJson` before the application-wide `ContentNegotiation` sees them (which would
@@ -142,15 +143,19 @@ de.sluit.mediatracker
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 ├── books/              second media kind (decision record 0034), same layers as games, no integration:
 │   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types,
-│   │                   /api/book-authors), BookFilterParams, BookMcpTools (list_book_types, add_book,
-│   │                   search_books, update_book, search_book_authors, create_book_author)
-│   ├── domain/         BookValues (BookId, BookTypeId, BookTypeLabel, BookAuthorId), BookStatus (BookOwnership,
-│   │                   BookProgress), Book/NewBook/BookPatch, BookType, BookAuthor, BookFilters (incl.
-│   │                   BookMissingField)/BookMeta, BookRepository, BookTypeRepository, BookAuthorRepository
-│   │                   (interfaces), BookService, BookAuthorService
+│   │                   /api/book-authors, /api/book-narrators, /api/book-series), BookFilterParams,
+│   │                   BookMcpTools (list_book_types, add_book, search_books, update_book, search/create for
+│   │                   book authors, narrators and series)
+│   ├── domain/         BookValues (BookId, BookTypeId, BookTypeLabel, BookAuthorId, BookNarratorId,
+│   │                   BookSeriesId, BookSeriesPosition), BookStatus (BookOwnership, BookProgress),
+│   │                   Book/NewBook/BookPatch, BookType, BookAuthor, BookNarrator, BookSeries/BookSeriesEntry,
+│   │                   BookFilters (incl. BookMissingField)/BookMeta, BookRepository, BookTypeRepository,
+│   │                   BookAuthorRepository, BookNarratorRepository, BookSeriesRepository (interfaces),
+│   │                   BookService, BookAuthorService, BookNarratorService, BookSeriesService
 │   └── persistence/    BooksTable, BookTypesTable, BookToTypeTable, BookAuthorsTable, BookToAuthorTable,
-│                       ExposedBookRepository, ExposedBookTypeRepository, ExposedBookAuthorRepository
-│                       (delegates to ExposedNameVocabulary), BooksBackupSource (the five books tables)
+│                       BookNarratorsTable, BookToNarratorTable, BookSeriesTable, BookToSeriesTable,
+│                       ExposedBookRepository, ExposedBookTypeRepository, ExposedBook{Author,Narrator,Series}Repository
+│                       (delegate to ExposedNameVocabulary), BooksBackupSource (the nine books tables)
 └── games/              first media kind (MT-001, decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms, /api/game-developers), GameFilterParams (the repeatable filter query parameters),
@@ -212,12 +217,14 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/game-developers?search=nin&limit=10` | 200 `GameDeveloperResponse[]` | `id`, `name`; prefix fulltext match on the name plus `name LIKE 'term%'` for names InnoDB does not index (under three characters, stopwords), with LIKE hits first, `limit` 1..50 (default 10), blank `search` lists by name (decision record 0029) |
 | `POST /api/game-developers` | 201 / 200 `GameDeveloperResponse` | body `{name}` (trimmed, 1..128 chars); 201 when created, 200 with the existing row when the name exists (case-insensitive) |
 | `GET /api/books?page=1&pageSize=50[&search=dune][&filters]` | 200 `PageResponse<BookResponse>` | as `GET /api/games` (paging, title-only search and its order), with the repeatable filters `typeIds`, `ownership` (`watchlist`/`owned`), `progress` (`abandoned`/`not_started`/`paused`/`reading`/`finished`), `releaseYear`; the type filter is a semi-join; no `sort`, no `rated` (decision record 0034) |
-| `POST /api/books` | 201 `BookResponse` + `Location` | body `CreateBookRequest`: `title`, `releaseYear` required unless `releaseDate` is given, `typeIds` and `authorIds` optional (default `[]`, a book may have no type), `description`, `coverImageUrl`, `ownership` (default `watchlist`), `progress` (default `not_started`) optional |
-| `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds` replace the set (may be empty); 404 for unknown ids |
+| `POST /api/books` | 201 `BookResponse` + `Location` | body `CreateBookRequest`: `title`, `releaseYear` required unless `releaseDate` is given, `typeIds`, `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`, position 0..9999.99 with at most two decimals, a repeated `seriesId` is a 400) optional (default `[]`, a book may have no type), `description`, `coverImageUrl`, `ownership` (default `watchlist`), `progress` (default `not_started`) optional |
+| `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds`/`narratorIds`/`series` replace the set (may be empty); 404 for unknown ids |
 | `DELETE /api/books/{id}` | 204 | idempotent; junction rows cascade |
 | `GET /api/books.meta` | 200 `BookMetaResponse` | `types`, `ownership`, `progress`, `releaseYears` in use, ordered as for games |
 | `GET /api/book-types` | 200 `BookTypeResponse[]` | seeded (Hardcover, Paperback, Kindle, Audible; `id`, `label`, `associatedColor`), ordered by label |
 | `GET /api/book-authors?search=le&limit=10` / `POST /api/book-authors` | 200 `BookAuthorResponse[]` / 201 or 200 `BookAuthorResponse` | as `/api/game-developers` |
+| `GET /api/book-narrators` / `POST /api/book-narrators` | 200 `BookNarratorResponse[]` / 201 or 200 `BookNarratorResponse` | as `/api/game-developers` |
+| `GET /api/book-series` / `POST /api/book-series` | 200 `BookSeriesResponse[]` / 201 or 200 `BookSeriesResponse` | as `/api/game-developers`; a book's links come back as `BookResponse.series` `[{id, name, position}]` (decision record 0035) |
 | `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
 | `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, a missing non-nullable column (a missing nullable one is `null`), wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 | `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
@@ -280,10 +287,11 @@ frontend/src
 ├── features/<kind>/      one standalone view per media kind; movies and series are "coming soon"
 ├── features/books/       BooksView (overview at /books/overview) + api/booksApi, hooks/ (useBooksPage,
 │                         useBooksMeta, useBookTypes), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio,
-│                         bookFilters, bookDraft, bookViewParams), components/ (BookCard, BookStatusIcons,
+│                         bookFilters, bookDraft, bookViewParams, seriesLabel), components/ (BookCard, BookStatusIcons,
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
-│                         BookDialogsHost, fields/AuthorsField, fields/BookTypesField)
+│                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,
+│                         fields/SeriesPositionField, fields/BookTypesField)
 └── features/games/       GamesView (overview: MediaViewHeader = search field / filter bar /
                           ResultsBar: count + top pagination),
                           GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,

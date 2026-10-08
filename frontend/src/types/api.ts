@@ -272,6 +272,42 @@ export interface CreateBookAuthorRequest {
   name: string;
 }
 
+/** A book narrator; mirrors `BookNarratorResponse` in books/api/BookDtos.kt. */
+export interface BookNarratorResponse {
+  id: string;
+  name: string;
+}
+
+/** Body of `POST /api/book-narrators`; mirrors `CreateBookNarratorRequest` in books/api/BookDtos.kt. */
+export interface CreateBookNarratorRequest {
+  name: string;
+}
+
+/** A book series; mirrors `BookSeriesResponse` in books/api/BookDtos.kt. */
+export interface BookSeriesResponse {
+  id: string;
+  name: string;
+}
+
+/** Body of `POST /api/book-series`; mirrors `CreateBookSeriesRequest` in books/api/BookDtos.kt. */
+export interface CreateBookSeriesRequest {
+  name: string;
+}
+
+/** One series a book belongs to; mirrors `BookSeriesEntryResponse` in books/api/BookDtos.kt. */
+export interface BookSeriesEntryResponse {
+  id: string;
+  name: string;
+  /** Number within the series (0 to 9999.99, at most 2 decimals); `null` when the book has no number there. */
+  position: number | null;
+}
+
+/** One series link of a book in a request; mirrors `BookSeriesLinkRequest` in books/api/BookDtos.kt. */
+export interface BookSeriesLinkRequest {
+  seriesId: string;
+  position?: number | null;
+}
+
 /** The filter values that actually occur in the stored books; mirrors `BookMetaResponse` in books/api/BookDtos.kt. */
 export interface BookMetaResponse {
   /** Only types in use, alphabetically by label. */
@@ -300,6 +336,10 @@ export interface BookResponse {
   types: BookTypeResponse[];
   /** Sorted by name. */
   authors: BookAuthorResponse[];
+  /** Sorted by name. */
+  narrators: BookNarratorResponse[];
+  /** Sorted by series name. */
+  series: BookSeriesEntryResponse[];
 }
 
 export interface CreateBookRequest {
@@ -318,6 +358,10 @@ export interface CreateBookRequest {
   typeIds?: string[];
   /** Omit for the default (no authors). */
   authorIds?: string[];
+  /** Omit for the default (no narrators). */
+  narratorIds?: string[];
+  /** Omit for the default (no series). */
+  series?: BookSeriesLinkRequest[];
 }
 
 /** PATCH body: omit a key to leave the field unchanged; `null` clears `description`/`coverImageUrl`/`releaseDate`. */
@@ -336,4 +380,8 @@ export interface UpdateBookRequest {
   typeIds?: string[];
   /** Omit to leave unchanged; replaces the full set (may be empty). */
   authorIds?: string[];
+  /** Omit to leave unchanged; replaces the full set (may be empty). */
+  narratorIds?: string[];
+  /** Omit to leave unchanged; replaces all links (empty clears). */
+  series?: BookSeriesLinkRequest[];
 }

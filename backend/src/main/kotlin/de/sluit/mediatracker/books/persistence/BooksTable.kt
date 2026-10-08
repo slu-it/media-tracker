@@ -86,3 +86,55 @@ object BookToAuthorTable : Table("book_to_author") {
 
     override val primaryKey = PrimaryKey(bookId, authorId)
 }
+
+/** Exposed view of the `book_narrators` table: a vocabulary the user grows on the fly, exactly like [BookAuthorsTable]. */
+object BookNarratorsTable : Table("book_narrators") {
+    val id = char("id", 36)
+    val name = varchar("name", 128).uniqueIndex("uq_book_narrators_name")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("ft_book_narrators_name", false, name, indexType = "FULLTEXT")
+    }
+}
+
+/** Junction table for the books <-> book_narrators many-to-many relation. */
+object BookToNarratorTable : Table("book_to_narrator") {
+    val bookId = char("book_id", 36)
+        .references(BooksTable.id, onDelete = ReferenceOption.CASCADE, fkName = "fk_book_to_narrator_book")
+        .index("idx_book_to_narrator_book")
+    val narratorId = char("narrator_id", 36)
+        .references(BookNarratorsTable.id, fkName = "fk_book_to_narrator_narrator")
+        .index("idx_book_to_narrator_narrator")
+
+    override val primaryKey = PrimaryKey(bookId, narratorId)
+}
+
+/** Exposed view of the `book_series` table: a vocabulary the user grows on the fly, exactly like [BookAuthorsTable]. */
+object BookSeriesTable : Table("book_series") {
+    val id = char("id", 36)
+    val name = varchar("name", 128).uniqueIndex("uq_book_series_name")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("ft_book_series_name", false, name, indexType = "FULLTEXT")
+    }
+}
+
+/**
+ * Junction table for the books <-> book_series many-to-many relation. The optional [position] is the book's
+ * number within that series (`DECIMAL(6,2)`, null = no number).
+ */
+object BookToSeriesTable : Table("book_to_series") {
+    val bookId = char("book_id", 36)
+        .references(BooksTable.id, onDelete = ReferenceOption.CASCADE, fkName = "fk_book_to_series_book")
+        .index("idx_book_to_series_book")
+    val seriesId = char("series_id", 36)
+        .references(BookSeriesTable.id, fkName = "fk_book_to_series_series")
+        .index("idx_book_to_series_series")
+    val position = decimal("position", 6, 2).nullable()
+
+    override val primaryKey = PrimaryKey(bookId, seriesId)
+}

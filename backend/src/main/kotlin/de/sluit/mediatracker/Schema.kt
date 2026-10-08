@@ -3,7 +3,11 @@ package de.sluit.mediatracker
 import de.sluit.mediatracker.auth.persistence.SessionsTable
 import de.sluit.mediatracker.auth.persistence.UsersTable
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BookNarratorsTable
+import de.sluit.mediatracker.books.persistence.BookSeriesTable
 import de.sluit.mediatracker.books.persistence.BookToAuthorTable
+import de.sluit.mediatracker.books.persistence.BookToNarratorTable
+import de.sluit.mediatracker.books.persistence.BookToSeriesTable
 import de.sluit.mediatracker.books.persistence.BookToTypeTable
 import de.sluit.mediatracker.books.persistence.BookTypesTable
 import de.sluit.mediatracker.books.persistence.BooksBackupSource
@@ -38,6 +42,10 @@ val allTables = arrayOf(
     BookToTypeTable,
     BookAuthorsTable,
     BookToAuthorTable,
+    BookNarratorsTable,
+    BookToNarratorTable,
+    BookSeriesTable,
+    BookToSeriesTable,
 )
 
 /**

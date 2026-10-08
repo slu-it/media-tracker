@@ -2,17 +2,27 @@ import { apiFetch } from "../../../api/client";
 import type {
   BookAuthorResponse,
   BookMetaResponse,
+  BookNarratorResponse,
   BookResponse,
+  BookSeriesLinkRequest,
+  BookSeriesResponse,
   BookTypeResponse,
   CreateBookAuthorRequest,
+  CreateBookNarratorRequest,
   CreateBookRequest,
+  CreateBookSeriesRequest,
   PageResponse,
   UpdateBookRequest,
 } from "../../../types/api";
-import { resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
-import type { AuthorDraft } from "../domain/bookDraft";
+import { resolveVocabularyEntries, resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
+import type { AuthorDraft, NarratorDraft, SeriesDraft } from "../domain/bookDraft";
 import type { BookFilters } from "../domain/bookFilters";
-import { AUTHOR_SEARCH_LIMIT } from "../domain/bookValues";
+import {
+  AUTHOR_SEARCH_LIMIT,
+  NARRATOR_SEARCH_LIMIT,
+  SERIES_SEARCH_LIMIT,
+  parseSeriesPosition,
+} from "../domain/bookValues";
 
 const BASE = "/api/books";
 
@@ -72,4 +82,54 @@ export function createBookAuthor(name: string): Promise<BookAuthorResponse> {
 /** Resolves a book form draft's authors to ids right before saving (see `resolveVocabularyIds`). */
 export function resolveAuthorIds(drafts: AuthorDraft[]): Promise<string[]> {
   return resolveVocabularyIds(drafts, createBookAuthor);
+}
+
+/** Like `searchBookAuthors`, for the narrator chip input, capped at `NARRATOR_SEARCH_LIMIT`. */
+export function searchBookNarrators(search: string, signal?: AbortSignal): Promise<BookNarratorResponse[]> {
+  const params = new URLSearchParams({ search: search.trim(), limit: String(NARRATOR_SEARCH_LIMIT) });
+  return apiFetch<BookNarratorResponse[]>(`/api/book-narrators?${params}`, { signal });
+}
+
+/** Adds `name` to the narrator vocabulary; the backend returns the existing narrator (200) if it already exists. */
+export function createBookNarrator(name: string): Promise<BookNarratorResponse> {
+  const body: CreateBookNarratorRequest = { name };
+  return apiFetch<BookNarratorResponse>("/api/book-narrators", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Resolves a book form draft's narrators to ids right before saving (see `resolveVocabularyIds`). */
+export function resolveNarratorIds(drafts: NarratorDraft[]): Promise<string[]> {
+  return resolveVocabularyIds(drafts, createBookNarrator);
+}
+
+/** Like `searchBookAuthors`, for the series chip input, capped at `SERIES_SEARCH_LIMIT`. */
+export function searchBookSeries(search: string, signal?: AbortSignal): Promise<BookSeriesResponse[]> {
+  const params = new URLSearchParams({ search: search.trim(), limit: String(SERIES_SEARCH_LIMIT) });
+  return apiFetch<BookSeriesResponse[]>(`/api/book-series?${params}`, { signal });
+}
+
+/** Adds `name` to the series vocabulary; the backend returns the existing series (200) if it already exists. */
+export function createBookSeries(name: string): Promise<BookSeriesResponse> {
+  const body: CreateBookSeriesRequest = { name };
+  return apiFetch<BookSeriesResponse>("/api/book-series", { method: "POST", body: JSON.stringify(body) });
+}
+
+/**
+ * Resolves a book form draft's series to links right before saving: pending names are created, each position
+ * text is parsed (empty means no number), and a series selected twice (a pending name that resolved to an
+ * existing one) keeps its first link that has a position, else its first.
+ */
+export async function resolveSeries(drafts: SeriesDraft[]): Promise<BookSeriesLinkRequest[]> {
+  const entries = await resolveVocabularyEntries(
+    drafts.map((draft) => draft.entry),
+    createBookSeries,
+  );
+  const links = new Map<string, BookSeriesLinkRequest>();
+  entries.forEach((entry, index) => {
+    const position = parseSeriesPosition(drafts[index].position);
+    // The first link wins, unless it has no position and a later duplicate has one.
+    if (links.get(entry.id)?.position == null) {
+      links.set(entry.id, { seriesId: entry.id, position });
+    }
+  });
+  return [...links.values()];
 }

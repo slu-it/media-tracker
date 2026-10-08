@@ -4,8 +4,14 @@ import de.sluit.mediatracker.books.domain.Book
 import de.sluit.mediatracker.books.domain.BookAuthor
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookId
+import de.sluit.mediatracker.books.domain.BookNarrator
+import de.sluit.mediatracker.books.domain.BookNarratorId
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSeries
+import de.sluit.mediatracker.books.domain.BookSeriesEntry
+import de.sluit.mediatracker.books.domain.BookSeriesId
+import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.BookTypeLabel
@@ -47,8 +53,19 @@ object BookTypes {
 /** Builds a valid [BookAuthor] for tests, with a random id unless one is given. */
 fun author(name: String, id: BookAuthorId = BookAuthorId.new()): BookAuthor = BookAuthor(id, VocabularyName(name))
 
+/** Builds a valid [BookNarrator] for tests, with a random id unless one is given. */
+fun narrator(name: String, id: BookNarratorId = BookNarratorId.new()): BookNarrator =
+    BookNarrator(id, VocabularyName(name))
+
+/** Builds a valid [BookSeries] for tests, with a random id unless one is given. */
+fun series(name: String, id: BookSeriesId = BookSeriesId.new()): BookSeries = BookSeries(id, VocabularyName(name))
+
+/** Builds a [BookSeriesEntry]; [position] is parsed through [BookSeriesPosition.fromDouble]. */
+fun seriesEntry(series: BookSeries, position: Double? = null): BookSeriesEntry =
+    BookSeriesEntry(series, position?.let(BookSeriesPosition::fromDouble))
+
 /**
- * Builds a valid [Book] for tests, defaulting to no types and no authors. When [releaseDate] is given, it
+ * Builds a valid [Book] for tests, defaulting to no types, authors, narrators or series. When [releaseDate] is given, it
  * decides the year (like production: [releaseYear] is ignored then), so callers only need one of the two.
  */
 fun book(
@@ -62,12 +79,16 @@ fun book(
     progress: BookProgress = BookProgress.DEFAULT,
     releaseDate: ReleaseDate? = null,
     authors: List<BookAuthor> = emptyList(),
+    narrators: List<BookNarrator> = emptyList(),
+    series: List<BookSeriesEntry> = emptyList(),
 ): Book = Book(
     id = id,
     title = Title(title),
     releaseYear = releaseDate?.let { ReleaseYear(it.year) } ?: ReleaseYear(releaseYear),
     types = types.sortedForBook(),
     authors = authors.sortedByNameForBook(),
+    narrators = narrators.sortedByNameForBook(),
+    series = series.sortedByNameForBook(),
     description = description,
     coverImageUrl = coverImageUrl,
     ownership = ownership,

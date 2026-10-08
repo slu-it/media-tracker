@@ -3,6 +3,8 @@ package de.sluit.mediatracker.books.api
 import de.sluit.mediatracker.books.domain.Book
 import de.sluit.mediatracker.books.domain.BookAuthorService
 import de.sluit.mediatracker.books.domain.BookId
+import de.sluit.mediatracker.books.domain.BookNarratorService
+import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.common.api.intQueryParameter
 import de.sluit.mediatracker.common.api.pageRequest
@@ -27,9 +29,14 @@ import io.ktor.server.routing.route
 /**
  * /api/books. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [BookService]; they never touch persistence. The
- * author vocabulary (`/book-authors`) is book-independent and mounted at the top level.
+ * author, narrator and series vocabularies (`/book-authors`, `/book-narrators`, `/book-series`) are book-independent and mounted at the top level.
  */
-fun Route.bookRoutes(bookService: BookService, bookAuthorService: BookAuthorService) {
+fun Route.bookRoutes(
+    bookService: BookService,
+    bookAuthorService: BookAuthorService,
+    bookNarratorService: BookNarratorService,
+    bookSeriesService: BookSeriesService,
+) {
     route("/books") {
         post {
             val book = bookService.create(call.receive<CreateBookRequest>().toNewBook())
@@ -77,6 +84,34 @@ fun Route.bookRoutes(bookService: BookService, bookAuthorService: BookAuthorServ
         post {
             val request = call.receive<CreateBookAuthorRequest>()
             val result = bookAuthorService.create(VocabularyName.parse(request.name))
+            val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
+            call.respond(status, result.entry.toResponse())
+        }
+    }
+    route("/book-narrators") {
+        get {
+            val term = call.searchTerm()
+            val limit = call.intQueryParameter(VocabularySearchLimit.FIELD)?.let(::VocabularySearchLimit)
+                ?: VocabularySearchLimit.DEFAULT
+            call.respond(bookNarratorService.search(term, limit).map { it.toResponse() })
+        }
+        post {
+            val request = call.receive<CreateBookNarratorRequest>()
+            val result = bookNarratorService.create(VocabularyName.parse(request.name))
+            val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
+            call.respond(status, result.entry.toResponse())
+        }
+    }
+    route("/book-series") {
+        get {
+            val term = call.searchTerm()
+            val limit = call.intQueryParameter(VocabularySearchLimit.FIELD)?.let(::VocabularySearchLimit)
+                ?: VocabularySearchLimit.DEFAULT
+            call.respond(bookSeriesService.search(term, limit).map { it.toResponse() })
+        }
+        post {
+            val request = call.receive<CreateBookSeriesRequest>()
+            val result = bookSeriesService.create(VocabularyName.parse(request.name))
             val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
             call.respond(status, result.entry.toResponse())
         }

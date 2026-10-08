@@ -7,6 +7,7 @@ import de.sluit.mediatracker.common.domain.TableImportResult
 import org.jetbrains.exposed.v1.core.BooleanColumnType
 import org.jetbrains.exposed.v1.core.CharColumnType
 import org.jetbrains.exposed.v1.core.Column
+import org.jetbrains.exposed.v1.core.DecimalColumnType
 import org.jetbrains.exposed.v1.core.DoubleColumnType
 import org.jetbrains.exposed.v1.core.Expression
 import org.jetbrains.exposed.v1.core.IColumnType
@@ -21,6 +22,7 @@ import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.slf4j.LoggerFactory
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -98,6 +100,10 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
 
         is LocalDate -> value.toString()
 
+        // JSON has no decimal type; the dump carries it as a number (a DECIMAL(6,2) fits a Double exactly enough
+        // that coerce() below recovers the same value through its text form).
+        is BigDecimal -> value.toDouble()
+
         else -> error(
             "Unsupported backup column value type ${value::class} for ${column.table.tableName}.${column.name}",
         )
@@ -158,6 +164,8 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
 
             is IntegerColumnType -> raw.coerceToInt(field)
 
+            is DecimalColumnType -> raw.coerceToDecimal(field, type)
+
             is CharColumnType ->
                 (raw as? String ?: throw InvalidValueException(field, "must be a string"))
                     .also { it.checkLength(field, type.colLength) }
@@ -184,6 +192,23 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
     private fun String.checkLength(field: String, colLength: Int) {
         val length = codePointCount(0, length)
         if (length > colLength) throw InvalidValueException(field, "longer than $colLength characters")
+    }
+
+    /** Through the number's text form so 2.5 stays 2.5; rejects more digits than the column's precision/scale. */
+    private fun Any.coerceToDecimal(field: String, type: DecimalColumnType): BigDecimal {
+        val number = this as? Number ?: throw InvalidValueException(field, "must be a number")
+        val decimal = try {
+            BigDecimal(number.toString())
+        } catch (e: NumberFormatException) {
+            throw InvalidValueException(field, "must be a finite number")
+        }
+        val trimmed = decimal.stripTrailingZeros()
+        val fractionDigits = maxOf(trimmed.scale(), 0)
+        val integerDigits = trimmed.precision() - trimmed.scale()
+        if (fractionDigits > type.scale || integerDigits > type.precision - type.scale) {
+            throw InvalidValueException(field, "out of range for a DECIMAL(${type.precision},${type.scale}) column")
+        }
+        return decimal.setScale(type.scale)
     }
 
     private fun Any.coerceToInt(field: String): Int = when (this) {
@@ -244,14 +269,26 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
          * `BackupCoverageTest` so a future column type that [coerce] cannot handle (an unsupported type is a
          * 500, not a 400, see [coerce]) fails a test instead of only failing at import time.
          */
+        private const val MAX_DECIMAL_PRECISION = 15
+
         fun supports(columnType: IColumnType<*>): Boolean = when {
             columnType is BooleanColumnType -> true
+
             columnType is DoubleColumnType -> true
+
             columnType is IntegerColumnType -> true
+
+            // Export goes through toDouble(); a wider decimal would lose precision silently.
+            columnType is DecimalColumnType -> columnType.precision <= MAX_DECIMAL_PRECISION
+
             columnType is CharColumnType -> true
+
             columnType is VarCharColumnType -> true
+
             columnType is TextColumnType -> true
+
             columnType is LocalDateColumnType -> true
+
             else -> false
         }
     }

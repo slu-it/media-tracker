@@ -5,8 +5,13 @@ import de.sluit.mediatracker.books.domain.BookAuthorService
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMissingField
+import de.sluit.mediatracker.books.domain.BookNarratorId
+import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSeriesId
+import de.sluit.mediatracker.books.domain.BookSeriesPosition
+import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
@@ -51,7 +56,9 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.elementNames
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -59,18 +66,28 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import java.math.BigDecimal
 
 /**
  * Registers the MCP tools the books feature offers on [server]: [de.sluit.mediatracker.mcpRoutes] calls this once
  * per request, exactly as [bookRoutes] contributes the REST routes. There is no delete tool, as for games.
  */
-fun Server.addBookTools(bookService: BookService, bookAuthorService: BookAuthorService) {
+fun Server.addBookTools(
+    bookService: BookService,
+    bookAuthorService: BookAuthorService,
+    bookNarratorService: BookNarratorService,
+    bookSeriesService: BookSeriesService,
+) {
     addListBookTypesTool(bookService)
     addAddBookTool(bookService)
     addSearchBooksTool(bookService)
     addUpdateBookTool(bookService)
     addSearchBookAuthorsTool(bookAuthorService)
     addCreateBookAuthorTool(bookAuthorService)
+    addSearchBookNarratorsTool(bookNarratorService)
+    addCreateBookNarratorTool(bookNarratorService)
+    addSearchBookSeriesTool(bookSeriesService)
+    addCreateBookSeriesTool(bookSeriesService)
 }
 
 private const val LIST_BOOK_TYPES_DESCRIPTION =
@@ -82,7 +99,11 @@ private const val ADD_BOOK_DESCRIPTION =
         "which case the date's year is used instead (and overrides a releaseYear that contradicts it), so " +
         "releaseYear may then be omitted. description and coverImageUrl are optional. authorIds are optional " +
         "book_authors.id values; call search_book_authors first to look them up, and create_book_author for " +
-        "any author that search does not find, then pass the ids here. typeIds are optional book_types.id " +
+        "any author that search does not find, then pass the ids here. narratorIds work the same way with " +
+        "search_book_narrators and create_book_narrator. series is an optional array of {seriesId, position}: " +
+        "seriesId is a book_series.id from search_book_series (create missing ones with create_book_series), " +
+        "position is the book's optional number in that series (0 to 9999.99, at most two decimals, e.g. 1 or " +
+        "2.5), each series at most once. typeIds are optional book_types.id " +
         "values from list_book_types; a book does not need a type. ownership and progress are also optional: " +
         "ownership defaults to watchlist, progress defaults to not_started."
 
@@ -108,8 +129,12 @@ private const val UPDATE_BOOK_DESCRIPTION =
         "typeIds, authorIds, ownership and progress cannot be cleared. typeIds, when given, replaces the " +
         "whole type list (ids from list_book_types), it does not add to it. authorIds, when given, replaces " +
         "the whole author list (ids from search_book_authors; create missing ones with create_book_author " +
-        "first). An empty array clears typeIds or authorIds, it does not need null. Passing nothing but id, " +
-        "or a field name that is not in the schema, is an error."
+        "first). narratorIds, when given, replaces the whole narrator list (ids from search_book_narrators; " +
+        "create missing ones with create_book_narrator first). series, when given, replaces the whole series " +
+        "list: an array of {seriesId, position} (ids from search_book_series; create missing ones with " +
+        "create_book_series first; position is optional, 0 to 9999.99 with at most two decimals, each series " +
+        "at most once). An empty array clears typeIds, authorIds, narratorIds or series, it does not need " +
+        "null. Passing nothing but id, or a field name that is not in the schema, is an error."
 
 private const val SEARCH_BOOK_AUTHORS_DESCRIPTION =
     "Searches the author vocabulary (the authors add_book and update_book's authorIds refer to) by name " +
@@ -121,6 +146,30 @@ private const val CREATE_BOOK_AUTHOR_DESCRIPTION =
     "Adds an author to the vocabulary and returns its id for use in authorIds. Idempotent: when an author " +
         "with the same name already exists (case-insensitively), that existing author is returned instead of " +
         "a duplicate - created is false then. Call search_book_authors first to check whether the author is " +
+        "already tracked before creating a new one."
+
+private const val SEARCH_BOOK_NARRATORS_DESCRIPTION =
+    "Searches the narrator vocabulary (the narrators add_book and update_book's narratorIds refer to) by name " +
+        "prefix, best match first - at most pageSize matches, 10 by default. Leave query empty (or blank) to " +
+        "list every known narrator alphabetically instead of searching. Returns each match's name and the id " +
+        "narratorIds expects; when the narrator you need is not found, create it first with create_book_narrator."
+
+private const val CREATE_BOOK_NARRATOR_DESCRIPTION =
+    "Adds a narrator to the vocabulary and returns its id for use in narratorIds. Idempotent: when a narrator " +
+        "with the same name already exists (case-insensitively), that existing narrator is returned instead of " +
+        "a duplicate - created is false then. Call search_book_narrators first to check whether the narrator " +
+        "is already tracked before creating a new one."
+
+private const val SEARCH_BOOK_SERIES_DESCRIPTION =
+    "Searches the series vocabulary (the series add_book and update_book's series refer to) by name prefix, " +
+        "best match first - at most pageSize matches, 10 by default. Leave query empty (or blank) to list every " +
+        "known series alphabetically instead of searching. Returns each match's name and the id seriesId " +
+        "expects; when the series you need is not found, create it first with create_book_series."
+
+private const val CREATE_BOOK_SERIES_DESCRIPTION =
+    "Adds a series to the vocabulary and returns its id for use as seriesId. Idempotent: when a series with " +
+        "the same name already exists (case-insensitively), that existing series is returned instead of a " +
+        "duplicate - created is false then. Call search_book_series first to check whether the series is " +
         "already tracked before creating a new one."
 
 /** What `search_books` returns when the caller names no `pageSize`; its ceiling is [SEARCH_BOOKS_MAX_SIZE]. */
@@ -160,6 +209,15 @@ private val ADD_BOOK_SCHEMA = ToolSchema(
             BookAuthorId.FIELD,
             "Ids of the authors who wrote this book, from search_book_authors (create missing ones with " +
                 "create_book_author). Optional.",
+        )
+        putUuidArrayProperty(
+            BookNarratorId.FIELD,
+            "Ids of the narrators of this book, from search_book_narrators (create missing ones with " +
+                "create_book_narrator). Optional.",
+        )
+        putSeriesLinksProperty(
+            "The series this book belongs to, each with the book's optional number in it. seriesId comes " +
+                "from search_book_series (create missing ones with create_book_series). Optional.",
         )
     },
     required = listOf("title"),
@@ -245,9 +303,47 @@ private val UPDATE_BOOK_SCHEMA = ToolSchema(
             "Ids of the authors who wrote this book, from search_book_authors (create missing ones with " +
                 "create_book_author). Replaces the full list; an empty array clears it.",
         )
+        putUuidArrayProperty(
+            BookNarratorId.FIELD,
+            "Ids of the narrators of this book, from search_book_narrators (create missing ones with " +
+                "create_book_narrator). Replaces the full list; an empty array clears it.",
+        )
+        putSeriesLinksProperty(
+            "The series this book belongs to, each with the book's optional number in it. seriesId comes " +
+                "from search_book_series (create missing ones with create_book_series). Replaces the full " +
+                "list; an empty array clears it.",
+        )
     },
     required = listOf("id"),
 )
+
+// An array of {seriesId, position?}; mirrors BookSeriesLinkRequest and the rules of BookSeriesPosition.
+private fun JsonObjectBuilder.putSeriesLinksProperty(description: String) {
+    putJsonObject(BookSeriesId.FIELD) {
+        put("type", "array")
+        put("description", description)
+        putJsonObject("items") {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("seriesId") {
+                    put("type", "string")
+                    put("format", "uuid")
+                }
+                putJsonObject("position") {
+                    put("type", "number")
+                    put("minimum", 0)
+                    put("maximum", BookSeriesPosition.MAX_VALUE.toDouble())
+                    put(
+                        "description",
+                        "The book's number in the series, e.g. 1 or 2.5, with at most two decimal places. Optional.",
+                    )
+                }
+            }
+            putJsonArray("required") { add("seriesId") }
+            put("additionalProperties", false)
+        }
+    }
+}
 
 // Mirrors the constraint VocabularySearchLimit enforces; search_book_authors has no request DTO of its own.
 private val SEARCH_BOOK_AUTHORS_SCHEMA = ToolSchema(
@@ -278,6 +374,64 @@ private val CREATE_BOOK_AUTHOR_SCHEMA = ToolSchema(
     required = listOf("name"),
 )
 
+// Mirrors the constraint VocabularySearchLimit enforces; search_book_narrators has no request DTO of its own.
+private val SEARCH_BOOK_NARRATORS_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putQueryProperty(
+            "Name prefix to search for. Leave empty to list every narrator alphabetically.",
+            minLength = null,
+        )
+        putPageSizeProperty(
+            "How many narrators to return at most. Defaults to 10, ${VocabularySearchLimit.MAX} at most.",
+            max = VocabularySearchLimit.MAX,
+            default = VocabularySearchLimit.DEFAULT.value,
+        )
+    },
+    required = emptyList(),
+)
+
+// Mirrors the constraints VocabularyName enforces in common/domain/Vocabulary.kt.
+private val CREATE_BOOK_NARRATOR_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("name") {
+            put("type", "string")
+            put("description", "The narrator's name.")
+            put("minLength", 1)
+            put("maxLength", VocabularyName.MAX_LENGTH)
+        }
+    },
+    required = listOf("name"),
+)
+
+// Mirrors the constraint VocabularySearchLimit enforces; search_book_series has no request DTO of its own.
+private val SEARCH_BOOK_SERIES_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putQueryProperty(
+            "Name prefix to search for. Leave empty to list every series alphabetically.",
+            minLength = null,
+        )
+        putPageSizeProperty(
+            "How many series to return at most. Defaults to 10, ${VocabularySearchLimit.MAX} at most.",
+            max = VocabularySearchLimit.MAX,
+            default = VocabularySearchLimit.DEFAULT.value,
+        )
+    },
+    required = emptyList(),
+)
+
+// Mirrors the constraints VocabularyName enforces in common/domain/Vocabulary.kt.
+private val CREATE_BOOK_SERIES_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("name") {
+            put("type", "string")
+            put("description", "The name of the series.")
+            put("minLength", 1)
+            put("maxLength", VocabularyName.MAX_LENGTH)
+        }
+    },
+    required = listOf("name"),
+)
+
 // McpJson ignores unknown keys, which would turn a typo into a silent no-op; the accepted names are derived from
 // the request DTO's serial descriptor or the tool's schema, so they cannot drift.
 @OptIn(ExperimentalSerializationApi::class)
@@ -289,6 +443,17 @@ private val CREATE_BOOK_FIELDS: Set<String> = CreateBookRequest.serializer().des
 private val SEARCH_BOOKS_FIELDS: Set<String> = SEARCH_BOOKS_SCHEMA.properties!!.keys
 
 @OptIn(ExperimentalSerializationApi::class)
+private val CREATE_BOOK_NARRATOR_FIELDS: Set<String> =
+    CreateBookNarratorRequest.serializer().descriptor.elementNames.toSet()
+
+@OptIn(ExperimentalSerializationApi::class)
+private val CREATE_BOOK_SERIES_FIELDS: Set<String> =
+    CreateBookSeriesRequest.serializer().descriptor.elementNames.toSet()
+
+@OptIn(ExperimentalSerializationApi::class)
+private val SERIES_LINK_FIELDS: Set<String> = BookSeriesLinkRequest.serializer().descriptor.elementNames.toSet()
+
+@OptIn(ExperimentalSerializationApi::class)
 private val CREATE_BOOK_AUTHOR_FIELDS: Set<String> =
     CreateBookAuthorRequest.serializer().descriptor.elementNames.toSet()
 
@@ -297,12 +462,22 @@ private val CREATE_BOOK_AUTHOR_FIELDS: Set<String> =
 private val UPDATE_BOOK_CLEARABLE = setOf("description", "coverImageUrl", "releaseDate")
 private val UPDATE_BOOK_UNCLEARABLE = UPDATE_BOOK_FIELDS - UPDATE_BOOK_CLEARABLE
 
-// Prose fragment for a book's year, precise date and known authors, used in the text output; ids are
-// structured content only.
+// Prose fragment for a book's year, precise date, authors, narrators and series, used in the text output; ids
+// are structured content only. A series reads "Mistborn #1", or just the name when the book has no number.
 private fun BookResponse.yearAndAuthors(): String {
     val date = releaseDate?.let { ", $it" } ?: ""
     val authorNames = if (authors.isEmpty()) "" else " by ${authors.joinToString(", ") { it.name }}"
-    return "$releaseYear$date$authorNames"
+    val narratorNames = if (narrators.isEmpty()) "" else "; narrated by ${narrators.joinToString(", ") { it.name }}"
+    val seriesNames = if (series.isEmpty()) "" else "; series: ${series.joinToString(", ") { it.label() }}"
+    return "$releaseYear$date$authorNames$narratorNames$seriesNames"
+}
+
+private fun BookSeriesEntryResponse.label(): String =
+    position?.let { "$name #${BigDecimal(it.toString()).stripTrailingZeros().toPlainString()}" } ?: name
+
+/** The element objects of `series` are not covered by the top-level field check; McpJson would drop typos there. */
+private fun JsonObject.requireKnownSeriesLinkFields() {
+    (this[BookSeriesId.FIELD] as? JsonArray)?.forEach { (it as? JsonObject)?.requireKnownFields(SERIES_LINK_FIELDS) }
 }
 
 private fun Server.addListBookTypesTool(bookService: BookService) {
@@ -337,6 +512,7 @@ private fun Server.addAddBookTool(bookService: BookService) {
         try {
             val arguments = request.arguments ?: JsonObject(emptyMap())
             arguments.requireKnownFields(CREATE_BOOK_FIELDS)
+            arguments.requireKnownSeriesLinkFields()
             val createRequest = McpJson.decodeFromJsonElement(CreateBookRequest.serializer(), arguments)
             val response = bookService.create(createRequest.toNewBook()).toResponse()
             CallToolResult(
@@ -427,6 +603,7 @@ private fun Server.addUpdateBookTool(bookService: BookService) {
             val id = BookId.parse(arguments.stringOrNull("id") ?: throw InvalidValueException("id", "is missing"))
             val fields = JsonObject(arguments - "id")
             fields.requireKnownFields(UPDATE_BOOK_FIELDS)
+            fields.requireKnownSeriesLinkFields()
             requireValid("arguments", fields.isNotEmpty()) { "must change at least one field" }
             fields.requireNotCleared(UPDATE_BOOK_UNCLEARABLE)
             val patch = McpJson.decodeFromJsonElement(UpdateBookRequest.serializer(), fields).toPatch()
@@ -471,6 +648,58 @@ private fun Server.addCreateBookAuthorTool(bookAuthorService: BookAuthorService)
     ) { arguments ->
         val createRequest = McpJson.decodeFromJsonElement(CreateBookAuthorRequest.serializer(), arguments)
         val result = bookAuthorService.create(VocabularyName.parse(createRequest.name))
+        val response = result.entry.toResponse()
+        VocabularyCreation(VocabularyEntryView(response.id, response.name), result.created)
+    }
+}
+
+private fun Server.addSearchBookNarratorsTool(bookNarratorService: BookNarratorService) {
+    addSearchVocabularyTool(
+        name = "search_book_narrators",
+        description = SEARCH_BOOK_NARRATORS_DESCRIPTION,
+        inputSchema = SEARCH_BOOK_NARRATORS_SCHEMA,
+        entryNounPlural = "narrators",
+    ) { term, limit ->
+        bookNarratorService.search(term, limit).map { it.toResponse().let { r -> VocabularyEntryView(r.id, r.name) } }
+    }
+}
+
+private fun Server.addCreateBookNarratorTool(bookNarratorService: BookNarratorService) {
+    addCreateVocabularyTool(
+        name = "create_book_narrator",
+        description = CREATE_BOOK_NARRATOR_DESCRIPTION,
+        inputSchema = CREATE_BOOK_NARRATOR_SCHEMA,
+        knownFields = CREATE_BOOK_NARRATOR_FIELDS,
+        entryNoun = "narrator",
+    ) { arguments ->
+        val createRequest = McpJson.decodeFromJsonElement(CreateBookNarratorRequest.serializer(), arguments)
+        val result = bookNarratorService.create(VocabularyName.parse(createRequest.name))
+        val response = result.entry.toResponse()
+        VocabularyCreation(VocabularyEntryView(response.id, response.name), result.created)
+    }
+}
+
+private fun Server.addSearchBookSeriesTool(bookSeriesService: BookSeriesService) {
+    addSearchVocabularyTool(
+        name = "search_book_series",
+        description = SEARCH_BOOK_SERIES_DESCRIPTION,
+        inputSchema = SEARCH_BOOK_SERIES_SCHEMA,
+        entryNounPlural = "series",
+    ) { term, limit ->
+        bookSeriesService.search(term, limit).map { it.toResponse().let { r -> VocabularyEntryView(r.id, r.name) } }
+    }
+}
+
+private fun Server.addCreateBookSeriesTool(bookSeriesService: BookSeriesService) {
+    addCreateVocabularyTool(
+        name = "create_book_series",
+        description = CREATE_BOOK_SERIES_DESCRIPTION,
+        inputSchema = CREATE_BOOK_SERIES_SCHEMA,
+        knownFields = CREATE_BOOK_SERIES_FIELDS,
+        entryNoun = "series",
+    ) { arguments ->
+        val createRequest = McpJson.decodeFromJsonElement(CreateBookSeriesRequest.serializer(), arguments)
+        val result = bookSeriesService.create(VocabularyName.parse(createRequest.name))
         val response = result.entry.toResponse()
         VocabularyCreation(VocabularyEntryView(response.id, response.name), result.created)
     }

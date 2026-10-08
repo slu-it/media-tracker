@@ -517,6 +517,10 @@ class McpRoutesTest {
                     "update_book",
                     "search_book_authors",
                     "create_book_author",
+                    "search_book_narrators",
+                    "create_book_narrator",
+                    "search_book_series",
+                    "create_book_series",
                 ),
                 tools.map {
                     it.jsonObject["name"]!!.jsonPrimitive.content

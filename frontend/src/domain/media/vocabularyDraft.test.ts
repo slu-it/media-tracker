@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { supergiantGames, teamCherry } from "../../test/fixtures/games";
-import { addEntry, isExistingEntry } from "./vocabularyDraft";
+import { addEntry, isExistingEntry, resolveVocabularyEntries, resolveVocabularyIds } from "./vocabularyDraft";
 
 describe("isExistingEntry", () => {
   it("distinguishes an existing developer from a pending one", () => {
@@ -37,5 +37,31 @@ describe("addEntry", () => {
 
   it("leaves other entries untouched when replacing a pending one", () => {
     expect(addEntry([supergiantGames, { name: "team cherry" }], teamCherry)).toEqual([supergiantGames, teamCherry]);
+  });
+});
+
+describe("resolveVocabularyEntries", () => {
+  it("keeps the order and length of the drafts, creating each pending name once", async () => {
+    const create = vi.fn((name: string) => Promise.resolve({ id: "new-1", name }));
+    const entries = await resolveVocabularyEntries(
+      [{ name: "Fresh" }, teamCherry, { name: " fresh " }, teamCherry],
+      create,
+    );
+    expect(entries.map((entry) => entry.id)).toEqual(["new-1", teamCherry.id, "new-1", teamCherry.id]);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith("Fresh");
+  });
+
+  it("stops creating after a failure", async () => {
+    const create = vi.fn().mockRejectedValue(new Error("boom"));
+    await expect(resolveVocabularyEntries([{ name: "A" }, { name: "B" }], create)).rejects.toThrow("boom");
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("resolveVocabularyIds", () => {
+  it("dedupes ids", async () => {
+    const create = vi.fn((name: string) => Promise.resolve({ id: teamCherry.id, name }));
+    expect(await resolveVocabularyIds([teamCherry, { name: "Team Cherry" }], create)).toEqual([teamCherry.id]);
   });
 });

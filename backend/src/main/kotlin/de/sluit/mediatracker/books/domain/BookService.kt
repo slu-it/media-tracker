@@ -8,13 +8,15 @@ import de.sluit.mediatracker.common.domain.SearchTerm
 
 /**
  * Business use cases for books. Deliberately thin while the feature is plain CRUD; decisions that do not
- * belong to HTTP or SQL (id assignment, existence checks, applying a patch, resolving type and author ids) live
+ * belong to HTTP or SQL (id assignment, existence checks, applying a patch, resolving type, author, narrator and series ids) live
  * here and nowhere else.
  */
 class BookService(
     private val books: BookRepository,
     private val types: BookTypeRepository,
     private val authors: BookAuthorRepository,
+    private val narrators: BookNarratorRepository,
+    private val series: BookSeriesRepository,
 ) {
     suspend fun create(newBook: NewBook): Book {
         val book = Book(
@@ -23,6 +25,8 @@ class BookService(
             releaseYear = newBook.effectiveReleaseYear,
             types = resolveTypes(newBook.typeIds),
             authors = resolveAuthors(newBook.authorIds),
+            narrators = resolveNarrators(newBook.narratorIds),
+            series = resolveSeries(newBook.series),
             description = newBook.description,
             coverImageUrl = newBook.coverImageUrl,
             ownership = newBook.ownership,
@@ -38,7 +42,9 @@ class BookService(
         val current = books.findById(id) ?: throw NotFoundException(RESOURCE, id.toString())
         val resolvedTypes = patch.typeIds?.let { resolveTypes(it) } ?: current.types
         val resolvedAuthors = patch.authorIds?.let { resolveAuthors(it) } ?: current.authors
-        val updated = patch.applyTo(current, resolvedTypes, resolvedAuthors)
+        val resolvedNarrators = patch.narratorIds?.let { resolveNarrators(it) } ?: current.narrators
+        val resolvedSeries = patch.series?.let { resolveSeries(it) } ?: current.series
+        val updated = patch.applyTo(current, resolvedTypes, resolvedAuthors, resolvedNarrators, resolvedSeries)
         if (!books.update(updated)) throw NotFoundException(RESOURCE, id.toString())
         return updated
     }
@@ -90,6 +96,26 @@ class BookService(
             throw InvalidValueException(BookAuthorId.FIELD, "unknown author id ${missing.first()}")
         }
         return found.sortedByNameForBook()
+    }
+
+    private suspend fun resolveNarrators(ids: Set<BookNarratorId>): List<BookNarrator> {
+        if (ids.isEmpty()) return emptyList()
+        val found = narrators.findByIds(ids)
+        val missing = ids - found.map { it.id }.toSet()
+        if (missing.isNotEmpty()) {
+            throw InvalidValueException(BookNarratorId.FIELD, "unknown narrator id ${missing.first()}")
+        }
+        return found.sortedByNameForBook()
+    }
+
+    private suspend fun resolveSeries(positions: Map<BookSeriesId, BookSeriesPosition?>): List<BookSeriesEntry> {
+        if (positions.isEmpty()) return emptyList()
+        val found = series.findByIds(positions.keys)
+        val missing = positions.keys - found.map { it.id }.toSet()
+        if (missing.isNotEmpty()) {
+            throw InvalidValueException(BookSeriesId.FIELD, "unknown series id ${missing.first()}")
+        }
+        return found.map { BookSeriesEntry(it, positions[it.id]) }.sortedByNameForBook()
     }
 
     companion object {

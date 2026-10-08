@@ -8,6 +8,8 @@ import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.backup.domain.CloudBackupService
 import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookNarratorService
+import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.common.persistence.sharedTestDatabase
 import de.sluit.mediatracker.common.persistence.testDatabaseConfig
@@ -118,6 +120,8 @@ fun ApplicationTestBuilder.handlerApp(
     gameDevelopers: GameDeveloperService = mockk(),
     books: BookService = mockk(),
     bookAuthors: BookAuthorService = mockk(),
+    bookNarrators: BookNarratorService = mockk(),
+    bookSeries: BookSeriesService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
@@ -133,6 +137,8 @@ fun ApplicationTestBuilder.handlerApp(
                 gameDevelopers,
                 books,
                 bookAuthors,
+                bookNarrators,
+                bookSeries,
             ),
             testSessionConfig,
             SessionStorageMemory(),

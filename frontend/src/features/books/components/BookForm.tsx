@@ -16,6 +16,8 @@ import { BookOwnershipToggleBar } from "./BookOwnershipToggleBar";
 import { BookProgressToggleBar } from "./BookProgressToggleBar";
 import { AuthorsField } from "./fields/AuthorsField";
 import { BookTypesField } from "./fields/BookTypesField";
+import { NarratorsField } from "./fields/NarratorsField";
+import { SeriesField } from "./fields/SeriesField";
 
 interface BookFormProps {
   value: BookDraft;
@@ -103,6 +105,17 @@ export function BookForm({ value, onChange, types, disabled, showErrors, onValid
           value={value.authors}
           onChange={(authors) => onChange({ ...value, authors })}
           disabled={disabled}
+        />
+        <NarratorsField
+          value={value.narrators}
+          onChange={(narrators) => onChange({ ...value, narrators })}
+          disabled={disabled}
+        />
+        <SeriesField
+          value={value.series}
+          onChange={(series) => onChange({ ...value, series })}
+          disabled={disabled}
+          showErrors={showErrors}
         />
         <CoverImageUrlField
           value={value.coverImageUrl}
