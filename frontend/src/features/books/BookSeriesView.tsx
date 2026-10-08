@@ -42,6 +42,10 @@ export function BookSeriesView() {
     reloadSummaries();
     setReloadToken((n) => n + 1);
   };
+  const onDeleted = () => {
+    setSelected(null);
+    refresh();
+  };
   const onToggle = (id: string, expanded: boolean) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -81,7 +85,7 @@ export function BookSeriesView() {
         onSelect={setSelected}
         onCreated={refresh}
         onUpdated={refresh}
-        onDeleted={refresh}
+        onDeleted={onDeleted}
       />
       {visible !== null && visible.length === 0 && (
         <Typography color="text.secondary" align="center" sx={{ py: 6 }}>

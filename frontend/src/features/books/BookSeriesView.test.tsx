@@ -12,7 +12,7 @@ import {
   mistbornBooks,
   seriesSummaries,
 } from "../../test/fixtures/books";
-import { jsonResponse, mockApi } from "../../test/mockFetch";
+import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { BookSeriesView } from "./BookSeriesView";
 
@@ -133,6 +133,41 @@ describe("BookSeriesView", () => {
       expect(screen.getAllByRole("heading", { level: 3, hidden: true }).map((h) => h.textContent)).toEqual([
         "The Well of Ascension",
         "The Final Empire",
+        "Secret History",
+      ]),
+    );
+  });
+
+  it("closes the dialog and reloads the summaries and the open section after a delete", async () => {
+    const user = userEvent.setup();
+    let books = mistbornBooks;
+    let summaries = seriesSummaries;
+    const calls = mockApi({
+      ...base(),
+      [SUMMARIES]: () => jsonResponse(summaries),
+      [MISTBORN_BOOKS]: () => jsonResponse(books),
+      "DELETE /api/books/:id": () => noContent(),
+    });
+    renderWithProviders(<BookSeriesView />);
+    await user.click(await screen.findByRole("button", { name: /Mistborn/ }));
+    await user.click(await screen.findByRole("button", { name: /The Final Empire/ }));
+    const dialog = await screen.findByRole("dialog");
+    books = mistbornBooks.slice(1);
+    summaries = seriesSummaries.map((s) => (s.id === mistborn.id ? { ...s, bookCount: 2 } : s));
+    await user.click(within(dialog).getByRole("button", { name: "Delete" }));
+    await screen.findByText('Delete "The Final Empire"?');
+    await user.click(within(screen.getAllByRole("dialog").at(-1)!).getByRole("button", { name: "Yes" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls).toContainEqual({ method: "DELETE", url: `/api/books/${mistbornBooks[0].id}`, body: undefined });
+    await waitFor(() => {
+      expect(calls.filter((c) => c.url === "/api/book-series.summaries")).toHaveLength(2);
+      expect(calls.filter((c) => c.url === `/api/book-series/${mistborn.id}/books`)).toHaveLength(2);
+    });
+    expect(await screen.findByRole("heading", { name: /^Mistborn/ })).toHaveTextContent("Mistborn2 books");
+    await waitFor(() =>
+      expect(screen.getAllByRole("heading", { level: 3, hidden: true }).map((h) => h.textContent)).toEqual([
+        "The Well of Ascension",
         "Secret History",
       ]),
     );
