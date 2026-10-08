@@ -350,31 +350,6 @@ class ExposedGameRepositoryTest {
     }
 
     @Test
-    fun `search ranks a title match above a description match`() = withFreshDatabase {
-        val repo = ExposedGameRepository()
-        val hadesOne = game("Hades", id = GameId.parse("00000000-0000-0000-0000-000000000001"))
-        val hadesTwo = game("Hades", id = GameId.parse("00000000-0000-0000-0000-000000000002"))
-        val descriptionMatch = game(
-            "Underworld Chronicles",
-            description = Description("A roguelike inspired by Hades"),
-        )
-        val unrelated = game("Celeste")
-        repo.insert(hadesOne)
-        repo.insert(hadesTwo)
-        repo.insert(descriptionMatch)
-        repo.insert(unrelated)
-
-        val page = repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
-
-        // With plain fulltext relevance (tf * idf^2 per index) the description-only game would win here:
-        // "hades" appears in 2 of the 4 titles but only 1 of the 4 descriptions, so its per-index idf is
-        // higher for the description index, and the title matches split score between them. The (title hit,
-        // score) ordering keeps both title hits ahead of the description-only match regardless.
-        assertEquals(listOf(hadesOne.id, hadesTwo.id, descriptionMatch.id), page.items.map { it.id })
-        assertEquals(3, page.totalItems)
-    }
-
-    @Test
     fun `search orders equal scores by title then id`() = withFreshDatabase {
         val beta = game("Hades Beta")
         val alpha = game("Hades Alpha")
@@ -392,15 +367,94 @@ class ExposedGameRepositoryTest {
     }
 
     @Test
-    fun `search matches the description`() = withFreshDatabase {
+    fun `search ignores the description`() = withFreshDatabase {
         val repo = ExposedGameRepository()
-        val match = game("Underworld", description = Description("a roguelike about the underworld"))
-        repo.insert(match)
+        val descriptionOnly =
+            game("Underworld", description = Description("a procedural roguelike about the underworld"))
+        val titleHit = game("Roguelike Deck")
+        repo.insert(descriptionOnly)
+        repo.insert(titleHit)
         repo.insert(game("Celeste"))
 
-        val page = repo.search(SearchTerm("roguelike"), GameFilters.NONE, PageRequest())
+        val descriptionPage = repo.search(SearchTerm("procedural"), GameFilters.NONE, PageRequest())
+        val titlePage = repo.search(SearchTerm("roguelike"), GameFilters.NONE, PageRequest())
 
-        assertEquals(listOf(match.id), page.items.map { it.id })
+        assertEquals(emptyList(), descriptionPage.items)
+        assertEquals(0, descriptionPage.totalItems)
+        assertEquals(listOf(titleHit.id), titlePage.items.map { it.id })
+    }
+
+    @Test
+    fun `search finds a title too short for the fulltext index`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val go = game("Go")
+        repo.insert(go)
+        repo.insert(game("Hades"))
+
+        val page = repo.search(SearchTerm("go"), GameFilters.NONE, PageRequest())
+
+        assertEquals(listOf(go.id), page.items.map { it.id })
+    }
+
+    @Test
+    fun `search finds a title starting with a stopword`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val takesTwo = game("It Takes Two")
+        repo.insert(takesTwo)
+        repo.insert(game("Hades"))
+
+        val page = repo.search(SearchTerm("it"), GameFilters.NONE, PageRequest())
+
+        assertEquals(listOf(takesTwo.id), page.items.map { it.id })
+    }
+
+    @Test
+    fun `search ranks a title prefix hit above a fulltext only hit`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val midTitle = game("A Dark Place")
+        val prefix = game("Dark Souls")
+        repo.insert(midTitle)
+        repo.insert(prefix)
+        repo.insert(game("Celeste"))
+
+        val page = repo.search(SearchTerm("dark"), GameFilters.NONE, PageRequest())
+
+        assertEquals(listOf(prefix.id, midTitle.id), page.items.map { it.id })
+        assertEquals(2, page.totalItems)
+    }
+
+    @Test
+    fun `search treats percent and underscore in the term literally`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val literal = game("a_c game")
+        repo.insert(literal)
+        repo.insert(game("abc game"))
+        // As a wildcard, "50%" would also match "50 Days".
+        repo.insert(game("50% Off"))
+        repo.insert(game("50 Days"))
+
+        val underscore = repo.search(SearchTerm("a_c"), GameFilters.NONE, PageRequest())
+        val percent = repo.search(SearchTerm("50%"), GameFilters.NONE, PageRequest())
+
+        assertEquals(listOf(literal.id), underscore.items.map { it.id })
+        assertEquals(listOf("50% Off"), percent.items.map { it.title.value })
+    }
+
+    @Test
+    fun `search prefix match combines with a filter and a non-default sort`() = withFreshDatabase {
+        val repo = ExposedGameRepository()
+        val lowOwned = game("Go Low", ownership = Ownership.OWNED, rating = Rating(2.0))
+        val highOwned = game("Go High", ownership = Ownership.OWNED, rating = Rating(4.5))
+        repo.insert(lowOwned)
+        repo.insert(highOwned)
+        repo.insert(game("Go Wishlist", ownership = Ownership.WATCHLIST, rating = Rating(5.0)))
+        repo.insert(game("Hades", ownership = Ownership.OWNED, rating = Rating(5.0)))
+
+        val filters = GameFilters(ownership = setOf(Ownership.OWNED))
+        val page = repo.search(SearchTerm("go"), filters, PageRequest(), GameSort.RATING_DESC)
+
+        assertEquals(listOf(highOwned.id, lowOwned.id), page.items.map { it.id })
+        assertEquals(2, page.totalItems)
     }
 
     @Test

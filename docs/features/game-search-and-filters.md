@@ -1,15 +1,21 @@
-# Game search and filters (MT-003, MT-011 to MT-015)
+# Game search and filters (MT-003, MT-011 to MT-015, MT-040)
 
 ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainers),
+[0033](../decisions/0033-title-only-game-search.md) (title only, `LIKE` prefix fallback),
 [0021](../decisions/0021-filterable-game-list.md) (filters, `.meta`),
 [0022](../decisions/0022-missing-data-filter-and-mcp-page-size.md) (`hasMissing`, `pageSize`).
 
 ## Search (MT-003)
 
-- `GET /api/games?search=` is a MariaDB FULLTEXT search over title and description (score 2x title plus 0.75x
-  description, id as tiebreak). The fulltext index `ft_games_title (title)` sits next to the ordinary
-  `idx_games_title (title, id)`. The same ADR replaced H2 with a Testcontainers MariaDB for every backend test,
-  which is why Docker is a development requirement.
+- `GET /api/games?search=` searches the title only (MT-040, ADR 0033; until then the description was searched
+  too and produced noisy hits). A game matches when a MariaDB FULLTEXT prefix term hits its title or when the
+  title starts with the whole term (`LIKE 'term%'`, which finds titles InnoDB does not index, such as "Go" or
+  stopwords such as "It"). Order: prefix hits first, then the title's fulltext relevance, then title, id.
+- Indexes: the fulltext `ft_games_title (title)` for the fulltext half and the ordinary `idx_games_title (title, id)`
+  for the plain listing. The `OR`ed `LIKE` is checked per row, because MariaDB cannot merge a fulltext access with a
+  range scan. That is fine at this size. V011 dropped `ft_games_description`.
+- ADR 0015 also replaced H2 with a Testcontainers MariaDB for every backend test, which is why Docker is a
+  development requirement.
 - `SearchTerm` lives in `common/domain`, the `?search` parsing in `common/api/Search.kt`.
 - Frontend: a debounced field above the grid (`src/hooks/useDebouncedValue.ts`; `SEARCH_DEBOUNCE_MS` = 500 ms
   since MT-015, in `src/hooks/useSearchDebounceMs.ts`); Enter and the clear button skip the debounce and search

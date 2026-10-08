@@ -89,9 +89,10 @@ private const val ADD_GAME_DESCRIPTION =
         "100%), and hidden defaults to false."
 
 private const val SEARCH_GAMES_DESCRIPTION =
-    "Searches the tracked games by title and description and returns the best matches - at most pageSize of " +
-        "them, 10 by default - title matches first, " +
-        "best match first. Any word may match; each word is treated as a prefix (\"zel\" finds \"Zelda\"). " +
+    "Searches the tracked games by title and returns the best matches - at most pageSize of " +
+        "them, 10 by default. A title matches when any query word is a prefix of a title word or when the " +
+        "title starts with the whole query; titles that start with the query come first, then best match " +
+        "first. Any word may match; each word is treated as a prefix (\"zel\" finds \"Zelda\"). " +
         "platformIds, ownership, progress, releaseYears and rated narrow the search: several values inside one " +
         "filter mean \"any of\" (e.g. ownership: [\"owned\",\"watchlist\"] matches either), but every filter " +
         "that is given has to match. rated: true restricts to games that already have a rating. platformIds " +

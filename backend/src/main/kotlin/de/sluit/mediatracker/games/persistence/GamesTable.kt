@@ -30,10 +30,9 @@ object GamesTable : Table("games") {
         // drift check; InnoDB appends the primary key to every secondary index anyway.
         index("idx_games_title", false, title, id)
 
-        // V005: FULLTEXT indexes for game search. The type is never emitted because the indexes always exist
-        // after Flyway and Index.equals ignores indexType.
+        // V005/V011: FULLTEXT index for game search, on the title only (V011 dropped the description one). The
+        // type is never emitted because the index always exists after Flyway and Index.equals ignores indexType.
         index("ft_games_title", false, title, indexType = "FULLTEXT")
-        index("ft_games_description", false, description, indexType = "FULLTEXT")
 
         // V007: filter indexes (game filters, ADR 0021). Mostly for findUsedFilterValues()'s DISTINCT selects;
         // see the migration comment for why they rarely help the filtered listing itself.

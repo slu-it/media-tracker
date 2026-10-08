@@ -28,6 +28,7 @@ import de.sluit.mediatracker.games.domain.Title
 import de.sluit.mediatracker.games.domain.sortedByNameForGame
 import de.sluit.mediatracker.games.domain.sortedForGame
 import org.jetbrains.exposed.v1.core.Expression
+import org.jetbrains.exposed.v1.core.LikePattern
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -40,6 +41,7 @@ import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.innerJoin
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.like
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.core.statements.UpdateBuilder
 import org.jetbrains.exposed.v1.jdbc.batchInsert
@@ -102,13 +104,14 @@ class ExposedGameRepository : GameRepository {
     /**
      * Three SELECTs like [findPage]: the total match count, the page of games, and one join query that loads
      * every game's platforms at once. [filters] AND across categories, OR (IN) inside one; combined with
-     * [term]'s fulltext match, if any, by AND as well. Without a [term] (or one that the fulltext parser strips
+     * [term]'s title match, if any, by AND as well. Without a [term] (or one that the fulltext parser strips
      * down to nothing, e.g. `"+++"`), the ordering is [sort] alone, [GameSort.TITLE] being title then id, same
      * as [findPage] - filters must not silently vanish in that case, so this falls back to the filtered listing
-     * rather than [findPage]. With a term and the default [sort], the ordering is title hit first, then the
-     * weighted score, then title, then id, unchanged from before filters existed; any other [sort] overrides
-     * that relevance ordering entirely, though the fulltext match still filters. Fulltext entries become visible
-     * once the inserting transaction commits.
+     * rather than [findPage]. A term matches the title only: a title fulltext hit or a `title LIKE 'term%'` prefix
+     * match (escaped through [LikePattern.ofLiteral]; it finds titles InnoDB does not index, such as those under
+     * three characters or stopwords). With a term and the default [sort], prefix hits come first, then fulltext
+     * relevance, then title, then id; any other [sort] overrides that ordering entirely, though the match
+     * still filters. Fulltext entries become visible once the inserting transaction commits.
      */
     override suspend fun search(
         term: SearchTerm?,
@@ -118,7 +121,7 @@ class ExposedGameRepository : GameRepository {
     ): Page<Game> {
         val booleanQuery = term?.let { FulltextQuery.booleanMode(it.value) }
         return dbQuery {
-            if (booleanQuery == null) {
+            if (term == null || booleanQuery == null) {
                 // No term (or nothing left of one): the same predicate feeds both the count and the page
                 // query, built once here so the two `.where` calls below share the identical Op instance.
                 val predicate = filterOp(filters) ?: Op.TRUE
@@ -130,16 +133,15 @@ class ExposedGameRepository : GameRepository {
                     .toList()
                 pageOf(rows, request, total)
             } else {
-                val titleMatch = MatchesFulltext(GamesTable.title, booleanQuery)
-                val descriptionMatch = MatchesFulltext(GamesTable.description, booleanQuery)
+                val prefixMatch = GamesTable.title like (LikePattern.ofLiteral(term.value) + "%")
                 // matches is an OrOp; compoundAnd() parenthesises it inside the AndOp automatically.
-                val matches = titleMatch or descriptionMatch
+                val matches = MatchesFulltext(GamesTable.title, booleanQuery) or prefixMatch
                 val predicate = listOfNotNull(matches, filterOp(filters)).compoundAnd()
                 val total = GamesTable.selectAll().where { predicate }.count()
-                val score = WeightedFulltextScore(booleanQuery).alias("score")
+                val score = MatchScore(GamesTable.title, booleanQuery).alias("score")
                 val ordering = if (sort == GameSort.TITLE) {
                     arrayOf(
-                        titleMatch to SortOrder.DESC,
+                        prefixMatch to SortOrder.DESC,
                         score to SortOrder.DESC,
                         GamesTable.title to SortOrder.ASC,
                         GamesTable.id to SortOrder.ASC,
