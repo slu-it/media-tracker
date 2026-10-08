@@ -360,6 +360,8 @@ ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + l
   of `deploy/jvm.options` are baked in as `JAVA_TOOL_OPTIONS`, with the CDS archive at `/tmp/media-tracker.jsa`.
   `pr.yml` builds the image and boots it against a MariaDB container; only `master.yml` pushes, with buildx for
   both architectures (no QEMU, because the image has no `RUN` step). Decision record 0016.
+- CI runs `./gradlew build` as two jobs on separate runners, `:frontend:build` and `:backend:build`, whose union
+  is the full build, so Vitest never shares CPU with the backend tests. Decision record 0036.
 
 ## Runtime on the Pi
 

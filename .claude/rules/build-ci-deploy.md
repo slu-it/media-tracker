@@ -39,9 +39,12 @@ dependency, so bump both to the same version. A dependency change runs `pnpm ins
 `frontend/pnpm-lock.yaml`; CI uses a frozen lockfile.
 
 **CI.** `.github/workflows/pr.yml` (pull requests to `master`) and `master.yml` (push to `master`) both run
-`./gradlew build` on JDK 25 with Gradle and Node/pnpm caches; `master.yml` uploads
-`backend/build/libs/media-tracker.jar` as the `media-tracker-jar` artifact. CI passes `--max-workers=2` to Gradle
-and Vitest caps itself to 3 workers when `CI` is set (few-core runner, backend build and frontend tests overlap).
+`./gradlew build` on JDK 25 with Gradle and Node/pnpm caches, split into two jobs on separate runners (ADR 0036):
+`frontend` runs `:frontend:build` (ESLint, Prettier check, Vitest, Vite build), the backend job runs
+`:backend:build` (ktlint, backend tests, JAR with the SPA). Their union is exactly `./gradlew build`; keep it that
+way when adding tasks. The jobs run in parallel on PRs; on `master` the backend job `needs: frontend`, so nothing
+is published unless both passed. Neither Gradle nor Vitest is capped in CI. `master.yml` uploads
+`backend/build/libs/media-tracker.jar` as the `media-tracker-jar` artifact.
 `master.yml` also builds the root `Dockerfile` (one `COPY` of the JAR onto
 `gcr.io/distroless/java25-debian13:nonroot`) with buildx for linux/arm64+amd64 and pushes
 `ghcr.io/slu-it/media-tracker:{latest,sha-<short>}` (`permissions: packages: write`, `GITHUB_TOKEN`); `pr.yml`

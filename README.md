@@ -203,15 +203,16 @@ cd frontend && pnpm dev
 
 ## Continuous integration
 
-Two GitHub Actions workflows in `.github/workflows/`, both running `./gradlew build` on JDK 25:
+Two GitHub Actions workflows in `.github/workflows/`, both running `./gradlew build` on JDK 25, split into a
+`frontend` job (`:frontend:build`) and a backend job (`:backend:build`) on separate runners:
 
 | Workflow | Trigger | Result |
 |---|---|---|
 | `pr.yml` | pull requests targeting `master` | lint, format check, tests, a `docker build` of the image and a boot check against a MariaDB container; fails the PR on any violation |
 | `master.yml` | push to `master`, manual dispatch | same checks, then `media-tracker.jar` is kept as the workflow artifact `media-tracker-jar` for 30 days and the image `ghcr.io/slu-it/media-tracker` (`latest` and `sha-<short>`, linux/arm64 + linux/amd64) is pushed to GHCR |
 
-Test and lint reports are uploaded as the `reports` artifact when a run fails. Deployment to the Pi remains manual
-(`scp` or `docker compose pull`).
+Test and lint reports are uploaded when a job fails, as `frontend-reports` (Vitest) and `reports` (backend).
+Deployment to the Pi remains manual (`scp` or `docker compose pull`).
 
 ## Deploy to the Pi
 

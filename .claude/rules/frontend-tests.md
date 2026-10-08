@@ -14,7 +14,9 @@ preview by mocking `getBoundingClientRect` and firing `mouseMove`/`mouseLeave` (
 own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility tree, so assert them via the
 `data-testid` MUI generates (`SportsEsportsIcon`, or `within(option).queryAllByTestId(/Icon$/)` to count them).
 
-- Render with `src/test/renderWithProviders.tsx`; its `route` option (default `/`) sets the `MemoryRouter`
+- Render with `src/test/renderWithProviders.tsx`. It passes `TEST_THEME_OVERRIDES` to `AppProviders`: no MUI ripple
+  (its timers are gone) and every transition duration 0 (MUI's `Transition` still finishes in a 0 ms timeout, so
+  `flushAsync` stays the rule below). Never assert on an intermediate transition state. Its `route` option (default `/`) sets the `MemoryRouter`
   entry. Assert URLs with `currentLocation()` (`src/test/currentLocation.ts`, reads a hidden location probe)
   and drive history with `src/test/HistoryControls.tsx` (`window.history` does nothing under `MemoryRouter`).
   Mock the network only with `src/test/mockFetch.ts`:
@@ -22,7 +24,7 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
   `src/test/fixtures/`; mirrored DTO changes must be reflected there.
 - Any `console.error` during a test fails it.
 - Never `await new Promise((r) => setTimeout(r, 0))` in a React test; use `await flushAsync()` from
-  `src/test/flushAsync.ts`. The bare await is a gap outside `act`, and MUI Fade transition timers (~225ms) firing
+  `src/test/flushAsync.ts`. The bare await is a gap outside `act`, and MUI transition timers (0 ms in tests) firing
   in it produce the CI-only "update to Transition was not wrapped in act" failure that passes locally.
 - Open MUI selects with `user.click` on the combobox. Enter multi-character text with `user.click(field)` then
   `user.paste("...")`; per-keystroke `user.type` is about 10x slower and hit the CI timeout, keep it for single
@@ -38,7 +40,8 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
   `IS_REACT_ACT_ENVIRONMENT`, then the mocks (incl. `matchMedia`, an `Element.prototype.scrollIntoView` stub
   that @dnd-kit's keyboard sensor needs, and an unconditional no-op `window.scrollTo` for `PaginationBar`, since
   jsdom defines it as a not-implemented function that logs a console.error), language and `localStorage`. Never rely on state from another file and
-  never remove those hooks. Vitest caps itself to 3 workers when `CI` is set.
+  never remove those hooks. Vitest runs on its core-based default everywhere; in CI it has a runner of its own
+  (ADR 0036).
 - After a change to the Vitest config or `test-setup.ts`, run the suite once in CI mode (`CI=1`) and once
   shuffled (`--sequence.shuffle`) before calling it done.
 - `pnpm test` runs `vitest run --coverage`; the V8 report in `frontend/build/coverage/` is informational, never
