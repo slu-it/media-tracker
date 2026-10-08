@@ -6,9 +6,15 @@ import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMissingField
+import de.sluit.mediatracker.books.domain.BookNarrator
+import de.sluit.mediatracker.books.domain.BookNarratorId
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookRepository
+import de.sluit.mediatracker.books.domain.BookSeries
+import de.sluit.mediatracker.books.domain.BookSeriesEntry
+import de.sluit.mediatracker.books.domain.BookSeriesId
+import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.BookTypeLabel
@@ -53,6 +59,8 @@ class ExposedBookRepository : BookRepository {
             BooksTable.insert { it.writeBook(book) }
             insertTypeLinks(book)
             insertAuthorLinks(book)
+            insertNarratorLinks(book)
+            insertSeriesLinks(book)
         }
     }
 
@@ -61,6 +69,8 @@ class ExposedBookRepository : BookRepository {
             row.toBook(
                 typesFor(setOf(id.toString()))[id.toString()].orEmpty().sortedForBook(),
                 authorsFor(setOf(id.toString()))[id.toString()].orEmpty().sortedByNameForBook(),
+                narratorsFor(setOf(id.toString()))[id.toString()].orEmpty().sortedByNameForBook(),
+                seriesFor(setOf(id.toString()))[id.toString()].orEmpty().sortedByNameForBook(),
             )
         }
     }
@@ -76,12 +86,16 @@ class ExposedBookRepository : BookRepository {
             insertTypeLinks(book)
             BookToAuthorTable.deleteWhere { BookToAuthorTable.bookId eq book.id.toString() }
             insertAuthorLinks(book)
+            BookToNarratorTable.deleteWhere { BookToNarratorTable.bookId eq book.id.toString() }
+            insertNarratorLinks(book)
+            BookToSeriesTable.deleteWhere { BookToSeriesTable.bookId eq book.id.toString() }
+            insertSeriesLinks(book)
         }
         updated
     }
 
     override suspend fun deleteById(id: BookId): Int = dbQuery {
-        // The FKs on book_to_type and book_to_author cascade on delete; no explicit junction cleanup needed.
+        // The FKs on the junction tables cascade on delete; no explicit junction cleanup needed.
         BooksTable.deleteWhere { BooksTable.id eq id.toString() }
     }
 
@@ -96,8 +110,8 @@ class ExposedBookRepository : BookRepository {
     }
 
     /**
-     * Four SELECTs: the total match count, the page of books, and one join query each for the types and the
-     * authors of every book on the page. [filters] AND across categories, OR (IN) inside one; combined with
+     * Six SELECTs: the total match count, the page of books, and one join query each for the types, authors,
+     * narrators and series of every book on the page. [filters] AND across categories, OR (IN) inside one; combined with
      * [term]'s title match, if any, by AND as well. Without a [term] (or one that the fulltext parser strips
      * down to nothing, e.g. `"+++"`), the ordering is title then id, same as [findPage] - filters must not
      * silently vanish in that case, so this falls back to the filtered listing rather than [findPage]. A term
@@ -184,16 +198,20 @@ class ExposedBookRepository : BookRepository {
 
     /**
      * Maps a page of rows (with or without the extra `score` column) to a [Page] of [Book], loading types and
-     * authors with one join query each, regardless of page size.
+     * authors, narrators and series with one join query each, regardless of page size.
      */
     private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Book> {
         val bookIds = rows.map { it[BooksTable.id] }.toSet()
         val typesByBook = typesFor(bookIds)
         val authorsByBook = authorsFor(bookIds)
+        val narratorsByBook = narratorsFor(bookIds)
+        val seriesByBook = seriesFor(bookIds)
         val items = rows.map { row ->
             row.toBook(
                 typesByBook[row[BooksTable.id]].orEmpty().sortedForBook(),
                 authorsByBook[row[BooksTable.id]].orEmpty().sortedByNameForBook(),
+                narratorsByBook[row[BooksTable.id]].orEmpty().sortedByNameForBook(),
+                seriesByBook[row[BooksTable.id]].orEmpty().sortedByNameForBook(),
             )
         }
         return Page(items, request.page, request.size, total)
@@ -222,6 +240,29 @@ class ExposedBookRepository : BookRepository {
             .groupBy({ it[BookToAuthorTable.bookId] }, { it.toBookAuthor() })
     }
 
+    /** One query for all requested book ids: no N+1 when loading a page of books. */
+    private fun narratorsFor(bookIds: Set<String>): Map<String, List<BookNarrator>> {
+        if (bookIds.isEmpty()) return emptyMap()
+        return (BookToNarratorTable innerJoin BookNarratorsTable)
+            .select(BookToNarratorTable.bookId, BookNarratorsTable.id, BookNarratorsTable.name)
+            .where { BookToNarratorTable.bookId inList bookIds }
+            .groupBy({ it[BookToNarratorTable.bookId] }, { it.toBookNarrator() })
+    }
+
+    /** One query for all requested book ids: no N+1 when loading a page of books. */
+    private fun seriesFor(bookIds: Set<String>): Map<String, List<BookSeriesEntry>> {
+        if (bookIds.isEmpty()) return emptyMap()
+        return (BookToSeriesTable innerJoin BookSeriesTable)
+            .select(
+                BookToSeriesTable.bookId,
+                BookSeriesTable.id,
+                BookSeriesTable.name,
+                BookToSeriesTable.position,
+            )
+            .where { BookToSeriesTable.bookId inList bookIds }
+            .groupBy({ it[BookToSeriesTable.bookId] }, { it.toBookSeriesEntry() })
+    }
+
     private fun insertTypeLinks(book: Book) {
         BookToTypeTable.batchInsert(book.types) { type ->
             this[BookToTypeTable.bookId] = book.id.toString()
@@ -233,6 +274,21 @@ class ExposedBookRepository : BookRepository {
         BookToAuthorTable.batchInsert(book.authors) { author ->
             this[BookToAuthorTable.bookId] = book.id.toString()
             this[BookToAuthorTable.authorId] = author.id.toString()
+        }
+    }
+
+    private fun insertNarratorLinks(book: Book) {
+        BookToNarratorTable.batchInsert(book.narrators) { narrator ->
+            this[BookToNarratorTable.bookId] = book.id.toString()
+            this[BookToNarratorTable.narratorId] = narrator.id.toString()
+        }
+    }
+
+    private fun insertSeriesLinks(book: Book) {
+        BookToSeriesTable.batchInsert(book.series) { entry ->
+            this[BookToSeriesTable.bookId] = book.id.toString()
+            this[BookToSeriesTable.seriesId] = entry.series.id.toString()
+            this[BookToSeriesTable.position] = entry.position?.value?.setScale(BookSeriesPosition.MAX_SCALE)
         }
     }
 
@@ -258,14 +314,34 @@ class ExposedBookRepository : BookRepository {
         name = VocabularyName(this[BookAuthorsTable.name]),
     )
 
+    private fun ResultRow.toBookNarrator() = BookNarrator(
+        id = BookNarratorId(Uuid.parseHexDash(this[BookNarratorsTable.id])),
+        name = VocabularyName(this[BookNarratorsTable.name]),
+    )
+
+    private fun ResultRow.toBookSeriesEntry() = BookSeriesEntry(
+        series = BookSeries(
+            id = BookSeriesId(Uuid.parseHexDash(this[BookSeriesTable.id])),
+            name = VocabularyName(this[BookSeriesTable.name]),
+        ),
+        position = this[BookToSeriesTable.position]?.let(BookSeriesPosition::of),
+    )
+
     // Re-running the value-object validation on read is intentional: a corrupt row surfaces as a 400
     // validation_error instead of leaking invalid data into the domain.
-    private fun ResultRow.toBook(types: List<BookType>, authors: List<BookAuthor>) = Book(
+    private fun ResultRow.toBook(
+        types: List<BookType>,
+        authors: List<BookAuthor>,
+        narrators: List<BookNarrator>,
+        series: List<BookSeriesEntry>,
+    ) = Book(
         id = BookId(Uuid.parseHexDash(this[BooksTable.id])),
         title = Title(this[BooksTable.title]),
         releaseYear = ReleaseYear(this[BooksTable.releaseYear]),
         types = types,
         authors = authors,
+        narrators = narrators,
+        series = series,
         description = this[BooksTable.description]?.let(::Description),
         coverImageUrl = this[BooksTable.coverImageUrl]?.let(::CoverImageUrl),
         ownership = BookOwnership.from(this[BooksTable.ownership]),

@@ -7,7 +7,7 @@ import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
 import { MEDIA_DIALOG_HEIGHT } from "../../../components/media/dialogLayout";
 import type { BookResponse, BookTypeResponse } from "../../../types/api";
-import { createBook, resolveAuthorIds } from "../api/booksApi";
+import { createBook, resolveAuthorIds, resolveNarratorIds, resolveSeries } from "../api/booksApi";
 import { emptyBookDraft, isDraftValid, toCreateRequest } from "../domain/bookDraft";
 import { BookForm } from "./BookForm";
 
@@ -39,7 +39,9 @@ function AddBookDialogContent({ onClose, onCreated, types }: Omit<AddBookDialogP
     setError(null);
     try {
       const authorIds = await resolveAuthorIds(draft.authors);
-      onCreated(await createBook(toCreateRequest(draft, authorIds)));
+      const narratorIds = await resolveNarratorIds(draft.narrators);
+      const series = await resolveSeries(draft.series);
+      onCreated(await createBook(toCreateRequest(draft, { authorIds, narratorIds, series })));
     } catch (cause: unknown) {
       setError(errorMessage(cause, t("errors.saveFailed")));
       setBusy(false);

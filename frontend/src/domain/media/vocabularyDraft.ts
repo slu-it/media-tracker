@@ -46,31 +46,41 @@ export function addEntry<E extends NamedEntry>(
 }
 
 /**
- * Resolves the drafts to ids right before saving: existing entries keep their id, each pending name is created
- * once via `create`, sequentially, so a failure stops before later names are created. Pending names are keyed by
- * their (trimmed, case-insensitive) name so a repeat of it in the same list is not created twice. The result is
- * deduped: a pending name can resolve to an entry already selected elsewhere in the list.
+ * Resolves the drafts to entries right before saving, 1:1 aligned with `drafts` (no dedupe, so a caller can zip
+ * the result with per-draft data): existing entries are returned as they are, each pending name is created once
+ * via `create`, sequentially, so a failure stops before later names are created. Pending names are keyed by their
+ * (trimmed, case-insensitive) name so a repeat of it in the same list is not created twice.
+ */
+export async function resolveVocabularyEntries(
+  drafts: VocabularyDraft[],
+  create: (name: string) => Promise<NamedEntry>,
+): Promise<NamedEntry[]> {
+  const createdByName = new Map<string, NamedEntry>();
+  const entries: NamedEntry[] = [];
+  for (const draft of drafts) {
+    if (isExistingEntry(draft)) {
+      entries.push(draft);
+      continue;
+    }
+    const key = normalizedName(draft);
+    let created = createdByName.get(key);
+    if (created === undefined) {
+      created = await create(draft.name);
+      createdByName.set(key, created);
+    }
+    entries.push(created);
+  }
+  return entries;
+}
+
+/**
+ * Like `resolveVocabularyEntries`, but only the ids, deduped: a pending name can resolve to an entry already
+ * selected elsewhere in the list.
  */
 export async function resolveVocabularyIds(
   drafts: VocabularyDraft[],
   create: (name: string) => Promise<NamedEntry>,
 ): Promise<string[]> {
-  const idsByPendingName = new Map<string, string>();
-  const ids: string[] = [];
-  for (const draft of drafts) {
-    if (isExistingEntry(draft)) {
-      ids.push(draft.id);
-      continue;
-    }
-    const key = normalizedName(draft);
-    const cachedId = idsByPendingName.get(key);
-    if (cachedId !== undefined) {
-      ids.push(cachedId);
-      continue;
-    }
-    const created = await create(draft.name);
-    idsByPendingName.set(key, created.id);
-    ids.push(created.id);
-  }
-  return [...new Set(ids)];
+  const entries = await resolveVocabularyEntries(drafts, create);
+  return [...new Set(entries.map((entry) => entry.id))];
 }

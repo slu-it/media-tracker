@@ -5,6 +5,8 @@ import de.sluit.mediatracker.auth.api.API_KEY_HEADER
 import de.sluit.mediatracker.auth.api.ApiKeysResponse
 import de.sluit.mediatracker.books.api.BookResponse
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BookNarratorsTable
+import de.sluit.mediatracker.books.persistence.BookSeriesTable
 import de.sluit.mediatracker.books.persistence.BooksTable
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
@@ -87,6 +89,10 @@ class McpSmokeTest {
                     "update_book",
                     "search_book_authors",
                     "create_book_author",
+                    "search_book_narrators",
+                    "create_book_narrator",
+                    "search_book_series",
+                    "create_book_series",
                 ),
                 toolNames,
             )
@@ -467,6 +473,13 @@ class McpSmokeTest {
             assertNotEquals(true, author.isError)
             val authorId = author.structuredContent!!["id"]!!.jsonPrimitive.content
 
+            val narrator = mcp.callTool("create_book_narrator", mapOf("name" to "Scott Brick"))
+            assertNotEquals(true, narrator.isError)
+            val narratorId = narrator.structuredContent!!["id"]!!.jsonPrimitive.content
+            val series = mcp.callTool("create_book_series", mapOf("name" to "Dune Chronicles"))
+            assertNotEquals(true, series.isError)
+            val seriesId = series.structuredContent!!["id"]!!.jsonPrimitive.content
+
             val created = mcp.callTool(
                 "add_book",
                 mapOf(
@@ -474,6 +487,8 @@ class McpSmokeTest {
                     "releaseYear" to 1965,
                     "typeIds" to listOf(kindleId),
                     "authorIds" to listOf(authorId),
+                    "narratorIds" to listOf(narratorId),
+                    "series" to listOf(mapOf("seriesId" to seriesId, "position" to 1)),
                 ),
             )
             assertNotEquals(true, created.isError)
@@ -497,11 +512,16 @@ class McpSmokeTest {
             assertEquals("reading", listed.progress)
             assertEquals(emptyList(), listed.types)
             assertEquals(listOf("Frank Herbert"), listed.authors.map { it.name })
+            assertEquals(listOf("Scott Brick"), listed.narrators.map { it.name })
+            assertEquals(listOf("Dune Chronicles"), listed.series.map { it.name })
+            assertEquals(listOf(1.0), listed.series.map { it.position })
         } finally {
             mcp.close()
             transaction {
                 BooksTable.deleteAll()
                 BookAuthorsTable.deleteAll()
+                BookNarratorsTable.deleteAll()
+                BookSeriesTable.deleteAll()
             }
         }
     }

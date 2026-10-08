@@ -31,7 +31,8 @@ Connecting an agent as a client is described in the README section "MCP server".
     best-ranked match plus that match, for `coverImageUrl` in `update_game`/`add_game`
     ([cover picker](cover-picker.md)). Registered only when `STEAMGRIDDB_API_KEY` is set.
   - `list_book_types`, `add_book`, `search_books`, `update_book`, `search_book_authors`, `create_book_author`
-    (MT-041, [books](books.md)): the game flows for books, without sort, rating, expansions or covers. `add_book`
+    (MT-041, [books](books.md)), plus `search_book_narrators`, `create_book_narrator`, `search_book_series` and
+    `create_book_series` (MT-042, ADR 0035): the game flows for books, without sort, rating, expansions or covers. `add_book`
     and `update_book` reject unknown arguments; the shared argument, schema and vocabulary-tool helpers live in
     `common/api/` (ADR 0034).
 - Tools reuse the REST request DTOs and their `toNew<Kind>()` mappers and turn domain exceptions into

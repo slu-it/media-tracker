@@ -1,4 +1,11 @@
-import type { BookAuthorResponse, BookMetaResponse, BookResponse, BookTypeResponse } from "../../types/api";
+import type {
+  BookAuthorResponse,
+  BookMetaResponse,
+  BookNarratorResponse,
+  BookResponse,
+  BookSeriesResponse,
+  BookTypeResponse,
+} from "../../types/api";
 
 export const hardcover: BookTypeResponse = {
   id: "6b00c5e1-7d2a-4f3b-9c4e-1a2b3c4d0001",
@@ -26,6 +33,13 @@ export const herbert: BookAuthorResponse = { id: "author-1", name: "Frank Herber
 export const leGuin: BookAuthorResponse = { id: "author-2", name: "Ursula K. Le Guin" };
 export const authors: BookAuthorResponse[] = [herbert, leGuin];
 
+export const simonVance: BookNarratorResponse = { id: "narrator-1", name: "Simon Vance" };
+export const narrators: BookNarratorResponse[] = [simonVance];
+
+export const duneSaga: BookSeriesResponse = { id: "series-1", name: "Dune Saga" };
+export const mistborn: BookSeriesResponse = { id: "series-2", name: "Mistborn" };
+export const seriesList: BookSeriesResponse[] = [duneSaga, mistborn];
+
 export const dune: BookResponse = {
   id: "book-1",
   title: "Dune",
@@ -37,6 +51,8 @@ export const dune: BookResponse = {
   progress: "reading",
   types: [hardcover, kindle],
   authors: [herbert],
+  narrators: [],
+  series: [],
 };
 
 export const earthsea: BookResponse = {
@@ -50,6 +66,8 @@ export const earthsea: BookResponse = {
   progress: "not_started",
   types: [],
   authors: [leGuin],
+  narrators: [],
+  series: [],
 };
 
 export const meta: BookMetaResponse = {

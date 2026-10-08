@@ -3,6 +3,9 @@ package de.sluit.mediatracker.books.domain
 import de.sluit.mediatracker.books.BookTypes
 import de.sluit.mediatracker.books.author
 import de.sluit.mediatracker.books.book
+import de.sluit.mediatracker.books.narrator
+import de.sluit.mediatracker.books.series
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
@@ -30,7 +33,8 @@ import kotlin.test.assertFailsWith
 import kotlin.uuid.Uuid
 
 /**
- * Mocks only [BookRepository], [BookTypeRepository] and [BookAuthorRepository] (the persistence ports);
+ * Mocks only [BookRepository], [BookTypeRepository], [BookAuthorRepository], [BookNarratorRepository] and [BookSeriesRepository] (the
+ * persistence ports);
  * everything else is real, so these tests exercise the actual id assignment, patch application and type/author
  * resolution logic.
  */
@@ -38,7 +42,9 @@ class BookServiceTest {
     private val books = mockk<BookRepository>()
     private val types = mockk<BookTypeRepository>()
     private val authors = mockk<BookAuthorRepository>()
-    private val service = BookService(books, types, authors)
+    private val narrators = mockk<BookNarratorRepository>()
+    private val seriesRepository = mockk<BookSeriesRepository>()
+    private val service = BookService(books, types, authors, narrators, seriesRepository)
 
     @Test
     fun `create assigns a new id and stores the book with its resolved types sorted by label`() = runBlocking {
@@ -60,6 +66,8 @@ class BookServiceTest {
         assertEquals(emptyList(), inserted.captured.authors)
         assertEquals(inserted.captured, result)
         coVerify(exactly = 0) { authors.findByIds(any()) }
+        coVerify(exactly = 0) { narrators.findByIds(any()) }
+        coVerify(exactly = 0) { seriesRepository.findByIds(any()) }
     }
 
     @Test
@@ -260,6 +268,142 @@ class BookServiceTest {
         coEvery { authors.findByIds(setOf(unknown)) } returns emptyList()
 
         assertFailsWith<InvalidValueException> { service.update(id, BookPatch(authorIds = setOf(unknown))) }
+
+        coVerify(exactly = 0) { books.update(any()) }
+    }
+
+    @Test
+    fun `create resolves narrator ids and stores them sorted by name`() = runBlocking {
+        val zed = narrator("Zed Narrator")
+        val able = narrator("Able Narrator")
+        coEvery { narrators.findByIds(setOf(zed.id, able.id)) } returns listOf(zed, able)
+        val inserted = slot<Book>()
+        coEvery { books.insert(capture(inserted)) } just Runs
+
+        service.create(
+            NewBook(Title("Mixed"), ReleaseYear(2000), narratorIds = setOf(zed.id, able.id)),
+        )
+
+        assertEquals(listOf(able, zed), inserted.captured.narrators)
+    }
+
+    @Test
+    fun `create rejects an unknown narrator id naming the narratorIds field`() = runBlocking {
+        val known = narrator("Known")
+        val unknown = BookNarratorId(Uuid.random())
+        coEvery { narrators.findByIds(setOf(known.id, unknown)) } returns listOf(known)
+
+        val exception = assertFailsWith<InvalidValueException> {
+            service.create(NewBook(Title("Unknown"), ReleaseYear(2020), narratorIds = setOf(known.id, unknown)))
+        }
+
+        assertEquals(BookNarratorId.FIELD, exception.field)
+        coVerify(exactly = 0) { books.insert(any()) }
+    }
+
+    @Test
+    fun `create resolves series with their positions and stores them sorted by name`() = runBlocking {
+        val cosmere = series("The Cosmere")
+        val mistborn = series("Mistborn")
+        val positions = mapOf(cosmere.id to null, mistborn.id to BookSeriesPosition.fromDouble(2.5))
+        coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(cosmere, mistborn)
+        val inserted = slot<Book>()
+        coEvery { books.insert(capture(inserted)) } just Runs
+
+        service.create(NewBook(Title("Mixed"), ReleaseYear(2000), series = positions))
+
+        assertEquals(listOf(seriesEntry(mistborn, 2.5), seriesEntry(cosmere)), inserted.captured.series)
+    }
+
+    @Test
+    fun `create rejects an unknown series id naming the series field`() = runBlocking {
+        val known = series("Known")
+        val unknown = BookSeriesId(Uuid.random())
+        val positions = mapOf<BookSeriesId, BookSeriesPosition?>(known.id to null, unknown to null)
+        coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(known)
+
+        val exception = assertFailsWith<InvalidValueException> {
+            service.create(NewBook(Title("Unknown"), ReleaseYear(2020), series = positions))
+        }
+
+        assertEquals(BookSeriesId.FIELD, exception.field)
+        coVerify(exactly = 0) { books.insert(any()) }
+    }
+
+    @Test
+    fun `update leaves narrators and series alone when the patch has none`() = runBlocking {
+        val id = BookId.new()
+        coEvery { books.findById(id) } returns book("Some Title", id = id)
+        coEvery { books.update(any()) } returns true
+
+        service.update(id, BookPatch(title = Title("Renamed")))
+
+        coVerify(exactly = 0) { narrators.findByIds(any()) }
+        coVerify(exactly = 0) { seriesRepository.findByIds(any()) }
+    }
+
+    @Test
+    fun `update replaces the narrators when the patch carries narrator ids`() = runBlocking {
+        val id = BookId.new()
+        val reader = narrator("A Reader")
+        coEvery { books.findById(id) } returns book("Some Title", id = id)
+        coEvery { narrators.findByIds(setOf(reader.id)) } returns listOf(reader)
+        val saved = slot<Book>()
+        coEvery { books.update(capture(saved)) } returns true
+
+        service.update(id, BookPatch(narratorIds = setOf(reader.id)))
+
+        assertEquals(listOf(reader), saved.captured.narrators)
+    }
+
+    @Test
+    fun `update replaces the series and positions when the patch carries series`() = runBlocking {
+        val id = BookId.new()
+        val mistborn = series("Mistborn")
+        coEvery { books.findById(id) } returns book("Some Title", id = id, series = listOf(seriesEntry(series("Old"))))
+        val positions = mapOf<BookSeriesId, BookSeriesPosition?>(mistborn.id to BookSeriesPosition.fromDouble(1.0))
+        coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(mistborn)
+        val saved = slot<Book>()
+        coEvery { books.update(capture(saved)) } returns true
+
+        service.update(id, BookPatch(series = positions))
+
+        assertEquals(listOf(seriesEntry(mistborn, 1.0)), saved.captured.series)
+    }
+
+    @Test
+    fun `update with an empty series map clears the series`() = runBlocking {
+        val id = BookId.new()
+        coEvery { books.findById(id) } returns book("Some Title", id = id, series = listOf(seriesEntry(series("Old"))))
+        val saved = slot<Book>()
+        coEvery { books.update(capture(saved)) } returns true
+
+        service.update(id, BookPatch(series = emptyMap()))
+
+        assertEquals(emptyList(), saved.captured.series)
+        coVerify(exactly = 0) { seriesRepository.findByIds(any()) }
+    }
+
+    @Test
+    fun `update rejects an unknown series id before saving`() = runBlocking {
+        val id = BookId.new()
+        val unknown = BookSeriesId(Uuid.random())
+        coEvery { books.findById(id) } returns book("Some Title", id = id)
+        coEvery { seriesRepository.findByIds(setOf(unknown)) } returns emptyList()
+
+        assertFailsWith<InvalidValueException> { service.update(id, BookPatch(series = mapOf(unknown to null))) }
+
+        coVerify(exactly = 0) { books.update(any()) }
+    }
+
+    @Test
+    fun `update rejects an unknown narrator id before saving`() = runBlocking {
+        val id = BookId.new()
+        val unknown = BookNarratorId(Uuid.random())
+        coEvery { books.findById(id) } returns book("Some Title", id = id)
+        coEvery { narrators.findByIds(setOf(unknown)) } returns emptyList()
+
+        assertFailsWith<InvalidValueException> { service.update(id, BookPatch(narratorIds = setOf(unknown))) }
 
         coVerify(exactly = 0) { books.update(any()) }
     }

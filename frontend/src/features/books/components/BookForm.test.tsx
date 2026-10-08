@@ -40,7 +40,11 @@ describe("BookForm", () => {
     expect(screen.getByRole("textbox", { name: /description/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /types/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /release year/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /authors/i })).toBeInTheDocument();
+    const authors = screen.getByRole("combobox", { name: /authors/i });
+    const narrators = screen.getByRole("combobox", { name: /narrators/i });
+    const series = screen.getByRole("combobox", { name: /series/i });
+    expect(authors.compareDocumentPosition(narrators) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(narrators.compareDocumentPosition(series) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("group", { name: "Ownership" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Progress" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Watchlist" })).toHaveAttribute("aria-pressed", "true");
@@ -122,5 +126,25 @@ describe("BookForm", () => {
     unmount();
     renderWithProviders(<Harness initial={{ ...emptyBookDraft(), coverImageUrl: "nope" }} />);
     expect(screen.queryByRole("img", { name: "Cover preview" })).not.toBeInTheDocument();
+  });
+
+  it("shows a position field per selected series and reports its edit", async () => {
+    const user = userEvent.setup();
+    const onDraft = vi.fn();
+    mockApi({});
+    renderWithProviders(
+      <Harness
+        initial={{ ...emptyBookDraft(), series: [{ entry: { id: "s1", name: "Mistborn" }, position: "1" }] }}
+        onDraft={onDraft}
+      />,
+    );
+    const position = screen.getByRole("textbox", { name: "No. Mistborn" });
+    expect(position).toHaveValue("1");
+    await user.clear(position);
+    await user.click(position);
+    await user.paste("2,5");
+    expect(onDraft).toHaveBeenLastCalledWith(
+      expect.objectContaining({ series: [{ entry: { id: "s1", name: "Mistborn" }, position: "2,5" }] }),
+    );
   });
 });

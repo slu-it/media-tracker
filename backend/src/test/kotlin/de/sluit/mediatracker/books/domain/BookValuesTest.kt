@@ -3,6 +3,9 @@ package de.sluit.mediatracker.books.domain
 import de.sluit.mediatracker.books.BookTypes
 import de.sluit.mediatracker.books.author
 import de.sluit.mediatracker.books.book
+import de.sluit.mediatracker.books.narrator
+import de.sluit.mediatracker.books.series
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
@@ -10,11 +13,13 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.Title
+import java.math.BigDecimal
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.uuid.Uuid
 
 class BookValuesTest {
@@ -45,6 +50,109 @@ class BookValuesTest {
         val id = BookAuthorId.new()
         assertEquals(id, BookAuthorId.parse(id.toString()))
         rejects("authorIds") { BookAuthorId.parse("nope") }
+    }
+
+    @Test
+    fun `book narrator and series ids parse only the 36-character hex-dash form`() {
+        val narratorId = BookNarratorId.new()
+        assertEquals(narratorId, BookNarratorId.parse(narratorId.toString()))
+        rejects("narratorIds") { BookNarratorId.parse("nope") }
+        val seriesId = BookSeriesId.new()
+        assertEquals(seriesId, BookSeriesId.parse(seriesId.toString()))
+        rejects("series") { BookSeriesId.parse("nope") }
+    }
+
+    @Test
+    fun `a book rejects duplicate or unsorted narrators`() {
+        val zed = narrator("Zed")
+        val able = narrator("Able")
+        rejects("narratorIds") {
+            Book(BookId.new(), Title("Dune"), ReleaseYear(1965), narrators = listOf(zed, zed))
+        }
+        rejects("narratorIds") {
+            Book(BookId.new(), Title("Dune"), ReleaseYear(1965), narrators = listOf(zed, able))
+        }
+    }
+
+    @Test
+    fun `a book rejects duplicate or unsorted series`() {
+        val zed = series("Zed")
+        val able = series("Able")
+        rejects("series") {
+            Book(
+                BookId.new(),
+                Title("Dune"),
+                ReleaseYear(1965),
+                series = listOf(seriesEntry(zed), seriesEntry(zed, 2.0)),
+            )
+        }
+        rejects("series") {
+            Book(BookId.new(), Title("Dune"), ReleaseYear(1965), series = listOf(seriesEntry(zed), seriesEntry(able)))
+        }
+    }
+
+    @Test
+    fun `a series position accepts the boundaries and normalises trailing zeros`() {
+        assertEquals(BigDecimal.ZERO, BookSeriesPosition.fromDouble(0.0).value)
+        assertEquals(BigDecimal("9999.99"), BookSeriesPosition.fromDouble(9999.99).value)
+        assertEquals(BigDecimal("2.5"), BookSeriesPosition.fromDouble(2.5).value)
+        assertEquals(BookSeriesPosition.fromDouble(2.5), BookSeriesPosition.of(BigDecimal("2.50")))
+        assertEquals("1", BookSeriesPosition.fromDouble(1.0).toString())
+        assertEquals("10", BookSeriesPosition.of(BigDecimal("10.00")).toString())
+        assertEquals("0.25", BookSeriesPosition.fromDouble(0.25).toString())
+    }
+
+    @Test
+    fun `a series position rejects a value that is not normalised`() {
+        rejects("series") { BookSeriesPosition(BigDecimal("2.50")) }
+        rejects("series") { BookSeriesPosition(BigDecimal("1E+1")) }
+        rejects("series") { BookSeriesPosition(BigDecimal("0.00")) }
+        assertEquals(BigDecimal("10"), BookSeriesPosition(BigDecimal("10")).value)
+        assertEquals(BigDecimal.ZERO, BookSeriesPosition(BigDecimal.ZERO).value)
+    }
+
+    @Test
+    fun `a series position rejects negative, too large and too precise numbers`() {
+        rejects("series") { BookSeriesPosition.fromDouble(-1.0) }
+        rejects("series") { BookSeriesPosition.fromDouble(10000.0) }
+        rejects("series") { BookSeriesPosition.fromDouble(9999.991) }
+        rejects("series") { BookSeriesPosition.fromDouble(1.234) }
+        rejects("series") { BookSeriesPosition.fromDouble(Double.NaN) }
+        rejects("series") { BookSeriesPosition.fromDouble(Double.POSITIVE_INFINITY) }
+    }
+
+    @Test
+    fun `patch replaces narrators only when narratorIds is present`() {
+        val reader = narrator("A Reader")
+        val book = book("Dune", narrators = listOf(reader))
+
+        assertEquals(listOf(reader), BookPatch().applyTo(book, book.types, book.authors).narrators)
+
+        val other = narrator("Other")
+        val replaced = BookPatch(narratorIds = setOf(other.id))
+            .applyTo(book, book.types, book.authors, listOf(other), book.series)
+        assertEquals(listOf(other), replaced.narrators)
+
+        val cleared = BookPatch(narratorIds = emptySet())
+            .applyTo(book, book.types, book.authors, emptyList(), book.series)
+        assertTrue(cleared.narrators.isEmpty())
+    }
+
+    @Test
+    fun `patch replaces series only when series is present`() {
+        val mistborn = series("Mistborn")
+        val book = book("Dune", series = listOf(seriesEntry(mistborn, 1.0)))
+
+        assertEquals(book.series, BookPatch().applyTo(book, book.types, book.authors).series)
+
+        val cosmere = series("The Cosmere")
+        val replaced = BookPatch(series = mapOf(cosmere.id to null))
+            .applyTo(book, book.types, book.authors, book.narrators, listOf(seriesEntry(cosmere)))
+        assertEquals(listOf(seriesEntry(cosmere)), replaced.series)
+
+        val cleared = BookPatch(series = emptyMap())
+            .applyTo(book, book.types, book.authors, book.narrators, emptyList())
+        assertTrue(cleared.series.isEmpty())
     }
 
     @Test

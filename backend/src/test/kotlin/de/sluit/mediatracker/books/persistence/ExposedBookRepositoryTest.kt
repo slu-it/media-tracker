@@ -7,6 +7,7 @@ import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMissingField
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.PageNumber
@@ -112,6 +113,47 @@ class ExposedBookRepositoryTest {
         assertEquals(listOf(adams, herbert), found?.authors)
     }
 
+    @Test
+    fun `insert then findById returns the book with narrators sorted by name`() = withFreshDatabase {
+        val narratorRepo = ExposedBookNarratorRepository()
+        val zed = narratorRepo.create(VocabularyName("Zed Reader")).entry
+        val able = narratorRepo.create(VocabularyName("Able Reader")).entry
+        val repo = ExposedBookRepository()
+        val inserted = book("Audio", narrators = listOf(zed, able))
+        repo.insert(inserted)
+
+        assertEquals(listOf(able, zed), repo.findById(inserted.id)?.narrators)
+    }
+
+    @Test
+    fun `insert then findById round-trips series with and without a position sorted by series name`() =
+        withFreshDatabase {
+            val seriesRepo = ExposedBookSeriesRepository()
+            val cosmere = seriesRepo.create(VocabularyName("The Cosmere")).entry
+            val mistborn = seriesRepo.create(VocabularyName("Mistborn")).entry
+            val repo = ExposedBookRepository()
+            val inserted = book("The Final Empire", series = listOf(seriesEntry(cosmere), seriesEntry(mistborn, 2.5)))
+            repo.insert(inserted)
+
+            val found = repo.findById(inserted.id)
+
+            assertEquals(listOf(seriesEntry(mistborn, 2.5), seriesEntry(cosmere)), found?.series)
+            assertEquals(inserted, found)
+        }
+
+    @Test
+    fun `a series position at the column limits and zero round-trips`() = withFreshDatabase {
+        val seriesRepo = ExposedBookSeriesRepository()
+        val a = seriesRepo.create(VocabularyName("A")).entry
+        val b = seriesRepo.create(VocabularyName("B")).entry
+        val c = seriesRepo.create(VocabularyName("C")).entry
+        val repo = ExposedBookRepository()
+        val inserted = book("Edge", series = listOf(seriesEntry(a, 0.0), seriesEntry(b, 9999.99), seriesEntry(c, 10.0)))
+        repo.insert(inserted)
+
+        assertEquals(inserted, repo.findById(inserted.id))
+    }
+
     // release date
 
     @Test
@@ -213,18 +255,41 @@ class ExposedBookRepositoryTest {
     @Test
     fun `findPage loads the types and authors of a page with a constant number of queries`() = withFreshDatabase { db ->
         val herbert = ExposedBookAuthorRepository().create(VocabularyName("Frank Herbert")).entry
+        val reader = ExposedBookNarratorRepository().create(VocabularyName("A Reader")).entry
+        val dune = ExposedBookSeriesRepository().create(VocabularyName("Dune Chronicles")).entry
+        val inSeries = listOf(seriesEntry(dune, 1.5))
         val repo = ExposedBookRepository()
         val twoTypes = listOf(BookTypes.HARDCOVER, BookTypes.KINDLE)
-        (1..2).forEach { repo.insert(book("B$it", types = twoTypes, authors = listOf(herbert))) }
+        (1..2).forEach {
+            repo.insert(
+                book(
+                    "B$it",
+                    types = twoTypes,
+                    authors = listOf(herbert),
+                    narrators = listOf(reader),
+                    series = inSeries,
+                ),
+            )
+        }
 
         val countWithTwoBooks = countStatements(db.database) { repo.findPage(PageRequest()) }
 
-        (3..5).forEach { repo.insert(book("B$it", types = twoTypes, authors = listOf(herbert))) }
+        (3..5).forEach {
+            repo.insert(
+                book(
+                    "B$it",
+                    types = twoTypes,
+                    authors = listOf(herbert),
+                    narrators = listOf(reader),
+                    series = inSeries,
+                ),
+            )
+        }
         val countWithFiveBooks = countStatements(db.database) { repo.findPage(PageRequest()) }
 
-        // Exactly four SELECT statements regardless of page size: the total count, the page of books, and one
-        // join query each that loads every book's types and authors at once.
-        assertEquals(4, countWithTwoBooks)
+        // Exactly six SELECT statements regardless of page size: the total count, the page of books, and one
+        // join query each that loads every book's types, authors, narrators and series at once.
+        assertEquals(6, countWithTwoBooks)
         assertEquals(countWithTwoBooks, countWithFiveBooks)
     }
 
@@ -280,6 +345,57 @@ class ExposedBookRepositoryTest {
     }
 
     @Test
+    fun `update replaces the narrator links exactly`() = withFreshDatabase {
+        val narratorRepo = ExposedBookNarratorRepository()
+        val first = narratorRepo.create(VocabularyName("First")).entry
+        val second = narratorRepo.create(VocabularyName("Second")).entry
+        val repo = ExposedBookRepository()
+        val original = book("Audio", narrators = listOf(first))
+        repo.insert(original)
+
+        assertTrue(repo.update(original.copy(narrators = listOf(second))))
+
+        assertEquals(listOf(second), repo.findById(original.id)?.narrators)
+        val linkCount = transaction {
+            BookToNarratorTable.selectAll().where { BookToNarratorTable.bookId eq original.id.toString() }.count()
+        }
+        assertEquals(1, linkCount)
+    }
+
+    @Test
+    fun `update replaces the series links and positions exactly`() = withFreshDatabase {
+        val seriesRepo = ExposedBookSeriesRepository()
+        val mistborn = seriesRepo.create(VocabularyName("Mistborn")).entry
+        val cosmere = seriesRepo.create(VocabularyName("The Cosmere")).entry
+        val repo = ExposedBookRepository()
+        val original = book("The Final Empire", series = listOf(seriesEntry(mistborn, 1.0)))
+        repo.insert(original)
+
+        assertTrue(repo.update(original.copy(series = listOf(seriesEntry(mistborn, 2.5), seriesEntry(cosmere)))))
+
+        assertEquals(
+            listOf(seriesEntry(mistborn, 2.5), seriesEntry(cosmere)),
+            repo.findById(original.id)?.series,
+        )
+        val linkCount = transaction {
+            BookToSeriesTable.selectAll().where { BookToSeriesTable.bookId eq original.id.toString() }.count()
+        }
+        assertEquals(2, linkCount)
+    }
+
+    @Test
+    fun `update clears the series links when the book has none anymore`() = withFreshDatabase {
+        val mistborn = ExposedBookSeriesRepository().create(VocabularyName("Mistborn")).entry
+        val repo = ExposedBookRepository()
+        val original = book("The Final Empire", series = listOf(seriesEntry(mistborn, 1.0)))
+        repo.insert(original)
+
+        repo.update(original.copy(series = emptyList()))
+
+        assertEquals(emptyList(), repo.findById(original.id)?.series)
+    }
+
+    @Test
     fun `update clears optional fields set to null`() = withFreshDatabase {
         val repo = ExposedBookRepository()
         val original = book(
@@ -330,6 +446,24 @@ class ExposedBookRepositoryTest {
 
         assertEquals(1, repo.deleteById(inserted.id))
         assertEquals(0, repo.deleteById(inserted.id))
+    }
+
+    @Test
+    fun `deleteById cascades to the narrator and series links but keeps the vocabulary`() = withFreshDatabase {
+        val reader = ExposedBookNarratorRepository().create(VocabularyName("A Reader")).entry
+        val mistborn = ExposedBookSeriesRepository().create(VocabularyName("Mistborn")).entry
+        val repo = ExposedBookRepository()
+        val inserted = book("Dune", narrators = listOf(reader), series = listOf(seriesEntry(mistborn, 1.0)))
+        repo.insert(inserted)
+
+        repo.deleteById(inserted.id)
+
+        transaction {
+            assertEquals(0, BookToNarratorTable.selectAll().count())
+            assertEquals(0, BookToSeriesTable.selectAll().count())
+            assertEquals(1, BookNarratorsTable.selectAll().count())
+            assertEquals(1, BookSeriesTable.selectAll().count())
+        }
     }
 
     @Test
@@ -486,20 +620,43 @@ class ExposedBookRepositoryTest {
     @Test
     fun `search loads the types and authors of a page with a constant number of queries`() = withFreshDatabase { db ->
         val herbert = ExposedBookAuthorRepository().create(VocabularyName("Frank Herbert")).entry
+        val reader = ExposedBookNarratorRepository().create(VocabularyName("A Reader")).entry
+        val dune = ExposedBookSeriesRepository().create(VocabularyName("Dune Chronicles")).entry
+        val inSeries = listOf(seriesEntry(dune, 1.5))
         val repo = ExposedBookRepository()
         val twoTypes = listOf(BookTypes.HARDCOVER, BookTypes.KINDLE)
-        (1..2).forEach { repo.insert(book("Dune $it", types = twoTypes, authors = listOf(herbert))) }
+        (1..2).forEach {
+            repo.insert(
+                book(
+                    "Dune $it",
+                    types = twoTypes,
+                    authors = listOf(herbert),
+                    narrators = listOf(reader),
+                    series = inSeries,
+                ),
+            )
+        }
 
         val countWithTwoBooks = countStatements(db.database) {
             repo.search(SearchTerm("dune"), BookFilters.NONE, PageRequest())
         }
 
-        (3..5).forEach { repo.insert(book("Dune $it", types = twoTypes, authors = listOf(herbert))) }
+        (3..5).forEach {
+            repo.insert(
+                book(
+                    "Dune $it",
+                    types = twoTypes,
+                    authors = listOf(herbert),
+                    narrators = listOf(reader),
+                    series = inSeries,
+                ),
+            )
+        }
         val countWithFiveBooks = countStatements(db.database) {
             repo.search(SearchTerm("dune"), BookFilters.NONE, PageRequest())
         }
 
-        assertEquals(4, countWithTwoBooks)
+        assertEquals(6, countWithTwoBooks)
         assertEquals(countWithTwoBooks, countWithFiveBooks)
     }
 

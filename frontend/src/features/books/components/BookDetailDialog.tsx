@@ -11,7 +11,7 @@ import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
 import { MEDIA_DIALOG_HEIGHT } from "../../../components/media/dialogLayout";
 import type { BookResponse, BookTypeResponse, UpdateBookRequest } from "../../../types/api";
-import { deleteBook, resolveAuthorIds, updateBook } from "../api/booksApi";
+import { deleteBook, resolveAuthorIds, resolveNarratorIds, resolveSeries, updateBook } from "../api/booksApi";
 import { draftFromBook, isDraftDirty, isDraftValid, toUpdateRequest } from "../domain/bookDraft";
 import type { BookOwnership, BookProgress } from "../domain/bookStatus";
 import { BookDetails } from "./BookDetails";
@@ -53,9 +53,9 @@ function BookDetailDialogContent({
   onDeleted,
   types,
 }: Omit<BookDetailDialogProps, "book"> & { book: BookResponse }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const [draft, setDraft] = useState(() => draftFromBook(book));
+  const [draft, setDraft] = useState(() => draftFromBook(book, i18n.language));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Overlay on the displayed book while a quick progress/ownership PATCH is in flight.
@@ -66,14 +66,14 @@ function BookDetailDialogContent({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const startEditing = () => {
-    setDraft(draftFromBook(book));
+    setDraft(draftFromBook(book, i18n.language));
     setError(null);
     setFormValid(true);
     setMode("edit");
   };
 
   const cancelEditing = () => {
-    setDraft(draftFromBook(book));
+    setDraft(draftFromBook(book, i18n.language));
     setError(null);
     setFormValid(true);
     setMode("view");
@@ -84,8 +84,10 @@ function BookDetailDialogContent({
     setError(null);
     try {
       const authorIds = await resolveAuthorIds(draft.authors);
-      const updated = await updateBook(book.id, toUpdateRequest(book, draft, authorIds));
-      setDraft(draftFromBook(updated));
+      const narratorIds = await resolveNarratorIds(draft.narrators);
+      const series = await resolveSeries(draft.series);
+      const updated = await updateBook(book.id, toUpdateRequest(book, draft, { authorIds, narratorIds, series }));
+      setDraft(draftFromBook(updated, i18n.language));
       setMode("view");
       onSaved(updated);
     } catch (cause: unknown) {
@@ -103,7 +105,7 @@ function BookDetailDialogContent({
     setPending(patch);
     try {
       const updated = await updateBook(book.id, patch);
-      setDraft(draftFromBook(updated));
+      setDraft(draftFromBook(updated, i18n.language));
       onSaved(updated);
     } catch (cause: unknown) {
       setError(errorMessage(cause, t("errors.saveFailed")));

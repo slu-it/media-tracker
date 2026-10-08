@@ -3,9 +3,13 @@ package de.sluit.mediatracker.books
 import de.sluit.mediatracker.appWithUser
 import de.sluit.mediatracker.books.api.BookAuthorResponse
 import de.sluit.mediatracker.books.api.BookMetaResponse
+import de.sluit.mediatracker.books.api.BookNarratorResponse
 import de.sluit.mediatracker.books.api.BookResponse
+import de.sluit.mediatracker.books.api.BookSeriesResponse
 import de.sluit.mediatracker.books.api.BookTypeResponse
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
+import de.sluit.mediatracker.books.persistence.BookNarratorsTable
+import de.sluit.mediatracker.books.persistence.BookSeriesTable
 import de.sluit.mediatracker.books.persistence.BooksTable
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
@@ -35,9 +39,11 @@ import kotlin.test.assertNull
 class BooksSmokeTest {
     private suspend fun ApplicationTestBuilder.loggedInClient(): HttpClient {
         val client = appWithUser("alice", "wonderland-1") {
-            // Books first: the junction rows cascade, and authors are RESTRICTed while a junction row exists.
+            // Books first: the junction rows cascade, and authors, narrators and series are RESTRICTed while a junction row exists.
             BooksTable.deleteAll()
             BookAuthorsTable.deleteAll()
+            BookNarratorsTable.deleteAll()
+            BookSeriesTable.deleteAll()
         }
         client.loginAs("alice", "wonderland-1")
         return client
@@ -47,6 +53,58 @@ class BooksSmokeTest {
 
     private suspend fun HttpClient.createdAuthor(name: String): BookAuthorResponse =
         post("/api/book-authors") { jsonBody("""{"name":"$name"}""") }.decodeBody()
+
+    private suspend fun HttpClient.createdNarrator(name: String): BookNarratorResponse =
+        post("/api/book-narrators") { jsonBody("""{"name":"$name"}""") }.decodeBody()
+
+    private suspend fun HttpClient.createdSeries(name: String): BookSeriesResponse =
+        post("/api/book-series") { jsonBody("""{"name":"$name"}""") }.decodeBody()
+
+    @Test
+    fun `create with narrators and series stores them and a patch replaces and clears the series`() = testApplication {
+        val client = loggedInClient()
+        val narrator = client.createdNarrator("Michael Kramer")
+        val mistborn = client.createdSeries("Mistborn")
+        val cosmere = client.createdSeries("The Cosmere")
+
+        val created = client.createBook(
+            """{"title":"The Final Empire","releaseYear":2006,"narratorIds":["${narrator.id}"],
+                    |"series":[{"seriesId":"${cosmere.id}"},{"seriesId":"${mistborn.id}","position":1}]}
+            """.trimMargin(),
+        ).decodeBody<BookResponse>()
+
+        assertEquals(listOf("Michael Kramer"), created.narrators.map { it.name })
+        assertEquals(listOf("Mistborn", "The Cosmere"), created.series.map { it.name })
+        assertEquals(listOf(1.0, null), created.series.map { it.position })
+
+        val patched = client.patch("/api/books/${created.id}") {
+            jsonBody("""{"series":[{"seriesId":"${mistborn.id}","position":2.5}]}""")
+        }.decodeBody<BookResponse>()
+        assertEquals(listOf(2.5), patched.series.map { it.position })
+        assertEquals(listOf("Michael Kramer"), patched.narrators.map { it.name })
+
+        val cleared = client.patch("/api/books/${created.id}") {
+            jsonBody("""{"narratorIds":[],"series":[]}""")
+        }.decodeBody<BookResponse>()
+        assertEquals(emptyList(), cleared.narrators)
+        assertEquals(emptyList(), cleared.series)
+    }
+
+    @Test
+    fun `book-narrators and book-series search by prefix and create is idempotent`() = testApplication {
+        val client = loggedInClient()
+
+        val first = client.post("/api/book-series") { jsonBody("""{"name":"Mistborn"}""") }
+        val second = client.post("/api/book-series") { jsonBody("""{"name":"mistborn"}""") }
+        val foundSeries = client.get("/api/book-series?search=mist").decodeBody<List<BookSeriesResponse>>()
+        client.post("/api/book-narrators") { jsonBody("""{"name":"Michael Kramer"}""") }
+        val foundNarrators = client.get("/api/book-narrators?search=mich").decodeBody<List<BookNarratorResponse>>()
+
+        assertEquals(HttpStatusCode.Created, first.status)
+        assertEquals(HttpStatusCode.OK, second.status)
+        assertEquals(listOf("Mistborn"), foundSeries.map { it.name })
+        assertEquals(listOf("Michael Kramer"), foundNarrators.map { it.name })
+    }
 
     @Test
     fun `create with all fields returns the stored book with sorted types and authors`() = testApplication {

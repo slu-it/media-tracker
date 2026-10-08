@@ -71,3 +71,37 @@ interface BookAuthorRepository {
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookAuthor>
 }
+
+/**
+ * Persistence port of the user-grown narrator vocabulary. Implemented in `books.persistence`; the domain never
+ * imports that package, so dependencies point inward only.
+ */
+interface BookNarratorRepository {
+    /**
+     * Fulltext prefix search on the name, ordered by score, then name, then id; a blank/`null` [term] lists
+     * narrators alphabetically instead. Capped at [limit].
+     */
+    suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<BookNarrator>
+
+    suspend fun findByIds(ids: Set<BookNarratorId>): List<BookNarrator>
+
+    /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
+    suspend fun create(name: VocabularyName): VocabularyCreation<BookNarrator>
+}
+
+/**
+ * Persistence port of the user-grown series vocabulary. Implemented in `books.persistence`; the domain never
+ * imports that package, so dependencies point inward only.
+ */
+interface BookSeriesRepository {
+    /**
+     * Fulltext prefix search on the name, ordered by score, then name, then id; a blank/`null` [term] lists
+     * series alphabetically instead. Capped at [limit].
+     */
+    suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<BookSeries>
+
+    suspend fun findByIds(ids: Set<BookSeriesId>): List<BookSeries>
+
+    /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
+    suspend fun create(name: VocabularyName): VocabularyCreation<BookSeries>
+}

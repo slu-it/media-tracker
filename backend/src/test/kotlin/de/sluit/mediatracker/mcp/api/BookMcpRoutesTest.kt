@@ -11,12 +11,20 @@ import de.sluit.mediatracker.books.domain.BookAuthorService
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMissingField
+import de.sluit.mediatracker.books.domain.BookNarratorId
+import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSeriesId
+import de.sluit.mediatracker.books.domain.BookSeriesPosition
+import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
+import de.sluit.mediatracker.books.narrator
+import de.sluit.mediatracker.books.series
+import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
@@ -62,10 +70,18 @@ class BookMcpRoutesTest {
     private fun ApplicationTestBuilder.mcpClient(
         books: BookService = mockk(),
         authors: BookAuthorService = mockk(),
+        narrators: BookNarratorService = mockk(),
+        series: BookSeriesService = mockk(),
     ): HttpClient {
         val apiKeys = mockk<ApiKeyService>()
         coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
-        return handlerApp(apiKeys = apiKeys, books = books, bookAuthors = authors)
+        return handlerApp(
+            apiKeys = apiKeys,
+            books = books,
+            bookAuthors = authors,
+            bookNarrators = narrators,
+            bookSeries = series,
+        )
     }
 
     private suspend fun HttpClient.callTool(name: String, arguments: String): JsonObject {
@@ -452,5 +468,245 @@ class BookMcpRoutesTest {
         val client = mcpClient(authors = authors)
 
         client.callTool("create_book_author", "{}").assertToolError()
+    }
+
+    // ---- narrators and series on books ----
+
+    @Test
+    fun `add_book maps narratorIds and series with positions`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+        val captured = slot<NewBook>()
+        val narratorId = BookNarratorId.new()
+        val mistborn = BookSeriesId.new()
+        val cosmere = BookSeriesId.new()
+        coEvery { books.create(capture(captured)) } returns book("The Final Empire")
+
+        val result = client.callTool(
+            "add_book",
+            """{"title":"The Final Empire","releaseYear":2006,"narratorIds":["$narratorId"],
+                |"series":[{"seriesId":"$mistborn","position":1},{"seriesId":"$cosmere"}]}
+            """.trimMargin(),
+        )
+
+        result.assertSuccess()
+        assertEquals(setOf(narratorId), captured.captured.narratorIds)
+        assertEquals(
+            mapOf(mistborn to BookSeriesPosition.fromDouble(1.0), cosmere to null),
+            captured.captured.series,
+        )
+    }
+
+    @Test
+    fun `add_book text and structured output carry narrators and series`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+        coEvery { books.create(any()) } returns book(
+            "The Final Empire",
+            releaseYear = 2006,
+            narrators = listOf(narrator("Michael Kramer")),
+            series = listOf(seriesEntry(series("Mistborn"), 1.0), seriesEntry(series("The Cosmere"))),
+        )
+
+        val result = client.callTool("add_book", """{"title":"The Final Empire","releaseYear":2006}""")
+
+        result.assertSuccess()
+        val text = result["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("narrated by Michael Kramer"), text)
+        assertTrue(text.contains("series: Mistborn #1, The Cosmere"), text)
+        assertEquals(
+            listOf("Mistborn", "The Cosmere"),
+            result.structured()["series"]!!.jsonArray.map { it.jsonObject["name"]!!.jsonPrimitive.content },
+        )
+        assertEquals(
+            "Michael Kramer",
+            result.structured()["narrators"]!!.jsonArray.single().jsonObject["name"]!!.jsonPrimitive.content,
+        )
+    }
+
+    @Test
+    fun `add_book rejects a duplicate series id`() = testApplication {
+        val client = mcpClient()
+        val id = BookSeriesId.new()
+
+        client.callTool(
+            "add_book",
+            """{"title":"x","releaseYear":2006,"series":[{"seriesId":"$id"},{"seriesId":"$id","position":2}]}""",
+        ).assertToolError()
+    }
+
+    @Test
+    fun `add_book rejects an invalid series position`() = testApplication {
+        val client = mcpClient()
+        val id = BookSeriesId.new()
+
+        client.callTool(
+            "add_book",
+            """{"title":"x","releaseYear":2006,"series":[{"seriesId":"$id","position":1.234}]}""",
+        ).assertToolError()
+    }
+
+    @Test
+    fun `add_book rejects an unknown key inside a series entry`() = testApplication {
+        val client = mcpClient()
+        val id = BookSeriesId.new()
+
+        client.callTool(
+            "add_book",
+            """{"title":"x","releaseYear":2006,"series":[{"seriesId":"$id","number":1}]}""",
+        ).assertToolError()
+    }
+
+    @Test
+    fun `update_book maps empty narrator and series arrays to cleared collections`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+        val id = BookId.new()
+        val captured = slot<BookPatch>()
+        coEvery { books.update(id, capture(captured)) } returns book("Dune", id = id)
+
+        client.callTool("update_book", """{"id":"$id","narratorIds":[],"series":[]}""").assertSuccess()
+
+        assertEquals(emptySet(), captured.captured.narratorIds)
+        assertEquals(emptyMap(), captured.captured.series)
+    }
+
+    @Test
+    fun `update_book maps series positions and leaves narrators unchanged when omitted`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+        val id = BookId.new()
+        val seriesId = BookSeriesId.new()
+        val captured = slot<BookPatch>()
+        coEvery { books.update(id, capture(captured)) } returns book("Dune", id = id)
+
+        client.callTool(
+            "update_book",
+            """{"id":"$id","series":[{"seriesId":"$seriesId","position":2.5}]}""",
+        ).assertSuccess()
+
+        assertEquals(mapOf(seriesId to BookSeriesPosition.fromDouble(2.5)), captured.captured.series)
+        assertNull(captured.captured.narratorIds)
+    }
+
+    @Test
+    fun `update_book rejects null for series and narratorIds`() = testApplication {
+        val client = mcpClient()
+        val id = BookId.new()
+
+        client.callTool("update_book", """{"id":"$id","series":null}""").assertToolError()
+        client.callTool("update_book", """{"id":"$id","narratorIds":null}""").assertToolError()
+    }
+
+    // ---- narrators ----
+
+    @Test
+    fun `search_book_narrators returns the narrators as structured content`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = mcpClient(narrators = narrators)
+        val kramer = narrator("Michael Kramer")
+        coEvery { narrators.search(SearchTerm("mic"), VocabularySearchLimit(5)) } returns listOf(kramer)
+
+        val result = client.callTool("search_book_narrators", """{"query":"mic","pageSize":5}""")
+
+        result.assertSuccess()
+        val entries = result.structured()["narrators"]!!.jsonArray
+        assertEquals(kramer.id.toString(), entries.single().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals("Michael Kramer", entries.single().jsonObject["name"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `search_book_narrators rejects an unknown argument`() = testApplication {
+        val client = mcpClient(narrators = mockk<BookNarratorService>())
+
+        client.callTool("search_book_narrators", """{"name":"x"}""").assertToolError()
+    }
+
+    @Test
+    fun `create_book_narrator reports created true for a new narrator and false for an existing one`() =
+        testApplication {
+            val narrators = mockk<BookNarratorService>()
+            val client = mcpClient(narrators = narrators)
+            val kramer = narrator("Michael Kramer")
+            coEvery { narrators.create(VocabularyName("Michael Kramer")) } returns VocabularyCreation(kramer, true)
+            coEvery { narrators.create(VocabularyName("michael kramer")) } returns VocabularyCreation(kramer, false)
+
+            val created = client.callTool("create_book_narrator", """{"name":"Michael Kramer"}""")
+            val existing = client.callTool("create_book_narrator", """{"name":"michael kramer"}""")
+
+            created.assertSuccess()
+            assertEquals(kramer.id.toString(), created.structured()["id"]!!.jsonPrimitive.content)
+            assertTrue(created.structured()["created"]!!.jsonPrimitive.content.toBoolean())
+            assertEquals(false, existing.structured()["created"]!!.jsonPrimitive.content.toBoolean())
+        }
+
+    @Test
+    fun `create_book_narrator with a blank name is a tool error`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = mcpClient(narrators = narrators)
+
+        client.callTool("create_book_narrator", """{"name":" "}""").assertToolError()
+        coVerify(exactly = 0) { narrators.create(any()) }
+    }
+
+    // ---- series ----
+
+    @Test
+    fun `search_book_series returns the series as structured content`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = mcpClient(series = seriesService)
+        val mistborn = series("Mistborn")
+        coEvery { seriesService.search(SearchTerm("mist"), VocabularySearchLimit(5)) } returns listOf(mistborn)
+
+        val result = client.callTool("search_book_series", """{"query":"mist","pageSize":5}""")
+
+        result.assertSuccess()
+        val entries = result.structured()["series"]!!.jsonArray
+        assertEquals(mistborn.id.toString(), entries.single().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals("Mistborn", entries.single().jsonObject["name"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `search_book_series without arguments lists with the default limit`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = mcpClient(series = seriesService)
+        coEvery { seriesService.search(null, VocabularySearchLimit.DEFAULT) } returns emptyList()
+
+        client.callTool("search_book_series", "{}").assertSuccess()
+
+        coVerify { seriesService.search(null, VocabularySearchLimit.DEFAULT) }
+    }
+
+    @Test
+    fun `search_book_series rejects an unknown argument`() = testApplication {
+        val client = mcpClient(series = mockk<BookSeriesService>())
+
+        client.callTool("search_book_series", """{"name":"x"}""").assertToolError()
+    }
+
+    @Test
+    fun `create_book_series reports created true for a new series and false for an existing one`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = mcpClient(series = seriesService)
+        val mistborn = series("Mistborn")
+        coEvery { seriesService.create(VocabularyName("Mistborn")) } returns VocabularyCreation(mistborn, true)
+        coEvery { seriesService.create(VocabularyName("mistborn")) } returns VocabularyCreation(mistborn, false)
+
+        val created = client.callTool("create_book_series", """{"name":"Mistborn"}""")
+        val existing = client.callTool("create_book_series", """{"name":"mistborn"}""")
+
+        created.assertSuccess()
+        assertEquals(mistborn.id.toString(), created.structured()["id"]!!.jsonPrimitive.content)
+        assertTrue(created.structured()["created"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals(false, existing.structured()["created"]!!.jsonPrimitive.content.toBoolean())
+    }
+
+    @Test
+    fun `create_book_series with a blank name is a tool error`() = testApplication {
+        val seriesService = mockk<BookSeriesService>()
+        val client = mcpClient(series = seriesService)
+
+        client.callTool("create_book_series", """{"name":" "}""").assertToolError()
+        coVerify(exactly = 0) { seriesService.create(any()) }
     }
 }

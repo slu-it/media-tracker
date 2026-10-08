@@ -164,7 +164,13 @@
     "fields": {
       "types": "Typen",
       "authors": "Autoren",
-      "authorsHint": "Namen eingeben und Enter drücken, um einen neuen Autor hinzuzufügen"
+      "authorsHint": "Namen eingeben und Enter drücken, um einen neuen Autor hinzuzufügen",
+      "narrators": "Sprecher",
+      "narratorsHint": "Namen eingeben und Enter drücken, um einen neuen Sprecher hinzuzufügen",
+      "series": "Reihen",
+      "seriesHint": "Namen eingeben und Enter drücken, um eine neue Reihe hinzuzufügen",
+      "seriesPosition": "Nr.",
+      "seriesEntry": "{{name}} #{{position}}"
     },
     "ownership": {
       "watchlist": "Merkliste",
@@ -270,6 +276,7 @@
     "invalidYear": "Muss eine vierstellige Jahreszahl sein",
     "invalidRating": "Muss zwischen 0,25 und 5 in Schritten von 0,25 liegen",
     "invalidDate": "Muss ein gültiges Datum mit vierstelliger Jahreszahl sein",
+    "invalidPosition": "Muss eine Zahl von 0 bis 9999,99 mit höchstens 2 Nachkommastellen sein",
     "tooShort": "Mindestens {{min}} Zeichen",
     "mismatch": "Passwörter stimmen nicht überein"
   },

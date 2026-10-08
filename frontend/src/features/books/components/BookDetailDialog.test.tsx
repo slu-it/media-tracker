@@ -2,10 +2,10 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { BookAuthorResponse, BookResponse } from "../../../types/api";
+import type { BookResponse, BookAuthorResponse, BookSeriesResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
-import { bookTypes, dune, herbert, kindle, paperback } from "../../../test/fixtures/books";
+import { bookTypes, dune, duneSaga, herbert, kindle, paperback } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookDetailDialog } from "./BookDetailDialog";
 
@@ -161,6 +161,40 @@ describe("BookDetailDialog", () => {
     expect(authorPost?.body).toEqual({ name: "Brian Herbert" });
     expect(calls.indexOf(authorPost!)).toBeLessThan(calls.indexOf(patches(calls)[0] as (typeof calls)[number]));
     expect(patches(calls)[0]).toMatchObject({ body: { authorIds: [herbert.id, created.id] } });
+  });
+
+  it("creates a pending series before saving and sends the full series list", async () => {
+    const user = userEvent.setup();
+    const created: BookSeriesResponse = { id: "series-new", name: "Cosmere" };
+    const inSeries: BookResponse = { ...book, series: [{ id: duneSaga.id, name: duneSaga.name, position: 1 }] };
+    const calls = mockApi({
+      "GET /api/book-series": () => jsonResponse([]),
+      "POST /api/book-series": () => jsonResponse(created, 201),
+      "PATCH /api/books/:id": (call) => jsonResponse({ ...inSeries, ...(call.body as object), series: [] }),
+    });
+    renderDialog({ book: inSeries });
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Dune Saga #1")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    expect(within(dialog).getByRole("textbox", { name: "No. Dune Saga" })).toHaveValue("1");
+    await user.click(within(dialog).getByRole("combobox", { name: /series/i }));
+    await user.paste("Cosmere");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(patches(calls)).toHaveLength(1));
+    const seriesPost = calls.find((c) => c.url === "/api/book-series" && c.method === "POST");
+    expect(seriesPost?.body).toEqual({ name: "Cosmere" });
+    expect(calls.indexOf(seriesPost!)).toBeLessThan(calls.indexOf(patches(calls)[0] as (typeof calls)[number]));
+    expect(patches(calls)[0]).toMatchObject({
+      body: {
+        series: [
+          { seriesId: duneSaga.id, position: 1 },
+          { seriesId: created.id, position: null },
+        ],
+      },
+    });
   });
 
   it("shows an error and sends no PATCH when creating a pending author fails", async () => {
