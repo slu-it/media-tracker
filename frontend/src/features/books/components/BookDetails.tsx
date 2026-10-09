@@ -27,10 +27,13 @@ interface BookDetailsProps {
 
 /**
  * One book as shown in the detail dialog's view mode. Display only apart from the optional quick actions (the
- * ownership and progress bars), which report a change for the caller to save.
+ * ownership and progress bars), which report a change for the caller to save. The info body shows the series chips
+ * (unlabelled), the description, then a two-column grid: release and types, then authors and narrators (the row is
+ * omitted when both are empty; a missing field leaves its cell empty).
  */
 export function BookDetails({ book, titleId, onOwnershipChange, onProgressChange, quickSaveBusy }: BookDetailsProps) {
   const { t, i18n } = useTranslation();
+  const hasPeople = book.authors.length > 0 || book.narrators.length > 0;
   return (
     <CoverAndInfoLayout
       scrollInfo
@@ -65,37 +68,56 @@ export function BookDetails({ book, titleId, onOwnershipChange, onProgressChange
       }
     >
       <Stack spacing={2}>
-        {book.description && (
-          <Typography variant="body1" color="text.primary" sx={{ whiteSpace: "pre-wrap" }}>
-            {book.description}
-          </Typography>
-        )}
-        <ReleaseDetail releaseDate={book.releaseDate} releaseYear={book.releaseYear} />
-        {book.types.length > 0 && (
-          <DetailField label={t("books.fields.types")}>
-            <ColorChips items={book.types} />
-          </DetailField>
-        )}
-        {book.authors.length > 0 && (
-          <DetailField label={t("books.fields.authors")}>
-            <NameChips items={book.authors} />
-          </DetailField>
-        )}
-        {book.narrators.length > 0 && (
-          <DetailField label={t("books.fields.narrators")}>
-            <NameChips items={book.narrators} />
-          </DetailField>
-        )}
         {book.series.length > 0 && (
-          <DetailField label={t("books.fields.series")}>
+          <Box role="group" aria-label={t("books.fields.series")}>
             <NameChips
               items={book.series.map((entry) => ({
                 id: entry.id,
                 name: formatSeriesEntry(entry, t, i18n.language),
               }))}
             />
-          </DetailField>
+          </Box>
         )}
+        {book.description && (
+          <Typography variant="body1" color="text.primary" sx={{ whiteSpace: "pre-wrap" }}>
+            {book.description}
+          </Typography>
+        )}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            columnGap: 3,
+            rowGap: 2,
+          }}
+        >
+          <ReleaseDetail releaseDate={book.releaseDate} releaseYear={book.releaseYear} />
+          {book.types.length > 0 ? (
+            <DetailField label={t("books.fields.types")}>
+              <ColorChips items={book.types} />
+            </DetailField>
+          ) : (
+            <div />
+          )}
+          {hasPeople && (
+            <>
+              {book.authors.length > 0 ? (
+                <DetailField label={t("books.fields.authors")}>
+                  <NameChips items={book.authors} />
+                </DetailField>
+              ) : (
+                <div />
+              )}
+              {book.narrators.length > 0 ? (
+                <DetailField label={t("books.fields.narrators")}>
+                  <NameChips items={book.narrators} />
+                </DetailField>
+              ) : (
+                <div />
+              )}
+            </>
+          )}
+        </Box>
       </Stack>
     </CoverAndInfoLayout>
   );

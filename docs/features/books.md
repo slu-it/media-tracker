@@ -93,7 +93,10 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   `resolveNarratorIds`, `resolveSeries`). The form order is authors, narrators, series.
 - `SeriesField` wraps the shared `VocabularyField` and adds one number input per selected series below the chips
   (`validateSeriesPosition`, `.` or `,` as decimal separator). A number survives when its pending chip is upgraded
-  to an existing series. The detail view shows "Mistborn #1", with the number formatted for the active language.
+  to an existing series. The detail view shows the series as unlabelled chips ("Mistborn #1", the number
+  formatted for the active language; a `group` named "Series" for screen readers) between the title and the
+  description; below the description, a two-column grid holds release date or year | types and authors |
+  narrators. Each field keeps its column when its neighbour is empty; a row with both cells empty is dropped.
 - Everything kind-neutral is shared, see [games.md](games.md#shared-media-building-blocks).
 - **Series view** (MT-043, `BookSeriesView.tsx`, tab "Book series" / "Buchreihen" at `/books/series`): every series
   from `/api/book-series.summaries` as one `BookGroupAccordion` each, by name, with a book-count chip. The search
