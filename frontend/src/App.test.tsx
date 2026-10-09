@@ -14,7 +14,7 @@ import { renderWithProviders } from "./test/renderWithProviders";
 const emptyPage = { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 };
 const emptyMeta = { platforms: [], ownership: [], progress: [], releaseYears: [] };
 const [OVERVIEW, WATCHLIST, RANKING] = MEDIA_SUB_PAGES.games;
-const [BOOKS_OVERVIEW, BOOKS_AUTHORS, BOOKS_SERIES] = MEDIA_SUB_PAGES.books;
+const [BOOKS_OVERVIEW, BOOKS_WATCHLIST, BOOKS_AUTHORS, BOOKS_SERIES] = MEDIA_SUB_PAGES.books;
 const BOOKS_PATH = pathFor("books", BOOKS_OVERVIEW);
 const gamesApi = () => ({
   "GET /api/games": () => jsonResponse(emptyPage),
@@ -100,6 +100,15 @@ describe("App", () => {
       within(screen.getByRole("tab", { name: "Book series" })).getByTestId("CollectionsBookmarkOutlinedIcon"),
     ).toBeInTheDocument();
     expect(currentLocation()).toBe(pathFor("books", BOOKS_SERIES));
+  });
+
+  it("renders the books watchlist route with its sub-page selected", async () => {
+    mockApi(booksApi());
+    renderWithProviders(<App />, { route: pathFor("books", BOOKS_WATCHLIST) });
+    expect(await screen.findByText("Your watchlist is empty.")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Books" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Watchlist" })).toHaveAttribute("aria-selected", "true");
+    expect(currentLocation()).toBe(pathFor("books", BOOKS_WATCHLIST));
   });
 
   it("redirects /books to the books overview", async () => {
@@ -292,8 +301,8 @@ describe("App", () => {
       within(screen.getByRole("tablist", { name: "Book pages" }))
         .getAllByRole("tab")
         .map((tab) => tab.textContent),
-    ).toEqual(["Overview", "Authors", "Book series"]);
-    expect(screen.queryByRole("tab", { name: "Watchlist" })).not.toBeInTheDocument();
+    ).toEqual(["Overview", "Watchlist", "Authors", "Book series"]);
+    expect(screen.queryByRole("tab", { name: "Yearly ranking" })).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("tab", { name: "Overview" })).getByTestId("GridViewOutlinedIcon"),
     ).toBeInTheDocument();

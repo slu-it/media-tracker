@@ -504,6 +504,18 @@ class BookServiceTest {
     }
 
     @Test
+    fun `list with a non-default sort but no search term or filters still takes the search branch`() = runBlocking {
+        val request = PageRequest(PageNumber(1), PageSize(10))
+        val page = Page(listOf(book("Dune")), request.page, request.size, totalItems = 1)
+        coEvery { books.search(null, BookFilters.NONE, request, BookSort.RELEASE_DESC) } returns page
+
+        val result = service.list(request, null, BookFilters.NONE, BookSort.RELEASE_DESC)
+
+        assertEquals(page, result)
+        coVerify(exactly = 0) { books.findPage(any()) }
+    }
+
+    @Test
     fun `list with a search term asks the repository to search`() = runBlocking {
         val request = PageRequest(PageNumber(2), PageSize(10))
         val term = SearchTerm("dune")

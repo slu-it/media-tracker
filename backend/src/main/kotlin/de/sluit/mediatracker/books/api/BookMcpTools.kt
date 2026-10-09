@@ -13,6 +13,7 @@ import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
 import de.sluit.mediatracker.common.api.VocabularyEntryView
@@ -115,9 +116,11 @@ private const val SEARCH_BOOKS_DESCRIPTION =
         "progress and releaseYears narrow the search: several values inside one filter mean \"any of\" (e.g. " +
         "progress: [\"reading\",\"paused\"] matches either), but every filter that is given has to match. " +
         "typeIds are book_types.id values; call list_book_types first to get them. hasMissing finds books " +
-        "whose description or cover image is still empty, so they can be filled in with update_book. At " +
-        "least one of query or a filter is required. Each match carries the id update_book needs to change " +
-        "it. pageSize controls how many matches come back, 10 by default and 100 at most."
+        "whose description or cover image is still empty, so they can be filled in with update_book. sort " +
+        "orders the matches: title (default) alphabetically, release_asc/release_desc by release date (oldest/" +
+        "newest first). At least one of query or a filter is required (sort alone does not count as one). " +
+        "Each match carries the id update_book needs to change it. pageSize controls how many matches come back, " +
+        "10 by default and 100 at most."
 
 private const val UPDATE_BOOK_DESCRIPTION =
     "Updates a book that is already tracked. id is the book's id as returned by search_books - never guess or " +
@@ -249,6 +252,12 @@ private val SEARCH_BOOKS_SCHEMA = ToolSchema(
             "Only books where at least one of these properties has no value yet. Use it to find books " +
                 "with incomplete data.",
             maxItems = BookMissingField.entries.size,
+        )
+        putEnumProperty(
+            BookSort.FIELD,
+            BookSort.entries,
+            "How to order the matches. title (default): alphabetically. release_asc/release_desc: by " +
+                "release date (falling back to releaseYear), oldest/newest first.",
         )
         putPageSizeProperty(
             "How many books to return at most. Defaults to 10, $SEARCH_BOOKS_MAX_SIZE at most.",
@@ -442,6 +451,13 @@ private val CREATE_BOOK_FIELDS: Set<String> = CreateBookRequest.serializer().des
 
 private val SEARCH_BOOKS_FIELDS: Set<String> = SEARCH_BOOKS_SCHEMA.properties!!.keys
 
+// Names the ordering search_books' text summary claims, matching what BookSort's own description says it does.
+private fun BookSort.orderingWord(): String = when (this) {
+    BookSort.TITLE -> "best first"
+    BookSort.RELEASE_ASC -> "oldest release first"
+    BookSort.RELEASE_DESC -> "newest release first"
+}
+
 @OptIn(ExperimentalSerializationApi::class)
 private val CREATE_BOOK_NARRATOR_FIELDS: Set<String> =
     CreateBookNarratorRequest.serializer().descriptor.elementNames.toSet()
@@ -561,7 +577,8 @@ private fun Server.addSearchBooksTool(bookService: BookService) {
             requireValid("query", term != null || !filters.isEmpty) { "provide a query or at least one filter" }
             val size = arguments.sizeOrNull(PageSize.FIELD, SEARCH_BOOKS_MAX_SIZE)?.let(::PageSize)
                 ?: SEARCH_BOOKS_DEFAULT_SIZE
-            val page = bookService.list(PageRequest(PageNumber.FIRST, size), term, filters)
+            val sort = arguments.stringOrNull(BookSort.FIELD)?.let(BookSort::from) ?: BookSort.DEFAULT
+            val page = bookService.list(PageRequest(PageNumber.FIRST, size), term, filters, sort)
             val books = page.items.map { it.toResponse() }
             val subject = term?.let { "\"$it\"" } ?: "the given filters"
             CallToolResult(
@@ -570,7 +587,7 @@ private fun Server.addSearchBooksTool(bookService: BookService) {
                         if (books.isEmpty()) {
                             "No books match $subject."
                         } else {
-                            "${books.size} of ${page.totalItems} matches for $subject, best first:\n" +
+                            "${books.size} of ${page.totalItems} matches for $subject, ${sort.orderingWord()}:\n" +
                                 books.joinToString("\n") { "${it.title} (${it.yearAndAuthors()}): ${it.id}" }
                         },
                     ),

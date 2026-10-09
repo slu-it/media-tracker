@@ -61,6 +61,18 @@ describe("booksApi", () => {
     expect(calls[0].url).toBe("/api/books?page=1&pageSize=36");
   });
 
+  it('omits the sort param for the default (undefined or "title") and sends any other', async () => {
+    const calls = mockApi({ "GET /api/books": () => jsonResponse(page) });
+    await listBooks(1, 36, "", EMPTY_BOOK_FILTERS, undefined);
+    await listBooks(1, 36, "", EMPTY_BOOK_FILTERS, "title");
+    await listBooks(1, 36, "", EMPTY_BOOK_FILTERS, "release_desc");
+    expect(calls.map((c) => c.url)).toEqual([
+      "/api/books?page=1&pageSize=36",
+      "/api/books?page=1&pageSize=36",
+      "/api/books?page=1&pageSize=36&sort=release_desc",
+    ]);
+  });
+
   it("sends the trimmed search and every filter value", async () => {
     const calls = mockApi({ "GET /api/books": () => jsonResponse(page) });
     const filters: BookFilters = {

@@ -8,7 +8,8 @@ Code:
 - Frontend: `components/layout/SubPageTabs.tsx`, `MEDIA_SUB_PAGES` in `components/layout/mediaKinds.ts`,
   `src/routes.ts`, `features/games/GamesWatchlistView.tsx`,
   `features/games/GamesRankingView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
-  `components/media/MediaCardShell.tsx` and `hooks/usePagedActions.tsx`.
+  `components/media/MediaCardShell.tsx`, `components/media/ReleaseSortToggle.tsx` (shared with the books
+  watchlist since MT-055, ADR 0038) and `hooks/usePagedActions.tsx`.
 
 ## Navigation
 

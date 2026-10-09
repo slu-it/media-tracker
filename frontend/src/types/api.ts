@@ -251,6 +251,12 @@ export interface CloudBackupResponse {
 /** Mirrors the Kotlin `BookOwnership` enum in books/domain/BookStatus.kt. */
 export type BookOwnership = "watchlist" | "owned";
 
+/**
+ * Ordering for `GET /api/books`; mirrors the Kotlin `BookSort` enum in books/domain/BookSort.kt. Absent/`"title"`
+ * is the default and is never sent on the wire (see `listBooks` in books/api/booksApi.ts).
+ */
+export type BookSort = "title" | "release_asc" | "release_desc";
+
 /** Mirrors the Kotlin `BookProgress` enum in books/domain/BookStatus.kt. */
 export type BookProgress = "abandoned" | "not_started" | "paused" | "reading" | "finished";
 

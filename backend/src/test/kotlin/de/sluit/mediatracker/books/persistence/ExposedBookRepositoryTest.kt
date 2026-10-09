@@ -7,6 +7,7 @@ import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMissingField
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.seriesEntry
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
@@ -761,6 +762,115 @@ class ExposedBookRepositoryTest {
         val page = repo.search(null, BookFilters(ownership = setOf(BookOwnership.OWNED)), PageRequest())
 
         assertEquals(listOf(a.id, b.id, c.id), page.items.map { it.id })
+    }
+
+    // sort
+
+    @Test
+    fun `RELEASE_ASC orders by year then dated books before year-only books in the same year then title then id`() =
+        withFreshDatabase {
+            val repo = ExposedBookRepository()
+            val old = book("Old", releaseYear = 1999)
+            // "Zulu" sorts after "Alpha" alphabetically, but the dated book must still come first within 2000.
+            val datedInYear2000 = book("Zulu", releaseDate = ReleaseDate(LocalDate.of(2000, 6, 1)))
+            val yearOnlyIn2000 = book("Alpha", releaseYear = 2000)
+            val newer = book("New", releaseYear = 2010)
+            listOf(newer, yearOnlyIn2000, old, datedInYear2000).forEach { repo.insert(it) }
+
+            val page = repo.search(null, BookFilters.NONE, PageRequest(), BookSort.RELEASE_ASC)
+
+            assertEquals(
+                listOf(old.id, datedInYear2000.id, yearOnlyIn2000.id, newer.id),
+                page.items.map { it.id },
+            )
+        }
+
+    @Test
+    fun `RELEASE_DESC orders by year then year-only books before dated books in the same year then title then id`() =
+        withFreshDatabase {
+            val repo = ExposedBookRepository()
+            val old = book("Old", releaseYear = 1999)
+            val datedInYear2000 = book("Zulu", releaseDate = ReleaseDate(LocalDate.of(2000, 6, 1)))
+            val yearOnlyIn2000 = book("Alpha", releaseYear = 2000)
+            val newer = book("New", releaseYear = 2010)
+            listOf(newer, yearOnlyIn2000, old, datedInYear2000).forEach { repo.insert(it) }
+
+            val page = repo.search(null, BookFilters.NONE, PageRequest(), BookSort.RELEASE_DESC)
+
+            assertEquals(
+                listOf(newer.id, yearOnlyIn2000.id, datedInYear2000.id, old.id),
+                page.items.map { it.id },
+            )
+        }
+
+    @Test
+    fun `release sorts break a tie on year and release date by title then id in both directions`() = withFreshDatabase {
+        val repo = ExposedBookRepository()
+        val alphaFirst =
+            book("Alpha", releaseYear = 2000, id = BookId.parse("00000000-0000-0000-0000-000000000001"))
+        val alphaSecond =
+            book("Alpha", releaseYear = 2000, id = BookId.parse("00000000-0000-0000-0000-000000000002"))
+        val beta = book("Beta", releaseYear = 2000)
+        listOf(beta, alphaSecond, alphaFirst).forEach { repo.insert(it) }
+
+        val asc = repo.search(null, BookFilters.NONE, PageRequest(), BookSort.RELEASE_ASC)
+        val desc = repo.search(null, BookFilters.NONE, PageRequest(), BookSort.RELEASE_DESC)
+
+        assertEquals(listOf(alphaFirst.id, alphaSecond.id, beta.id), asc.items.map { it.id })
+        assertEquals(listOf(alphaFirst.id, alphaSecond.id, beta.id), desc.items.map { it.id })
+    }
+
+    @Test
+    fun `a non-default sort together with a search term overrides relevance ordering but keeps the match filter`() =
+        withFreshDatabase {
+            val repo = ExposedBookRepository()
+            val duneOld = book("Dune One", releaseYear = 1965)
+            val duneNew = book("Dune Two", releaseYear = 2021)
+            val unrelatedNewest = book("Neuromancer", releaseYear = 2024)
+            listOf(unrelatedNewest, duneOld, duneNew).forEach { repo.insert(it) }
+
+            val page = repo.search(SearchTerm("dune"), BookFilters.NONE, PageRequest(), BookSort.RELEASE_DESC)
+
+            assertEquals(listOf(duneNew.id, duneOld.id), page.items.map { it.id })
+            assertEquals(2, page.totalItems)
+        }
+
+    @Test
+    fun `a release sort combines with ownership and type filters`() = withFreshDatabase {
+        val repo = ExposedBookRepository()
+        val older = book(
+            "Older",
+            releaseYear = 1990,
+            ownership = BookOwnership.OWNED,
+            types = listOf(BookTypes.KINDLE),
+        )
+        val newer = book(
+            "Newer",
+            releaseYear = 2020,
+            ownership = BookOwnership.OWNED,
+            types = listOf(BookTypes.KINDLE),
+        )
+        repo.insert(newer)
+        repo.insert(older)
+        repo.insert(
+            book(
+                "Wrong ownership",
+                releaseYear = 2000,
+                ownership = BookOwnership.WATCHLIST,
+                types = listOf(BookTypes.KINDLE),
+            ),
+        )
+        repo.insert(
+            book("Wrong type", releaseYear = 2001, ownership = BookOwnership.OWNED, types = listOf(BookTypes.AUDIBLE)),
+        )
+
+        val filters = BookFilters(typeIds = setOf(BookTypes.KINDLE.id), ownership = setOf(BookOwnership.OWNED))
+        val asc = repo.search(null, filters, PageRequest(), BookSort.RELEASE_ASC)
+        val desc = repo.search(null, filters, PageRequest(), BookSort.RELEASE_DESC)
+
+        assertEquals(listOf(older.id, newer.id), asc.items.map { it.id })
+        assertEquals(listOf(newer.id, older.id), desc.items.map { it.id })
+        assertEquals(2, asc.totalItems)
     }
 
     @Test

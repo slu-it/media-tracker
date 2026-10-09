@@ -15,6 +15,7 @@ import de.sluit.mediatracker.books.domain.BookSeries
 import de.sluit.mediatracker.books.domain.BookSeriesEntry
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesPosition
+import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.BookTypeLabel
@@ -33,6 +34,7 @@ import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.persistence.TitleSearch
 import de.sluit.mediatracker.common.persistence.dbQuery
 import de.sluit.mediatracker.common.persistence.inListIfAny
+import org.jetbrains.exposed.v1.core.Expression
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -113,14 +115,20 @@ class ExposedBookRepository : BookRepository {
      * Six SELECTs: the total match count, the page of books, and one join query each for the types, authors,
      * narrators and series of every book on the page. [filters] AND across categories, OR (IN) inside one; combined with
      * [term]'s title match, if any, by AND as well. Without a [term] (or one that the fulltext parser strips
-     * down to nothing, e.g. `"+++"`), the ordering is title then id, same as [findPage] - filters must not
-     * silently vanish in that case, so this falls back to the filtered listing rather than [findPage]. A term
-     * matches the title only: a title fulltext hit or a `title LIKE 'term%'` prefix match (escaped, see
-     * [TitleSearch]; it finds titles InnoDB does not index, such as those under three characters or stopwords).
-     * Prefix hits come first, then fulltext relevance, then title, then id. Fulltext entries become visible
-     * once the inserting transaction commits.
+     * down to nothing, e.g. `"+++"`), the ordering is [sort] alone, [BookSort.TITLE] being title then id, same
+     * as [findPage] - filters must not silently vanish in that case, so this falls back to the filtered listing
+     * rather than [findPage]. A term matches the title only: a title fulltext hit or a `title LIKE 'term%'`
+     * prefix match (escaped, see [TitleSearch]; it finds titles InnoDB does not index, such as those under
+     * three characters or stopwords). With a term and the default [sort], prefix hits come first, then fulltext
+     * relevance, then title, then id; any other [sort] overrides that ordering entirely, though the match
+     * still filters. Fulltext entries become visible once the inserting transaction commits.
      */
-    override suspend fun search(term: SearchTerm?, filters: BookFilters, request: PageRequest): Page<Book> = dbQuery {
+    override suspend fun search(
+        term: SearchTerm?,
+        filters: BookFilters,
+        request: PageRequest,
+        sort: BookSort,
+    ): Page<Book> = dbQuery {
         // Built inside the transaction: LikePattern.ofLiteral reads the current dialect.
         val titleSearch = TitleSearch.of(BooksTable.title, term)
         if (titleSearch == null) {
@@ -129,7 +137,7 @@ class ExposedBookRepository : BookRepository {
             val predicate = filterOp(filters) ?: Op.TRUE
             val total = BooksTable.selectAll().where { predicate }.count()
             val rows = BooksTable.selectAll().where { predicate }
-                .orderBy(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
+                .orderBy(*orderingFor(sort))
                 .limit(request.size.value)
                 .offset(request.offset)
                 .toList()
@@ -138,10 +146,14 @@ class ExposedBookRepository : BookRepository {
             // matches is an OrOp; compoundAnd() parenthesises it inside the AndOp automatically.
             val predicate = listOfNotNull(titleSearch.matches, filterOp(filters)).compoundAnd()
             val total = BooksTable.selectAll().where { predicate }.count()
-            val ordering = (
-                titleSearch.relevanceOrdering() +
-                    listOf(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
-                ).toTypedArray()
+            val ordering = if (sort == BookSort.TITLE) {
+                (
+                    titleSearch.relevanceOrdering() +
+                        listOf(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
+                    ).toTypedArray()
+            } else {
+                orderingFor(sort)
+            }
             val rows = BooksTable.select(BooksTable.columns + titleSearch.score).where { predicate }
                 .orderBy(*ordering)
                 .limit(request.size.value)
@@ -150,6 +162,33 @@ class ExposedBookRepository : BookRepository {
             pageOf(rows, request, total)
         }
     }
+
+    /**
+     * The ORDER BY clause for a given [BookSort] (used by both branches of [search] once relevance ordering
+     * does not apply). [BookSort.RELEASE_ASC]/[BookSort.RELEASE_DESC] order dated books ahead of year-only ones
+     * within the same year by ordering on `releaseDate IS NULL` before `releaseDate` itself: MariaDB evaluates
+     * that boolean expression as 0 (false, a dated book) or 1 (true, year-only), so ascending puts dated books
+     * first and descending puts year-only books first, matching the direction of the release ordering as a
+     * whole. `title`/`id` break every remaining tie, as in [findPage].
+     */
+    private fun orderingFor(sort: BookSort): Array<Pair<Expression<*>, SortOrder>> = when (sort) {
+        BookSort.TITLE -> arrayOf(BooksTable.title to SortOrder.ASC, BooksTable.id to SortOrder.ASC)
+        BookSort.RELEASE_ASC -> releaseOrdering(SortOrder.ASC)
+        BookSort.RELEASE_DESC -> releaseOrdering(SortOrder.DESC)
+    }
+
+    /**
+     * Release year, `release_date IS NULL`, release date in [direction], then title and id
+     * ascending. [orderingFor] builds the release sorts from it; [findByAuthor] uses
+     * `orderingFor(BookSort.RELEASE_ASC)`.
+     */
+    private fun releaseOrdering(direction: SortOrder): Array<Pair<Expression<*>, SortOrder>> = arrayOf(
+        BooksTable.releaseYear to direction,
+        BooksTable.releaseDate.isNull() to direction,
+        BooksTable.releaseDate to direction,
+        BooksTable.title to SortOrder.ASC,
+        BooksTable.id to SortOrder.ASC,
+    )
 
     /**
      * `null` when nothing is filtered; AND across the categories, OR (IN) inside one. The type filter is an
@@ -225,13 +264,7 @@ class ExposedBookRepository : BookRepository {
         val rows = (BooksTable innerJoin BookToAuthorTable)
             .select(BooksTable.columns)
             .where { BookToAuthorTable.authorId eq authorId.toString() }
-            .orderBy(
-                BooksTable.releaseYear to SortOrder.ASC,
-                BooksTable.releaseDate.isNull() to SortOrder.ASC,
-                BooksTable.releaseDate to SortOrder.ASC,
-                BooksTable.title to SortOrder.ASC,
-                BooksTable.id to SortOrder.ASC,
-            )
+            .orderBy(*orderingFor(BookSort.RELEASE_ASC))
             .toList()
         hydrate(rows)
     }

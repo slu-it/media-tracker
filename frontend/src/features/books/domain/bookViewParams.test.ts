@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { EMPTY_BOOK_FILTERS } from "./bookFilters";
-import { bookOverviewParams, parseBookOverviewParams } from "./bookViewParams";
+import {
+  bookOverviewParams,
+  bookWatchlistParams,
+  parseBookOverviewParams,
+  parseBookWatchlistParams,
+} from "./bookViewParams";
 
 const A = "00000000-0000-4000-8000-00000000000a";
 const B = "00000000-0000-4000-8000-00000000000b";
@@ -52,5 +57,35 @@ describe("book overview params", () => {
 
   it("lowercases type ids", () => {
     expect(parse(`type=${A.toUpperCase()}`).filters.typeIds).toEqual([A]);
+  });
+});
+
+describe("book watchlist params", () => {
+  const parseWatchlist = (query: string) => parseBookWatchlistParams(new URLSearchParams(query));
+
+  it("parses an empty query to the defaults", () => {
+    expect(parseWatchlist("")).toEqual({ search: "", typeIds: [], sort: "release_asc", page: 1 });
+  });
+
+  it("round-trips a full state", () => {
+    const state = { search: "dune", typeIds: [A, B], sort: "release_desc" as const, page: 3 };
+    expect(parseBookWatchlistParams(bookWatchlistParams(state))).toEqual(state);
+  });
+
+  it("omits the default sort and serializes in a deterministic order", () => {
+    expect(bookWatchlistParams({ search: "", typeIds: [], sort: "release_asc", page: 1 }).toString()).toBe("");
+    expect(bookWatchlistParams({ search: " dune ", typeIds: [B, A], sort: "release_desc", page: 2 }).toString()).toBe(
+      `search=dune&type=${A}&type=${B}&sort=release_desc&page=2`,
+    );
+  });
+
+  it("drops invalid values silently", () => {
+    expect(parseWatchlist("sort=title&type=x&page=0")).toEqual({
+      search: "",
+      typeIds: [],
+      sort: "release_asc",
+      page: 1,
+    });
+    expect(parseWatchlist("sort=rating_desc").sort).toBe("release_asc");
   });
 });

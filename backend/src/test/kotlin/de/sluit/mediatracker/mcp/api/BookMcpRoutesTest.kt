@@ -20,6 +20,7 @@ import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
 import de.sluit.mediatracker.books.narrator
@@ -244,6 +245,49 @@ class BookMcpRoutesTest {
     }
 
     @Test
+    fun `search_books passes the sort to the service and defaults to title`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+        coEvery { books.list(any(), any(), any(), any()) } returns Page(emptyList(), PageNumber.FIRST, PageSize(10), 0)
+
+        client.callTool("search_books", """{"query":"dune","sort":"release_desc"}""").assertSuccess()
+        client.callTool("search_books", """{"query":"dune"}""").assertSuccess()
+
+        val request = PageRequest(PageNumber.FIRST, PageSize(10))
+        coVerify { books.list(request, SearchTerm("dune"), BookFilters.NONE, BookSort.RELEASE_DESC) }
+        coVerify { books.list(request, SearchTerm("dune"), BookFilters.NONE, BookSort.TITLE) }
+    }
+
+    @Test
+    fun `search_books describes the ordering matching the requested sort`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+        coEvery { books.list(any(), any(), any(), any()) } returns
+            Page(listOf(book("Dune")), PageNumber.FIRST, PageSize(10), 1)
+        val wordings = mapOf(
+            BookSort.TITLE to "best first",
+            BookSort.RELEASE_ASC to "oldest release first",
+            BookSort.RELEASE_DESC to "newest release first",
+        )
+
+        for ((sort, wording) in wordings) {
+            val result = client.callTool("search_books", """{"query":"dune","sort":"${sort.wire}"}""")
+
+            val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+            assertTrue(text.contains(wording), text)
+        }
+    }
+
+    @Test
+    fun `search_books rejects an unknown sort as a tool error`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+
+        client.callTool("search_books", """{"query":"dune","sort":"rating_desc"}""").assertToolError()
+        coVerify(exactly = 0) { books.list(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `search_books reports totalMatches and truncated`() = testApplication {
         val books = mockk<BookService>()
         val client = mcpClient(books)
@@ -268,6 +312,15 @@ class BookMcpRoutesTest {
 
         result.assertSuccess()
         assertEquals(false, result.structured()["truncated"]!!.jsonPrimitive.content.toBoolean())
+    }
+
+    @Test
+    fun `search_books with only a sort is a tool error without calling the service`() = testApplication {
+        val books = mockk<BookService>()
+        val client = mcpClient(books)
+
+        client.callTool("search_books", """{"sort":"release_desc"}""").assertToolError()
+        coVerify(exactly = 0) { books.list(any(), any(), any(), any()) }
     }
 
     @Test

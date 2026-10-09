@@ -33,6 +33,35 @@ POLL_LOOPS = [
     r"\b(while|until)\b[\s\S]*?\bdo\b[\s\S]*?\bsleep\b",
 ]
 
+# A redirection target is the token after > or >>; /dev/null and the session scratchpad are allowed, since neither
+# changes the tree. Agents without the Write tool take notes there (e.g. a timestamp kept across a background wait).
+REDIRECTION = r"(?<![0-9&<])>{1,2}(?!&)\s*(\S+)"
+SCRATCHPAD = re.compile(r"^/tmp/claude-\d+/[^/]+/[^/]+/scratchpad(/|$)")
+
+
+def harmless_target(target: str) -> bool:
+    """True for /dev/null and for a literal absolute path that resolves inside the scratchpad.
+
+    Anything the shell would still expand ($VAR, ~, globs, command substitution) or a relative path fails closed.
+    realpath collapses `..` and existing symlinks, so `scratchpad/../../repo` does not pass.
+    """
+    if target[0] in "'\"":
+        if len(target) < 2 or target[-1] != target[0]:
+            return False  # a quoted path with spaces is cut at the first one, so its real end is unknown
+        target = target[1:-1]
+    if target == "/dev/null":
+        return True
+    if not target.startswith("/") or re.search(r"[$`~*?\[\]{}()|;&<>]", target):
+        return False
+    return bool(SCRATCHPAD.match(os.path.realpath(target)))
+
+
+def blocked(pattern: str, command: str) -> bool:
+    if pattern is REDIRECTION:
+        return any(not harmless_target(m.group(1)) for m in re.finditer(REDIRECTION, command))
+    return re.search(pattern, command) is not None
+
+
 RULES = {
     "readonly": [
         (r"\bktlintFormat\b", "test-runner/reviewer are read-only: ktlintFormat rewrites files"),
@@ -42,7 +71,7 @@ RULES = {
         (DEV_SCRIPTS, "read-only agent: dev servers and scripts must not be started"),
         (GIT_MUTATIONS, "read-only agent: git must not change state"),
         (r"\b(sed\s+-i|tee|rm|mv|cp|mkdir|touch|chmod|chown|truncate)\b", "read-only agent: shell file mutations are not allowed"),
-        (r"(?<![0-9&<])>{1,2}(?!&)\s*(?!/dev/null)\S", "read-only agent: output redirection into files is not allowed"),
+        (REDIRECTION, "read-only agent: output redirection into files is not allowed (only /dev/null and the session scratchpad)"),
         *((p, f"read-only agent: {POLL_LOOP_REASON}") for p in POLL_LOOPS),
     ],
     "implementer": [
@@ -93,7 +122,7 @@ def main() -> None:
     if tool == "Bash":
         command = tool_input.get("command", "")
         for pattern, reason in RULES.get(role, []):
-            if re.search(pattern, command):
+            if blocked(pattern, command):
                 deny(f"Blocked by agent-guard ({role}): {reason}. Command: {command[:200]}")
     elif tool in ("Edit", "Write", "MultiEdit", "NotebookEdit"):
         path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""

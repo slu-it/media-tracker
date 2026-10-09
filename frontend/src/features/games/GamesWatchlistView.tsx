@@ -10,7 +10,7 @@ import { SECTION_GAP } from "../../components/media/mediaLayout";
 import { FILTER_SELECT_SX } from "../../components/media/filters/filterLayout";
 import { FilterRow } from "../../components/media/filters/FilterRow";
 import { FilterSelect } from "../../components/media/filters/FilterSelect";
-import { ReleaseSortToggle } from "./components/ReleaseSortToggle";
+import { ReleaseSortToggle } from "../../components/media/ReleaseSortToggle";
 import { WatchlistGameCard } from "./components/WatchlistGameCard";
 import { EMPTY_FILTERS, type GameFilters } from "./domain/gameFilters";
 import { GAMES_PAGE_SIZE } from "./domain/gameValues";

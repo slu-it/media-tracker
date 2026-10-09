@@ -21,6 +21,7 @@ import { useActiveRoute } from "./hooks/useActiveRoute";
 import { BookAuthorsView } from "./features/books/BookAuthorsView";
 import { BookSeriesView } from "./features/books/BookSeriesView";
 import { BooksView } from "./features/books/BooksView";
+import { BooksWatchlistView } from "./features/books/BooksWatchlistView";
 import { GamesView } from "./features/games/GamesView";
 import { GamesRankingView } from "./features/games/GamesRankingView";
 import { GamesWatchlistView } from "./features/games/GamesWatchlistView";
@@ -48,6 +49,7 @@ const SUB_PAGE_ICONS: Record<SubPage, ReactElement> = {
 
 const BOOK_SUB_VIEWS: Record<BookSubPage, ReactElement> = {
   overview: <BooksView />,
+  watchlist: <BooksWatchlistView />,
   authors: <BookAuthorsView />,
   series: <BookSeriesView />,
 };
