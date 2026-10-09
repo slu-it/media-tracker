@@ -3,6 +3,8 @@ import { Box, Card, CardActionArea, CardContent, Typography } from "@mui/materia
 import { CoverImage } from "../CoverImage";
 
 export const CARD_COVER_WIDTH = 168;
+/** Gap (theme spacing units) between the card's stacked blocks; descriptions mirror it between their own blocks. */
+export const CARD_CONTENT_GAP = 1.5;
 
 interface MediaCardShellProps {
   title: string;
@@ -16,9 +18,9 @@ interface MediaCardShellProps {
   description?: ReactNode;
   /**
    * Where the description sits in the centered column: `"bottom"` (default) after the title, `"top"` first, above the
-   * cover, `"afterCover"` between the cover and the title. In every case it stays referenced by `aria-describedby`.
+   * cover. In both cases it stays referenced by `aria-describedby`.
    */
-  descriptionPlacement?: "top" | "afterCover" | "bottom";
+  descriptionPlacement?: "top" | "bottom";
   /** Cover shape; defaults to the standard cover ratio. */
   coverAspectRatio?: number;
   /** Card body below the title/description, e.g. platform chips and status icons. */
@@ -49,10 +51,9 @@ export function MediaCardShell({
         aria-describedby={description !== undefined ? descriptionId : undefined}
         sx={{ height: "100%" }}
       >
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: CARD_CONTENT_GAP }}>
           {descriptionPlacement === "top" && descriptionBox}
           <CoverImage src={coverImageUrl} alt="" width={CARD_COVER_WIDTH} aspectRatio={coverAspectRatio} />
-          {descriptionPlacement === "afterCover" && descriptionBox}
           <Typography
             variant="subtitle1"
             component="h3"
