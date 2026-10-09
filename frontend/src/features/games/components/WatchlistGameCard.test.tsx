@@ -21,6 +21,13 @@ describe("WatchlistGameCard", () => {
     expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription(String(hades.releaseYear));
   });
 
+  it("shows the cover in grayscale at half opacity, every card here is a watchlist game", () => {
+    renderWithProviders(<WatchlistGameCard game={hades} onOpen={() => {}} />);
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    const frame = screen.getByTitle("No cover image").closest("div");
+    expect(frame).toHaveStyle({ filter: "grayscale(1)", opacity: "0.5" });
+  });
+
   it("shows no platform chips or status icons", () => {
     renderWithProviders(<WatchlistGameCard game={celeste} onOpen={() => {}} />);
     expect(screen.queryByText("Nintendo")).not.toBeInTheDocument();

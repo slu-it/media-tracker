@@ -32,6 +32,7 @@ export function RankingGameCard({ game, onOpen }: { game: GameResponse; onOpen: 
       title={game.title}
       coverImageUrl={game.coverImageUrl}
       onClick={() => onOpen(game)}
+      desaturateCover={game.ownership === "watchlist"}
       description={
         <>
           <Box role="group" aria-label={t("games.fields.rating")}>

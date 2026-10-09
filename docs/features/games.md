@@ -69,6 +69,10 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
   as one. jsdom evaluates no MUI breakpoint and has no layout engine, so this is verified by eye.
 - Every games cover frame is 22:31 (the 660x930 grid shape), the default `COVER_ASPECT_RATIO` of `coverHeight()`
   in `src/components/coverFrame.ts`, so games call sites pass a width only. Books pass 2:3.
+- In every grid (overview, watchlist, ranking) a watchlist game's card cover is grayscale at half opacity: the
+  card passes `desaturateCover` to the shared `MediaCardShell`, which sets `filter: grayscale(1)` and `opacity: 0.5`
+  on the cover frame. The detail dialog, the form and the cover picker use `CoverImage` directly and stay in full
+  colour. Books do the same.
 
 ## Shared media building blocks
 
