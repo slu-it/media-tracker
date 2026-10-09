@@ -28,6 +28,8 @@ Your final message must follow the Report section at the end of this file.
   output you see is truncated.
 - Right before a test command, run `date +%s` and keep the value. After it finishes (pass or fail), run
   `python3 .claude/scripts/test-summary.py --since <that value>`. It sums the JUnit XML reports of both projects.
+- The value survives a `run_in_background` wait: the harness resumes this same conversation, so the `date +%s`
+  output is still in your context. Read it from there; do not save it to a file.
 - Copy its numbers into the report verbatim.
 - `STALE` means that project's tests did not run (up to date or from cache). Rerun with `--rerun` when fresh
   results are required, or report it as a finding.
@@ -35,7 +37,7 @@ Your final message must follow the Report section at the end of this file.
 
 ## Never run
 A PreToolUse hook (`.claude/hooks/agent-guard.py readonly`) denies these; if a command is denied, report it instead of working around it.
-`ktlintFormat`, `pnpm format`, `pnpm lint:fix`, `./start-dev.sh`, `./build-and-start-locally.sh`, `:backend:run`, anything needing Docker or `DB_*`/`SESSION_SECRET` env vars, `git` commands that change state.
+`ktlintFormat`, `pnpm format`, `pnpm lint:fix`, `./start-dev.sh`, `./build-and-start-locally.sh`, `:backend:run`, anything needing Docker or `DB_*`/`SESSION_SECRET` env vars, `git` commands that change state, output redirection into any file other than `/dev/null` or your session scratchpad.
 
 ## Reading failures
 - If console output is truncated, read `backend/build/test-results/test/TEST-*.xml` for the message and the first stack frame in `de.sluit.mediatracker`.

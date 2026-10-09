@@ -55,15 +55,19 @@ class BookService(
     }
 
     /**
-     * Decides between the title-ordered page ([search] absent and [filters] empty) and the filtered/search
-     * listing (either present).
+     * Decides between the title-ordered page ([search] absent, [filters] empty and [sort] the default
+     * [BookSort.TITLE]) and the filtered/search listing (any of the three present).
      */
-    suspend fun list(request: PageRequest, search: SearchTerm?, filters: BookFilters): Page<Book> =
-        if (search == null && filters.isEmpty) {
-            books.findPage(request)
-        } else {
-            books.search(search, filters, request)
-        }
+    suspend fun list(
+        request: PageRequest,
+        search: SearchTerm?,
+        filters: BookFilters,
+        sort: BookSort = BookSort.DEFAULT,
+    ): Page<Book> = if (search == null && filters.isEmpty && sort == BookSort.TITLE) {
+        books.findPage(request)
+    } else {
+        books.search(search, filters, request, sort)
+    }
 
     /** The books of one series in series order; an unknown [seriesId] is not found, an empty series is an empty list. */
     suspend fun listBySeries(seriesId: BookSeriesId): List<Book> {

@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { describe, expect, it } from "vitest";
+import type { BookSort } from "../../../types/api";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import { EMPTY_BOOK_FILTERS } from "../domain/bookFilters";
 import { useBooksPage } from "./useBooksPage";
@@ -27,6 +28,20 @@ describe("useBooksPage", () => {
     act(() => result.current.reload());
     await waitFor(() => expect(calls).toHaveLength(3));
     expect(calls[2].url).toBe("/api/books?page=2&pageSize=36");
+  });
+
+  it("adds the sort param and refetches when the sort changes", async () => {
+    const calls = mockApi({ "GET /api/books": () => jsonResponse(page(1)) });
+    const { rerender } = renderHook(
+      ({ sort }: { sort?: BookSort }) => useBooksPage(1, 36, "", EMPTY_BOOK_FILTERS, "load failed", sort),
+      { initialProps: { sort: undefined as BookSort | undefined } },
+    );
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0].url).toBe("/api/books?page=1&pageSize=36");
+
+    rerender({ sort: "release_asc" });
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1].url).toBe("/api/books?page=1&pageSize=36&sort=release_asc");
   });
 
   it("exposes the load error text on failure and keeps the old data", async () => {

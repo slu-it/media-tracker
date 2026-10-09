@@ -1,13 +1,15 @@
 import { useId } from "react";
 import { Box, ToggleButton, ToggleButtonGroup } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import type { WatchlistSort } from "../domain/gameViewParams";
-import { FieldLegend } from "../../../components/media/fields/FieldLegend";
-import { LEGEND_GAP_SX } from "../../../components/media/fields/legendGap";
+import { FieldLegend } from "./fields/FieldLegend";
+import { LEGEND_GAP_SX } from "./fields/legendGap";
+
+/** The two release-date orders the toggle offers; a subset of every kind's backend sort enum. */
+export type ReleaseSort = "release_asc" | "release_desc";
 
 interface ReleaseSortToggleProps {
-  value: WatchlistSort;
-  onChange: (value: WatchlistSort) => void;
+  value: ReleaseSort;
+  onChange: (value: ReleaseSort) => void;
   disabled?: boolean;
 }
 
@@ -23,7 +25,7 @@ export function ReleaseSortToggle({ value, onChange, disabled }: ReleaseSortTogg
   return (
     <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
       <FieldLegend id={legendId} sx={LEGEND_GAP_SX}>
-        {t("games.sort.legend")}
+        {t("media.sort.legend")}
       </FieldLegend>
       <ToggleButtonGroup
         exclusive
@@ -32,15 +34,15 @@ export function ReleaseSortToggle({ value, onChange, disabled }: ReleaseSortTogg
         value={value}
         disabled={disabled}
         aria-labelledby={legendId}
-        onChange={(_event, next: WatchlistSort | null) => {
+        onChange={(_event, next: ReleaseSort | null) => {
           if (next !== null) onChange(next);
         }}
       >
         <ToggleButton value="release_asc" sx={BUTTON_SX}>
-          {t("games.sort.releaseAsc")}
+          {t("media.sort.releaseAsc")}
         </ToggleButton>
         <ToggleButton value="release_desc" sx={BUTTON_SX}>
-          {t("games.sort.releaseDesc")}
+          {t("media.sort.releaseDesc")}
         </ToggleButton>
       </ToggleButtonGroup>
     </Box>

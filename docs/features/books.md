@@ -5,14 +5,16 @@ building blocks), with [0009](../decisions/0009-game-platforms-as-reference-data
 data) and [0029](../decisions/0029-game-release-date-and-developers.md) (release date, authors as vocabulary)
 applied to books, and [0035](../decisions/0035-book-series-and-narrators.md) (series with a position per link,
 narrators like authors, MT-042). The series view (MT-043) and the authors view (MT-046) need no record of
-their own.
+their own. [0038](../decisions/0038-book-watchlist-and-release-sort.md) adds the watchlist and the release sort
+(MT-055).
 Code: `backend/src/main/kotlin/de/sluit/mediatracker/books/`, `frontend/src/features/books/`, migrations
 `V012__books.sql`, `V013__book_series_and_narrators.sql`.
 
 Books is the second media kind. Its first version is the games overview equivalent: add, edit, delete and a
-paged, searchable, filterable list at `/books/overview`, plus MCP tools. Two more sub-pages list books by group:
-`/books/authors` (MT-046) by author, `/books/series` (MT-043) by series in order. There are no watchlist or
-ranking sub-pages, no rating, no hidden flag, no expansions and no cover picker yet.
+paged, searchable, filterable list at `/books/overview`, plus MCP tools. `/books/watchlist` (MT-055) lists the
+books still to get, by release. Two more sub-pages list books by group: `/books/authors` (MT-046) by author,
+`/books/series` (MT-043) by series in order. There is no ranking sub-page, no rating, no hidden flag, no
+expansions and no cover picker yet.
 
 ## Domain
 
@@ -43,7 +45,7 @@ ranking sub-pages, no rating, no hidden flag, no expansions and no cover picker 
 
 | Method and path | Purpose |
 |---|---|
-| `GET /api/books?page=&pageSize=&search=&typeIds=&ownership=&progress=&releaseYear=` | Paged list; the four filters repeat, OR within, AND across; the type filter is a semi-join |
+| `GET /api/books?page=&pageSize=&search=&typeIds=&ownership=&progress=&releaseYear=&sort=` | Paged list; the four filters repeat, OR within, AND across; the type filter is a semi-join; `sort` is `title` (default) or `release_asc`/`release_desc` (release year, dated before year-only, date, title; overrides search relevance; ADR 0038) |
 | `POST /api/books` | Create (201); `releaseYear` may be omitted when `releaseDate` is given; `typeIds`/`authorIds`/`narratorIds`/`series` default to `[]`; `series` is `[{seriesId, position?}]`, a repeated `seriesId` is a 400 |
 | `PATCH /api/books/{id}` | `PatchField` for description, cover URL and date (`null` clears); `typeIds`/`authorIds`/`narratorIds`/`series` replace the set |
 | `DELETE /api/books/{id}` | 204 |
@@ -63,7 +65,8 @@ hits first (`common/persistence/TitleSearch.kt`).
 ## MCP tools
 
 `list_book_types`, `add_book`, `search_books` (query and/or filters `typeIds`, `ownership`, `progress`,
-`releaseYears`, agent-only `hasMissing` with `description`/`coverImageUrl`, `pageSize` default 10, maximum 100),
+`releaseYears`, agent-only `hasMissing` with `description`/`coverImageUrl`, `sort` as on REST, `pageSize`
+default 10, maximum 100),
 `update_book` (description, cover URL and date clearable with `null`), `search_book_authors`,
 `create_book_author`, `search_book_narrators`, `create_book_narrator`, `search_book_series` and
 `create_book_series`. Agents look up authors, narrators and series first, create missing ones, then add or update
@@ -77,7 +80,7 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   `type`, `ownership`, `progress`, `year`, `page`); page size `BOOKS_PAGE_SIZE` = 36.
 - The `reading` progress icon is `AutoStories`; the others match games (`NotStarted`, `Pause`, `TaskAlt`,
   `NotInterested`), as do the ownership icons. Cards show the ownership icon for watchlist books and the
-  progress icon for owned ones. In every grid (overview, authors, series) a watchlist book's cover is grayscale at
+  progress icon for owned ones. In every grid (overview, watchlist, authors, series) a watchlist book's cover is grayscale at
   half opacity (`desaturateCover` on `MediaCardShell`, as for games); the detail dialog keeps it in full colour.
 - The overview card (`BookCard` without `seriesPosition`, used by the overview and the authors view) shows one
   series under the title as an outlined chip ("Wax and Wayne #1", or just the name; long names ellipsized): the
@@ -112,6 +115,12 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   `descriptionPlacement="top"`) instead of the series chips; its type chips stay in the card body. A series
   without books shows a message and loads nothing. Saving, adding or deleting a book in the dialogs reloads the
   counts and every open section.
+- **Watchlist** (MT-055, `BooksWatchlistView.tsx`, tab "Watchlist" / "Merkliste" at `/books/watchlist`, second
+  tab): the games watchlist ([game-sub-pages.md](game-sub-pages.md#watchlist)) for books. Books with ownership
+  `watchlist`, the shared `ReleaseSortToggle` ("Oldest first" by default) and a Type select instead of the
+  platform select in the results row, search, pagination, FAB and dialogs. Cards are `WatchlistBookCard`: cover
+  (desaturated), title, release date or year. URL codec in `bookViewParams.ts` (`search`, `type`,
+  `sort=release_desc`, `page`); an empty watchlist shows its own message (`books.watchlist.empty`).
 - **Authors view** (MT-046, `BookAuthorsView.tsx`, tab "Authors" / "Autoren" at `/books/authors`, between the
   overview and the series view): the same view over `/api/book-authors.summaries` and
   `/api/book-authors/{id}/books`. Authors without books are listed too. A section shows the author's books by

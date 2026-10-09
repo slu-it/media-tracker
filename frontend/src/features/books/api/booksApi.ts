@@ -8,6 +8,7 @@ import type {
   BookSeriesLinkRequest,
   BookSeriesResponse,
   BookSeriesSummaryResponse,
+  BookSort,
   BookTypeResponse,
   CreateBookAuthorRequest,
   CreateBookNarratorRequest,
@@ -33,6 +34,7 @@ export function listBooks(
   pageSize: number,
   search: string,
   filters: BookFilters,
+  sort?: BookSort,
 ): Promise<PageResponse<BookResponse>> {
   const query = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
   const term = search.trim();
@@ -41,6 +43,8 @@ export function listBooks(
   for (const value of filters.ownership) query.append("ownership", value);
   for (const value of filters.progress) query.append("progress", value);
   for (const year of filters.releaseYears) query.append("releaseYear", String(year));
+  // "title" is the backend default: omitting it keeps existing request URLs unchanged.
+  if (sort !== undefined && sort !== "title") query.set("sort", sort);
   return apiFetch<PageResponse<BookResponse>>(`${BASE}?${query}`);
 }
 

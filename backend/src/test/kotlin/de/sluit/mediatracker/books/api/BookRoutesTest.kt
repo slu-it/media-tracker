@@ -21,6 +21,7 @@ import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookSeriesSummary
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.NewBook
 import de.sluit.mediatracker.books.narrator
@@ -417,6 +418,59 @@ class BookRoutesTest {
                 ),
             )
         }
+    }
+
+    @Test
+    fun `list passes each sort value through to the service`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        coEvery { books.list(any(), any(), any(), any()) } returns emptyPage()
+
+        for (sort in BookSort.entries) {
+            client.get("/api/books?sort=${sort.wire}")
+
+            coVerify { books.list(PageRequest(PageNumber(1), PageSize(50)), null, BookFilters.NONE, sort) }
+        }
+    }
+
+    @Test
+    fun `list without a sort parameter defaults to title order`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        coEvery { books.list(any(), any(), any(), any()) } returns emptyPage()
+
+        client.get("/api/books")
+
+        coVerify { books.list(PageRequest(PageNumber(1), PageSize(50)), null, BookFilters.NONE, BookSort.TITLE) }
+    }
+
+    @Test
+    fun `list rejects an unknown sort value`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+
+        client.get("/api/books?sort=oldest").assertValidationError(BookSort.FIELD)
+        coVerify(exactly = 0) { books.list(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `list rejects rating_desc because books have no rating`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+
+        client.get("/api/books?sort=rating_desc").assertValidationError(BookSort.FIELD)
+        coVerify(exactly = 0) { books.list(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `list with a blank sort parameter defaults to title order`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        coEvery { books.list(any(), any(), any(), any()) } returns emptyPage()
+
+        client.get("/api/books?sort=")
+
+        coVerify { books.list(PageRequest(PageNumber(1), PageSize(50)), null, BookFilters.NONE, BookSort.TITLE) }
     }
 
     @Test

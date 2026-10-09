@@ -70,7 +70,7 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   `search_game_developers` and `create_game_developer` (idempotent) for the `developerIds` of `add_game`/`update_game`
   (decision record 0029), all in `games/api/GameMcpTools.kt`. Books contributes the equivalents in
   `books/api/BookMcpTools.kt` (decision record 0034): `list_book_types`, `add_book`, `search_books` (query and the
-  filters `typeIds`, `ownership`, `progress`, `releaseYears`, `hasMissing`, `pageSize`; no `sort`/`rated`),
+  filters `typeIds`, `ownership`, `progress`, `releaseYears`, `hasMissing`, `sort`, `pageSize`; no `rated`),
   `update_book` (`description`, `coverImageUrl` and `releaseDate` clearable), `search_book_authors`,
   `create_book_author`, `search_book_narrators`, `create_book_narrator`, `search_book_series` and
   `create_book_series` (decision record 0035); neither kind has a delete tool. The `ownership` and `progress` arguments
@@ -219,7 +219,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 | `GET /api/game-developers?search=nin&limit=10` | 200 `GameDeveloperResponse[]` | `id`, `name`; prefix fulltext match on the name plus `name LIKE 'term%'` for names InnoDB does not index (under three characters, stopwords), with LIKE hits first, `limit` 1..50 (default 10), blank `search` lists by name (decision record 0029) |
 | `POST /api/game-developers` | 201 / 200 `GameDeveloperResponse` | body `{name}` (trimmed, 1..128 chars); 201 when created, 200 with the existing row when the name exists (case-insensitive) |
-| `GET /api/books?page=1&pageSize=50[&search=dune][&filters]` | 200 `PageResponse<BookResponse>` | as `GET /api/games` (paging, title-only search and its order), with the repeatable filters `typeIds`, `ownership` (`watchlist`/`owned`), `progress` (`abandoned`/`not_started`/`paused`/`reading`/`finished`), `releaseYear`; the type filter is a semi-join; no `sort`, no `rated` (decision record 0034) |
+| `GET /api/books?page=1&pageSize=50[&search=dune][&filters]` | 200 `PageResponse<BookResponse>` | as `GET /api/games` (paging, title-only search and its order), with the repeatable filters `typeIds`, `ownership` (`watchlist`/`owned`), `progress` (`abandoned`/`not_started`/`paused`/`reading`/`finished`), `releaseYear`; the type filter is a semi-join; `sort` `title`/`release_asc`/`release_desc` as for games (decision record 0038); no `rated` (decision record 0034) |
 | `POST /api/books` | 201 `BookResponse` + `Location` | body `CreateBookRequest`: `title`, `releaseYear` required unless `releaseDate` is given, `typeIds`, `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`, position 0..9999.99 with at most two decimals, a repeated `seriesId` is a 400) optional (default `[]`, a book may have no type), `description`, `coverImageUrl`, `ownership` (default `watchlist`), `progress` (default `not_started`) optional |
 | `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds`/`narratorIds`/`series` replace the set (may be empty); 404 for unknown ids |
 | `DELETE /api/books/{id}` | 204 | idempotent; junction rows cascade |
@@ -278,7 +278,8 @@ frontend/src
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker; aspect
 │                         ratio per kind, coverFrame), ComingSoon, media/ (kind-neutral media UI, record 0034:
 │                         MediaViewHeader, SearchField, ResultsBar, PaginationBar, MediaGrid, MediaCardShell,
-│                         CoverAndInfoLayout, ColorChip(s), DetailField, ReleaseDetail, NameChips, status/
+│                         ReleaseSortToggle (ADR 0038), CoverAndInfoLayout, ColorChip(s), DetailField,
+│                         ReleaseDetail, NameChips, status/
 │                         (StatusToggleBar: exclusive or multiple icon toggles, StatusFilterBar, StatusIcon),
 │                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
 │                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField,
@@ -292,12 +293,13 @@ frontend/src
 │                         counts, DropboxBackupSection: connect by pasted code, last backup, back up now,
 │                         disconnect; fields/AuthorizationCodeField)
 ├── features/<kind>/      one standalone view per media kind; movies and series are "coming soon"
-├── features/books/       BooksView (overview at /books/overview), BookAuthorsView (/books/authors, MT-046) and
-│                         BookSeriesView (/books/series, MT-043), both thin wrappers around BookGroupsView (one
-│                         accordion per group) + api/booksApi, hooks/ (useBooksPage, useBooksMeta, useBookTypes,
+├── features/books/       BooksView (overview at /books/overview), BooksWatchlistView (/books/watchlist, MT-055),
+│                         BookAuthorsView (/books/authors, MT-046) and BookSeriesView (/books/series, MT-043),
+│                         the latter two thin wrappers around BookGroupsView (one accordion per group)
+│                         + api/booksApi, hooks/ (useBooksPage, useBooksMeta, useBookTypes,
 │                         useGroupBooks), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio, bookFilters,
 │                         bookDraft, bookViewParams, bookGroupViewParams, seriesLabel, nameSearch), components/
-│                         (BookCard, BookGroupAccordion, BookStatusIcons,
+│                         (BookCard, WatchlistBookCard, BookGroupAccordion, BookStatusIcons,
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
 │                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,
@@ -313,7 +315,7 @@ frontend/src
                           URL query codecs of the three views, gameStatus:
                           ownership/progress values and defaults, rankingYears: the ranking's year list),
                           components/ (GamesGrid over MediaGrid, GameCard/WatchlistGameCard/
-                          RankingGameCard, GameDialogsHost: FAB + add/detail dialogs, ReleaseSortToggle,
+                          RankingGameCard, GameDialogsHost: FAB + add/detail dialogs,
                           YearNavigator,
                           GameFilterBar (platform + release year),
                           ProgressToggleBar + OwnershipToggleBar + StatusFilterToggles (overview progress/ownership filter) +

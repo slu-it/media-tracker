@@ -3,6 +3,7 @@ package de.sluit.mediatracker.books.api
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
+import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
 import de.sluit.mediatracker.common.api.queryValues
@@ -23,3 +24,11 @@ fun ApplicationCall.bookFilters(): BookFilters = BookFilters(
     progress = queryValues(BookProgress.FIELD).map(BookProgress::from).toSet(),
     releaseYears = queryValues(ReleaseYear.FIELD).map(ReleaseYear::parse).toSet(),
 )
+
+/**
+ * Reads the single `?sort=` query parameter into a validated [BookSort]; an absent or blank value means
+ * [BookSort.DEFAULT]. Like `?page=`/`?pageSize=` in `common/api/Paging.kt`, a repeated `sort` parameter silently
+ * keeps only the first value rather than erroring.
+ */
+fun ApplicationCall.bookSort(): BookSort =
+    request.queryParameters[BookSort.FIELD]?.takeIf { it.isNotBlank() }?.let(BookSort::from) ?: BookSort.DEFAULT

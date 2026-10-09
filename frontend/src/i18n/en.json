@@ -124,6 +124,11 @@
     "search": {
       "clear": "Clear search"
     },
+    "sort": {
+      "legend": "Sort order",
+      "releaseAsc": "Oldest first",
+      "releaseDesc": "Newest first"
+    },
     "filters": {
       "all": "-all-",
       "clear": "Clear {{label}}",
@@ -146,6 +151,9 @@
     }
   },
   "books": {
+    "watchlist": {
+      "empty": "Your watchlist is empty."
+    },
     "addBook": "Add book",
     "bookDetails": "Book details",
     "editBook": "Edit book",
@@ -226,11 +234,6 @@
       "noGames": "No games",
       "platform": "Platform",
       "noResults": "No games match the selected filters."
-    },
-    "sort": {
-      "legend": "Sort order",
-      "releaseAsc": "Oldest first",
-      "releaseDesc": "Newest first"
     },
     "watchlist": {
       "empty": "Your watchlist is empty."

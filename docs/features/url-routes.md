@@ -26,6 +26,7 @@ Code:
 | Path | Query (omitted when default or empty; `*` = repeatable, `?k=a&k=b`) |
 |---|---|
 | `/books/overview` | `search`, `type`* (ids), `ownership`*, `progress`*, `year`*, `page` (ADR 0034) |
+| `/books/watchlist` | `search`, `type`* (ids), `sort=release_desc` (`release_asc` is the default), `page` (MT-055) |
 | `/books/authors` | `search` (filters the loaded author list in the browser, MT-046) |
 | `/books/series` | `search` (filters the loaded series list in the browser, MT-043) |
 | `/movies`, `/series` | none |

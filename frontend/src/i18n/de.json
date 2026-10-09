@@ -124,6 +124,11 @@
     "search": {
       "clear": "Suche löschen"
     },
+    "sort": {
+      "legend": "Sortierung",
+      "releaseAsc": "Älteste zuerst",
+      "releaseDesc": "Neueste zuerst"
+    },
     "filters": {
       "all": "-alle-",
       "clear": "{{label}} zurücksetzen",
@@ -146,6 +151,9 @@
     }
   },
   "books": {
+    "watchlist": {
+      "empty": "Deine Merkliste ist leer."
+    },
     "addBook": "Buch hinzufügen",
     "bookDetails": "Buchdetails",
     "editBook": "Buch bearbeiten",
@@ -226,11 +234,6 @@
       "noGames": "Keine Spiele",
       "platform": "Plattform",
       "noResults": "Keine Spiele passen zu den gewählten Filtern."
-    },
-    "sort": {
-      "legend": "Sortierung",
-      "releaseAsc": "Älteste zuerst",
-      "releaseDesc": "Neueste zuerst"
     },
     "watchlist": {
       "empty": "Deine Merkliste ist leer."

@@ -45,12 +45,13 @@ fun Route.bookRoutes(
             call.response.header(HttpHeaders.Location, "/api/books/${book.id}")
             call.respond(HttpStatusCode.Created, book.toResponse())
         }
-        // Ordered by title, id; with `?search=` titles starting with the term first, then by title relevance.
+        // Ordered by title, id, unless `?sort=` asks for release date order instead; with `?search=` titles
+        // starting with the term first, then by title relevance.
         // `?typeIds=`/`?ownership=`/`?progress=`/`?releaseYear=` (each repeatable) narrow the listing further
         // and take the same branch as a search.
         get {
             call.respond(
-                bookService.list(call.pageRequest(), call.searchTerm(), call.bookFilters())
+                bookService.list(call.pageRequest(), call.searchTerm(), call.bookFilters(), call.bookSort())
                     .toResponse(Book::toResponse),
             )
         }

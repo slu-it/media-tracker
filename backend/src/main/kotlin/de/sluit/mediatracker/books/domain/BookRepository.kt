@@ -29,13 +29,20 @@ interface BookRepository {
     suspend fun findPage(request: PageRequest): Page<Book>
 
     /**
-     * Filtered and/or fulltext-searched listing. With a [term], a book matches on its title only (a title
-     * fulltext hit or a title prefix LIKE match); prefix hits come first, then relevance, then title, then id.
-     * Without a [term] the ordering is title, then id, same as [findPage]. [filters] AND across categories and
+     * Filtered and/or fulltext-searched listing. [sort] (default [BookSort.TITLE]) picks the ordering; with a
+     * [term] and the default [BookSort.TITLE], a book matches on its title only (a title fulltext hit or a title
+     * prefix LIKE match); prefix hits come first, then relevance, then title, then id, overridden entirely by
+     * any other [sort] (the match itself still filters). Without a [term] the ordering is [sort] alone,
+     * [BookSort.TITLE] being title, then id, same as [findPage]. [filters] AND across categories and
      * OR inside one (an `IN` list, or `IS NULL` checks for the `missing` category); an empty [BookFilters]
      * applies no predicate. A term that contains no searchable word behaves as if it were absent.
      */
-    suspend fun search(term: SearchTerm?, filters: BookFilters, request: PageRequest): Page<Book>
+    suspend fun search(
+        term: SearchTerm?,
+        filters: BookFilters,
+        request: PageRequest,
+        sort: BookSort = BookSort.TITLE,
+    ): Page<Book>
 
     /**
      * The distinct values each filter category currently has across all books, unordered. Only the four
