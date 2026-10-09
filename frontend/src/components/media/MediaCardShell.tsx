@@ -23,6 +23,8 @@ interface MediaCardShellProps {
   descriptionPlacement?: "top" | "bottom";
   /** Cover shape; defaults to the standard cover ratio. */
   coverAspectRatio?: number;
+  /** Shows the cover in grayscale at half opacity; set by cards for watchlist items, which are not owned yet. */
+  desaturateCover?: boolean;
   /** Card body below the title/description, e.g. platform chips and status icons. */
   children?: ReactNode;
 }
@@ -35,6 +37,7 @@ export function MediaCardShell({
   description,
   descriptionPlacement = "bottom",
   coverAspectRatio,
+  desaturateCover,
   children,
 }: MediaCardShellProps) {
   const descriptionId = useId();
@@ -53,7 +56,13 @@ export function MediaCardShell({
       >
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: CARD_CONTENT_GAP }}>
           {descriptionPlacement === "top" && descriptionBox}
-          <CoverImage src={coverImageUrl} alt="" width={CARD_COVER_WIDTH} aspectRatio={coverAspectRatio} />
+          <CoverImage
+            src={coverImageUrl}
+            alt=""
+            width={CARD_COVER_WIDTH}
+            aspectRatio={coverAspectRatio}
+            sx={desaturateCover ? { filter: "grayscale(1)", opacity: 0.5 } : undefined}
+          />
           <Typography
             variant="subtitle1"
             component="h3"

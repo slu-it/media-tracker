@@ -24,7 +24,8 @@ Code:
   deleting and expansions. The page owns the selected game and reloads its list and `/api/games.meta` after a
   create, an update or a delete.
 - Cards are `MediaCardShell` (cover, title, click) with a page-specific body. `GamesGrid` takes a `renderCard`
-  prop.
+  prop. Every card shows a watchlist game's cover grayscale at half opacity (`desaturateCover`, see
+  [games](games.md)), for visual consistency across the grids; the whole watchlist page is therefore dimmed.
 
 ## Watchlist
 

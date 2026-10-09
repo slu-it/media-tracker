@@ -57,6 +57,21 @@ describe("MediaCardShell", () => {
     expect(screen.getByRole("button", { name: "Celeste" })).toHaveAccessibleDescription("");
   });
 
+  it("shows the cover in grayscale at half opacity when desaturateCover is set", () => {
+    renderWithProviders(<MediaCardShell title="Celeste" coverImageUrl={null} onClick={() => {}} desaturateCover />);
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    const frame = screen.getByTitle("No cover image").closest("div");
+    expect(frame).toHaveStyle({ filter: "grayscale(1)", opacity: "0.5" });
+  });
+
+  it("shows the cover in full color and opacity when desaturateCover is not set", () => {
+    renderWithProviders(<MediaCardShell title="Celeste" coverImageUrl={null} onClick={() => {}} />);
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    const frame = screen.getByTitle("No cover image").closest("div");
+    expect(frame).not.toHaveStyle({ filter: "grayscale(1)" });
+    expect(frame).not.toHaveStyle({ opacity: "0.5" });
+  });
+
   it("renders a top description before the cover and the title, still as the accessible description", () => {
     renderWithProviders(
       <MediaCardShell

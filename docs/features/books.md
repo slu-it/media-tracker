@@ -77,7 +77,8 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   `type`, `ownership`, `progress`, `year`, `page`); page size `BOOKS_PAGE_SIZE` = 36.
 - The `reading` progress icon is `AutoStories`; the others match games (`NotStarted`, `Pause`, `TaskAlt`,
   `NotInterested`), as do the ownership icons. Cards show the ownership icon for watchlist books and the
-  progress icon for owned ones.
+  progress icon for owned ones. In every grid (overview, authors, series) a watchlist book's cover is grayscale at
+  half opacity (`desaturateCover` on `MediaCardShell`, as for games); the detail dialog keeps it in full colour.
 - The overview card (`BookCard` without `seriesPosition`, used by the overview and the authors view) shows one
   series under the title as an outlined chip ("Wax and Wayne #1", or just the name; long names ellipsized): the
   book's primary series by the heuristic `primarySeries` (`domain/seriesLabel.ts`). The lowest position wins, an

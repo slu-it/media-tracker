@@ -39,6 +39,7 @@ export function BookCard({
       coverImageUrl={book.coverImageUrl}
       coverAspectRatio={BOOK_COVER_ASPECT_RATIO}
       onClick={() => onOpen(book)}
+      desaturateCover={book.ownership === "watchlist"}
       descriptionPlacement={inSeriesView ? "top" : "bottom"}
       description={
         !inSeriesView ? (

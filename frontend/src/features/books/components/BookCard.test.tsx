@@ -7,6 +7,18 @@ import type { BookResponse } from "../../../types/api";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookCard } from "./BookCard";
 
+/** Locates the cover frame the same way whether the fixture has a cover image or shows the placeholder. */
+function coverFrame(cardName: string): HTMLElement {
+  const button = screen.getByRole("button", { name: cardName });
+  // eslint-disable-next-line testing-library/no-node-access -- the cover (image or placeholder icon) has no shared ARIA role
+  const cover = button.querySelector("img, svg");
+  expect(cover).not.toBeNull();
+  // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+  const frame = cover!.closest("div");
+  expect(frame).not.toBeNull();
+  return frame as HTMLElement;
+}
+
 const threeSeries: BookResponse = {
   ...dune,
   series: [
@@ -23,6 +35,17 @@ describe("BookCard", () => {
     const icon = screen.getByRole("img", { name: "Watchlist" });
     expect(title.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByRole("img", { name: "Not started" })).not.toBeInTheDocument();
+  });
+
+  it("shows the cover in grayscale at half opacity for a watchlist book", () => {
+    renderWithProviders(<BookCard book={earthsea} onOpen={() => {}} />);
+    expect(coverFrame("A Wizard of Earthsea")).toHaveStyle({ filter: "grayscale(1)", opacity: "0.5" });
+  });
+
+  it("shows the cover in full color and opacity for an owned book", () => {
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />);
+    expect(coverFrame("Dune")).not.toHaveStyle({ filter: "grayscale(1)" });
+    expect(coverFrame("Dune")).not.toHaveStyle({ opacity: "0.5" });
   });
 
   it("shows only the progress icon for an owned book", () => {
