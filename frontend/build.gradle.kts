@@ -43,6 +43,8 @@ val pnpmTest = tasks.register<PnpmTask>("pnpmTest") {
     args = listOf("run", "test")
     inputs.files("package.json", "pnpm-lock.yaml", "vite.config.ts", "tsconfig.json", "tsconfig.app.json")
     inputs.dir("src")
+    // vite.config.ts picks the test timeout from CI, so a changed value must rerun the task.
+    inputs.property("ci", providers.environmentVariable("CI").orElse(""))
     outputs.dir(layout.buildDirectory.dir("coverage"))
     outputs.file(layout.buildDirectory.file("test-results/vitest-junit.xml"))
 }

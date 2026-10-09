@@ -18,7 +18,12 @@ import { StatusFilterBar } from "./StatusFilterBar";
 const VALUES = ["watchlist", "subscription", "owned"] as const satisfies readonly Ownership[];
 const LABELS: Record<Ownership, string> = { watchlist: "Wish", subscription: "Sub", owned: "Have" };
 
-function setup(value: readonly Ownership[] = [], available: readonly Ownership[] | null = null, onChange = vi.fn()) {
+function setup(
+  value: readonly Ownership[] = [],
+  available: readonly Ownership[] | null = null,
+  onChange = vi.fn(),
+  realStyles = false,
+) {
   renderWithProviders(
     <StatusFilterBar
       values={VALUES}
@@ -30,6 +35,7 @@ function setup(value: readonly Ownership[] = [], available: readonly Ownership[]
       available={available}
       dimmedHint="Nothing here"
     />,
+    { realStyles },
   );
   return onChange;
 }
@@ -45,7 +51,7 @@ describe("StatusFilterBar", () => {
   });
 
   it("shows the group name as a visible legend above the bar", () => {
-    setup();
+    setup([], null, vi.fn(), true);
 
     const legend = screen.getByText("Status");
     expect(legend).toBeVisible();

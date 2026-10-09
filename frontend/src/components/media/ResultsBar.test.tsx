@@ -58,6 +58,7 @@ describe("ResultsBar", () => {
       <ResultsBar formatCount={formatCount} count={0}>
         <button type="button">Right slot</button>
       </ResultsBar>,
+      { realStyles: true },
     );
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
     expect(screen.queryByRole("button", { name: "Right slot" })).not.toBeInTheDocument();
@@ -65,7 +66,7 @@ describe("ResultsBar", () => {
   });
 
   it("is visible at count 0 only with facts, and the live region survives switching facts", () => {
-    const { rerender } = renderWithProviders(<ResultsBar formatCount={formatCount} count={0} />);
+    const { rerender } = renderWithProviders(<ResultsBar formatCount={formatCount} count={0} />, { realStyles: true });
     const status = screen.getByRole("status");
     expect(isHidden(rowOf(status))).toBe(true);
 
@@ -83,6 +84,7 @@ describe("ResultsBar", () => {
       <ResultsBar formatCount={formatCount} count={0} facts={<button type="button">Facts slot</button>}>
         <button type="button">Right slot</button>
       </ResultsBar>,
+      { realStyles: true },
     );
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
     expect(screen.getByRole("button", { name: "Facts slot" })).toBeInTheDocument();

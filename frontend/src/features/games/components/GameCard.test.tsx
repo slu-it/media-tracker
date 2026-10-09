@@ -37,12 +37,12 @@ describe("GameCard", () => {
   });
 
   it("shows the cover in grayscale at half opacity for a watchlist game", () => {
-    renderWithProviders(<GameCard game={hades} onOpen={() => {}} />);
+    renderWithProviders(<GameCard game={hades} onOpen={() => {}} />, { realStyles: true });
     expect(coverFrame("Hades")).toHaveStyle({ filter: "grayscale(1)", opacity: "0.5" });
   });
 
   it("shows the cover in full color and opacity for an owned game", () => {
-    renderWithProviders(<GameCard game={celeste} onOpen={() => {}} />);
+    renderWithProviders(<GameCard game={celeste} onOpen={() => {}} />, { realStyles: true });
     expect(coverFrame("Celeste")).not.toHaveStyle({ filter: "grayscale(1)" });
     expect(coverFrame("Celeste")).not.toHaveStyle({ opacity: "0.5" });
   });

@@ -121,7 +121,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView />);
+    renderWithProviders(<GamesView />, { realStyles: true });
     expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
     expect(screen.queryByText(/of 0/)).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
@@ -582,7 +582,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView />, { route: "/games/overview?search=zzz" });
+    renderWithProviders(<GamesView />, { route: "/games/overview?search=zzz", realStyles: true });
 
     expect(await screen.findByText('No games match "zzz"')).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("0 games");
@@ -597,7 +597,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView />);
+    renderWithProviders(<GamesView />, { realStyles: true });
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Playing" }));
@@ -621,7 +621,7 @@ describe("GamesView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesView />);
+    renderWithProviders(<GamesView />, { realStyles: true });
     expect(await screen.findByRole("heading", { name: "Celeste" })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole("combobox", { name: "Platform" })).not.toHaveAttribute("aria-disabled"),

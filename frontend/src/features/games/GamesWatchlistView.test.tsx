@@ -286,7 +286,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesWatchlistView />);
+    renderWithProviders(<GamesWatchlistView />, { realStyles: true });
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
 
     expect(screen.getByText("Sort order")).toBeVisible();
@@ -303,7 +303,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesWatchlistView />);
+    renderWithProviders(<GamesWatchlistView />, { realStyles: true });
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();
 
     await waitFor(() =>
@@ -328,7 +328,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/game-platforms": mockPlatforms,
       "GET /api/games.meta": mockMeta,
     });
-    renderWithProviders(<GamesWatchlistView />);
+    renderWithProviders(<GamesWatchlistView />, { realStyles: true });
     expect(await screen.findByText("Your watchlist is empty.")).toBeInTheDocument();
 
     expect(isResultsRowHidden()).toBe(true);

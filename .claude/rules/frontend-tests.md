@@ -22,6 +22,11 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
   Mock the network only with `src/test/mockFetch.ts`:
   `mockApi({"GET /api/games": ...})` records calls, and an unmocked request throws. Shared fixtures live in
   `src/test/fixtures/`; mirrored DTO changes must be reflected there.
+- `renderWithProviders` renders with an emotion cache whose container is detached, so no MUI CSS reaches jsdom and
+  name-filtered `*ByRole` queries skip the costly `getComputedStyle` cascade (ADR 0037). Pass `{ realStyles: true }`
+  in every test asserting computed style or visibility, positive or negative: `toHaveStyle`, `not.toHaveStyle`,
+  `toBeVisible`, `not.toBeVisible`, direct `getComputedStyle`, or relying on an element hidden by CSS. Negative
+  assertions and `toBeVisible` pass vacuously without it. An unexpected duplicate match is also a sign to opt in.
 - Any `console.error` during a test fails it.
 - Never `await new Promise((r) => setTimeout(r, 0))` in a React test; use `await flushAsync()` from
   `src/test/flushAsync.ts`. The bare await is a gap outside `act`, and MUI transition timers (0 ms in tests) firing
@@ -35,7 +40,8 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
   only when the test depends on the delay: it asserts something before the debounce fires (no request yet,
   coalescing, Enter/Clear bypassing it) or waits a fixed time against it. A `waitFor` timeout that must beat the
   debounce stays well below it. Debounced hooks keep an optional `debounceMs` argument for `renderHook` tests.
-- Vitest runs with `testTimeout: 10_000` and `isolate: false` (one jsdom shared across files). `test-setup.ts`
+- Vitest runs with `testTimeout` 10 s locally (30 s with `CI` set, where it only detects hangs; ADR 0037) and
+  `isolate: false` (one jsdom shared across files). `test-setup.ts`
   runs per file and does the lifecycle itself: explicit `afterEach(cleanup)`, a `beforeAll` setting
   `IS_REACT_ACT_ENVIRONMENT`, then the mocks (incl. `matchMedia`, an `Element.prototype.scrollIntoView` stub
   that @dnd-kit's keyboard sensor needs, and an unconditional no-op `window.scrollTo` for `PaginationBar`, since
