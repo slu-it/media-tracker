@@ -2,9 +2,18 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import i18n from "../../../i18n";
-import { dune, earthsea } from "../../../test/fixtures/books";
+import { dune, earthsea, mistborn } from "../../../test/fixtures/books";
+import type { BookResponse } from "../../../types/api";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookCard } from "./BookCard";
+
+const twoSeries: BookResponse = {
+  ...dune,
+  series: [
+    { id: mistborn.id, name: "Mistborn", position: 1 },
+    { id: "series-9", name: "Cosmere", position: null },
+  ],
+};
 
 describe("BookCard", () => {
   it("shows only the watchlist icon after the title for a watchlist book", () => {
@@ -52,8 +61,8 @@ describe("BookCard", () => {
     expect(badge.compareDocumentPosition(cover as Element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("reserves an invisible, unannounced placeholder for a null position, none in the overview", () => {
-    const { unmount } = renderWithProviders(<BookCard book={dune} onOpen={() => {}} seriesPosition={null} />);
+  it("reserves an invisible, unannounced placeholder for a null position", () => {
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} seriesPosition={null} />);
     const button = screen.getByRole("button", { name: "Dune" });
     expect(button).toHaveAccessibleDescription("");
     const describedBy = button.getAttribute("aria-describedby") as string;
@@ -62,9 +71,6 @@ describe("BookCard", () => {
     expect(placeholder).toHaveAttribute("aria-hidden", "true");
     expect(placeholder).toHaveStyle({ visibility: "hidden" });
     expect(placeholder).toBeEmptyDOMElement();
-    unmount();
-    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />);
-    expect(screen.getByRole("button", { name: "Dune" })).not.toHaveAttribute("aria-describedby");
   });
 
   it("announces the series position as the card description", () => {
@@ -83,5 +89,53 @@ describe("BookCard", () => {
     renderWithProviders(<BookCard book={dune} onOpen={onOpen} />);
     await userEvent.click(screen.getByRole("button", { name: "Dune" }));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith(dune);
+  });
+
+  it("shows one series chip per series in order, name only without a position", () => {
+    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
+    const first = screen.getByText("Mistborn #1");
+    const second = screen.getByText("Cosmere");
+    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("places the series chips after the cover and before the title", () => {
+    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
+    const chip = screen.getByText("Mistborn #1");
+    // eslint-disable-next-line testing-library/no-node-access -- the decorative cover (alt="") has no ARIA role
+    const cover = screen.getByRole("button", { name: "Dune" }).querySelector("img") as Element;
+    const title = screen.getByRole("heading", { level: 3, name: "Dune" });
+    expect(cover.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(chip.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("announces the series chips as the card description", () => {
+    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
+    expect(screen.getByRole("button", { name: "Dune" })).toHaveAccessibleDescription("Mistborn #1 Cosmere");
+  });
+
+  it("reserves a hidden placeholder and shows no chip for a book without series", () => {
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />);
+    const button = screen.getByRole("button", { name: "Dune" });
+    expect(button).toHaveAccessibleDescription("");
+    const describedBy = button.getAttribute("aria-describedby") as string;
+    // eslint-disable-next-line testing-library/no-node-access -- the placeholder has no role or text
+    const placeholder = document.getElementById(describedBy)?.firstElementChild as HTMLElement;
+    expect(placeholder).toHaveAttribute("aria-hidden", "true");
+    expect(placeholder).toHaveStyle({ visibility: "hidden" });
+    expect(placeholder).toBeEmptyDOMElement();
+  });
+
+  it("formats the series chip position in German", async () => {
+    await i18n.changeLanguage("de");
+    const book = { ...dune, series: [{ id: mistborn.id, name: "Mistborn", position: 2.5 }] };
+    renderWithProviders(<BookCard book={book} onOpen={() => {}} />);
+    expect(screen.getByText("Mistborn #2,5")).toBeInTheDocument();
+  });
+
+  it("shows the badge and no series chip when a series position is given", () => {
+    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} seriesPosition={1} />);
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.queryByText("Mistborn #1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cosmere")).not.toBeInTheDocument();
   });
 });

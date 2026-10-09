@@ -78,6 +78,11 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 - The `reading` progress icon is `AutoStories`; the others match games (`NotStarted`, `Pause`, `TaskAlt`,
   `NotInterested`), as do the ownership icons. Cards show the ownership icon for watchlist books and the
   progress icon for owned ones.
+- The overview card (`BookCard` without `seriesPosition`, used by the overview and the authors view) lists the
+  book's series between cover and title, one outlined chip per row ("Mistborn #1", or just the name;
+  `NameChips direction="column"`, long names ellipsized), in `MediaCardShell`'s `descriptionPlacement="afterCover"`
+  slot so the chips are announced as the card's description. A book without series keeps one chip row's height
+  empty, so books with none or one series line up within a grid row.
 - The release-year select reaches back to 1450 (`BOOK_RELEASE_YEAR_SELECT_MIN`, passed as `minYear` to the shared
   `ReleaseYearField`; games keep 1980).
 - Book covers use a 2:3 frame (`BOOK_COVER_ASPECT_RATIO` in `domain/bookValues.ts`), passed to the shared
@@ -96,11 +101,11 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   kept in the URL (`bookGroupViewParams.ts`) but sends no request. A section's books load only when it is
   expanded (`unmountOnExit`, `useGroupBooks`), in the backend's order, as the overview's `BookCard`s with a "#n"
   badge (`seriesPosition`) centered above the cover for numbered books (the slot is kept empty for unnumbered ones,
-  so covers in a row stay aligned; `MediaCardShell`'s `descriptionPlacement="top"`). A series without books shows a message and loads nothing. Saving,
+  so covers in a row stay aligned; `MediaCardShell`'s `descriptionPlacement="top"`) instead of the series chips. A series without books shows a message and loads nothing. Saving,
   adding or deleting a book in the dialogs reloads the counts and every open section.
 - **Authors view** (MT-046, `BookAuthorsView.tsx`, tab "Authors" / "Autoren" at `/books/authors`, between the
   overview and the series view): the same view over `/api/book-authors.summaries` and
   `/api/book-authors/{id}/books`. Authors without books are listed too. A section shows the author's books by
-  release year, as plain overview `BookCard`s (no badge). Both views are thin wrappers around `BookGroupsView`,
+  release year, as overview `BookCard`s (series chips, no badge). Both views are thin wrappers around `BookGroupsView`,
   which takes the summary and book loaders, the card renderer and the i18n prefix (`books.seriesView`,
   `books.authorsView`); the accordion is `BookGroupAccordion`, the books hook `useGroupBooks`.
