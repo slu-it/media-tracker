@@ -278,8 +278,8 @@ frontend/src
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker; aspect
 │                         ratio per kind, coverFrame), ComingSoon, media/ (kind-neutral media UI, record 0034:
 │                         MediaViewHeader, SearchField, ResultsBar, PaginationBar, MediaGrid, MediaCardShell,
-│                         ReleaseSortToggle (ADR 0038), CoverAndInfoLayout, ColorChip(s), DetailField,
-│                         ReleaseDetail, NameChips, status/
+│                         ReleaseSortToggle (ADR 0038), ReleaseInfo, ReleaseDistanceChip, CoverAndInfoLayout,
+│                         ColorChip(s), DetailField, ReleaseDetail, NameChips, status/
 │                         (StatusToggleBar: exclusive or multiple icon toggles, StatusFilterBar, StatusIcon),
 │                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
 │                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField,

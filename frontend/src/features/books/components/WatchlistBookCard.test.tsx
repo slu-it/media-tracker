@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dune, earthsea, hardcover } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { WatchlistBookCard } from "./WatchlistBookCard";
@@ -8,18 +8,29 @@ import { WatchlistBookCard } from "./WatchlistBookCard";
 const TITLE = "A Wizard of Earthsea";
 
 describe("WatchlistBookCard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows the formatted release date when one is set", () => {
     const dated = { ...earthsea, releaseDate: "1968-11-01" };
     renderWithProviders(<WatchlistBookCard book={dated} onOpen={() => {}} />);
     expect(screen.getByText("1968-11-01")).toBeInTheDocument();
+    expect(screen.getByText("-P57Y11M8D")).toBeInTheDocument();
     // Wired as an accessible description (see MediaCardShell), so it is announced alongside the title.
-    expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription("1968-11-01");
+    expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription("1968-11-01 -P57Y11M8D");
   });
 
   it("falls back to the release year when no release date is set", () => {
     renderWithProviders(<WatchlistBookCard book={earthsea} onOpen={() => {}} />);
     expect(screen.getByText(String(earthsea.releaseYear))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription(String(earthsea.releaseYear));
+    expect(screen.queryByText(/^-?P(\d+[YMD])+$/)).not.toBeInTheDocument();
   });
 
   it("shows the cover in grayscale at half opacity, every card here is a watchlist book", () => {
