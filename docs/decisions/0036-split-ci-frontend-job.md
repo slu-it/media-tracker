@@ -10,7 +10,8 @@ MUI dialog tests are CPU-bound, so they slowed down roughly in proportion to the
 `AddBookDialog.test.tsx` took 7–10 s per test (0.7–1.2 s locally), two tests hit the 10 s `testTimeout`, and the
 whole Vitest run took 195 s. The resulting `act(...)` warning from MUI's `TouchRipple` was a consequence of the
 timeout: the abandoned test's ripple timers fired outside `act`. Raising the timeout further would only hide the
-contention, and capping workers harder would make the whole build slower.
+contention, and capping workers harder would make the whole build slower. (Revised by record 0037: `testTimeout` is
+30 s with `CI` set, once the remaining timeouts were plain runner variance.)
 
 ## Decision
 

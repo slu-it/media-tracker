@@ -33,7 +33,9 @@ describe("BookOwnershipToggleBar", () => {
   });
 
   it("names the group by the visible legend with showLabel", () => {
-    renderWithProviders(<BookOwnershipToggleBar value="watchlist" onChange={vi.fn()} showLabel />);
+    renderWithProviders(<BookOwnershipToggleBar value="watchlist" onChange={vi.fn()} showLabel />, {
+      realStyles: true,
+    });
     expect(screen.getByText("Ownership")).toBeVisible();
     expect(screen.getByRole("group", { name: "Ownership" })).toBeInTheDocument();
   });

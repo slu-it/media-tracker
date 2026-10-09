@@ -6,7 +6,7 @@ import { ReleaseSortToggle } from "./ReleaseSortToggle";
 
 describe("ReleaseSortToggle", () => {
   it("shows both options with the legend naming the group", () => {
-    renderWithProviders(<ReleaseSortToggle value="release_asc" onChange={() => {}} />);
+    renderWithProviders(<ReleaseSortToggle value="release_asc" onChange={() => {}} />, { realStyles: true });
     expect(screen.getByRole("group", { name: "Sort order" })).toBeInTheDocument();
     expect(screen.getByText("Sort order")).toBeVisible();
     expect(screen.getByRole("button", { name: "Oldest first" })).toBeInTheDocument();

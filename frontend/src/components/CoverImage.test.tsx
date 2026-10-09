@@ -62,7 +62,7 @@ describe("CoverImage", () => {
   });
 
   it("derives the height from the width when height is omitted", () => {
-    renderWithProviders(<CoverImage src={null} alt="Celeste" width={100} />);
+    renderWithProviders(<CoverImage src={null} alt="Celeste" width={100} />, { realStyles: true });
     // The frame itself carries no accessible role of its own; only its child (the placeholder icon) is queryable.
     // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
     const frame = screen.getByTitle("No cover image").closest("div");
@@ -70,14 +70,16 @@ describe("CoverImage", () => {
   });
 
   it("derives the height from a custom aspect ratio", () => {
-    renderWithProviders(<CoverImage src={null} alt="Celeste" width={168} aspectRatio={2 / 3} />);
+    renderWithProviders(<CoverImage src={null} alt="Celeste" width={168} aspectRatio={2 / 3} />, { realStyles: true });
     // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
     const frame = screen.getByTitle("No cover image").closest("div");
     expect(frame).toHaveStyle({ width: "168px", height: "252px" });
   });
 
   it("renders the image and falls back to the placeholder when it fails to load", () => {
-    renderWithProviders(<CoverImage src="https://img.example/c.png" alt="Celeste" width={100} height={140} />);
+    renderWithProviders(<CoverImage src="https://img.example/c.png" alt="Celeste" width={100} height={140} />, {
+      realStyles: true,
+    });
     const img = screen.getByRole("img", { name: "Celeste" });
     expect(img).toHaveAttribute("src", "https://img.example/c.png");
     expect(img).toHaveStyle({ objectFit: "contain" });

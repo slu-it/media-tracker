@@ -51,6 +51,7 @@ describe("BaseDialog", () => {
       >
         <p>Body</p>
       </BaseDialog>,
+      { realStyles: true },
     );
     const topButton = screen.getByRole("button", { name: "Top" });
     const bottomButton = screen.getByRole("button", { name: "Bottom" });
@@ -76,6 +77,7 @@ describe("BaseDialog", () => {
       <BaseDialog open onClose={() => {}} height={640}>
         <p>Body</p>
       </BaseDialog>,
+      { realStyles: true },
     );
     const paper = screen.getByRole("dialog");
     // jsdom resolves min()/calc(100vh - ...) against its viewport (default innerHeight 768), so the expected
@@ -89,6 +91,7 @@ describe("BaseDialog", () => {
       <BaseDialog open onClose={() => {}} contentScroll="children">
         <p>Body</p>
       </BaseDialog>,
+      { realStyles: true },
     );
     // This only exercises the "no height" fallback (plain `overflow: "auto"`); the `contentScroll="children"`
     // branch itself cannot be asserted here because jsdom drops every MUI breakpoint value (even `xs`, which

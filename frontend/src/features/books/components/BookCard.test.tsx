@@ -38,12 +38,12 @@ describe("BookCard", () => {
   });
 
   it("shows the cover in grayscale at half opacity for a watchlist book", () => {
-    renderWithProviders(<BookCard book={earthsea} onOpen={() => {}} />);
+    renderWithProviders(<BookCard book={earthsea} onOpen={() => {}} />, { realStyles: true });
     expect(coverFrame("A Wizard of Earthsea")).toHaveStyle({ filter: "grayscale(1)", opacity: "0.5" });
   });
 
   it("shows the cover in full color and opacity for an owned book", () => {
-    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />);
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />, { realStyles: true });
     expect(coverFrame("Dune")).not.toHaveStyle({ filter: "grayscale(1)" });
     expect(coverFrame("Dune")).not.toHaveStyle({ opacity: "0.5" });
   });
@@ -86,7 +86,7 @@ describe("BookCard", () => {
   });
 
   it("reserves an invisible, unannounced placeholder for a null position", () => {
-    renderWithProviders(<BookCard book={dune} onOpen={() => {}} seriesPosition={null} />);
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} seriesPosition={null} />, { realStyles: true });
     const button = screen.getByRole("button", { name: "Dune" });
     expect(button).toHaveAccessibleDescription("");
     const describedBy = button.getAttribute("aria-describedby") as string;
@@ -150,7 +150,7 @@ describe("BookCard", () => {
   });
 
   it("reserves a hidden placeholder and shows no chip for a book without series", () => {
-    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />);
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} />, { realStyles: true });
     const button = screen.getByRole("button", { name: "Dune" });
     expect(button).toHaveAccessibleDescription("Hardcover Kindle");
     const describedBy = button.getAttribute("aria-describedby") as string;

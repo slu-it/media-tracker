@@ -6,8 +6,13 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
 import { StatusFilterToggles } from "./StatusFilterToggles";
 
-function setupToggles(filters: GameFilters = EMPTY_FILTERS, metaValue: typeof meta | null = meta, onChange = vi.fn()) {
-  renderWithProviders(<StatusFilterToggles filters={filters} onChange={onChange} meta={metaValue} />);
+function setupToggles(
+  filters: GameFilters = EMPTY_FILTERS,
+  metaValue: typeof meta | null = meta,
+  onChange = vi.fn(),
+  realStyles = false,
+) {
+  renderWithProviders(<StatusFilterToggles filters={filters} onChange={onChange} meta={metaValue} />, { realStyles });
   return onChange;
 }
 
@@ -105,7 +110,7 @@ describe("StatusFilterToggles", () => {
   });
 
   it("shows the group names as visible labels above the bars", () => {
-    setupToggles();
+    setupToggles(EMPTY_FILTERS, meta, vi.fn(), true);
 
     for (const name of ["Progress", "Ownership"]) {
       const legend = screen.getByText(name);

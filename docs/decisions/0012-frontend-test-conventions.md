@@ -60,6 +60,8 @@ Books, Movies and Series will copy `features/games/` and its tests, so the conve
   per-file `beforeAll`. A test must never rely on module state from another file. Vitest and Gradle run on their
   core-based defaults everywhere: since record 0036 the frontend tests have a CI runner of their own (they used
   to be capped to 3 workers in CI while the backend build shared the runner).
+  (Update 2026-10: `testTimeout` is 30 s when `CI` is set and 10 s locally, and `renderWithProviders` keeps
+  emotion's styles out of the document unless a test passes `realStyles: true`; record 0037.)
 - **MUI ripple and transitions are off in tests**: `renderWithProviders` passes `TEST_THEME_OVERRIDES`
   (`MuiButtonBase` `disableRipple`, `transitions.create` returning `none`, every duration 0) through the optional
   `themeOverrides` prop of `AppProviders`, merged last into the one `createTheme` call so the CSS-variables colour

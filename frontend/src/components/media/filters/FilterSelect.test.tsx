@@ -15,6 +15,7 @@ describe("FilterSelect", () => {
         variant="standard"
         labelStyle="legend"
       />,
+      { realStyles: true },
     );
 
     expect(screen.getByText("Platform")).toBeVisible();

@@ -300,7 +300,9 @@ describe("AddGameDialog", () => {
   it("disables save while a picked release date is invalid, and re-enables it once cleared", async () => {
     const user = userEvent.setup();
     mockApi(noTitleSuggestions);
-    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />, {
+      realStyles: true,
+    });
     const dialog = screen.getByRole("dialog");
     const save = within(dialog).getByRole("button", { name: "Save" });
 

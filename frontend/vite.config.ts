@@ -27,9 +27,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
-    // These are integration-style tests: MUI dialogs rendered in jsdom, ~1 s each locally. The generous timeout
-    // is headroom for the slower CI runner, where the default 5 s was hit while nothing had failed.
-    testTimeout: 10_000,
+    // These are integration-style tests: MUI dialogs rendered in jsdom, ~1 s each locally. Locally 10 s stays a
+    // slowness signal; on the smaller shared CI runner (where the default 5 s was hit while nothing had failed) 30 s
+    // only detects hangs (ADR 0037).
+    testTimeout: process.env.CI ? 30_000 : 10_000,
     // Reuse workers (and their jsdom) across test files instead of spawning one per file (~1.8 s startup each).
     // Safe only because src/test-setup.ts runs per file and does the cleanup itself (see there).
     isolate: false,

@@ -124,7 +124,7 @@ describe("BooksView", () => {
       "GET /api/book-types": mockTypes,
       "GET /api/books.meta": mockMeta,
     });
-    renderWithProviders(<BooksView />);
+    renderWithProviders(<BooksView />, { realStyles: true });
     expect(await screen.findByText(/No books yet/)).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("0 books");
     expect(isResultsRowHidden()).toBe(true);
@@ -418,7 +418,7 @@ describe("BooksView", () => {
       "GET /api/book-types": mockTypes,
       "GET /api/books.meta": mockMeta,
     });
-    renderWithProviders(<BooksView />, { route: "/books/overview?search=zzz" });
+    renderWithProviders(<BooksView />, { route: "/books/overview?search=zzz", realStyles: true });
 
     expect(await screen.findByText('No books match "zzz"')).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("0 books");
@@ -506,7 +506,7 @@ describe("BooksView", () => {
       "GET /api/book-types": mockTypes,
       "GET /api/books.meta": mockMeta,
     });
-    renderWithProviders(<BooksView />);
+    renderWithProviders(<BooksView />, { realStyles: true });
     expect(await screen.findByRole("heading", { name: "Dune" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Reading" }));

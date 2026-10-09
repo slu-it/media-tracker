@@ -34,13 +34,13 @@ describe("RankingGameCard", () => {
 
   it("shows the cover in grayscale at half opacity for a watchlist game", () => {
     const rated = { ...hades, rating: 4.5 };
-    renderWithProviders(<RankingGameCard game={rated} onOpen={() => {}} />);
+    renderWithProviders(<RankingGameCard game={rated} onOpen={() => {}} />, { realStyles: true });
     expect(coverFrame("Hades")).toHaveStyle({ filter: "grayscale(1)", opacity: "0.5" });
   });
 
   it("shows the cover in full color and opacity for an owned game", () => {
     const rated = { ...celeste, rating: 4.5 };
-    renderWithProviders(<RankingGameCard game={rated} onOpen={() => {}} />);
+    renderWithProviders(<RankingGameCard game={rated} onOpen={() => {}} />, { realStyles: true });
     expect(coverFrame("Celeste")).not.toHaveStyle({ filter: "grayscale(1)" });
     expect(coverFrame("Celeste")).not.toHaveStyle({ opacity: "0.5" });
   });

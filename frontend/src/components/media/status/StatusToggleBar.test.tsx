@@ -105,6 +105,7 @@ describe("StatusToggleBar multiple", () => {
         dimmed={() => true}
         dimmedHint="Empty"
       />,
+      { realStyles: true },
     );
     const pressed = screen.getByRole("button", { name: "Have" });
     expect(pressed).toHaveAttribute("aria-pressed", "true");
