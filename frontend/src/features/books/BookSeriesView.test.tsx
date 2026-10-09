@@ -76,6 +76,12 @@ describe("BookSeriesView", () => {
     expect(screen.getByText("#1")).toBeInTheDocument();
     expect(screen.getByText("#2.5")).toBeInTheDocument();
     expect(screen.getAllByText(/^#/)).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "The Final Empire" })).toHaveAccessibleDescription("#1");
+    for (const card of screen.getAllByRole("button", {
+      name: /^(The Final Empire|The Well of Ascension|Secret History)$/,
+    })) {
+      expect(card).not.toHaveAccessibleDescription(/Mistborn/);
+    }
   });
 
   it("shows a message for a series without books, without a request", async () => {

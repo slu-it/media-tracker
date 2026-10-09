@@ -75,6 +75,15 @@ describe("BookAuthorsView", () => {
     expect(screen.queryByText(/^#/)).not.toBeInTheDocument();
   });
 
+  it("shows the series chip on an expanded author's card", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...base(), [HERBERT_BOOKS]: () => jsonResponse(herbertBooks) });
+    renderWithProviders(<BookAuthorsView />);
+    await user.click(await screen.findByRole("button", { name: /Frank Herbert/ }));
+    expect(await screen.findByRole("heading", { name: "Dune Messiah" })).toBeInTheDocument();
+    expect(screen.getByText("Dune Saga #1")).toBeInTheDocument();
+  });
+
   it("shows a message for an author without books, without a request", async () => {
     const user = userEvent.setup();
     const calls = mockApi(base());

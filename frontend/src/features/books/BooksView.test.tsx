@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { BookResponse } from "../../types/api";
 import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
-import { bookTypes, dune, earthsea, hardcover, meta } from "../../test/fixtures/books";
+import { bookTypes, dune, earthsea, hardcover, meta, mistbornBooks } from "../../test/fixtures/books";
 import { currentLocation } from "../../test/currentLocation";
 import { flushAsync } from "../../test/flushAsync";
 import { HistoryControls } from "../../test/HistoryControls";
@@ -67,6 +67,17 @@ function GoTo({ to }: { to: string }) {
 }
 
 describe("BooksView", () => {
+  it("shows the series chip on a grid card", async () => {
+    mockApi({
+      "GET /api/books": () => jsonResponse(pageOf([mistbornBooks[0]], 1, 1)),
+      "GET /api/book-types": mockTypes,
+      "GET /api/books.meta": mockMeta,
+    });
+    renderWithProviders(<BooksView />);
+    expect(await screen.findByRole("heading", { name: "The Final Empire" })).toBeInTheDocument();
+    expect(screen.getByText("Mistborn #1")).toBeInTheDocument();
+  });
+
   it("renders the grid and opens the detail dialog from a card", async () => {
     const user = userEvent.setup();
     mockApi({

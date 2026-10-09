@@ -16,9 +16,9 @@ interface MediaCardShellProps {
   description?: ReactNode;
   /**
    * Where the description sits in the centered column: `"bottom"` (default) after the title, `"top"` first, above the
-   * cover. Either way it stays referenced by `aria-describedby`.
+   * cover, `"afterCover"` between the cover and the title. In every case it stays referenced by `aria-describedby`.
    */
-  descriptionPlacement?: "top" | "bottom";
+  descriptionPlacement?: "top" | "afterCover" | "bottom";
   /** Cover shape; defaults to the standard cover ratio. */
   coverAspectRatio?: number;
   /** Card body below the title/description, e.g. platform chips and status icons. */
@@ -36,7 +36,11 @@ export function MediaCardShell({
   children,
 }: MediaCardShellProps) {
   const descriptionId = useId();
-  const descriptionBox = description !== undefined && <Box id={descriptionId}>{description}</Box>;
+  const descriptionBox = description !== undefined && (
+    <Box id={descriptionId} sx={{ maxWidth: "100%" }}>
+      {description}
+    </Box>
+  );
   return (
     <Card variant="outlined">
       <CardActionArea
@@ -48,6 +52,7 @@ export function MediaCardShell({
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
           {descriptionPlacement === "top" && descriptionBox}
           <CoverImage src={coverImageUrl} alt="" width={CARD_COVER_WIDTH} aspectRatio={coverAspectRatio} />
+          {descriptionPlacement === "afterCover" && descriptionBox}
           <Typography
             variant="subtitle1"
             component="h3"
