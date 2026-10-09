@@ -72,23 +72,4 @@ describe("MediaCardShell", () => {
     expect(description.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole("button", { name: "Celeste" })).toHaveAccessibleDescription("2018");
   });
-
-  it("renders an afterCover description between the cover and the title, still as the accessible description", () => {
-    renderWithProviders(
-      <MediaCardShell
-        title="Celeste"
-        coverImageUrl="/c.jpg"
-        onClick={() => {}}
-        description="2018"
-        descriptionPlacement="afterCover"
-      />,
-    );
-    const description = screen.getByText("2018");
-    const title = screen.getByText("Celeste");
-    // eslint-disable-next-line testing-library/no-node-access -- the decorative cover (alt="") has no ARIA role
-    const cover = screen.getByRole("button", { name: "Celeste" }).querySelector("img") as Element;
-    expect(cover.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(description.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Celeste" })).toHaveAccessibleDescription("2018");
-  });
 });

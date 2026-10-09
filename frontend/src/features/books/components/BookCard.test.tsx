@@ -98,28 +98,40 @@ describe("BookCard", () => {
     expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("places the series chips after the cover and before the title", () => {
+  it("places the title after the cover, then the series chip and the type chip", () => {
     renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
     const chip = screen.getByText("Mistborn #1");
+    const type = screen.getByText("Hardcover");
     // eslint-disable-next-line testing-library/no-node-access -- the decorative cover (alt="") has no ARIA role
     const cover = screen.getByRole("button", { name: "Dune" }).querySelector("img") as Element;
     const title = screen.getByRole("heading", { level: 3, name: "Dune" });
-    expect(cover.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(chip.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(cover.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(title.compareDocumentPosition(chip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(chip.compareDocumentPosition(type) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const status = screen.getByRole("img", { name: "Reading" });
+    expect(type.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("announces the series chips as the card description", () => {
+  it("keeps the type chips in the series view without announcing them", () => {
+    renderWithProviders(<BookCard book={dune} onOpen={() => {}} seriesPosition={2.5} />);
+    expect(screen.getByText("Hardcover")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dune" })).toHaveAccessibleDescription("#2.5");
+  });
+
+  it("announces the series and type chips as the card description", () => {
     renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
-    expect(screen.getByRole("button", { name: "Dune" })).toHaveAccessibleDescription("Mistborn #1 Cosmere");
+    expect(screen.getByRole("button", { name: "Dune" })).toHaveAccessibleDescription(
+      "Mistborn #1 Cosmere Hardcover Kindle",
+    );
   });
 
   it("reserves a hidden placeholder and shows no chip for a book without series", () => {
     renderWithProviders(<BookCard book={dune} onOpen={() => {}} />);
     const button = screen.getByRole("button", { name: "Dune" });
-    expect(button).toHaveAccessibleDescription("");
+    expect(button).toHaveAccessibleDescription("Hardcover Kindle");
     const describedBy = button.getAttribute("aria-describedby") as string;
     // eslint-disable-next-line testing-library/no-node-access -- the placeholder has no role or text
-    const placeholder = document.getElementById(describedBy)?.firstElementChild as HTMLElement;
+    const placeholder = document.getElementById(describedBy)?.querySelector('[aria-hidden="true"]') as HTMLElement;
     expect(placeholder).toHaveAttribute("aria-hidden", "true");
     expect(placeholder).toHaveStyle({ visibility: "hidden" });
     expect(placeholder).toBeEmptyDOMElement();
