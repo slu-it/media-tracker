@@ -12,3 +12,23 @@ export function formatSeriesEntry(entry: BookSeriesEntryResponse, t: TFunction, 
   const position = formatSeriesPosition(entry.position, language);
   return t("books.fields.seriesEntry", { name: entry.name, position });
 }
+
+/**
+ * The card's heuristic for the book's "main" series: the lowest position wins, an entry without a position ranks
+ * after every number, ties go to the name (locale compare), then to the id. Does not mutate the input.
+ */
+export function primarySeries(series: BookSeriesEntryResponse[]): BookSeriesEntryResponse | undefined {
+  return series.reduce<BookSeriesEntryResponse | undefined>(
+    (best, entry) => (best === undefined || compareSeriesEntries(entry, best) < 0 ? entry : best),
+    undefined,
+  );
+}
+
+function compareSeriesEntries(a: BookSeriesEntryResponse, b: BookSeriesEntryResponse): number {
+  if (a.position !== b.position) {
+    if (a.position === null) return 1;
+    if (b.position === null) return -1;
+    return a.position - b.position;
+  }
+  return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+}

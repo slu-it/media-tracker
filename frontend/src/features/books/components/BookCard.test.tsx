@@ -7,11 +7,12 @@ import type { BookResponse } from "../../../types/api";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookCard } from "./BookCard";
 
-const twoSeries: BookResponse = {
+const threeSeries: BookResponse = {
   ...dune,
   series: [
-    { id: mistborn.id, name: "Mistborn", position: 1 },
     { id: "series-9", name: "Cosmere", position: null },
+    { id: mistborn.id, name: "Mistborn Saga", position: 4 },
+    { id: "series-10", name: "Wax and Wayne", position: 1 },
   ],
 };
 
@@ -91,16 +92,16 @@ describe("BookCard", () => {
     expect(onOpen).toHaveBeenCalledExactlyOnceWith(dune);
   });
 
-  it("shows one series chip per series in order, name only without a position", () => {
-    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
-    const first = screen.getByText("Mistborn #1");
-    const second = screen.getByText("Cosmere");
-    expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  it("shows only the primary series chip, the lowest position", () => {
+    renderWithProviders(<BookCard book={threeSeries} onOpen={() => {}} />);
+    expect(screen.getByText("Wax and Wayne #1")).toBeInTheDocument();
+    expect(screen.queryByText(/Cosmere/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mistborn Saga/)).not.toBeInTheDocument();
   });
 
   it("places the title after the cover, then the series chip and the type chip", () => {
-    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
-    const chip = screen.getByText("Mistborn #1");
+    renderWithProviders(<BookCard book={threeSeries} onOpen={() => {}} />);
+    const chip = screen.getByText("Wax and Wayne #1");
     const type = screen.getByText("Hardcover");
     // eslint-disable-next-line testing-library/no-node-access -- the decorative cover (alt="") has no ARIA role
     const cover = screen.getByRole("button", { name: "Dune" }).querySelector("img") as Element;
@@ -119,9 +120,9 @@ describe("BookCard", () => {
   });
 
   it("announces the series and type chips as the card description", () => {
-    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} />);
+    renderWithProviders(<BookCard book={threeSeries} onOpen={() => {}} />);
     expect(screen.getByRole("button", { name: "Dune" })).toHaveAccessibleDescription(
-      "Mistborn #1 Cosmere Hardcover Kindle",
+      "Wax and Wayne #1 Hardcover Kindle",
     );
   });
 
@@ -145,9 +146,9 @@ describe("BookCard", () => {
   });
 
   it("shows the badge and no series chip when a series position is given", () => {
-    renderWithProviders(<BookCard book={twoSeries} onOpen={() => {}} seriesPosition={1} />);
+    renderWithProviders(<BookCard book={threeSeries} onOpen={() => {}} seriesPosition={1} />);
     expect(screen.getByText("#1")).toBeInTheDocument();
-    expect(screen.queryByText("Mistborn #1")).not.toBeInTheDocument();
-    expect(screen.queryByText("Cosmere")).not.toBeInTheDocument();
+    expect(screen.queryByText("Wax and Wayne #1")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Cosmere/)).not.toBeInTheDocument();
   });
 });
