@@ -59,7 +59,7 @@ export function BookCard({
         ) : typeof seriesPosition === "number" ? (
           <Chip
             size="small"
-            variant="outlined"
+            color="primary"
             label={t("books.seriesView.positionBadge", {
               position: formatSeriesPosition(seriesPosition, i18n.language),
             })}

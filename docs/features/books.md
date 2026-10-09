@@ -104,10 +104,11 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   field filters the loaded list in the browser (case- and accent-insensitive substring, `nameSearch.ts`); it is
   kept in the URL (`bookGroupViewParams.ts`) but sends no request. A section's books load only when it is
   expanded (`unmountOnExit`, `useGroupBooks`), in the backend's order, as the overview's `BookCard`s with a "#n"
-  badge (`seriesPosition`) centered above the cover for numbered books (the slot is kept empty for unnumbered ones,
-  so covers in a row stay aligned; `MediaCardShell`'s `descriptionPlacement="top"`) instead of the series chips;
-  its type chips stay in the card body. A series without books shows a message and loads nothing. Saving,
-  adding or deleting a book in the dialogs reloads the counts and every open section.
+  badge (`seriesPosition`, a filled chip in the theme's primary colour) centered above the cover for numbered
+  books (the slot is kept empty for unnumbered ones, so covers in a row stay aligned; `MediaCardShell`'s
+  `descriptionPlacement="top"`) instead of the series chips; its type chips stay in the card body. A series
+  without books shows a message and loads nothing. Saving, adding or deleting a book in the dialogs reloads the
+  counts and every open section.
 - **Authors view** (MT-046, `BookAuthorsView.tsx`, tab "Authors" / "Autoren" at `/books/authors`, between the
   overview and the series view): the same view over `/api/book-authors.summaries` and
   `/api/book-authors/{id}/books`. Authors without books are listed too. A section shows the author's books by
