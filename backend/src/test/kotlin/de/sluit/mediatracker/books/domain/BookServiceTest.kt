@@ -431,6 +431,29 @@ class BookServiceTest {
     }
 
     @Test
+    fun `listByAuthor of an unknown author throws NotFoundException without loading books`() {
+        runBlocking {
+            val unknown = BookAuthorId.new()
+            coEvery { authors.findByIds(setOf(unknown)) } returns emptyList()
+
+            val exception = assertFailsWith<NotFoundException> { service.listByAuthor(unknown) }
+
+            assertEquals(unknown.toString(), exception.id)
+            coVerify(exactly = 0) { books.findByAuthor(any()) }
+        }
+    }
+
+    @Test
+    fun `listByAuthor returns the books of a known author in repository order`() = runBlocking {
+        val herbert = author("Frank Herbert")
+        val found = listOf(book("One"), book("Two"))
+        coEvery { authors.findByIds(setOf(herbert.id)) } returns listOf(herbert)
+        coEvery { books.findByAuthor(herbert.id) } returns found
+
+        assertEquals(found, service.listByAuthor(herbert.id))
+    }
+
+    @Test
     fun `listBySeries of an unknown series throws NotFoundException without loading books`() {
         runBlocking {
             val unknown = BookSeriesId.new()

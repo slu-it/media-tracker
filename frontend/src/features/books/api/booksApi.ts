@@ -1,6 +1,7 @@
 import { apiFetch } from "../../../api/client";
 import type {
   BookAuthorResponse,
+  BookAuthorSummaryResponse,
   BookMetaResponse,
   BookNarratorResponse,
   BookResponse,
@@ -143,4 +144,14 @@ export function listBookSeriesSummaries(): Promise<BookSeriesSummaryResponse[]> 
 /** The books of one series in position order (unnumbered last, then by title); 404 for an unknown series. */
 export function listSeriesBooks(seriesId: string, signal?: AbortSignal): Promise<BookResponse[]> {
   return apiFetch<BookResponse[]>(`/api/book-series/${encodeURIComponent(seriesId)}/books`, { signal });
+}
+
+/** Every author with their book count (including 0), by name; unpaged. */
+export function listBookAuthorSummaries(): Promise<BookAuthorSummaryResponse[]> {
+  return apiFetch<BookAuthorSummaryResponse[]>("/api/book-authors.summaries");
+}
+
+/** The books of one author by release year, release date (none last) and title; 404 for an unknown author. */
+export function listAuthorBooks(authorId: string, signal?: AbortSignal): Promise<BookResponse[]> {
+  return apiFetch<BookResponse[]>(`/api/book-authors/${encodeURIComponent(authorId)}/books`, { signal });
 }

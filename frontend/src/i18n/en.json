@@ -114,6 +114,7 @@
       "overview": "Overview",
       "watchlist": "Watchlist",
       "ranking": "Yearly ranking",
+      "authors": "Authors",
       "series": "Book series"
     }
   },
@@ -152,6 +153,17 @@
     "deleteQuestion": "Delete \"{{title}}\"?",
     "resultCount_one": "{{count}} book",
     "resultCount_other": "{{count}} books",
+    "authorsView": {
+      "searchLabel": "Search authors",
+      "searchPlaceholder": "Search authors…",
+      "count_one": "{{count}} author",
+      "count_other": "{{count}} authors",
+      "bookCount_one": "{{count}} book",
+      "bookCount_other": "{{count}} books",
+      "empty": "No authors yet. Add one while editing a book.",
+      "noSearchResults": "No authors match \"{{term}}\"",
+      "noBooks": "No books by this author"
+    },
     "seriesView": {
       "searchLabel": "Search series",
       "searchPlaceholder": "Search series…",

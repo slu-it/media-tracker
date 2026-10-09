@@ -7,6 +7,7 @@ import de.sluit.mediatracker.books.author
 import de.sluit.mediatracker.books.book
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookAuthorSummary
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMeta
@@ -685,6 +686,64 @@ class BookRoutesTest {
 
         client.post("/api/book-authors") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
         coVerify(exactly = 0) { authors.create(any()) }
+    }
+
+    // ---- authors view ----
+
+    @Test
+    fun `author summaries mirror the domain summaries including authors without books`() = testApplication {
+        val authorService = mockk<BookAuthorService>()
+        val client = loggedInClient(authors = authorService)
+        val herbert = author("Frank Herbert")
+        val empty = author("Zed")
+        coEvery { authorService.summaries() } returns
+            listOf(BookAuthorSummary(herbert, 3), BookAuthorSummary(empty, 0))
+
+        val response = client.get("/api/book-authors.summaries")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(
+            listOf(
+                BookAuthorSummaryResponse(herbert.id.toString(), "Frank Herbert", 3),
+                BookAuthorSummaryResponse(empty.id.toString(), "Zed", 0),
+            ),
+            response.decodeBody<List<BookAuthorSummaryResponse>>(),
+        )
+    }
+
+    @Test
+    fun `author books returns the fully mapped books in service order`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val herbert = author("Frank Herbert")
+        val first = book("Dune", authors = listOf(herbert))
+        val second = book("Dune Messiah", authors = listOf(herbert))
+        coEvery { books.listByAuthor(herbert.id) } returns listOf(first, second)
+
+        val response = client.get("/api/book-authors/${herbert.id}/books")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val decoded = response.decodeBody<List<BookResponse>>()
+        assertEquals(listOf("Dune", "Dune Messiah"), decoded.map { it.title })
+        assertEquals(listOf("Frank Herbert"), decoded.first().authors.map { it.name })
+    }
+
+    @Test
+    fun `author books of an unknown author is 404`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = BookAuthorId.new()
+        coEvery { books.listByAuthor(id) } throws NotFoundException("book author", id.toString())
+
+        client.get("/api/book-authors/$id/books").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `author books with a malformed id is a 400`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+
+        client.get("/api/book-authors/not-a-uuid/books").assertValidationError("authorIds")
     }
 
     // ---- series view ----

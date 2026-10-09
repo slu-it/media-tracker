@@ -14,7 +14,7 @@ import { renderWithProviders } from "./test/renderWithProviders";
 const emptyPage = { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 };
 const emptyMeta = { platforms: [], ownership: [], progress: [], releaseYears: [] };
 const [OVERVIEW, WATCHLIST, RANKING] = MEDIA_SUB_PAGES.games;
-const [BOOKS_OVERVIEW, BOOKS_SERIES] = MEDIA_SUB_PAGES.books;
+const [BOOKS_OVERVIEW, BOOKS_AUTHORS, BOOKS_SERIES] = MEDIA_SUB_PAGES.books;
 const BOOKS_PATH = pathFor("books", BOOKS_OVERVIEW);
 const gamesApi = () => ({
   "GET /api/games": () => jsonResponse(emptyPage),
@@ -80,6 +80,15 @@ describe("App", () => {
     mockApi({});
     renderWithProviders(<App />, { route: pathFor("movies") });
     expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
+  });
+
+  it("renders the books authors route with its tab selected and the icon", async () => {
+    mockApi({ ...booksApi(), "GET /api/book-authors.summaries": () => jsonResponse([]) });
+    renderWithProviders(<App />, { route: pathFor("books", BOOKS_AUTHORS) });
+    expect(await screen.findByText(/No authors yet/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Authors" })).toHaveAttribute("aria-selected", "true");
+    expect(within(screen.getByRole("tab", { name: "Authors" })).getByTestId("PersonOutlinedIcon")).toBeInTheDocument();
+    expect(currentLocation()).toBe(pathFor("books", BOOKS_AUTHORS));
   });
 
   it("renders the books series route with its tab selected and the icon", async () => {
@@ -279,6 +288,11 @@ describe("App", () => {
     mockApi({ ...booksApi(), ...gamesApi() });
     renderWithProviders(<App />);
     expect(screen.getByRole("tablist", { name: "Book pages" })).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tablist", { name: "Book pages" }))
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Overview", "Authors", "Book series"]);
     expect(screen.queryByRole("tab", { name: "Watchlist" })).not.toBeInTheDocument();
     expect(
       within(screen.getByRole("tab", { name: "Overview" })).getByTestId("GridViewOutlinedIcon"),

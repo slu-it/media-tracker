@@ -1,32 +1,40 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../../api/client";
 import type { BookResponse } from "../../../types/api";
-import { listSeriesBooks } from "../api/booksApi";
 
 interface Loaded {
-  /** Which (series, reload) request this result belongs to. */
+  /** Which (group, reload) request this result belongs to. */
   key: string;
   books: BookResponse[] | null;
   error: string | null;
 }
 
-export interface SeriesBooksState {
-  /** The series' books in backend order; `null` until the first load. Kept while reloading (no skeleton flash). */
+export interface GroupBooksState {
+  /** The group's books in backend order; `null` until the first load. Kept while reloading (no skeleton flash). */
   books: BookResponse[] | null;
   error: string | null;
   reload: () => void;
 }
 
-/** Loads the books of one series; refetches when `reloadToken` changes (a save elsewhere) or on `reload()`. */
-export function useSeriesBooks(seriesId: string, reloadToken: number, loadErrorText: string): SeriesBooksState {
+/**
+ * Loads the books of one group (a series or an author) via `load`; refetches when `reloadToken` changes (a save
+ * elsewhere) or on `reload()`. `load` must be a stable, module-level function: it is an effect dependency, so an
+ * inline closure would re-fetch on every render.
+ */
+export function useGroupBooks(
+  groupId: string,
+  load: (id: string, signal: AbortSignal) => Promise<BookResponse[]>,
+  reloadToken: number,
+  loadErrorText: string,
+): GroupBooksState {
   const [retryToken, setRetryToken] = useState(0);
-  const key = `${seriesId}:${reloadToken}:${retryToken}`;
+  const key = `${groupId}:${reloadToken}:${retryToken}`;
   const [loaded, setLoaded] = useState<Loaded>({ key: "", books: null, error: null });
 
   useEffect(() => {
     const controller = new AbortController();
     let cancelled = false;
-    listSeriesBooks(seriesId, controller.signal)
+    load(groupId, controller.signal)
       .then((books) => {
         if (!cancelled) setLoaded({ key, books, error: null });
       })
@@ -37,7 +45,7 @@ export function useSeriesBooks(seriesId: string, reloadToken: number, loadErrorT
       cancelled = true;
       controller.abort();
     };
-  }, [key, seriesId, loadErrorText]);
+  }, [key, groupId, load, loadErrorText]);
 
   const reload = useCallback(() => setRetryToken((n) => n + 1), []);
 

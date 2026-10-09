@@ -1,6 +1,8 @@
 package de.sluit.mediatracker.books.persistence
 
+import de.sluit.mediatracker.books.book
 import de.sluit.mediatracker.books.domain.BookAuthorId
+import de.sluit.mediatracker.books.domain.BookAuthorSummary
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
@@ -202,5 +204,48 @@ class ExposedBookAuthorRepositoryTest {
             BookAuthorsTable.selectAll().where { BookAuthorsTable.name eq name.value }.count()
         }
         assertEquals(1, rowCount)
+    }
+
+    @Test
+    fun `findSummaries counts books per author including authors without books`() = withFreshDatabase {
+        val repo = ExposedBookAuthorRepository()
+        val herbert = repo.create(VocabularyName("Frank Herbert")).entry
+        val empty = repo.create(VocabularyName("Another Author")).entry
+        val bookRepo = ExposedBookRepository()
+        bookRepo.insert(book("Dune", authors = listOf(herbert)))
+        bookRepo.insert(book("Dune Messiah", authors = listOf(herbert)))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf(BookAuthorSummary(empty, 0), BookAuthorSummary(herbert, 2)), result)
+    }
+
+    @Test
+    fun `findSummaries orders by name accent-insensitively`() = withFreshDatabase {
+        val repo = ExposedBookAuthorRepository()
+        repo.create(VocabularyName("Zed"))
+        repo.create(VocabularyName("Ärger"))
+        repo.create(VocabularyName("Beta"))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf("Ärger", "Beta", "Zed"), result.map { it.author.name.value })
+    }
+
+    @Test
+    fun `findSummaries counts a book with two authors for both`() = withFreshDatabase {
+        val repo = ExposedBookAuthorRepository()
+        val a = repo.create(VocabularyName("A Author")).entry
+        val b = repo.create(VocabularyName("B Author")).entry
+        ExposedBookRepository().insert(book("Shared", authors = listOf(a, b)))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf(1, 1), result.map { it.bookCount })
+    }
+
+    @Test
+    fun `findSummaries is empty without authors`() = withFreshDatabase {
+        assertEquals(emptyList(), ExposedBookAuthorRepository().findSummaries())
     }
 }

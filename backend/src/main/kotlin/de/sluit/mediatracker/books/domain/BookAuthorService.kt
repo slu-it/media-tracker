@@ -8,10 +8,14 @@ import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 /**
  * Business use cases behind `GET`/`POST /book-authors`. [BookService] resolves `authorIds` itself through
  * [BookAuthorRepository] directly (mirroring how it resolves `typeIds`); this service exists for the two
- * operations a book does not need: searching the vocabulary and growing it.
+ * operations a book does not need: searching the vocabulary and growing it. It also backs the authors view
+ * (`GET /book-authors.summaries`).
  */
 class BookAuthorService(private val authors: BookAuthorRepository) {
     suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<BookAuthor> = authors.search(term, limit)
+
+    /** Every author including those without books, with their book count; ordered by name, then id. */
+    suspend fun summaries(): List<BookAuthorSummary> = authors.findSummaries()
 
     /** Idempotent: an existing case-insensitive name match is returned instead of a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookAuthor> = authors.create(name)

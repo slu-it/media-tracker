@@ -215,6 +215,27 @@ class ExposedBookRepository : BookRepository {
         hydrate(rows)
     }
 
+    /**
+     * One SELECT of the author's books (inner join on the link table), ordered by release year, then
+     * `release_date IS NULL` (MariaDB has no `NULLS LAST`; a plain ASC sort puts NULLs first, so undated books
+     * come last within a year), release date, title and id; then the shared batch loaders, so the query count
+     * is constant.
+     */
+    override suspend fun findByAuthor(authorId: BookAuthorId): List<Book> = dbQuery {
+        val rows = (BooksTable innerJoin BookToAuthorTable)
+            .select(BooksTable.columns)
+            .where { BookToAuthorTable.authorId eq authorId.toString() }
+            .orderBy(
+                BooksTable.releaseYear to SortOrder.ASC,
+                BooksTable.releaseDate.isNull() to SortOrder.ASC,
+                BooksTable.releaseDate to SortOrder.ASC,
+                BooksTable.title to SortOrder.ASC,
+                BooksTable.id to SortOrder.ASC,
+            )
+            .toList()
+        hydrate(rows)
+    }
+
     private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Book> =
         Page(hydrate(rows), request.page, request.size, total)
 

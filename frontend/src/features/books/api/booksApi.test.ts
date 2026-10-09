@@ -11,6 +11,8 @@ import {
   createBookSeries,
   deleteBook,
   getBooksMeta,
+  listAuthorBooks,
+  listBookAuthorSummaries,
   listBookSeriesSummaries,
   listBookTypes,
   listBooks,
@@ -32,6 +34,19 @@ describe("booksApi", () => {
     const calls = mockApi({ "GET /api/book-series.summaries": () => jsonResponse(summaries) });
     expect(await listBookSeriesSummaries()).toEqual(summaries);
     expect(calls[0].url).toBe("/api/book-series.summaries");
+  });
+
+  it("lists the author summaries", async () => {
+    const summaries = [{ id: "author-1", name: "Frank Herbert", bookCount: 2 }];
+    const calls = mockApi({ "GET /api/book-authors.summaries": () => jsonResponse(summaries) });
+    expect(await listBookAuthorSummaries()).toEqual(summaries);
+    expect(calls[0].url).toBe("/api/book-authors.summaries");
+  });
+
+  it("lists the books of an author", async () => {
+    const calls = mockApi({ "GET /api/book-authors/:id/books": () => jsonResponse([dune]) });
+    expect(await listAuthorBooks("author/1")).toEqual([dune]);
+    expect(calls[0].url).toBe("/api/book-authors/author%2F1/books");
   });
 
   it("lists the books of a series", async () => {
