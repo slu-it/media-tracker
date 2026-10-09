@@ -296,6 +296,13 @@ export interface BookSeriesSummaryResponse {
   bookCount: number;
 }
 
+/** An author with their book count; mirrors `BookAuthorSummaryResponse` in books/api/BookDtos.kt. */
+export interface BookAuthorSummaryResponse {
+  id: string;
+  name: string;
+  bookCount: number;
+}
+
 /** Body of `POST /api/book-series`; mirrors `CreateBookSeriesRequest` in books/api/BookDtos.kt. */
 export interface CreateBookSeriesRequest {
   name: string;

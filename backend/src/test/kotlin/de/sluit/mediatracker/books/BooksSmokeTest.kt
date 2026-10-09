@@ -2,6 +2,7 @@ package de.sluit.mediatracker.books
 
 import de.sluit.mediatracker.appWithUser
 import de.sluit.mediatracker.books.api.BookAuthorResponse
+import de.sluit.mediatracker.books.api.BookAuthorSummaryResponse
 import de.sluit.mediatracker.books.api.BookMetaResponse
 import de.sluit.mediatracker.books.api.BookNarratorResponse
 import de.sluit.mediatracker.books.api.BookResponse
@@ -89,6 +90,24 @@ class BooksSmokeTest {
         }.decodeBody<BookResponse>()
         assertEquals(emptyList(), cleared.narrators)
         assertEquals(emptyList(), cleared.series)
+    }
+
+    @Test
+    fun `author summaries and author books list counts and books in release order`() = testApplication {
+        val client = loggedInClient()
+        val herbert = client.createdAuthor("Frank Herbert")
+        val empty = client.createdAuthor("Another Author")
+        listOf("Later" to 2010, "Earlier" to 2005).forEach { (title, year) ->
+            client.createBook("""{"title":"$title","releaseYear":$year,"authorIds":["${herbert.id}"]}""")
+        }
+
+        val summaries = client.get("/api/book-authors.summaries").decodeBody<List<BookAuthorSummaryResponse>>()
+        val books = client.get("/api/book-authors/${herbert.id}/books").decodeBody<List<BookResponse>>()
+        val noBooks = client.get("/api/book-authors/${empty.id}/books").decodeBody<List<BookResponse>>()
+
+        assertEquals(listOf("Another Author" to 0, "Frank Herbert" to 2), summaries.map { it.name to it.bookCount })
+        assertEquals(listOf("Earlier", "Later"), books.map { it.title })
+        assertEquals(emptyList(), noBooks)
     }
 
     @Test

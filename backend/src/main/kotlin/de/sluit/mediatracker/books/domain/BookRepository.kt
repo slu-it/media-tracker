@@ -48,6 +48,12 @@ interface BookRepository {
      * without a position last (ordered by title), then title, then id.
      */
     suspend fun findBySeries(seriesId: BookSeriesId): List<Book>
+
+    /**
+     * All books linked to [authorId], unpaged: ordered by release year, then release date (books without a
+     * date last within a year), then title, then id.
+     */
+    suspend fun findByAuthor(authorId: BookAuthorId): List<Book>
 }
 
 /**
@@ -73,6 +79,9 @@ interface BookAuthorRepository {
     suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<BookAuthor>
 
     suspend fun findByIds(ids: Set<BookAuthorId>): List<BookAuthor>
+
+    /** Every author including those without books, with their book count; ordered by name, then id. Unpaged. */
+    suspend fun findSummaries(): List<BookAuthorSummary>
 
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookAuthor>

@@ -9,15 +9,16 @@ Code:
   - `hooks/useActiveRoute.ts`, and `App.tsx` (the `<Routes>`).
   - `BrowserRouter` in `main.tsx`.
   - `src/domain/media/viewParams.ts`: the kind-neutral field codecs; `features/games/domain/gameViewParams.ts`
-    and `features/books/domain/{bookViewParams,bookSeriesViewParams}.ts`: each view's query codec.
+    and `features/books/domain/{bookViewParams,bookGroupViewParams}.ts`: each view's query codec.
   - `src/hooks/useUrlSearchInput.ts`: the search field ⇄ `search` sync shared by every view with a search.
   - `src/hooks/useViewParams.ts`: the URL writer. React Router hands a functional
     `setSearchParams` the render-time params, so two writes in one commit would overwrite each other. The hook
     merges each update onto the latest written params.
-  - The three games views, `BooksView`, `BookSeriesView`, and `api/client.ts` (401 → `returnTo`).
+  - The three games views, `BooksView`, `BookGroupsView` (behind `BookAuthorsView` and `BookSeriesView`), and
+    `api/client.ts` (401 → `returnTo`).
 - Backend: `auth/api/ReturnPath.kt` (`safeReturnPath`, `loginUrl`), `auth/api/Security.kt` (the challenge),
   `auth/api/LoginRoutes.kt`, and `login/login.html` (a form without `action`).
-- Tests: `src/routes.test.ts`, `App.test.tsx`, the "URL state" tests of each games view, `gameViewParams.test.ts`, `bookSeriesViewParams.test.ts`.
+- Tests: `src/routes.test.ts`, `App.test.tsx`, the "URL state" tests of each games view, `gameViewParams.test.ts`, `bookGroupViewParams.test.ts`.
   Backend: `ReturnPathTest`, `AuthRoutesTest` and `RoutesTest`.
 
 ## Routes
@@ -25,6 +26,7 @@ Code:
 | Path | Query (omitted when default or empty; `*` = repeatable, `?k=a&k=b`) |
 |---|---|
 | `/books/overview` | `search`, `type`* (ids), `ownership`*, `progress`*, `year`*, `page` (ADR 0034) |
+| `/books/authors` | `search` (filters the loaded author list in the browser, MT-046) |
 | `/books/series` | `search` (filters the loaded series list in the browser, MT-043) |
 | `/movies`, `/series` | none |
 | `/games/overview` | `search`, `platform`* (ids), `ownership`*, `progress`* (API values), `year`* (release-year filter), `page` |

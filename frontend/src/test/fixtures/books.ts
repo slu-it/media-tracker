@@ -1,5 +1,6 @@
 import type {
   BookAuthorResponse,
+  BookAuthorSummaryResponse,
   BookMetaResponse,
   BookNarratorResponse,
   BookResponse,
@@ -82,6 +83,25 @@ export const mistbornSummary: BookSeriesSummaryResponse = { id: mistborn.id, nam
 export const duneSagaSummary: BookSeriesSummaryResponse = { id: duneSaga.id, name: "Dune Saga", bookCount: 1 };
 export const emptySeriesSummary: BookSeriesSummaryResponse = { id: "series-3", name: "Éowyn Chronicles", bookCount: 0 };
 export const seriesSummaries: BookSeriesSummaryResponse[] = [duneSagaSummary, emptySeriesSummary, mistbornSummary];
+
+export const herbertSummary: BookAuthorSummaryResponse = { id: herbert.id, name: herbert.name, bookCount: 2 };
+export const leGuinSummary: BookAuthorSummaryResponse = { id: leGuin.id, name: leGuin.name, bookCount: 1 };
+export const emptyAuthorSummary: BookAuthorSummaryResponse = { id: "author-3", name: "Émile Zola", bookCount: 0 };
+/** Author summaries by name, as the backend returns them. */
+export const authorSummaries: BookAuthorSummaryResponse[] = [emptyAuthorSummary, herbertSummary, leGuinSummary];
+
+/** Herbert's books in the order the backend returns them (release year, then title). */
+export const herbertBooks: BookResponse[] = [
+  dune,
+  {
+    ...dune,
+    id: "book-h2",
+    title: "Dune Messiah",
+    releaseYear: 1969,
+    coverImageUrl: null,
+    series: [{ id: duneSaga.id, name: duneSaga.name, position: 1 }],
+  },
+];
 
 const mistbornBook = (id: string, title: string, position: number | null): BookResponse => ({
   ...earthsea,

@@ -3,11 +3,17 @@ package de.sluit.mediatracker.books.persistence
 import de.sluit.mediatracker.books.domain.BookAuthor
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorRepository
+import de.sluit.mediatracker.books.domain.BookAuthorSummary
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.persistence.ExposedNameVocabulary
+import de.sluit.mediatracker.common.persistence.dbQuery
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.count
+import org.jetbrains.exposed.v1.core.leftJoin
+import org.jetbrains.exposed.v1.jdbc.select
 import kotlin.uuid.Uuid
 
 /**
@@ -29,6 +35,24 @@ class ExposedBookAuthorRepository : BookAuthorRepository {
 
     override suspend fun findByIds(ids: Set<BookAuthorId>): List<BookAuthor> =
         vocabulary.findByIds(ids.map { it.toString() }.toSet())
+
+    /** One query: `book_authors LEFT JOIN book_to_author`, `COUNT(book_id)` (0 for unreferenced), by name, id. */
+    override suspend fun findSummaries(): List<BookAuthorSummary> = dbQuery {
+        val count = BookToAuthorTable.bookId.count()
+        (BookAuthorsTable leftJoin BookToAuthorTable)
+            .select(BookAuthorsTable.id, BookAuthorsTable.name, count)
+            .groupBy(BookAuthorsTable.id, BookAuthorsTable.name)
+            .orderBy(BookAuthorsTable.name to SortOrder.ASC, BookAuthorsTable.id to SortOrder.ASC)
+            .map {
+                BookAuthorSummary(
+                    author = BookAuthor(
+                        BookAuthorId(Uuid.parseHexDash(it[BookAuthorsTable.id])),
+                        VocabularyName(it[BookAuthorsTable.name]),
+                    ),
+                    bookCount = it[count].toInt(),
+                )
+            }
+    }
 
     override suspend fun create(name: VocabularyName): VocabularyCreation<BookAuthor> = vocabulary.create(name)
 

@@ -114,6 +114,7 @@
       "overview": "Übersicht",
       "watchlist": "Merkliste",
       "ranking": "Jahresranking",
+      "authors": "Autoren",
       "series": "Buchreihen"
     }
   },
@@ -152,6 +153,17 @@
     "deleteQuestion": "„{{title}}“ löschen?",
     "resultCount_one": "{{count}} Buch",
     "resultCount_other": "{{count}} Bücher",
+    "authorsView": {
+      "searchLabel": "Autoren suchen",
+      "searchPlaceholder": "Autoren suchen…",
+      "count_one": "{{count}} Autor",
+      "count_other": "{{count}} Autoren",
+      "bookCount_one": "{{count}} Buch",
+      "bookCount_other": "{{count}} Bücher",
+      "empty": "Noch keine Autoren. Lege einen an, während du ein Buch bearbeitest.",
+      "noSearchResults": "Keine Autoren passen zu „{{term}}“",
+      "noBooks": "Keine Bücher von diesem Autor"
+    },
     "seriesView": {
       "searchLabel": "Reihen suchen",
       "searchPlaceholder": "Reihen suchen…",
