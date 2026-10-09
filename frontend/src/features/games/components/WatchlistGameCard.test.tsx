@@ -1,24 +1,35 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { celeste, hades } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { WatchlistGameCard } from "./WatchlistGameCard";
 
 describe("WatchlistGameCard", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T12:00:00"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("shows the formatted release date when one is set", () => {
     const dated = { ...hades, releaseDate: "2020-09-17" };
     renderWithProviders(<WatchlistGameCard game={dated} onOpen={() => {}} />);
     expect(screen.getByText("2020-09-17")).toBeInTheDocument();
+    expect(screen.getByText("-P6Y22D")).toBeInTheDocument();
     // The explicit aria-label on the card's button would otherwise hide the date from screen readers; wired as
     // an accessible description instead (see MediaCardShell), so it is still announced alongside the title.
-    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2020-09-17");
+    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2020-09-17 -P6Y22D");
   });
 
   it("falls back to the release year when no release date is set", () => {
     renderWithProviders(<WatchlistGameCard game={hades} onOpen={() => {}} />);
     expect(screen.getByText(String(hades.releaseYear))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription(String(hades.releaseYear));
+    expect(screen.queryByText(/^-?P(\d+[YMD])+$/)).not.toBeInTheDocument();
   });
 
   it("shows the cover in grayscale at half opacity, every card here is a watchlist game", () => {
