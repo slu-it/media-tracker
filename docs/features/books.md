@@ -78,12 +78,14 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 - The `reading` progress icon is `AutoStories`; the others match games (`NotStarted`, `Pause`, `TaskAlt`,
   `NotInterested`), as do the ownership icons. Cards show the ownership icon for watchlist books and the
   progress icon for owned ones.
-- The overview card (`BookCard` without `seriesPosition`, used by the overview and the authors view) lists the
-  book's series under the title, one outlined chip per row ("Mistborn #1", or just the name;
-  `NameChips direction="column"`, long names ellipsized), followed by the type chips with the card's regular gap
-  (the same as between types and status icons). Series and types together are the card's description
-  (`aria-describedby`). A book without series keeps one chip row's height empty above its types, so books with none
-  or one series line up within a grid row.
+- The overview card (`BookCard` without `seriesPosition`, used by the overview and the authors view) shows one
+  series under the title as an outlined chip ("Wax and Wayne #1", or just the name; long names ellipsized): the
+  book's primary series by the heuristic `primarySeries` (`domain/seriesLabel.ts`). The lowest position wins, an
+  entry without a position ranks after every number, and ties go to the name. So a sub-series beats its umbrella
+  ("Wax and Wayne #1" over "The Mistborn Saga #4" and the unnumbered "The Cosmere"). The detail dialog lists all
+  series. The type chips follow with the card's regular gap (the same as between types and status icons). Series
+  and types together are the card's description (`aria-describedby`). A book without series keeps one chip row's
+  height empty above its types, so the series row lines up across a grid row.
 - The release-year select reaches back to 1450 (`BOOK_RELEASE_YEAR_SELECT_MIN`, passed as `minYear` to the shared
   `ReleaseYearField`; games keep 1980).
 - Book covers use a 2:3 frame (`BOOK_COVER_ASPECT_RATIO` in `domain/bookValues.ts`), passed to the shared
