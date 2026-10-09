@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { dune, earthsea, herbert, simonVance } from "../../../test/fixtures/books";
@@ -31,9 +31,11 @@ describe("BookDetails", () => {
     expect(screen.getByText("Authors")).toBeInTheDocument();
   });
 
-  it("shows no authors field for a book without authors", () => {
-    renderWithProviders(<BookDetails book={{ ...dune, authors: [] }} titleId="title" />);
+  it("shows no authors field for a book without authors, but still its narrators", () => {
+    renderWithProviders(<BookDetails book={{ ...dune, authors: [], narrators: [simonVance] }} titleId="title" />);
     expect(screen.queryByText("Authors")).not.toBeInTheDocument();
+    expect(screen.getByText("Narrators")).toBeInTheDocument();
+    expect(screen.getByText(simonVance.name)).toBeInTheDocument();
   });
 
   it("shows the quick bars only when their callbacks are given", () => {
@@ -74,33 +76,46 @@ describe("BookDetails", () => {
     expect(onProgressChange).not.toHaveBeenCalled();
   });
 
-  it("shows narrators and series with formatted positions, in the order authors, narrators, series", () => {
+  it("shows series chips first, then the grid in the order release, types, authors, narrators", () => {
     renderWithProviders(
       <BookDetails
         book={{
           ...dune,
+          description: "Spice.",
           narrators: [simonVance],
           series: [
             { id: "s1", name: "Dune Saga", position: 2.5 },
             { id: "s2", name: "Cosmere", position: null },
+            { id: "s3", name: "Mistborn", position: 1 },
           ],
         }}
         titleId="title"
       />,
     );
+    const following = (a: HTMLElement, b: HTMLElement) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    const title = screen.getByRole("heading", { name: "Dune" });
+    const series = screen.getByRole("group", { name: "Series" });
+    expect(within(series).getByText("Mistborn #1")).toBeInTheDocument();
+    const description = screen.getByText("Spice.");
+    const release = screen.getByText("Release year");
+    const types = screen.getByText("Types");
     const authors = screen.getByText("Authors");
     const narrators = screen.getByText("Narrators");
-    const series = screen.getByText("Series");
-    expect(authors.compareDocumentPosition(narrators) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(narrators.compareDocumentPosition(series) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(following(title, series)).toBe(true);
+    expect(following(series, description)).toBe(true);
+    expect(following(description, release)).toBe(true);
+    expect(following(release, types)).toBe(true);
+    expect(following(types, authors)).toBe(true);
+    expect(following(authors, narrators)).toBe(true);
     expect(screen.getByText(simonVance.name)).toBeInTheDocument();
     expect(screen.getByText("Dune Saga #2.5")).toBeInTheDocument();
     expect(screen.getByText("Cosmere")).toBeInTheDocument();
   });
 
-  it("hides the narrators and series fields when empty", () => {
+  it("hides the narrators field and series chips when empty", () => {
     renderWithProviders(<BookDetails book={dune} titleId="title" />);
     expect(screen.queryByText("Narrators")).not.toBeInTheDocument();
-    expect(screen.queryByText("Series")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Series" })).not.toBeInTheDocument();
   });
 });
