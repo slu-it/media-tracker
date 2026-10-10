@@ -19,10 +19,29 @@ describe("WatchlistGameCard", () => {
     const dated = { ...hades, releaseDate: "2020-09-17" };
     renderWithProviders(<WatchlistGameCard game={dated} onOpen={() => {}} />);
     expect(screen.getByText("2020-09-17")).toBeInTheDocument();
-    expect(screen.getByText("-P6Y22D")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
     // The explicit aria-label on the card's button would otherwise hide the date from screen readers; wired as
     // an accessible description instead (see MediaCardShell), so it is still announced alongside the title.
-    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2020-09-17 -P6Y22D");
+    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2020-09-17 Available");
+  });
+
+  it("shows the positive duration for a future release date", () => {
+    const upcoming = { ...hades, releaseDate: "2026-12-25" };
+    renderWithProviders(<WatchlistGameCard game={upcoming} onOpen={() => {}} />);
+    expect(screen.getByText("P2M16D")).toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription("2026-12-25 P2M16D");
+  });
+
+  it("shows Available for a release date of today", () => {
+    renderWithProviders(<WatchlistGameCard game={{ ...hades, releaseDate: "2026-10-09" }} onOpen={() => {}} />);
+    expect(screen.getByText("Available")).toBeInTheDocument();
+  });
+
+  it("shows P1D, not Available, for a release date of tomorrow", () => {
+    renderWithProviders(<WatchlistGameCard game={{ ...hades, releaseDate: "2026-10-10" }} onOpen={() => {}} />);
+    expect(screen.getByText("P1D")).toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
   });
 
   it("falls back to the release year when no release date is set", () => {
@@ -30,6 +49,7 @@ describe("WatchlistGameCard", () => {
     expect(screen.getByText(String(hades.releaseYear))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hades" })).toHaveAccessibleDescription(String(hades.releaseYear));
     expect(screen.queryByText(/^-?P(\d+[YMD])+$/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
   });
 
   it("shows the cover in grayscale at half opacity, every card here is a watchlist game", () => {

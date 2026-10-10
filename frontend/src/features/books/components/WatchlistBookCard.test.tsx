@@ -21,9 +21,17 @@ describe("WatchlistBookCard", () => {
     const dated = { ...earthsea, releaseDate: "1968-11-01" };
     renderWithProviders(<WatchlistBookCard book={dated} onOpen={() => {}} />);
     expect(screen.getByText("1968-11-01")).toBeInTheDocument();
-    expect(screen.getByText("-P57Y11M8D")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
     // Wired as an accessible description (see MediaCardShell), so it is announced alongside the title.
-    expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription("1968-11-01 -P57Y11M8D");
+    expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription("1968-11-01 Available");
+  });
+
+  it("shows the positive duration for a future release date", () => {
+    const upcoming = { ...earthsea, releaseDate: "2026-12-25" };
+    renderWithProviders(<WatchlistBookCard book={upcoming} onOpen={() => {}} />);
+    expect(screen.getByText("P2M16D")).toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription("2026-12-25 P2M16D");
   });
 
   it("falls back to the release year when no release date is set", () => {
@@ -31,6 +39,7 @@ describe("WatchlistBookCard", () => {
     expect(screen.getByText(String(earthsea.releaseYear))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: TITLE })).toHaveAccessibleDescription(String(earthsea.releaseYear));
     expect(screen.queryByText(/^-?P(\d+[YMD])+$/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
   });
 
   it("shows the cover in grayscale at half opacity, every card here is a watchlist book", () => {

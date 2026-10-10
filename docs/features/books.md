@@ -123,9 +123,9 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   tab): the games watchlist ([game-sub-pages.md](game-sub-pages.md#watchlist)) for books. Books with ownership
   `watchlist`, the shared `ReleaseSortToggle` ("Oldest first" by default) and a Type select instead of the
   platform select in the results row, search, pagination, FAB and dialogs. Cards are `WatchlistBookCard`: cover
-  (desaturated), title, release date or year, and for a date the ISO 8601 distance chip described there. URL
-  codec in `bookViewParams.ts` (`search`, `type`, `sort=release_desc`, `page`); an empty watchlist shows its own
-  message (`books.watchlist.empty`).
+  (desaturated), title, release date or year, and for a date the release chip described there (ISO 8601
+  distance, or "Available"). URL codec in `bookViewParams.ts` (`search`, `type`, `sort=release_desc`, `page`);
+  an empty watchlist shows its own message (`books.watchlist.empty`).
 - **Authors view** (MT-046, `BookAuthorsView.tsx`, tab "Authors" / "Autoren" at `/books/authors`, between the
   overview and the series view): the same view over `/api/book-authors.summaries` and
   `/api/book-authors/{id}/books`. Authors without books are listed too. A section shows the author's books by

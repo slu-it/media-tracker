@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { describe, expect, it } from "vitest";
-import { formatReleaseDate, releaseDistance } from "./releaseDate";
+import { formatReleaseDate, isReleased, releaseDistance } from "./releaseDate";
 
 describe("formatReleaseDate", () => {
   it("formats an ISO date as YYYY-MM-DD", () => {
@@ -70,5 +70,28 @@ describe("releaseDistance", () => {
     expect(releaseDistance("2022-09-10", dayjs("2022-09-11"))).toBe("-P1D");
     expect(releaseDistance("2026-03-29", dayjs("2026-03-28"))).toBe("P1D");
     expect(releaseDistance("2026-10-25", dayjs("2026-10-24"))).toBe("P1D");
+  });
+});
+
+describe("isReleased", () => {
+  const today = dayjs("2026-10-09");
+
+  it("is true for a past date", () => {
+    expect(isReleased("2021-05-04", today)).toBe(true);
+  });
+
+  it("is true on the same day", () => {
+    expect(isReleased("2026-10-09", today)).toBe(true);
+  });
+
+  it("ignores the time of day of today", () => {
+    expect(isReleased("2026-10-09", dayjs("2026-10-09T23:59:00"))).toBe(true);
+    expect(isReleased("2026-10-09", dayjs("2026-10-09T00:00:00"))).toBe(true);
+    expect(isReleased("2026-10-08", dayjs("2026-10-09T00:00:00"))).toBe(true);
+  });
+
+  it("is false for tomorrow", () => {
+    expect(isReleased("2026-10-10", today)).toBe(false);
+    expect(isReleased("2026-10-10", dayjs("2026-10-09T23:59:00"))).toBe(false);
   });
 });

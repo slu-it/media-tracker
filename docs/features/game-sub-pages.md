@@ -56,8 +56,9 @@ Code:
   `components/media/`): the ISO 8601 duration from today to the release (`releaseDistance` in
   `domain/media/releaseDate.ts`), with the semantics of `java.time.Period.between(today, release)`. So today plus
   the duration is the release date, on plain calendar dates without time zones. It counts calendar years, months
-  and days and leaves out zero parts. A future release is positive (`P2M16D`), a past one negative (`-P5Y5M5D`),
-  and today is `P0D`. Year-only cards get no chip, as a year is too coarse. Shared with the books watchlist.
+  and days and leaves out zero parts, e.g. `P2M16D`. A release today or in the past (`isReleased`, same calendar
+  date rule) shows "Available" / "Verfügbar" instead of a zero or negative duration. Year-only cards get no chip,
+  as a year is too coarse. Shared with the books watchlist.
 - Within one year, dated games come before games with only a year, in both directions (ADR 0030).
 
 ## Yearly ranking
