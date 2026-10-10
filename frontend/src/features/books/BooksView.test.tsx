@@ -283,7 +283,7 @@ describe("BooksView", () => {
     await user.click(screen.getByRole("button", { name: /Dune/ }));
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Dune Messiah");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -309,6 +309,7 @@ describe("BooksView", () => {
       },
       "GET /api/book-types": mockTypes,
       "GET /api/books.meta": mockMeta,
+      "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }),
       "POST /api/books": (call) => jsonResponse({ id: "book-3", ...(call.body as object) }, 201),
     });
     renderWithProviders(<BooksView />);
@@ -317,7 +318,7 @@ describe("BooksView", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Add book" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Add book" }));
     const dialog = await screen.findByRole("dialog");
-    await user.click(within(dialog).getByRole("textbox", { name: /title/i }));
+    await user.click(within(dialog).getByRole("combobox", { name: /title/i }));
     await user.paste("Neuromancer");
     await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
     await user.click(screen.getByRole("option", { name: "1984" }));

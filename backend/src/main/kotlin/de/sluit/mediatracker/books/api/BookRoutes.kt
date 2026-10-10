@@ -3,6 +3,7 @@ package de.sluit.mediatracker.books.api
 import de.sluit.mediatracker.books.domain.Book
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookCoverOptionsService
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesId
@@ -38,8 +39,11 @@ fun Route.bookRoutes(
     bookAuthorService: BookAuthorService,
     bookNarratorService: BookNarratorService,
     bookSeriesService: BookSeriesService,
+    bookCoverOptionsService: BookCoverOptionsService,
 ) {
     route("/books") {
+        // Before `/{id}`: these are fixed paths and must not be read as book ids.
+        bookCoverOptionRoutes(bookCoverOptionsService)
         post {
             val book = bookService.create(call.receive<CreateBookRequest>().toNewBook())
             call.response.header(HttpHeaders.Location, "/api/books/${book.id}")

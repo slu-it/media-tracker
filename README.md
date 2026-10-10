@@ -53,6 +53,8 @@ SESSION_SECRET=<long random string>
 Optional: `PORT` (default 8080), `SESSION_SECURE=false` for plain-http testing on a LAN, and `STEAMGRIDDB_API_KEY`
 (a free key from your [SteamGridDB profile](https://www.steamgriddb.com/profile/preferences/api)) to enable the cover
 picker in the game dialogs (ADR 0024); without it the picker says it is not configured.
+Books need no key: their cover picker and title suggestions use Open Library and, for audiobooks, the Audible
+catalog (ADR 0039); `AUDIBLE_MARKETPLACE` (default `de`) picks the Audible store (`com`, `co.uk`, `fr`, ...); an invalid value stops the start.
 `DROPBOX_APP_KEY` and `DROPBOX_APP_SECRET` (as a pair) enable the Dropbox backup, and `BACKUP_DAILY_AT` (default
 `03:00`) and `BACKUP_ZONE` (default `Europe/Berlin`) set its daily slot (see [Dropbox backup](#dropbox-backup)).
 
@@ -133,7 +135,9 @@ not with the browser session:
    `ownership`, `progress` and `releaseYears` filters and `hasMissing`; `pageSize` up to 100, 10 by default),
    `update_book` (`id` required, only the fields passed change), and `search_book_authors` /
    `create_book_author`, `search_book_narrators` / `create_book_narrator` and `search_book_series` /
-   `create_book_series` for the `authorIds`, `narratorIds` and `series`.
+   `create_book_series` for the `authorIds`, `narratorIds` and `series`, and `find_book_cover` (`title`, optional
+   `releaseYear` and `source` `book` (Open Library, default) or `audiobook` (Audible); returns the first cover URL
+   and the title, authors and year it matched, ready for `coverImageUrl`).
 
 Each user has two key slots. To rotate without downtime, generate the secondary key, switch the client to it, then
 regenerate the primary. Regenerating a slot invalidates its old key immediately. Details in
@@ -402,6 +406,7 @@ sbx secret set-custom --host www.steamgriddb.com --env STEAMGRIDDB_API_KEY --val
 - **Vite fails with a native binary error:** `node_modules` was installed on your host OS.
   Reinstall inside the sandbox: `sbx env exec -- npm ci`.
 - **A download or API call is blocked:** run `sbx policy log` to see which host was denied,
-  then ask the kit maintainers to allow it.
+  then ask the kit maintainers to allow it. The hosts the running application needs, split into server and
+  browser, are listed under [Outbound hosts](docs/architecture.md#outbound-hosts).
 
 > `sbx env` is experimental, so commands and the file format may change between `sbx` releases.

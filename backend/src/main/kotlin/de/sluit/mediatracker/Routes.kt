@@ -45,7 +45,13 @@ fun Route.apiRoutes(services: Services) {
 
             gameRoutes(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
 
-            bookRoutes(services.books, services.bookAuthors, services.bookNarrators, services.bookSeries)
+            bookRoutes(
+                services.books,
+                services.bookAuthors,
+                services.bookNarrators,
+                services.bookSeries,
+                services.bookCoverOptions,
+            )
 
             backupRoutes(services.backup, services.cloudBackup)
 
@@ -70,7 +76,13 @@ fun Route.mcpRoutes(services: Services) {
         mcpEndpoint {
             newMcpServer().apply {
                 addGameTools(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
-                addBookTools(services.books, services.bookAuthors, services.bookNarrators, services.bookSeries)
+                addBookTools(
+                    services.books,
+                    services.bookAuthors,
+                    services.bookNarrators,
+                    services.bookSeries,
+                    services.bookCoverOptions,
+                )
             }
         }
     }

@@ -93,6 +93,7 @@ class McpSmokeTest {
                     "create_book_narrator",
                     "search_book_series",
                     "create_book_series",
+                    "find_book_cover",
                 ),
                 toolNames,
             )

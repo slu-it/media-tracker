@@ -149,6 +149,10 @@ class AppConfigTest {
         assertEquals(false, appConfig.session.secureCookie)
         // Pinned blank in application-test.yaml so a developer's exported STEAMGRIDDB_API_KEY cannot flip tests.
         assertNull(appConfig.coverSource.steamGridDb)
+        // Both book providers point at an unreachable address so tests never reach the real services.
+        assertEquals("http://127.0.0.1:9", appConfig.bookCoverSource.openLibrary.baseUrl)
+        assertEquals("http://127.0.0.1:9", appConfig.bookCoverSource.openLibrary.coversBaseUrl)
+        assertEquals("http://127.0.0.1:9", appConfig.bookCoverSource.audible.baseUrl)
         // Pinned blank in application-test.yaml so a developer's exported DROPBOX_APP_KEY/SECRET cannot flip tests.
         assertNull(appConfig.dropbox)
         assertEquals(LocalTime.of(3, 0), appConfig.backup.dailyAt)
@@ -213,6 +217,75 @@ class AppConfigTest {
         val appConfig = AppConfig.from(config)
 
         assertEquals("https://www.steamgriddb.com/api/v2", appConfig.coverSource.steamGridDb?.baseUrl)
+    }
+
+    // ---- book cover sources ----
+
+    @Test
+    fun `book cover sources default to the public services`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+        )
+
+        val bookCoverSource = AppConfig.from(config).bookCoverSource
+
+        assertEquals("https://openlibrary.org", bookCoverSource.openLibrary.baseUrl)
+        assertEquals("https://covers.openlibrary.org", bookCoverSource.openLibrary.coversBaseUrl)
+        assertEquals("media-tracker (self-hosted)", bookCoverSource.openLibrary.userAgent)
+        assertEquals("de", bookCoverSource.audible.marketplace)
+        assertEquals("https://api.audible.de", bookCoverSource.audible.baseUrl)
+    }
+
+    @Test
+    fun `the audible base url follows the marketplace unless overridden`() {
+        val base = arrayOf(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+        )
+
+        val derived = AppConfig.from(MapApplicationConfig(*base, "bookCoverSource.audible.marketplace" to "co.uk"))
+        val overridden = AppConfig.from(
+            MapApplicationConfig(
+                *base,
+                "bookCoverSource.audible.marketplace" to "co.uk",
+                "bookCoverSource.audible.baseUrl" to "https://audible.example",
+            ),
+        )
+
+        assertEquals("co.uk", derived.bookCoverSource.audible.marketplace)
+        assertEquals("https://api.audible.co.uk", derived.bookCoverSource.audible.baseUrl)
+        assertEquals("https://audible.example", overridden.bookCoverSource.audible.baseUrl)
+    }
+
+    @Test
+    fun `fails fast on an invalid audible marketplace`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "bookCoverSource.audible.marketplace" to "evil.com/x",
+        )
+
+        val exception = assertFailsWith<IllegalArgumentException> { AppConfig.from(config) }
+
+        assertContains(exception.message.orEmpty(), "audible.marketplace")
+    }
+
+    @Test
+    fun `reads the open library addresses and user agent when configured`() {
+        val config = MapApplicationConfig(
+            "database.url" to "jdbc:mariadb://localhost:3306/test",
+            "session.secret" to "a-secret-at-least-16-chars",
+            "bookCoverSource.openLibrary.baseUrl" to "https://ol.example",
+            "bookCoverSource.openLibrary.coversBaseUrl" to "https://covers.example",
+            "bookCoverSource.openLibrary.userAgent" to "my-agent",
+        )
+
+        val openLibrary = AppConfig.from(config).bookCoverSource.openLibrary
+
+        assertEquals("https://ol.example", openLibrary.baseUrl)
+        assertEquals("https://covers.example", openLibrary.coversBaseUrl)
+        assertEquals("my-agent", openLibrary.userAgent)
     }
 
     // ---- dropbox ----

@@ -11,6 +11,9 @@ export const BOOKS_PAGE_SIZE = 36;
 /** Width / height of a book cover frame (2:3, the usual paperback proportion). */
 export const BOOK_COVER_ASPECT_RATIO = 2 / 3;
 
+/** The trimmed title must reach this length before title suggestions are requested. */
+export const BOOK_TITLE_SUGGESTION_MIN_LENGTH = 3;
+
 /** Mirrors the backend's author search limit; the author chip input asks for at most this many matches. */
 export const AUTHOR_SEARCH_LIMIT = 10;
 

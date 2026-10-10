@@ -7,9 +7,11 @@ import { bookTypes, hardcover, herbert } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddBookDialog } from "./AddBookDialog";
 
+const noTitleSuggestions = { "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }) };
+
 async function fillTitleAndYear(dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) {
   // user.paste avoids per-keystroke user.type, which is ~10x slower and hit the CI timeout.
-  await user.click(within(dialog).getByRole("textbox", { name: /title/i }));
+  await user.click(within(dialog).getByRole("combobox", { name: /title/i }));
   await user.paste("Dune");
   await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
   await user.click(screen.getByRole("option", { name: "2020" }));
@@ -26,6 +28,7 @@ describe("AddBookDialog", () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     const calls = mockApi({
+      ...noTitleSuggestions,
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
     });
     renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={onCreated} types={bookTypes} />);
@@ -78,6 +81,7 @@ describe("AddBookDialog", () => {
     const onCreated = vi.fn();
     const created: BookAuthorResponse = { id: "author-new", name: "New Author" };
     const calls = mockApi({
+      ...noTitleSuggestions,
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/book-authors": () => jsonResponse(created, 201),
       "GET /api/book-authors": () => jsonResponse([herbert]),
@@ -110,6 +114,7 @@ describe("AddBookDialog", () => {
     const narrator: BookNarratorResponse = { id: "narrator-new", name: "New Narrator" };
     const series: BookSeriesResponse = { id: "series-new", name: "New Series" };
     const calls = mockApi({
+      ...noTitleSuggestions,
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/book-narrators": () => jsonResponse(narrator, 201),
       "GET /api/book-narrators": () => jsonResponse([]),
@@ -145,7 +150,7 @@ describe("AddBookDialog", () => {
 
   it("blocks saving while a series position is invalid", async () => {
     const user = userEvent.setup();
-    mockApi({ "GET /api/book-series": () => jsonResponse([]) });
+    mockApi({ ...noTitleSuggestions, "GET /api/book-series": () => jsonResponse([]) });
     renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} />);
     const dialog = screen.getByRole("dialog");
     await fillTitleAndYear(dialog, user);
@@ -165,6 +170,7 @@ describe("AddBookDialog", () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     const calls = mockApi({
+      ...noTitleSuggestions,
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/book-authors": () => jsonResponse({ error: "internal_error" }, 500),
       "GET /api/book-authors": () => jsonResponse([]),
@@ -188,7 +194,10 @@ describe("AddBookDialog", () => {
   it("shows the backend error and stays open when creating fails", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
-    mockApi({ "POST /api/books": () => jsonResponse({ error: "validation_error", message: "title: nope" }, 400) });
+    mockApi({
+      ...noTitleSuggestions,
+      "POST /api/books": () => jsonResponse({ error: "validation_error", message: "title: nope" }, 400),
+    });
     renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={onCreated} types={bookTypes} />);
     const dialog = screen.getByRole("dialog");
     await fillTitleAndYear(dialog, user);
@@ -206,13 +215,13 @@ describe("AddBookDialog", () => {
       <AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} />,
     );
     const user = userEvent.setup();
-    await user.click(screen.getByRole("textbox", { name: /title/i }));
+    await user.click(screen.getByRole("combobox", { name: /title/i }));
     await user.paste("Dune");
-    expect(screen.getByRole("textbox", { name: /title/i })).toHaveValue("Dune");
+    expect(screen.getByRole("combobox", { name: /title/i })).toHaveValue("Dune");
 
     rerender(<AddBookDialog open={false} onClose={() => {}} onCreated={() => {}} types={bookTypes} />);
     rerender(<AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} />);
 
-    expect(screen.getByRole("textbox", { name: /title/i })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: /title/i })).toHaveValue("");
   });
 });

@@ -28,6 +28,17 @@ coverSource:
     apiKey: ""
     baseUrl: "https://www.steamgriddb.com/api/v2"
 
+bookCoverSource:
+  # Unreachable on purpose (port 9, discard): tests never call the real providers, so the smoke path of the book
+  # cover endpoints is a 502 and title suggestions degrade to an empty list.
+  openLibrary:
+    baseUrl: "http://127.0.0.1:9"
+    coversBaseUrl: "http://127.0.0.1:9"
+    userAgent: "media-tracker (self-hosted)"
+  audible:
+    marketplace: "de"
+    baseUrl: "http://127.0.0.1:9"
+
 dropbox:
   # Pinned empty so a developer's exported DROPBOX_APP_KEY/SECRET cannot flip the dropbox-unavailable smoke test.
   appKey: ""

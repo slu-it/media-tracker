@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Box } from "@mui/material";
-import { CoverImage } from "../../../components/CoverImage";
-import { coverHeight } from "../../../components/coverFrame";
-import { isVideoThumbnail } from "../domain/coverThumbnail";
+import { CoverImage } from "../../CoverImage";
+import { COVER_ASPECT_RATIO, coverHeight } from "../../coverFrame";
+import { isVideoThumbnail } from "../../../domain/media/coverThumbnail";
 
 interface CoverThumbnailProps {
   thumbnailUrl: string;
@@ -10,6 +10,8 @@ interface CoverThumbnailProps {
   width: number;
   /** Omit to use the collection's standard cover ratio, derived from `width`. */
   height?: number;
+  /** Used to derive the height from `width` when `height` is omitted; defaults to the standard cover ratio. */
+  aspectRatio?: number;
 }
 
 /**
@@ -18,9 +20,15 @@ interface CoverThumbnailProps {
  * thumbnail is rendered with a `<video>` instead; anything else - and a WebM that itself fails to load - falls
  * back to `CoverImage`.
  */
-export function CoverThumbnail({ thumbnailUrl, imageUrl, width, height }: CoverThumbnailProps) {
+export function CoverThumbnail({
+  thumbnailUrl,
+  imageUrl,
+  width,
+  height,
+  aspectRatio = COVER_ASPECT_RATIO,
+}: CoverThumbnailProps) {
   const [videoFailed, setVideoFailed] = useState(false);
-  const resolvedHeight = height ?? coverHeight(width);
+  const resolvedHeight = height ?? coverHeight(width, aspectRatio);
 
   if (!isVideoThumbnail(thumbnailUrl) || videoFailed) {
     return <CoverImage src={videoFailed ? imageUrl : thumbnailUrl} alt="" width={width} height={resolvedHeight} />;

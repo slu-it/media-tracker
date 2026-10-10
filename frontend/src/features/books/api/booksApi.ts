@@ -2,6 +2,8 @@ import { apiFetch } from "../../../api/client";
 import type {
   BookAuthorResponse,
   BookAuthorSummaryResponse,
+  BookCoverOptionsResponse,
+  BookCoverSource,
   BookMetaResponse,
   BookNarratorResponse,
   BookResponse,
@@ -9,6 +11,7 @@ import type {
   BookSeriesResponse,
   BookSeriesSummaryResponse,
   BookSort,
+  BookTitleSuggestionsResponse,
   BookTypeResponse,
   CreateBookAuthorRequest,
   CreateBookNarratorRequest,
@@ -158,4 +161,31 @@ export function listBookAuthorSummaries(): Promise<BookAuthorSummaryResponse[]> 
 /** The books of one author by release year, release date (none last) and title; 404 for an unknown author. */
 export function listAuthorBooks(authorId: string, signal?: AbortSignal): Promise<BookResponse[]> {
   return apiFetch<BookResponse[]>(`/api/book-authors/${encodeURIComponent(authorId)}/books`, { signal });
+}
+
+/**
+ * Cover options of the Open Library (`book`) or Audible (`audiobook`) source; `query` is required by the backend.
+ * `releaseYear`, `match`, `source` and `page` are appended only when given, and the backend defaults `source` to
+ * `"book"` and `page` to `1`, so the default source is never put on the wire (as for games' `type`).
+ */
+export function getBookCoverOptions(params: {
+  query: string;
+  releaseYear?: number | null;
+  match?: string;
+  source?: BookCoverSource;
+  page?: number;
+}): Promise<BookCoverOptionsResponse> {
+  const query = new URLSearchParams({ query: params.query.trim() });
+  if (typeof params.releaseYear === "number") query.set("releaseYear", String(params.releaseYear));
+  if (params.match !== undefined) query.set("match", params.match);
+  if (params.source !== undefined && params.source !== "book") query.set("source", params.source);
+  if (params.page !== undefined) query.set("page", String(params.page));
+  return apiFetch<BookCoverOptionsResponse>(`${BASE}/cover-options?${query}`);
+}
+
+/** Title suggestions from the given source for the add/edit form; always 200, an upstream failure yields none. */
+export function getBookTitleSuggestions(query: string, source: BookCoverSource): Promise<BookTitleSuggestionsResponse> {
+  const params = new URLSearchParams({ query: query.trim() });
+  if (source !== "book") params.set("source", source);
+  return apiFetch<BookTitleSuggestionsResponse>(`${BASE}/title-suggestions?${params}`);
 }

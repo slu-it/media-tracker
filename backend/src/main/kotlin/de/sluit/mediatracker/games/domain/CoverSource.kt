@@ -1,10 +1,11 @@
 package de.sluit.mediatracker.games.domain
 
-import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.CoverOption
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
+import de.sluit.mediatracker.common.domain.RankableMatch
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.requireValid
@@ -34,13 +35,10 @@ value class CoverSourceGameId(val value: Long) {
 /** One game the cover source found for a search term. */
 data class CoverCandidate(
     val id: CoverSourceGameId,
-    val name: String,
-    val releaseYear: ReleaseYear?,
+    override val name: String,
+    override val releaseYear: ReleaseYear?,
     val verified: Boolean,
-)
-
-/** One selectable cover image, in both a thumbnail and its full-size form. */
-data class CoverOption(val thumbnailUrl: CoverImageUrl, val imageUrl: CoverImageUrl, val width: Int, val height: Int)
+) : RankableMatch
 
 /** Whether the cover picker asks SteamGridDB for static or animated (APNG/animated WebP) grids. */
 enum class CoverType {

@@ -36,6 +36,17 @@ coverSource:
     apiKey: "$STEAMGRIDDB_API_KEY:"
     baseUrl: "https://www.steamgriddb.com/api/v2"
 
+bookCoverSource:
+  # Book title suggestions and the book cover picker (ADR 0039). Neither provider needs a key.
+  openLibrary:
+    baseUrl: "https://openlibrary.org"
+    coversBaseUrl: "https://covers.openlibrary.org"
+    userAgent: "media-tracker (self-hosted)"
+  audible:
+    # Audible store the audiobook search runs against (de, com, co.uk, fr, ...). The unofficial catalog API
+    # lives at https://api.audible.<marketplace>; set `baseUrl` to override that address.
+    marketplace: "$AUDIBLE_MARKETPLACE:de"
+
 dropbox:
   # Optional; both must be set or both left blank. Enables the in-app Dropbox connection and backup upload
   # (MT-024). Without them, GET /api/dropbox answers `available: false` and every other /api/dropbox call 503s.

@@ -7,7 +7,8 @@ paths:
 
 ADR 0008 for the stack, ADR 0020 for the theme toggle. Feature layout `src/features/<kind>/{api,domain,hooks,components}`
 + `<Kind>View.tsx`; `games` and `books` are the templates. Kind-neutral code is shared (ADR 0034):
-`src/components/media/` (UI, incl. `status/`, `filters/`, `fields/`), `src/domain/media/` (validators, codecs, draft
+`src/components/media/` (UI, incl. `status/`, `filters/`, `fields/`, `cover/`; ADR 0039 for the cover picker and
+`SuggestingTitleField`), `src/domain/media/` (validators, codecs, draft
 helpers), `src/hooks/`. Shared code never imports from `src/features/**` and builds no i18n key from a kind name:
 kind-neutral strings live under `media.*`, kind-specific texts are passed in as props. Feature details are in
 `docs/features/`.

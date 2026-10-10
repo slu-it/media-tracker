@@ -8,6 +8,7 @@ import de.sluit.mediatracker.auth.persistence.ExposedUserRepository
 import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.backup.domain.CloudBackupService
 import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookCoverOptionsService
 import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
@@ -122,6 +123,7 @@ fun ApplicationTestBuilder.handlerApp(
     bookAuthors: BookAuthorService = mockk(),
     bookNarrators: BookNarratorService = mockk(),
     bookSeries: BookSeriesService = mockk(),
+    bookCoverOptions: BookCoverOptionsService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
@@ -139,6 +141,7 @@ fun ApplicationTestBuilder.handlerApp(
                 bookAuthors,
                 bookNarrators,
                 bookSeries,
+                bookCoverOptions,
             ),
             testSessionConfig,
             SessionStorageMemory(),
