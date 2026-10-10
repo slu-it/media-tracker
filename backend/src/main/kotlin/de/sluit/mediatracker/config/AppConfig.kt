@@ -14,6 +14,7 @@ data class AppConfig(
     val database: DatabaseConfig,
     val session: SessionConfig,
     val coverSource: CoverSourceConfig,
+    val bookCoverSource: BookCoverSourceConfig,
     val dropbox: DropboxConfig?,
     val backup: BackupConfig,
 ) {
@@ -23,6 +24,7 @@ data class AppConfig(
             database = DatabaseConfig.from(config.config("database")),
             session = SessionConfig.from(config.config("session")),
             coverSource = CoverSourceConfig.from(config.config("coverSource")),
+            bookCoverSource = BookCoverSourceConfig.from(config.config("bookCoverSource")),
             dropbox = DropboxConfig.from(config.config("dropbox")),
             backup = BackupConfig.from(config.config("backup")),
         )
@@ -100,6 +102,50 @@ data class CoverSourceConfig(val steamGridDb: SteamGridDbConfig?) {
 /** SteamGridDB API access; only constructed when [apiKey] is non-blank, see [CoverSourceConfig.from]. */
 data class SteamGridDbConfig(val apiKey: String, val baseUrl: String) {
     override fun toString(): String = "SteamGridDbConfig(apiKey=***, baseUrl=$baseUrl)"
+}
+
+/**
+ * Book cover and title-suggestion providers (ADR 0039): Open Library for printed books and e-books, the Audible
+ * catalog for audiobooks. Neither needs a key, so both are always configured and only their addresses can change.
+ */
+data class BookCoverSourceConfig(val openLibrary: OpenLibraryConfig, val audible: AudibleConfig) {
+    companion object {
+        fun from(config: ApplicationConfig): BookCoverSourceConfig = BookCoverSourceConfig(
+            openLibrary = OpenLibraryConfig.from(config.config("openLibrary")),
+            audible = AudibleConfig.from(config.config("audible")),
+        )
+    }
+}
+
+data class OpenLibraryConfig(val baseUrl: String, val coversBaseUrl: String, val userAgent: String) {
+    companion object {
+        fun from(config: ApplicationConfig): OpenLibraryConfig = OpenLibraryConfig(
+            baseUrl = config.propertyOrNull("baseUrl")?.getString()?.ifBlank { null } ?: "https://openlibrary.org",
+            coversBaseUrl = config.propertyOrNull("coversBaseUrl")?.getString()?.ifBlank { null }
+                ?: "https://covers.openlibrary.org",
+            userAgent = config.propertyOrNull("userAgent")?.getString()?.ifBlank { null }
+                ?: "media-tracker (self-hosted)",
+        )
+    }
+}
+
+/** [baseUrl] is the API host without the `/1.0` path; it defaults to `https://api.audible.<marketplace>`. */
+data class AudibleConfig(val marketplace: String, val baseUrl: String) {
+    companion object {
+        private val MARKETPLACE_PATTERN = Regex("^[a-z]{2,3}(\\.[a-z]{2,3})?$")
+
+        fun from(config: ApplicationConfig): AudibleConfig {
+            val marketplace = config.propertyOrNull("marketplace")?.getString()?.ifBlank { null } ?: "de"
+            require(MARKETPLACE_PATTERN.matches(marketplace)) {
+                "audible.marketplace must be a marketplace suffix like de, com, co.uk or com.au, was '$marketplace'"
+            }
+            return AudibleConfig(
+                marketplace = marketplace,
+                baseUrl = config.propertyOrNull("baseUrl")?.getString()?.ifBlank { null }
+                    ?: "https://api.audible.$marketplace",
+            )
+        }
+    }
 }
 
 /**

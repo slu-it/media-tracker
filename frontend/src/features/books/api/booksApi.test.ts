@@ -10,6 +10,8 @@ import {
   createBookNarrator,
   createBookSeries,
   deleteBook,
+  getBookCoverOptions,
+  getBookTitleSuggestions,
   getBooksMeta,
   listAuthorBooks,
   listBookAuthorSummaries,
@@ -172,5 +174,29 @@ describe("booksApi", () => {
       { entry: duneSaga, position: "4" },
     ]);
     expect(links).toEqual([{ seriesId: duneSaga.id, position: 3 }]);
+  });
+});
+
+describe("booksApi cover options and title suggestions", () => {
+  it("requests cover options with only the query by default", async () => {
+    const calls = mockApi({ "GET /api/books/cover-options": () => jsonResponse({}) });
+    await getBookCoverOptions({ query: "  Dune ", releaseYear: null, source: "book" });
+    expect(calls[0].url).toBe("/api/books/cover-options?query=Dune");
+  });
+
+  it("appends release year, match, audiobook source and page", async () => {
+    const calls = mockApi({ "GET /api/books/cover-options": () => jsonResponse({}) });
+    await getBookCoverOptions({ query: "Dune", releaseYear: 1965, match: "OL1W", source: "audiobook", page: 2 });
+    expect(calls[0].url).toBe(
+      "/api/books/cover-options?query=Dune&releaseYear=1965&match=OL1W&source=audiobook&page=2",
+    );
+  });
+
+  it("requests title suggestions, sending the source only for audiobooks", async () => {
+    const calls = mockApi({ "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }) });
+    await getBookTitleSuggestions(" Dune", "book");
+    await getBookTitleSuggestions("Dune", "audiobook");
+    expect(calls[0].url).toBe("/api/books/title-suggestions?query=Dune");
+    expect(calls[1].url).toBe("/api/books/title-suggestions?query=Dune&source=audiobook");
   });
 });

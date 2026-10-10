@@ -119,6 +119,16 @@
     }
   },
   "media": {
+    "coverPicker": {
+      "title": "Choose a cover",
+      "search": "Search term",
+      "pick": "Use cover {{index}}",
+      "loadFailed": "Could not load cover suggestions.",
+      "shownOfTotal_one": "{{shown}} of {{count}} cover",
+      "shownOfTotal_other": "{{shown}} of {{count}} covers",
+      "loadMore": "Load more",
+      "enterTerm": "Enter a search term to look for covers."
+    },
     "noCover": "No cover image",
     "coverPreview": "Cover preview",
     "search": {
@@ -153,6 +163,19 @@
   "books": {
     "watchlist": {
       "empty": "Your watchlist is empty."
+    },
+    "coverPicker": {
+      "open": "Choose a cover image",
+      "match": "Matching book",
+      "noMatches": "No books found for \"{{term}}\"",
+      "noMatchesAudiobook": "No audiobooks found for \"{{term}}\"",
+      "noCovers": "No covers available for this book.",
+      "unavailable": "Cover search is currently unavailable.",
+      "attributionBook": "Covers from Open Library",
+      "attributionAudiobook": "Covers from Audible",
+      "source": "Cover source",
+      "sourceBook": "Book",
+      "sourceAudiobook": "Audiobook"
     },
     "addBook": "Add book",
     "bookDetails": "Book details",
@@ -271,22 +294,14 @@
     "notRated": "Not rated yet",
     "coverPicker": {
       "open": "Choose a cover image",
-      "title": "Choose a cover",
-      "search": "Search term",
       "match": "Matching game",
-      "pick": "Use cover {{index}}",
       "noMatches": "No games found for \"{{term}}\"",
       "noCovers": "No covers available for this game.",
       "unavailable": "Cover search is not configured on this server (STEAMGRIDDB_API_KEY).",
-      "loadFailed": "Could not load cover suggestions.",
       "attribution": "Covers from SteamGridDB",
       "type": "Cover type",
       "typeStatic": "Static",
-      "typeAnimated": "Animated",
-      "shownOfTotal_one": "{{shown}} of {{count}} cover",
-      "shownOfTotal_other": "{{shown}} of {{count}} covers",
-      "loadMore": "Load more",
-      "enterTerm": "Enter a search term to look for covers."
+      "typeAnimated": "Animated"
     },
     "expansions": {
       "heading": "Expansions",

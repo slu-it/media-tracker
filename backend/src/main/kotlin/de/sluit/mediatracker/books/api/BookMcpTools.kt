@@ -2,6 +2,8 @@ package de.sluit.mediatracker.books.api
 
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookCoverOptionsService
+import de.sluit.mediatracker.books.domain.BookCoverSourceKind
 import de.sluit.mediatracker.books.domain.BookFilters
 import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMissingField
@@ -20,6 +22,7 @@ import de.sluit.mediatracker.common.api.VocabularyEntryView
 import de.sluit.mediatracker.common.api.addCreateVocabularyTool
 import de.sluit.mediatracker.common.api.addSearchVocabularyTool
 import de.sluit.mediatracker.common.api.intArrayOrNull
+import de.sluit.mediatracker.common.api.intOrNull
 import de.sluit.mediatracker.common.api.putCoverImageUrlProperty
 import de.sluit.mediatracker.common.api.putDescriptionProperty
 import de.sluit.mediatracker.common.api.putEnumArrayProperty
@@ -37,6 +40,7 @@ import de.sluit.mediatracker.common.api.sizeOrNull
 import de.sluit.mediatracker.common.api.stringArrayOrNull
 import de.sluit.mediatracker.common.api.stringOrNull
 import de.sluit.mediatracker.common.api.toErrorResult
+import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.PageNumber
@@ -67,6 +71,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 
 /**
@@ -78,6 +83,7 @@ fun Server.addBookTools(
     bookAuthorService: BookAuthorService,
     bookNarratorService: BookNarratorService,
     bookSeriesService: BookSeriesService,
+    bookCoverOptionsService: BookCoverOptionsService,
 ) {
     addListBookTypesTool(bookService)
     addAddBookTool(bookService)
@@ -89,7 +95,11 @@ fun Server.addBookTools(
     addCreateBookNarratorTool(bookNarratorService)
     addSearchBookSeriesTool(bookSeriesService)
     addCreateBookSeriesTool(bookSeriesService)
+    addFindBookCoverTool(bookCoverOptionsService)
 }
+
+// No enclosing class to hang a member logger off, unlike e.g. auth/domain/ApiKeyService.
+private val log = LoggerFactory.getLogger("de.sluit.mediatracker.books.api.BookMcpTools")
 
 private const val LIST_BOOK_TYPES_DESCRIPTION =
     "Lists the book types this tracker knows (hardcover, paperback, Kindle, ...), with the ids add_book and " +
@@ -719,5 +729,83 @@ private fun Server.addCreateBookSeriesTool(bookSeriesService: BookSeriesService)
         val result = bookSeriesService.create(VocabularyName.parse(createRequest.name))
         val response = result.entry.toResponse()
         VocabularyCreation(VocabularyEntryView(response.id, response.name), result.created)
+    }
+}
+
+private const val FIND_BOOK_COVER_DESCRIPTION =
+    "Looks up a cover image for a book. source book (default) searches Open Library for printed books and " +
+        "e-books, audiobook searches the Audible catalog. Pass the book's full official title; passing the " +
+        "release year as well improves the ranking when several books share a similar title. Returns the first " +
+        "cover of the best match, together with the match's title, authors and release year - check them " +
+        "before trusting the image, since the match can be wrong. On a hit, pass the returned imageUrl as " +
+        "coverImageUrl to add_book or update_book; search_books with hasMissing: [\"coverImageUrl\"] finds " +
+        "tracked books that still need one."
+
+// Mirrors the constraints SearchTerm and ReleaseYear enforce; find_book_cover has no request DTO of its own.
+private val FIND_BOOK_COVER_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putTitleProperty("The book's full official title.", maxLength = SearchTerm.MAX_LENGTH)
+        putReleaseYearProperty("The four-digit release year; improves ranking when several titles are similar.")
+        putEnumProperty(
+            BookCoverSourceKind.FIELD,
+            BookCoverSourceKind.entries,
+            "Where to look: book (default) for printed books and e-books, audiobook for audiobooks.",
+        )
+    },
+    required = listOf("title"),
+)
+
+private val FIND_BOOK_COVER_FIELDS: Set<String> = FIND_BOOK_COVER_SCHEMA.properties!!.keys
+
+private fun Server.addFindBookCoverTool(bookCoverOptionsService: BookCoverOptionsService) {
+    addTool(
+        name = "find_book_cover",
+        description = FIND_BOOK_COVER_DESCRIPTION,
+        inputSchema = FIND_BOOK_COVER_SCHEMA,
+        toolAnnotations = ToolAnnotations(readOnlyHint = true, openWorldHint = true),
+    ) { request ->
+        try {
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            arguments.requireKnownFields(FIND_BOOK_COVER_FIELDS)
+            val title = SearchTerm.parseOrNull(arguments.stringOrNull("title"), field = "title")
+                ?: throw InvalidValueException("title", "is missing")
+            val releaseYear = arguments.intOrNull("releaseYear")?.let(::ReleaseYear)
+            val source = arguments.stringOrNull(BookCoverSourceKind.FIELD)?.let(BookCoverSourceKind::from)
+                ?: BookCoverSourceKind.DEFAULT
+            val lookup = bookCoverOptionsService.findFirstCover(title, releaseYear, source)
+            if (lookup == null) {
+                CallToolResult(
+                    content = listOf(TextContent("No cover found for \"$title\".")),
+                    structuredContent = buildJsonObject { put("found", false) },
+                )
+            } else {
+                val authors = lookup.authors.joinToString(", ").ifEmpty { "author unknown" }
+                val year = lookup.releaseYear?.value?.toString() ?: "year unknown"
+                CallToolResult(
+                    content = listOf(
+                        TextContent("Cover for \"${lookup.name}\" ($authors, $year): ${lookup.cover.imageUrl.value}"),
+                    ),
+                    structuredContent = buildJsonObject {
+                        put("found", true)
+                        put("imageUrl", lookup.cover.imageUrl.value)
+                        put("source", source.wire)
+                        putJsonObject("match") {
+                            put("name", lookup.name)
+                            putJsonArray("authors") { lookup.authors.forEach { add(it) } }
+                            put("releaseYear", lookup.releaseYear?.value)
+                        }
+                    },
+                )
+            }
+        } catch (e: InvalidValueException) {
+            e.toErrorResult()
+        } catch (e: ExternalSourceException) {
+            // Mirrors StatusPages: log the real failure at warn, never echo it to the client.
+            log.warn("External source '${e.source}' call failed", e)
+            CallToolResult(
+                content = listOf(TextContent("${e.source} is currently unavailable")),
+                isError = true,
+            )
+        }
     }
 }

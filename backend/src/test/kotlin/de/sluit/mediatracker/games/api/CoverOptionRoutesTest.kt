@@ -3,6 +3,7 @@ package de.sluit.mediatracker.games.api
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.CoverOption
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.Page
@@ -12,7 +13,6 @@ import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.domain.CoverCandidate
-import de.sluit.mediatracker.games.domain.CoverOption
 import de.sluit.mediatracker.games.domain.CoverOptions
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSourceGameId

@@ -4,8 +4,12 @@ import de.sluit.mediatracker.auth.api.API_KEY_HEADER
 import de.sluit.mediatracker.auth.domain.ApiKeyService
 import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.auth.domain.User
+import de.sluit.mediatracker.books.domain.BookCoverLookup
+import de.sluit.mediatracker.books.domain.BookCoverOptionsService
+import de.sluit.mediatracker.books.domain.BookCoverSourceKind
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.CoverOption
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.NotFoundException
@@ -28,7 +32,6 @@ import de.sluit.mediatracker.games.api.GameResponse
 import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.domain.CoverCandidate
 import de.sluit.mediatracker.games.domain.CoverLookup
-import de.sluit.mediatracker.games.domain.CoverOption
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSourceGameId
 import de.sluit.mediatracker.games.domain.Expansion
@@ -521,6 +524,7 @@ class McpRoutesTest {
                     "create_book_narrator",
                     "search_book_series",
                     "create_book_series",
+                    "find_book_cover",
                 ),
                 tools.map {
                     it.jsonObject["name"]!!.jsonPrimitive.content
@@ -2973,4 +2977,158 @@ class McpRoutesTest {
             // matcher note); confirming zero interactions on the mock proves the same thing without that risk.
             confirmVerified(developers)
         }
+
+    // ---- find_book_cover ----
+
+    private fun bookCoverLookup(name: String = "The Hobbit") = BookCoverLookup(
+        cover = coverOption(1),
+        name = name,
+        authors = listOf("J.R.R. Tolkien"),
+        releaseYear = ReleaseYear(1937),
+    )
+
+    @Test
+    fun `tools call find_book_cover returns the cover url and the match`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val bookCoverOptions = mockk<BookCoverOptionsService>()
+        val client = handlerApp(apiKeys = apiKeys, bookCoverOptions = bookCoverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery {
+            bookCoverOptions.findFirstCover(SearchTerm("The Hobbit"), ReleaseYear(1937), BookCoverSourceKind.AUDIOBOOK)
+        } returns bookCoverLookup()
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_book_cover",
+                |"arguments":{"title":"The Hobbit","releaseYear":1937,"source":"audiobook"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        val text = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
+        assertEquals("""Cover for "The Hobbit" (J.R.R. Tolkien, 1937): https://example.org/full-1.png""", text)
+        val structured = result["structuredContent"]!!.jsonObject
+        assertEquals("https://example.org/full-1.png", structured["imageUrl"]!!.jsonPrimitive.content)
+        assertEquals("audiobook", structured["source"]!!.jsonPrimitive.content)
+        val match = structured["match"]!!.jsonObject
+        assertEquals("The Hobbit", match["name"]!!.jsonPrimitive.content)
+        assertEquals(listOf("J.R.R. Tolkien"), match["authors"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(1937, match["releaseYear"]!!.jsonPrimitive.content.toInt())
+    }
+
+    @Test
+    fun `tools call find_book_cover defaults to the book source without a release year`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val bookCoverOptions = mockk<BookCoverOptionsService>()
+        val client = handlerApp(apiKeys = apiKeys, bookCoverOptions = bookCoverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery {
+            bookCoverOptions.findFirstCover(SearchTerm("The Hobbit"), null, BookCoverSourceKind.BOOK)
+        } returns bookCoverLookup()
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_book_cover",
+                |"arguments":{"title":"The Hobbit"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        assertNull(Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject["isError"], body)
+        coVerify { bookCoverOptions.findFirstCover(SearchTerm("The Hobbit"), null, BookCoverSourceKind.BOOK) }
+    }
+
+    @Test
+    fun `tools call find_book_cover with no match is a non-error result saying so`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val bookCoverOptions = mockk<BookCoverOptionsService>()
+        val client = handlerApp(apiKeys = apiKeys, bookCoverOptions = bookCoverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery {
+            bookCoverOptions.findFirstCover(SearchTerm("Nothing"), null, BookCoverSourceKind.BOOK)
+        } returns null
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_book_cover",
+                |"arguments":{"title":"Nothing"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertNull(result["isError"], body)
+        assertEquals(false, result["structuredContent"]!!.jsonObject["found"]!!.jsonPrimitive.content.toBoolean())
+    }
+
+    @Test
+    fun `tools call find_book_cover with an unknown source is a tool error`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val bookCoverOptions = mockk<BookCoverOptionsService>()
+        val client = handlerApp(apiKeys = apiKeys, bookCoverOptions = bookCoverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_book_cover",
+                |"arguments":{"title":"Hobbit","source":"ebook"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean(), body)
+        confirmVerified(bookCoverOptions)
+    }
+
+    @Test
+    fun `tools call find_book_cover without a title is a tool error`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val bookCoverOptions = mockk<BookCoverOptionsService>()
+        val client = handlerApp(apiKeys = apiKeys, bookCoverOptions = bookCoverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_book_cover","arguments":{}}}""",
+        )
+
+        val body = response.bodyAsText()
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean(), body)
+        confirmVerified(bookCoverOptions)
+    }
+
+    @Test
+    fun `tools call find_book_cover with an upstream failure is a generic tool error`() = testApplication {
+        val apiKeys = mockk<ApiKeyService>()
+        val bookCoverOptions = mockk<BookCoverOptionsService>()
+        val client = handlerApp(apiKeys = apiKeys, bookCoverOptions = bookCoverOptions)
+        val key = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+        coEvery { apiKeys.authenticate(key) } returns User(1, "alice", "hash")
+        coEvery {
+            bookCoverOptions.findFirstCover(SearchTerm("Hobbit"), null, BookCoverSourceKind.BOOK)
+        } throws ExternalSourceException("open_library", "secret detail")
+
+        val response = client.postJsonRpc(
+            key,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"find_book_cover",
+                |"arguments":{"title":"Hobbit"}}}
+            """.trimMargin(),
+        )
+
+        val body = response.bodyAsText()
+        val result = Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+        assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean(), body)
+        assertFalse(body.contains("secret detail"), body)
+    }
 }

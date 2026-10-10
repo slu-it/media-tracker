@@ -1,5 +1,7 @@
 import type {
   BookAuthorResponse,
+  BookCoverOptionsResponse,
+  BookTitleSuggestionResponse,
   BookAuthorSummaryResponse,
   BookMetaResponse,
   BookNarratorResponse,
@@ -116,3 +118,62 @@ export const mistbornBooks: BookResponse[] = [
   mistbornBook("book-m2", "The Well of Ascension", 2.5),
   mistbornBook("book-m3", "Secret History", null),
 ];
+
+export const duneCoverOptions: BookCoverOptionsResponse = {
+  query: "Dune",
+  source: "book",
+  matches: [
+    { id: "OL1W", name: "Dune", authors: ["Frank Herbert"], releaseYear: 1965 },
+    { id: "OL2W", name: "Dune Messiah", authors: ["Frank Herbert"], releaseYear: 1969 },
+  ],
+  selectedMatchId: "OL1W",
+  covers: {
+    items: [
+      {
+        thumbnailUrl: "https://covers.example/a-M.jpg",
+        imageUrl: "https://covers.example/a-L.jpg",
+        width: null,
+        height: null,
+      },
+      {
+        thumbnailUrl: "https://covers.example/b-M.jpg",
+        imageUrl: "https://covers.example/b-L.jpg",
+        width: null,
+        height: null,
+      },
+    ],
+    page: 1,
+    pageSize: 50,
+    totalItems: 2,
+    totalPages: 1,
+  },
+};
+
+export const duneAudiobookCoverOptions: BookCoverOptionsResponse = {
+  query: "Dune",
+  source: "audiobook",
+  matches: [],
+  selectedMatchId: null,
+  covers: {
+    items: [
+      {
+        thumbnailUrl: "https://audible.example/c-500.jpg",
+        imageUrl: "https://audible.example/c-1024.jpg",
+        width: null,
+        height: null,
+      },
+    ],
+    page: 1,
+    pageSize: 50,
+    totalItems: 1,
+    totalPages: 1,
+  },
+};
+
+export const duneSuggestion: BookTitleSuggestionResponse = {
+  name: "Dune",
+  authors: ["Frank Herbert"],
+  narrators: [],
+  releaseYear: 1965,
+  source: "book",
+};

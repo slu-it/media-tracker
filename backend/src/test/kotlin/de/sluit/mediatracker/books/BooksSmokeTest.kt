@@ -8,11 +8,13 @@ import de.sluit.mediatracker.books.api.BookNarratorResponse
 import de.sluit.mediatracker.books.api.BookResponse
 import de.sluit.mediatracker.books.api.BookSeriesResponse
 import de.sluit.mediatracker.books.api.BookSeriesSummaryResponse
+import de.sluit.mediatracker.books.api.BookTitleSuggestionsResponse
 import de.sluit.mediatracker.books.api.BookTypeResponse
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
 import de.sluit.mediatracker.books.persistence.BookNarratorsTable
 import de.sluit.mediatracker.books.persistence.BookSeriesTable
 import de.sluit.mediatracker.books.persistence.BooksTable
+import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.jsonBody
@@ -310,5 +312,31 @@ class BooksSmokeTest {
         assertEquals(listOf("owned"), meta.ownership)
         assertEquals(listOf("reading"), meta.progress)
         assertEquals(listOf(1965), meta.releaseYears)
+    }
+
+    @Test
+    fun `title suggestions degrade to an empty list when the providers are unreachable`() = testApplication {
+        val client = loggedInClient()
+
+        val book = client.get("/api/books/title-suggestions?query=Hobbit")
+        val audiobook = client.get("/api/books/title-suggestions?query=Hobbit&source=audiobook")
+
+        assertEquals(HttpStatusCode.OK, book.status, book.bodyAsText())
+        assertEquals(emptyList(), book.decodeBody<BookTitleSuggestionsResponse>().suggestions)
+        assertEquals(HttpStatusCode.OK, audiobook.status, audiobook.bodyAsText())
+        assertEquals(emptyList(), audiobook.decodeBody<BookTitleSuggestionsResponse>().suggestions)
+    }
+
+    @Test
+    fun `cover options are 502 with the provider's error code when it is unreachable`() = testApplication {
+        val client = loggedInClient()
+
+        val book = client.get("/api/books/cover-options?query=Hobbit")
+        val audiobook = client.get("/api/books/cover-options?query=Hobbit&source=audiobook")
+
+        assertEquals(HttpStatusCode.BadGateway, book.status, book.bodyAsText())
+        assertEquals("open_library_error", book.decodeBody<ErrorResponse>().error)
+        assertEquals(HttpStatusCode.BadGateway, audiobook.status, audiobook.bodyAsText())
+        assertEquals("audible_error", audiobook.decodeBody<ErrorResponse>().error)
     }
 }

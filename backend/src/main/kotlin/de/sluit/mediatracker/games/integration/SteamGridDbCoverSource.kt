@@ -1,6 +1,7 @@
 package de.sluit.mediatracker.games.integration
 
 import de.sluit.mediatracker.common.domain.CoverImageUrl
+import de.sluit.mediatracker.common.domain.CoverOption
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.Page
@@ -8,18 +9,15 @@ import de.sluit.mediatracker.common.domain.PageNumber
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.integration.externalHttpClient
 import de.sluit.mediatracker.config.SteamGridDbConfig
 import de.sluit.mediatracker.games.domain.CoverCandidate
-import de.sluit.mediatracker.games.domain.CoverOption
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.CoverSource
 import de.sluit.mediatracker.games.domain.CoverSourceGameId
 import de.sluit.mediatracker.games.domain.CoverType
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.java.Java
-import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.accept
 import io.ktor.client.request.get
@@ -31,7 +29,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.encodeURLPathPart
 import io.ktor.http.isSuccess
-import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CancellationException
 import org.slf4j.LoggerFactory
 import java.io.IOException
@@ -154,17 +151,7 @@ class SteamGridDbCoverSource(private val client: HttpClient, private val config:
 }
 
 /**
- * The Ktor client `module()` builds only when `STEAMGRIDDB_API_KEY` is configured: the JDK-backed [Java] engine
- * (JDK trust store, no extra transitive dependency, honours proxy properties), a lenient JSON ContentNegotiation,
- * `expectSuccess = false` (this adapter reads the status code itself) and a 10 s request timeout so a slow
- * upstream cannot stall a cover-options request indefinitely.
+ * The Ktor client `module()` builds only when `STEAMGRIDDB_API_KEY` is configured; see [externalHttpClient] for
+ * its engine, JSON leniency and timeout.
  */
-fun steamGridDbHttpClient(): HttpClient = HttpClient(Java) {
-    expectSuccess = false
-    install(ContentNegotiation) {
-        json(steamGridDbJson)
-    }
-    install(HttpTimeout) {
-        requestTimeoutMillis = 10_000
-    }
-}
+fun steamGridDbHttpClient(): HttpClient = externalHttpClient(steamGridDbJson)

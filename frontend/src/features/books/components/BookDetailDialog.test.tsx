@@ -5,9 +5,21 @@ import { describe, expect, it, vi } from "vitest";
 import type { BookResponse, BookAuthorResponse, BookSeriesResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
-import { bookTypes, dune, duneSaga, herbert, kindle, paperback } from "../../../test/fixtures/books";
+import {
+  bookTypes,
+  dune,
+  duneAudiobookCoverOptions,
+  duneCoverOptions,
+  duneSaga,
+  herbert,
+  kindle,
+  paperback,
+  simonVance,
+} from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookDetailDialog } from "./BookDetailDialog";
+
+const noTitleSuggestions = { "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
 const book: BookResponse = { ...dune, description: "Spice, sand and worms." };
 
@@ -75,6 +87,7 @@ describe("BookDetailDialog", () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
     const calls = mockApi({
+      ...noTitleSuggestions,
       "PATCH /api/books/:id": (call) => jsonResponse({ ...book, ...(call.body as object) }),
     });
     renderDialog({ onSaved });
@@ -86,7 +99,7 @@ describe("BookDetailDialog", () => {
     const save = within(dialog).getByRole("button", { name: "Save" });
     expect(save).toBeDisabled(); // nothing changed yet
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Dune Messiah");
     await user.clear(within(dialog).getByRole("textbox", { name: /cover image url/i }));
@@ -242,14 +255,14 @@ describe("BookDetailDialog", () => {
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
 
     await user.type(title, "X");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("title: nope");
-    expect(within(dialog).getByRole("textbox", { name: /title/i })).toBeInTheDocument(); // still editing
+    expect(within(dialog).getByRole("combobox", { name: /title/i })).toBeInTheDocument(); // still editing
   });
 
   it("disables save while a picked release date is invalid, and re-enables after cancel and re-edit", async () => {
@@ -274,7 +287,7 @@ describe("BookDetailDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
 
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Dune (changed)");
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeEnabled();
@@ -329,7 +342,7 @@ describe("BookDetailDialog", () => {
     const dialog = screen.getByRole("dialog");
 
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Dune (changed)");
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
@@ -346,7 +359,7 @@ describe("BookDetailDialog", () => {
     const calls = mockApi({});
     renderDialog({ onClose });
     await user.click(screen.getByRole("button", { name: "Edit" }));
-    await user.type(screen.getByRole("textbox", { name: /title/i }), "!");
+    await user.type(screen.getByRole("combobox", { name: /title/i }), "!");
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(calls.filter((c) => c.method !== "GET")).toEqual([]);
@@ -525,5 +538,54 @@ describe("BookDetailDialog", () => {
       await flushAsync();
       expect(patches(calls)).toEqual([{ method: "PATCH", url: "/api/books/book-1", body: { ownership: "owned" } }]);
     });
+  });
+});
+
+describe("BookDetailDialog cover picker", () => {
+  it("PATCHes only the coverImageUrl of the picked cover and closes the picker", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    const picked = duneCoverOptions.covers.items[0].imageUrl;
+    const updated = { ...book, coverImageUrl: picked };
+    const calls = mockApi({
+      "GET /api/books/cover-options": () => jsonResponse(duneCoverOptions),
+      "PATCH /api/books/:id": () => jsonResponse(updated),
+    });
+    renderDialog({ onSaved });
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Choose a cover image" }));
+    await user.click(await screen.findByRole("button", { name: "Use cover 1" }));
+
+    await waitFor(() => expect(onSaved).toHaveBeenCalledExactlyOnceWith(updated));
+    expect(patches(calls)).toEqual([
+      expect.objectContaining({ url: "/api/books/book-1", body: { coverImageUrl: picked } }),
+    ]);
+    await waitFor(() => expect(screen.queryByText("Choose a cover")).not.toBeInTheDocument());
+  });
+
+  it("starts on the audiobook source for a book with narrators", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ "GET /api/books/cover-options": () => jsonResponse(duneAudiobookCoverOptions) });
+    renderDialog({ book: { ...book, narrators: [simonVance] } });
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Choose a cover image" }));
+
+    await waitFor(() => expect(calls[0].url).toContain("source=audiobook"));
+  });
+
+  it("keeps the picker open and does not call onSaved when the PATCH fails", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    mockApi({
+      "GET /api/books/cover-options": () => jsonResponse(duneCoverOptions),
+      "PATCH /api/books/:id": () => jsonResponse({ error: "internal_error" }, 500),
+    });
+    renderDialog({ onSaved });
+
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Choose a cover image" }));
+    await user.click(await screen.findByRole("button", { name: "Use cover 1" }));
+
+    expect(await screen.findByText("Choose a cover")).toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,8 @@ import { BookStatusIcons } from "./BookStatusIcons";
 interface BookDetailsProps {
   book: BookResponse;
   titleId: string;
+  /** Opens the cover picker; the cover is clickable whenever this is set, whether or not it has a URL. */
+  onPickCover?: () => void;
   /** When set, a quick ownership switch is shown under the cover; it displays `book.ownership`. */
   onOwnershipChange?: (next: BookOwnership) => void;
   /** When set, a quick progress toggle bar is shown under the cover; it displays `book.progress`. */
@@ -27,17 +29,33 @@ interface BookDetailsProps {
 
 /**
  * One book as shown in the detail dialog's view mode. Display only apart from the optional quick actions (the
- * ownership and progress bars), which report a change for the caller to save. The info body shows the series chips
+ * ownership and progress bars) and clicking the cover (`onPickCover`), which report a change for the caller to save. The info body shows the series chips
  * (unlabelled), the description, then a two-column grid: release and types, then authors and narrators (the row is
  * omitted when both are empty; a missing field leaves its cell empty).
  */
-export function BookDetails({ book, titleId, onOwnershipChange, onProgressChange, quickSaveBusy }: BookDetailsProps) {
+export function BookDetails({
+  book,
+  titleId,
+  onPickCover,
+  onOwnershipChange,
+  onProgressChange,
+  quickSaveBusy,
+}: BookDetailsProps) {
   const { t, i18n } = useTranslation();
   const hasPeople = book.authors.length > 0 || book.narrators.length > 0;
   return (
     <CoverAndInfoLayout
       scrollInfo
-      cover={<CoverImage src={book.coverImageUrl} alt={book.title} width={240} aspectRatio={BOOK_COVER_ASPECT_RATIO} />}
+      cover={
+        <CoverImage
+          src={book.coverImageUrl}
+          alt={book.title}
+          width={240}
+          aspectRatio={BOOK_COVER_ASPECT_RATIO}
+          onClick={onPickCover}
+          actionLabel={t("books.coverPicker.open")}
+        />
+      }
       underCover={
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: COVER_UNDER_GAP }}>
           {onOwnershipChange && (

@@ -1,7 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithProviders } from "../../../test/renderWithProviders";
-import { isVideoThumbnail } from "../domain/coverThumbnail";
+import { isVideoThumbnail } from "../../../domain/media/coverThumbnail";
 import { CoverThumbnail } from "./CoverThumbnail";
 
 describe("isVideoThumbnail", () => {
@@ -72,5 +72,32 @@ describe("CoverThumbnail", () => {
     const fallback = screen.getByRole("presentation");
     expect(fallback.tagName).toBe("IMG");
     expect(fallback).toHaveAttribute("src", "https://cdn2.steamgriddb.com/grid/anim-a.png");
+  });
+
+  it("derives the video frame's height from a custom aspect ratio", () => {
+    renderWithProviders(
+      <CoverThumbnail
+        thumbnailUrl="https://cdn2.steamgriddb.com/thumb/a.webm"
+        imageUrl="x.png"
+        width={120}
+        aspectRatio={2 / 3}
+      />,
+      { realStyles: true },
+    );
+
+    const video = screen.getByRole("presentation", { hidden: true });
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    expect(video.parentElement).toHaveStyle({ width: "120px", height: "180px" });
+  });
+
+  it("derives the video frame's height from the standard ratio by default", () => {
+    renderWithProviders(
+      <CoverThumbnail thumbnailUrl="https://cdn2.steamgriddb.com/thumb/a.webm" imageUrl="x.png" width={120} />,
+      { realStyles: true },
+    );
+
+    const video = screen.getByRole("presentation", { hidden: true });
+    // eslint-disable-next-line testing-library/no-node-access -- the sized frame isn't exposed via any ARIA role
+    expect(video.parentElement).toHaveStyle({ width: "120px", height: "169px" });
   });
 });

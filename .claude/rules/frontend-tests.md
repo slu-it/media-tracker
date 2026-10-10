@@ -52,3 +52,6 @@ own. Exception: decorative, `aria-hidden` MUI icons are not in the accessibility
   shuffled (`--sequence.shuffle`) before calling it done.
 - `pnpm test` runs `vitest run --coverage`; the V8 report in `frontend/build/coverage/` is informational, never
   add `thresholds`.
+- Typing into a game or book title field triggers the debounced title-suggestion request: mock
+  `GET /api/{games,books}/title-suggestions` (the dialog tests keep a local `noTitleSuggestions` route for
+  that), or the unmatched fetch fails the test.

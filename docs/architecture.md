@@ -15,6 +15,7 @@ Browser ──GET /games/watchlist?…▶ Ktor ── no valid session ──▶
         ──GET /api/me──────▶ authenticate("session") ─▶ {"username": "..."}
         ──GET /api/games───▶ authenticate("session") ─▶ GameRoutes ─▶ GameService ─▶ ExposedGameRepository ─▶ MariaDB
         ──GET /api/games/cover-options, /title-suggestions▶ CoverOptionRoutes ─▶ CoverOptionsService ─▶ SteamGridDbCoverSource ─▶ steamgriddb.com
+        ──GET /api/books/cover-options, /title-suggestions▶ BookCoverOptionRoutes ─▶ BookCoverOptionsService ─▶ OpenLibraryWorkSource / AudibleAudiobookSource ─▶ openlibrary.org / api.audible.<marketplace>
         ──POST /logout─────▶ sessions row deleted, cookie cleared ─▶ 302 /login
 Agent   ──POST /mcp (X-API-Key)▶ authenticate("api-key") ─▶ ApiKeyService ─▶ users row ─▶ MCP Server ─▶ tools/call add_game ─▶ GameService
 ```
@@ -91,15 +92,17 @@ de.sluit.mediatracker
 ├── Schema.kt           allTables: every Exposed table object, for the schema drift check; backupSources:
 │                       every domain's BackupSource (decision record 0027)
 ├── config/             AppConfig, DatabaseConfig, SessionConfig, CoverSourceConfig/SteamGridDbConfig,
-│                       DropboxConfig, BackupConfig (typed application.yaml; the SteamGridDB key and the Dropbox
-│                       key/secret pair are optional, absent = no cover source / no Dropbox)
+│                       BookCoverSourceConfig (Open Library, Audible marketplace), DropboxConfig, BackupConfig
+│                       (typed application.yaml; the SteamGridDB key and the Dropbox key/secret pair are
+│                       optional, absent = no cover source / no Dropbox; the book sources need no key)
 ├── common/             shared code in the same three layers as a feature; knows no feature:
 │   ├── api/            shared DTOs (ErrorResponse, HealthResponse, PageResponse<T>; mirrored in
 │   │                   frontend/src/types/api.ts), PatchField (+ serializer), Paging (?page/?pageSize parsing),
 │   │                   Search (?search parsing), QueryParams (repeatable filter values, MAX_FILTER_VALUES,
 │   │                   booleans), McpToolArguments (argument readers and checks), McpSchemas (JSON-schema
 │   │                   fragments of the shared value classes and WireEnums), VocabularyMcpTools (search/create
-│   │                   tools of a name vocabulary)
+│   │                   tools of a name vocabulary), CoverOptionDtos (CoverOptionResponse + page mapper of every
+│   │                   kind's cover picker, decision record 0039)
 │   ├── domain/         InvalidValueException/NotFoundException/requireValid,
 │   │                   ExternalSourceUnavailableException/ExternalSourceException (an outbound source's
 │   │                   503/502, coded by source name), PageNumber/PageSize/PageRequest/Page<T>, Patch<T>, SearchTerm,
@@ -107,7 +110,11 @@ de.sluit.mediatracker
 │   │                   CloudStorage + StoredFile (port: upload a file, find its metadata),
 │   │                   MediaValues (Title, ReleaseYear, ReleaseDate, Description, CoverImageUrl, HexColor),
 │   │                   ReleaseDating (the date-beats-year rules), WireEnum (+ fromWire), Vocabulary
-│   │                   (VocabularyName, VocabularySearchLimit, VocabularyCreation; decision record 0034)
+│   │                   (VocabularyName, VocabularySearchLimit, VocabularyCreation; decision record 0034),
+│   │                   CoverOption (one cover, width/height optional), CoverMatchRanking (RankableMatch,
+│   │                   selectBestMatch; decision record 0039)
+│   ├── integration/    ExternalHttpClient (Ktor client, Java engine, lenient JSON, 10 s timeout) for
+│   │                   SteamGridDB and the book sources
 │   └── persistence/    DatabaseFactory (HikariCP, Flyway migrate, Exposed, drift statements), dbQuery(),
 │                       ExposedBackupSource (generic BackupSource over a list of Exposed tables),
 │                       LocalDateColumnType (DATE bound as java.time.LocalDate via JDBC 4.2, zone-free),
@@ -141,24 +148,31 @@ de.sluit.mediatracker
 │   └── persistence/    OAuthConnectionsTable (system table), ExposedDropboxConnectionRepository
 ├── mcp/                technical domain, api layer only, knows no feature:
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
-├── books/              second media kind (decision record 0034), same layers as games, no integration:
+├── books/              second media kind (decision record 0034), same layers as games:
 │   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types,
 │   │                   /api/book-authors, /api/book-authors.summaries, /api/book-authors/{id}/books,
 │   │                   /api/book-narrators, /api/book-series, /api/book-series.summaries,
-│   │                   /api/book-series/{id}/books), BookFilterParams,
+│   │                   /api/book-series/{id}/books), BookFilterParams, BookCoverOptionDtos and
+│   │                   BookCoverOptionRoutes (/api/books/cover-options and /api/books/title-suggestions,
+│   │                   book-independent, decision record 0039),
 │   │                   BookMcpTools (list_book_types, add_book, search_books, update_book, search/create for
-│   │                   book authors, narrators and series)
+│   │                   book authors, narrators and series, find_book_cover)
 │   ├── domain/         BookValues (BookId, BookTypeId, BookTypeLabel, BookAuthorId, BookNarratorId,
 │   │                   BookSeriesId, BookSeriesPosition), BookStatus (BookOwnership, BookProgress),
 │   │                   Book/NewBook/BookPatch, BookType, BookAuthor, BookNarrator, BookSeries/BookSeriesEntry/
 │   │                   BookSeriesSummary,
 │   │                   BookFilters (incl. BookMissingField)/BookMeta, BookRepository, BookTypeRepository,
 │   │                   BookAuthorRepository, BookNarratorRepository, BookSeriesRepository (interfaces),
-│   │                   BookService, BookAuthorService, BookNarratorService, BookSeriesService
-│   └── persistence/    BooksTable, BookTypesTable, BookToTypeTable, BookAuthorsTable, BookToAuthorTable,
-│                       BookNarratorsTable, BookToNarratorTable, BookSeriesTable, BookToSeriesTable,
-│                       ExposedBookRepository, ExposedBookTypeRepository, ExposedBook{Author,Narrator,Series}Repository
-│                       (delegate to ExposedNameVocabulary), BooksBackupSource (the nine books tables)
+│   │                   BookService, BookAuthorService, BookNarratorService, BookSeriesService,
+│   │                   BookCoverSource (ports BookWorkSource and AudiobookSource, BookCoverSourceKind, BookWorkId,
+│   │                   BookWork, Audiobook, BookCoverOptions/BookCoverLookup/BookTitleSuggestion),
+│   │                   BookCoverOptionsService (find, findFirstCover, suggestTitles, empty on failure)
+│   ├── persistence/    BooksTable, BookTypesTable, BookToTypeTable, BookAuthorsTable, BookToAuthorTable,
+│   │                   BookNarratorsTable, BookToNarratorTable, BookSeriesTable, BookToSeriesTable,
+│   │                   ExposedBookRepository, ExposedBookTypeRepository, ExposedBook{Author,Narrator,Series}Repository
+│   │                   (delegate to ExposedNameVocabulary), BooksBackupSource (the nine books tables)
+│   └── integration/    OpenLibraryWorkSource + OpenLibraryDtos, AudibleAudiobookSource + AudibleDtos
+│                       (decision record 0039)
 └── games/              first media kind (MT-001, decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms, /api/game-developers), GameFilterParams (the repeatable filter query parameters),
@@ -174,9 +188,9 @@ de.sluit.mediatracker
     │                   GameDeveloperService,
     │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
     │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
-    │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate/
-    │                   CoverOption/CoverOptions/CoverLookup (findCovers takes the page size), CoverMatchRanking
-    │                   (selectBestMatch), CoverOptionsService (find for the picker, findFirstCover for MCP,
+    │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate
+    │                   (a RankableMatch)/CoverOptions/CoverLookup (findCovers takes the page size),
+    │                   CoverOptionsService (find for the picker, findFirstCover for MCP,
     │                   suggestTitles for the form, empty on failure)
     ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable,
     │                   GameDevelopersTable, GameToDeveloperTable (Exposed),
@@ -224,6 +238,8 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds`/`narratorIds`/`series` replace the set (may be empty); 404 for unknown ids |
 | `DELETE /api/books/{id}` | 204 | idempotent; junction rows cascade |
 | `GET /api/books.meta` | 200 `BookMetaResponse` | `types`, `ownership`, `progress`, `releaseYears` in use, ordered as for games |
+| `GET /api/books/cover-options?query=dune[&releaseYear=1965][&source=audiobook][&match=OL893415W][&page=2]` | 200 `BookCoverOptionsResponse {query, source, matches, selectedMatchId, covers}` | book cover picker (decision record 0039), book-independent; `source` `book` (default, Open Library: `matches` are works, `selectedMatchId` the ranked pick, `covers` that work's and its editions' covers) or `audiobook` (Audible: `matches` empty, `covers` the product images of a keyword search); `match` (`OL<n>W`) only with `book`, with `audiobook` a 400; `query`, `releaseYear` and `page` as for games, 50 covers per page; `502 open_library_error` / `502 audible_error` when the provider fails, never 503 |
+| `GET /api/books/title-suggestions?query=dune[&source=audiobook]` | 200 `BookTitleSuggestionsResponse {suggestions}` | up to 8 `{name, authors, narrators, releaseYear, source}` from the chosen source, deduplicated by title and first author; a failing provider yields an empty list (decision record 0026) |
 | `GET /api/book-types` | 200 `BookTypeResponse[]` | seeded (Hardcover, Paperback, Kindle, Audible; `id`, `label`, `associatedColor`), ordered by label |
 | `GET /api/book-authors?search=le&limit=10` / `POST /api/book-authors` | 200 `BookAuthorResponse[]` / 201 or 200 `BookAuthorResponse` | as `/api/game-developers` |
 | `GET /api/book-narrators` / `POST /api/book-narrators` | 200 `BookNarratorResponse[]` / 201 or 200 `BookNarratorResponse` | as `/api/game-developers` |
@@ -269,10 +285,13 @@ frontend/src
 ├── hooks/                useActiveRoute (kind + sub-page of the location), useDebouncedValue (search fields),
 │                         useSearchDebounceMs (SEARCH_DEBOUNCE_MS + context, tests shorten it), useViewParams,
 │                         useUrlSearchInput, usePagedActions (pagination bars + page corrections), useLoadOnce
-│                         (meta and reference lists), useVocabularySuggestions (debounced vocabulary lookup)
+│                         (meta and reference lists), useVocabularySuggestions (debounced vocabulary lookup),
+│                         useCoverOptions (paged cover picker state, any kind), useTitleSuggestions (debounced
+│                         suggestions with a request key; decision record 0039)
 ├── domain/media/         kind-neutral pure TS (record 0034): values (validators returning i18n codes),
 │                         releaseDate (fixed YYYY-MM-DD format), draft (normalisers, withReleaseDate),
-│                         vocabularyDraft (pending names, resolveVocabularyIds), viewParams (URL field codecs)
+│                         vocabularyDraft (pending names, resolveVocabularyIds), viewParams (URL field codecs),
+│                         coverThumbnail (isVideoThumbnail)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker; aspect
@@ -281,8 +300,11 @@ frontend/src
 │                         ReleaseSortToggle (ADR 0038), ReleaseInfo, ReleaseDistanceChip, CoverAndInfoLayout,
 │                         ColorChip(s), DetailField, ReleaseDetail, NameChips, status/
 │                         (StatusToggleBar: exclusive or multiple icon toggles, StatusFilterBar, StatusIcon),
+│                         cover/ (CoverPickerDialog: paged thumbnails with optional match select and variant
+│                         toggle; CoverThumbnail: image or <video> for WebM, aspect ratio per kind),
 │                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
 │                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField,
+│                         SuggestingTitleField (freeSolo Autocomplete over any suggestion type),
 │                         ColoredOptionsField, FieldLegend))
 ├── features/settings/    UserSettingsDialog (tab bar; "Password" (default), "API Keys" and "Export / Import" tabs) +
 │                         api/ (settingsApi, backupApi, dropboxApi), hooks/ (useApiKeys, useExportImport, useDropbox,
@@ -303,14 +325,16 @@ frontend/src
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
 │                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,
-│                         fields/SeriesPositionField, fields/BookTypesField)
+│                         fields/SeriesPositionField, fields/BookTypesField, fields/BookTitleField (suggestions),
+│                         BookCoverPickerDialog (book/audiobook toggle); domain/bookCoverSource picks the default
+│                         source from the types and narrators)
 └── features/games/       GamesView (overview: MediaViewHeader = search field / filter bar /
                           ResultsBar: count + top pagination),
                           GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,
                           ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
                           games.meta, cover-options, title-suggestions;
-                          expansionsApi), hooks/ (useGamesPage, useAllGames, useGamesMeta, useGamePlatforms, useExpansions, useCoverOptions,
-                          useTitleSuggestions), domain/ (gameValues validators,
+                          expansionsApi), hooks/ (useGamesPage, useAllGames, useGamesMeta, useGamePlatforms, useExpansions),
+                          domain/ (gameValues validators,
                           gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
                           URL query codecs of the three views, gameStatus:
                           ownership/progress values and defaults, rankingYears: the ranking's year list),
@@ -321,12 +345,11 @@ frontend/src
                           ProgressToggleBar + OwnershipToggleBar + StatusFilterToggles (overview progress/ownership filter) +
                           OverviewFilters (toggles + standard selects in the results row), detail/add dialogs,
                           fields/, ExpansionList/ExpansionCard:
-                          the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog:
-                          SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the
+                          the sortable DLC stack inside the detail dialog, ExpansionDialog, CoverPickerDialog
+                          (wrapper over the shared one): SteamGridDB thumbnails behind the clickable cover of the detail dialog and of the
                           add/edit form (persistence-agnostic: the detail dialog PATCHes the pick, the form
                           fills its URL field), with a static/animated toggle and a load-more button over the
-                          paged result;
-                          CoverThumbnail: <video> for the WebM clips SteamGridDB uses as animated thumbnails)
+                          paged result)
 ```
 
 Beyond React, MUI and i18next, the frontend has two runtime dependencies:
@@ -388,6 +411,10 @@ ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + l
 - `STEAMGRIDDB_API_KEY` is optional: with it the cover picker queries SteamGridDB through
   `games/integration/SteamGridDbCoverSource` (Ktor client, JDK `HttpClient` engine, 10 s timeout); without it
   the endpoint answers `503 cover_source_unavailable` and the picker says so. Decision record 0024.
+- The book cover picker and title suggestions call Open Library and the unofficial Audible catalog API
+  (`AUDIBLE_MARKETPLACE`, default `de`) without a key, so the server needs outbound access to `openlibrary.org` and
+  `api.audible.<marketplace>`; the browser loads the covers from `covers.openlibrary.org` and
+  `m.media-amazon.com` (all hosts under "Outbound hosts" below). Decision record 0039.
 - `DROPBOX_APP_KEY` and `DROPBOX_APP_SECRET` (a pair) enable the Dropbox backup. The refresh token comes from
   the in-app connect flow and lives in `oauth_connections`. `BackupScheduler` is a coroutine in the application
   scope, cancelled with it. It uploads the export daily at `BACKUP_DAILY_AT` (default `03:00`) in `BACKUP_ZONE`
@@ -400,6 +427,36 @@ ghcr.io/slu-it/media-tracker:{latest,sha-<short>}   (master.yml, linux/arm64 + l
   schema itself. A pre-Flyway database (tables but no history table) stops startup with a clear error.
 - Static assets are served `Cache-Control: private`; Vite's hashed `/assets/*` may be cached for a year,
   `index.html` never.
+
+### Outbound hosts
+
+Covers are hotlinked (decision records 0024, 0039), so the hosts fall into two groups: the server calls the
+provider APIs, and the user's browser loads the images. On the Pi only the server group needs outbound access. In
+the dev sandbox both groups do, because the server and the Playwright Chromium both run inside it. The sandbox
+allow list lives in the kit (`sbxenv.yaml` -> `media-tracker-sbx-kit`), not in this repository, so keep the
+two in step when a provider is added.
+
+Called by the server (JVM):
+
+| Host | Used for | Needed when |
+|---|---|---|
+| `www.steamgriddb.com` | game cover picker, game title suggestions, `find_game_cover` | `STEAMGRIDDB_API_KEY` is set |
+| `api.dropboxapi.com`, `content.dropboxapi.com` | token exchange, refresh and revoke; backup upload and metadata | `DROPBOX_APP_KEY`/`DROPBOX_APP_SECRET` are set |
+| `openlibrary.org` | book search, works and editions (`book` source) | always |
+| `api.audible.<marketplace>` (default `api.audible.de`) | audiobook search (`audiobook` source) | always |
+
+Loaded by the browser:
+
+| Host | Used for |
+|---|---|
+| `cdn2.steamgriddb.com` | game cover thumbnails and saved game covers |
+| `covers.openlibrary.org`, which redirects to `archive.org` (and possibly on to `*.us.archive.org`) | book covers from Open Library |
+| `m.media-amazon.com` | audiobook covers from Audible |
+| `www.dropbox.com` | the authorize page behind "Open Dropbox" |
+| any host in a hand-entered cover URL | covers typed in by hand |
+
+Without a server host, the feature answers `502 <source>_error`, or empty title suggestions. Without a browser
+host, the covers stay blank: the picker shows empty frames and the console reports the failed image loads.
 
 ## Schema migrations
 

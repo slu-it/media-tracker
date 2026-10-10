@@ -123,7 +123,7 @@ describe("BookSeriesView", () => {
     ]);
     books = [mistbornBooks[1], mistbornBooks[0], mistbornBooks[2]];
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
-    const title = within(dialog).getByRole("textbox", { name: /title/i });
+    const title = within(dialog).getByRole("combobox", { name: /title/i });
     await user.clear(title);
     await user.paste("Renamed");
     await user.click(within(dialog).getByRole("button", { name: "Save" }));

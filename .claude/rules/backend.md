@@ -7,7 +7,8 @@ paths:
 **Packages.** Top-level packages are domains (ADR 0010): business domains (`games`, `books`, later movies/series),
 the technical domain `auth`, and the shared `common` are onion modules `{api,domain,persistence}` (ADR 0007),
 dependencies `api -> domain <- persistence`, plus `integration -> domain` (and `config` for its own settings)
-for outbound HTTP adapters to third-party services (ADR 0024, `games/integration/`). `mcp` has an `api` layer only
+for outbound HTTP adapters to third-party services (ADR 0024, `games/integration/`, `books/integration/`; build
+the client with `common/integration/ExternalHttpClient`, ADR 0039). `mcp` has an `api` layer only
 and imports no feature. `common/`, `plugins/` and `config/` never import a feature package. The composition root
 is the package root: `Application.kt` (wiring), `Routes.kt` (route mounting), `Schema.kt` (`allTables`,
 `backupSources`). `backup` knows only the `BackupSource` and `CloudStorage` ports in `common/domain` and imports no feature (ADR
@@ -23,15 +24,16 @@ via `requireValid(field, cond) { reason }` -> `InvalidValueException` -> HTTP 40
 `ExternalSourceUnavailableException` / `ExternalSourceException` -> 503 `<source>_unavailable` / 502
 `<source>_error`. Map every new exception there. `common/domain` holds the framework-free primitives (`Page*`,
 `Patch`, `SearchTerm`, exceptions) and the shared media values (`MediaValues`, `ReleaseDating`, `WireEnum` for
-per-kind status enums, `Vocabulary`), `common/api` the shared DTOs, paging, `?search` parsing (`Search.kt`),
+per-kind status enums, `Vocabulary`, `CoverOption`, `RankableMatch`/`selectBestMatch`), `common/api` the shared
+DTOs (incl. `CoverOptionResponse`), paging, `?search` parsing (`Search.kt`),
 `PatchField` (absent / null / value), filter query parsing (`QueryParams`) and the MCP helpers (`McpToolArguments`,
 `McpSchemas`, `VocabularyMcpTools`), `common/persistence` HikariCP, Flyway, `dbQuery`, the fulltext and title
 search helpers and `ExposedNameVocabulary` (ADR 0034). Use these before writing a kind-specific copy.
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,
-coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
-only when their keys are configured) -> `launch { BackupScheduler(...).run() }` on the application scope (ADR
+coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
+only when their keys are configured; the keyless Open Library and Audible clients always) -> `launch { BackupScheduler(...).run() }` on the application scope (ADR
 0028) ->
 `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
 persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) -> routes

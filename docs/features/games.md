@@ -79,17 +79,20 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
 Since books (ADR 0034) the kind-neutral parts of games live in shared files that every kind uses; each kind keeps
 its own explicit components on top.
 
-- Backend: `common/domain` (`MediaValues`, `ReleaseDating`, `WireEnum`, `Vocabulary`), `common/persistence`
-  (`FulltextQuery`, `FulltextExpressions`, `TitleSearch`, `FilterOps`, `ExposedNameVocabulary`), `common/api`
-  (`QueryParams`, `McpToolArguments`, `McpSchemas`, `VocabularyMcpTools`). Status enums stay per kind.
+- Backend: `common/domain` (`MediaValues`, `ReleaseDating`, `WireEnum`, `Vocabulary`, `CoverOption`,
+  `CoverMatchRanking`), `common/persistence` (`FulltextQuery`, `FulltextExpressions`, `TitleSearch`, `FilterOps`,
+  `ExposedNameVocabulary`), `common/api` (`QueryParams`, `McpToolArguments`, `McpSchemas`, `VocabularyMcpTools`,
+  `CoverOptionDtos`), `common/integration` (`ExternalHttpClient`; ADR 0039). Status enums stay per kind.
 - Frontend: `src/components/media/` (view header, search field, results bar, pagination, grid, card shell,
   cover-and-info layout, colour chips, detail helpers, `status/` toggle and filter bars, `filters/FilterSelect`,
-  `fields/`), `src/domain/media/` (validators, release date, draft and vocabulary helpers, URL field codecs),
-  `src/hooks/` (`useViewParams`, `useUrlSearchInput`, `usePagedActions`, `useLoadOnce`,
-  `useVocabularySuggestions`).
+  `fields/` incl. `SuggestingTitleField`, `cover/` with `CoverPickerDialog` and `CoverThumbnail`), `src/domain/media/`
+  (validators, release date, draft and vocabulary helpers, URL field codecs, `coverThumbnail`), `src/hooks/`
+  (`useViewParams`, `useUrlSearchInput`, `usePagedActions`, `useLoadOnce`, `useVocabularySuggestions`,
+  `useCoverOptions`, `useTitleSuggestions`; ADR 0039).
 - i18n: kind-neutral strings under `media.*` (field labels, `-all-`, clear, no cover, "Add …"); kind-specific
   texts (counts, empty states, value labels, dimmed hints) stay under `games.*`/`books.*` and are passed to the
   shared components as props.
 - The games components keep their names as thin wrappers where they bind games data: `GamesGrid`,
   `StatusFilterToggles`, `PlatformsField` (`ColoredOptionsField`, required), `DevelopersField`
-  (`VocabularyField`), `GameTitleField` (adds title suggestions to `TitleField`).
+  (`VocabularyField`), `GameTitleField` (`SuggestingTitleField` plus the verified icon), `CoverPickerDialog` (the shared dialog with the
+  static/animated toggle).

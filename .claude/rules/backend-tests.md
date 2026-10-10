@@ -18,7 +18,7 @@ Testcontainers `mariadb:11.8` per test JVM); nothing is skipped without it.
   `withFreshDatabase` truncates every table in `allTables` except the seeded `game_platforms` and `book_types`, and Exposed's
   default database is pinned to that shared pool.
 - **Handler tests** (`<feature>/api/<Feature>RoutesTest`, `auth/api/AuthRoutesTest`, root `RoutesTest`):
-  `testApplication` + `handlerApp(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries)` from `test/.../TestApp.kt`,
+  `testApplication` + `handlerApp(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions)` from `test/.../TestApp.kt`,
   which boots `configureHttp` with MockK services (every parameter defaulted) and `SessionStorageMemory`, no
   database; `loginAsMocked(auth)` logs in through the real `/login`. They own status codes, headers,
   (de)serialization, `PatchField` mapping (`coVerify` the domain value the service receives) and every negative
@@ -29,7 +29,8 @@ Testcontainers `mariadb:11.8` per test JVM); nothing is skipped without it.
   coordinates, cheap `PasswordHasher(memoryKb = 1024, iterations = 1)` for the seeded user, `loginAs`,
   `decodeBody`, `jsonBody`). Happy paths only, at least one valid request per operation. `mcp/McpSmokeTest`
   drives the real module through the SDK's `kotlin-sdk-client`. `application-test.yaml` pins
-  `STEAMGRIDDB_API_KEY` empty, so the cover endpoint's smoke path is the 503.
+  `STEAMGRIDDB_API_KEY` empty, so the cover endpoint's smoke path is the 503, and points the book cover sources
+  (Open Library, Audible) at the unreachable `http://127.0.0.1:9`, so theirs is the 502 and suggestions are empty.
 - **Infrastructure edge cases**: `DbSessionStorage`, `StatusPages` in an isolated app, `AppConfig` via
   `MapApplicationConfig`, `CreateUser.run()`.
 

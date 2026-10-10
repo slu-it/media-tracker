@@ -14,7 +14,8 @@ Books is the second media kind. Its first version is the games overview equivale
 paged, searchable, filterable list at `/books/overview`, plus MCP tools. `/books/watchlist` (MT-055) lists the
 books still to get, by release. Two more sub-pages list books by group: `/books/authors` (MT-046) by author,
 `/books/series` (MT-043) by series in order. There is no ranking sub-page, no rating, no hidden flag, no
-expansions and no cover picker yet.
+expansions. Covers and title suggestions come from Open Library and the Audible catalog
+([cover picker](cover-picker.md#books), [title suggestions](title-suggestions.md#books), ADR 0039).
 
 ## Domain
 
@@ -50,6 +51,8 @@ expansions and no cover picker yet.
 | `PATCH /api/books/{id}` | `PatchField` for description, cover URL and date (`null` clears); `typeIds`/`authorIds`/`narratorIds`/`series` replace the set |
 | `DELETE /api/books/{id}` | 204 |
 | `GET /api/books.meta` | Filter values in use: types, ownership, progress, release years (newest first) |
+| `GET /api/books/cover-options?query=&releaseYear=&source=&match=&page=` | Cover picker: Open Library (`book`) or Audible (`audiobook`) covers, 50 per page; `502 <source>_error` on provider failure ([cover picker](cover-picker.md#books), ADR 0039) |
+| `GET /api/books/title-suggestions?query=&source=` | Up to 8 title suggestions with authors, narrators and year; empty on provider failure ([title suggestions](title-suggestions.md#books)) |
 | `GET /api/book-types` | The seeded types |
 | `GET`/`POST /api/book-authors` | Lookup (`search`, `limit` 1..50, default 10) and idempotent create (201 new, 200 existing) |
 | `GET`/`POST /api/book-narrators` | As `/api/book-authors` |
@@ -68,8 +71,9 @@ hits first (`common/persistence/TitleSearch.kt`).
 `releaseYears`, agent-only `hasMissing` with `description`/`coverImageUrl`, `sort` as on REST, `pageSize`
 default 10, maximum 100),
 `update_book` (description, cover URL and date clearable with `null`), `search_book_authors`,
-`create_book_author`, `search_book_narrators`, `create_book_narrator`, `search_book_series` and
-`create_book_series`. Agents look up authors, narrators and series first, create missing ones, then add or update
+`create_book_author`, `search_book_narrators`, `create_book_narrator`, `search_book_series`,
+`create_book_series` and `find_book_cover` (`title`, optional `releaseYear` and `source` `book`/`audiobook`; the first
+cover of the best match, [cover picker](cover-picker.md#books)). Agents look up authors, narrators and series first, create missing ones, then add or update
 the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`, replaced as a whole on update). There is no delete tool, as for games.
 
 ## Frontend

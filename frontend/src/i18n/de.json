@@ -119,6 +119,16 @@
     }
   },
   "media": {
+    "coverPicker": {
+      "title": "Cover auswählen",
+      "search": "Suchbegriff",
+      "pick": "Cover {{index}} verwenden",
+      "loadFailed": "Covervorschläge konnten nicht geladen werden.",
+      "shownOfTotal_one": "{{shown}} von {{count}} Cover",
+      "shownOfTotal_other": "{{shown}} von {{count}} Covern",
+      "loadMore": "Mehr laden",
+      "enterTerm": "Suchbegriff eingeben, um Cover zu suchen."
+    },
     "noCover": "Kein Coverbild",
     "coverPreview": "Cover-Vorschau",
     "search": {
@@ -153,6 +163,19 @@
   "books": {
     "watchlist": {
       "empty": "Deine Merkliste ist leer."
+    },
+    "coverPicker": {
+      "open": "Coverbild auswählen",
+      "match": "Passendes Buch",
+      "noMatches": "Keine Bücher für „{{term}}“ gefunden",
+      "noMatchesAudiobook": "Keine Hörbücher für „{{term}}“ gefunden",
+      "noCovers": "Keine Cover für dieses Buch verfügbar.",
+      "unavailable": "Die Cover-Suche ist derzeit nicht verfügbar.",
+      "attributionBook": "Cover von Open Library",
+      "attributionAudiobook": "Cover von Audible",
+      "source": "Cover-Quelle",
+      "sourceBook": "Buch",
+      "sourceAudiobook": "Hörbuch"
     },
     "addBook": "Buch hinzufügen",
     "bookDetails": "Buchdetails",
@@ -271,22 +294,14 @@
     "notRated": "Noch nicht bewertet",
     "coverPicker": {
       "open": "Coverbild auswählen",
-      "title": "Cover auswählen",
-      "search": "Suchbegriff",
       "match": "Passendes Spiel",
-      "pick": "Cover {{index}} verwenden",
       "noMatches": "Keine Spiele für „{{term}}“ gefunden",
       "noCovers": "Für dieses Spiel sind keine Cover verfügbar.",
       "unavailable": "Die Coversuche ist auf diesem Server nicht konfiguriert (STEAMGRIDDB_API_KEY).",
-      "loadFailed": "Covervorschläge konnten nicht geladen werden.",
       "attribution": "Cover von SteamGridDB",
       "type": "Covertyp",
       "typeStatic": "Statisch",
-      "typeAnimated": "Animiert",
-      "shownOfTotal_one": "{{shown}} von {{count}} Cover",
-      "shownOfTotal_other": "{{shown}} von {{count}} Covern",
-      "loadMore": "Mehr laden",
-      "enterTerm": "Suchbegriff eingeben, um Cover zu suchen."
+      "typeAnimated": "Animiert"
     },
     "expansions": {
       "heading": "Erweiterungen",

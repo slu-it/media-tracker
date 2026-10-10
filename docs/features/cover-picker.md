@@ -1,9 +1,11 @@
 # Cover picker (MT-017)
 
-ADR: [0024](../decisions/0024-cover-picker-steamgriddb.md). Code: `games/domain/CoverSource.kt` (port),
-`games/domain/CoverOptionsService.kt` (orchestrator), `games/domain/CoverMatchRanking.kt`,
+ADR: [0024](../decisions/0024-cover-picker-steamgriddb.md), books [0039](../decisions/0039-book-cover-picker-and-title-suggestions.md).
+Code: `games/domain/CoverSource.kt` (port), `games/domain/CoverOptionsService.kt` (orchestrator),
+`common/domain/CoverMatchRanking.kt` and `common/domain/CoverOption.kt` (shared with books),
 `games/integration/SteamGridDbCoverSource.kt` (the only class that knows SteamGridDB),
-`games/api/CoverOptionRoutes.kt`, `frontend/src/features/games/components/CoverPickerDialog.tsx`.
+`games/api/CoverOptionRoutes.kt`, `frontend/src/components/media/cover/CoverPickerDialog.tsx` (shared dialog, with
+`hooks/useCoverOptions.ts`) and its games wrapper `frontend/src/features/games/components/CoverPickerDialog.tsx`.
 
 ## Flow
 
@@ -37,3 +39,27 @@ ADR: [0024](../decisions/0024-cover-picker-steamgriddb.md). Code: `games/domain/
   and ranking, then one static cover with page size 1. It returns the image URL and the matched game (name, year,
   verified) so an agent can reject a wrong match; no match or no cover is a plain "not found" result. The tool is
   only registered when a cover source is configured (`CoverOptionsService.isAvailable`).
+
+## Books
+
+ADR [0039](../decisions/0039-book-cover-picker-and-title-suggestions.md). Code: `books/domain/BookCoverSource.kt`
+(ports `BookWorkSource`, `AudiobookSource`), `books/domain/BookCoverOptionsService.kt`,
+`books/integration/{OpenLibraryWorkSource,AudibleAudiobookSource}.kt`, `books/api/BookCoverOptionRoutes.kt`,
+`frontend/src/features/books/components/BookCoverPickerDialog.tsx`, `features/books/domain/bookCoverSource.ts`.
+
+- Same shared dialog and the same two entry points: the clickable cover in the detail dialog (view mode PATCHes
+  `coverImageUrl`) and the cover preview in `BookForm` (fills the URL field). Thumbnails use the 2:3 book frame;
+  Audible's square covers are letterboxed.
+- `GET /api/books/cover-options?query=[&releaseYear=&source=&match=&page=]`. A Book/Audiobook toggle in the picker
+  sets `source`; it starts on every open at `defaultCoverSource`: `audiobook` when a selected type is Audible
+  (by id or label) or narrators are set, else `book`.
+- `book` (Open Library): matches are works from `search.json`, ranked by the shared `selectBestMatch` among those with a cover (all of them when none has one); the covers
+  are the work's own plus those of up to 1000 editions (one `editions.json` call), deduplicated and paged in
+  memory, `-M.jpg` thumbnails, `-L.jpg` full size. Every request sends the configured User-Agent.
+- `audiobook` (Audible catalog, `AUDIBLE_MARKETPLACE`, default `de`): a `keywords` search, one cover per product
+  (1024 px, else 500 px), no matches, Audible's own paging (0-based upstream, 50 per page). `match` with
+  `audiobook` is a 400.
+- Both sources are keyless and always wired: no 503. A failing provider is `502 open_library_error` /
+  `502 audible_error`; `application-test.yaml` points both at an unreachable address, so that is the smoke path.
+- MCP tool `find_book_cover` (`books/api/BookMcpTools.kt`): `title`, optional `releaseYear` and `source`; the first
+  cover of the best match plus its title, authors and year, or "not found". Always registered.

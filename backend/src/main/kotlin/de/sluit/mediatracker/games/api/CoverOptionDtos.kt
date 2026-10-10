@@ -1,7 +1,8 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.api.CoverOptionResponse
 import de.sluit.mediatracker.common.api.PageResponse
-import de.sluit.mediatracker.common.api.toResponse
+import de.sluit.mediatracker.common.api.toCoverResponse
 import de.sluit.mediatracker.games.domain.CoverCandidate
 import de.sluit.mediatracker.games.domain.CoverOptions
 import kotlinx.serialization.Serializable
@@ -11,10 +12,6 @@ import kotlinx.serialization.Serializable
 /** One SteamGridDB game found for a search term. */
 @Serializable
 data class CoverMatchResponse(val id: Long, val name: String, val releaseYear: Int?, val verified: Boolean)
-
-/** One selectable cover image, in both a thumbnail and its full-size form. */
-@Serializable
-data class CoverOptionResponse(val thumbnailUrl: String, val imageUrl: String, val width: Int, val height: Int)
 
 /** GET /api/games/cover-options */
 @Serializable
@@ -44,12 +41,5 @@ fun CoverOptions.toResponse() = CoverOptionsResponse(
     matches = matches.map { it.toResponse() },
     selectedMatchId = selectedMatchId?.value,
     type = type.wire,
-    covers = covers.toResponse {
-        CoverOptionResponse(
-            thumbnailUrl = it.thumbnailUrl.value,
-            imageUrl = it.imageUrl.value,
-            width = it.width,
-            height = it.height,
-        )
-    },
+    covers = covers.toCoverResponse(),
 )

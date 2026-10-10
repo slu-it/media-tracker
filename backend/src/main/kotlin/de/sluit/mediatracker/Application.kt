@@ -14,14 +14,18 @@ import de.sluit.mediatracker.backup.api.JsonBackupCodec
 import de.sluit.mediatracker.backup.domain.BackupService
 import de.sluit.mediatracker.backup.domain.CloudBackupService
 import de.sluit.mediatracker.books.domain.BookAuthorService
+import de.sluit.mediatracker.books.domain.BookCoverOptionsService
 import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.integration.AudibleAudiobookSource
+import de.sluit.mediatracker.books.integration.OpenLibraryWorkSource
 import de.sluit.mediatracker.books.persistence.ExposedBookAuthorRepository
 import de.sluit.mediatracker.books.persistence.ExposedBookNarratorRepository
 import de.sluit.mediatracker.books.persistence.ExposedBookRepository
 import de.sluit.mediatracker.books.persistence.ExposedBookSeriesRepository
 import de.sluit.mediatracker.books.persistence.ExposedBookTypeRepository
+import de.sluit.mediatracker.common.integration.externalHttpClient
 import de.sluit.mediatracker.common.persistence.DatabaseFactory
 import de.sluit.mediatracker.config.AppConfig
 import de.sluit.mediatracker.config.SessionConfig
@@ -68,6 +72,7 @@ class Services(
     val bookAuthors: BookAuthorService,
     val bookNarrators: BookNarratorService,
     val bookSeries: BookSeriesService,
+    val bookCoverOptions: BookCoverOptionsService,
 )
 
 /**
@@ -142,6 +147,17 @@ fun Application.module() {
         log.info("cover source: not configured (STEAMGRIDDB_API_KEY unset)")
     }
     val coverOptionsService = CoverOptionsService(coverSource)
+
+    val bookCoverClient = externalHttpClient()
+    coroutineContext.job.invokeOnCompletion { bookCoverClient.close() }
+    val bookCoverOptionsService = BookCoverOptionsService(
+        OpenLibraryWorkSource(bookCoverClient, config.bookCoverSource.openLibrary),
+        AudibleAudiobookSource(bookCoverClient, config.bookCoverSource.audible),
+    )
+    log.info(
+        "book cover sources: open library (${config.bookCoverSource.openLibrary.baseUrl}), " +
+            "audible (${config.bookCoverSource.audible.baseUrl})",
+    )
     val backupService = BackupService(backupSources)
 
     val dropboxBackend = config.dropbox?.let { dropboxConfig ->
@@ -174,6 +190,7 @@ fun Application.module() {
         bookAuthorService,
         bookNarratorService,
         bookSeriesService,
+        bookCoverOptionsService,
     )
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))

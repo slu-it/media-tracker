@@ -1,7 +1,9 @@
-package de.sluit.mediatracker.games.domain
+package de.sluit.mediatracker.common.domain
 
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.games.domain.CoverCandidate
+import de.sluit.mediatracker.games.domain.CoverSourceGameId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

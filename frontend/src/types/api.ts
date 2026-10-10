@@ -149,8 +149,8 @@ export interface CoverMatchResponse {
 export interface CoverOptionResponse {
   thumbnailUrl: string;
   imageUrl: string;
-  width: number;
-  height: number;
+  width: number | null;
+  height: number | null;
 }
 
 /** Mirrors the Kotlin `CoverType` enum in games/domain/CoverSource.kt. */
@@ -172,6 +172,40 @@ export interface CoverOptionsResponse {
 /** Response of `GET /api/games/title-suggestions`; mirrors `TitleSuggestionsResponse`. */
 export interface TitleSuggestionsResponse {
   suggestions: CoverMatchResponse[];
+}
+
+/** Mirrors the Kotlin `BookCoverSourceKind` wire values in books/domain/BookCoverSource.kt. */
+export type BookCoverSource = "book" | "audiobook";
+
+/** One Open Library work matching a search term; mirrors `BookCoverMatchResponse` in books/api/BookCoverOptionDtos.kt. */
+export interface BookCoverMatchResponse {
+  id: string;
+  name: string;
+  authors: string[];
+  releaseYear: number | null;
+}
+
+/** Response of `GET /api/books/cover-options`; mirrors `BookCoverOptionsResponse`. `matches` is empty for audiobooks. */
+export interface BookCoverOptionsResponse {
+  query: string;
+  source: BookCoverSource;
+  matches: BookCoverMatchResponse[];
+  selectedMatchId: string | null;
+  covers: PageResponse<CoverOptionResponse>;
+}
+
+/** One title suggestion; mirrors `BookTitleSuggestionResponse`. `narrators` is empty for the `book` source. */
+export interface BookTitleSuggestionResponse {
+  name: string;
+  authors: string[];
+  narrators: string[];
+  releaseYear: number | null;
+  source: BookCoverSource;
+}
+
+/** Response of `GET /api/books/title-suggestions`; mirrors `BookTitleSuggestionsResponse`. */
+export interface BookTitleSuggestionsResponse {
+  suggestions: BookTitleSuggestionResponse[];
 }
 
 export interface ExpansionResponse {

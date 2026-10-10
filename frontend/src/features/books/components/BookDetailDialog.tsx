@@ -12,8 +12,10 @@ import { DialogActionButton } from "../../../components/dialog/DialogActionButto
 import { MEDIA_DIALOG_HEIGHT } from "../../../components/media/dialogLayout";
 import type { BookResponse, BookTypeResponse, UpdateBookRequest } from "../../../types/api";
 import { deleteBook, resolveAuthorIds, resolveNarratorIds, resolveSeries, updateBook } from "../api/booksApi";
+import { defaultCoverSource } from "../domain/bookCoverSource";
 import { draftFromBook, isDraftDirty, isDraftValid, toUpdateRequest } from "../domain/bookDraft";
 import type { BookOwnership, BookProgress } from "../domain/bookStatus";
+import { BookCoverPickerDialog } from "./BookCoverPickerDialog";
 import { BookDetails } from "./BookDetails";
 import { BookForm } from "./BookForm";
 
@@ -64,6 +66,7 @@ function BookDetailDialogContent({
   // represented there; see `BookForm`'s `onValidityChange`.
   const [formValid, setFormValid] = useState(true);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [coverPickerOpen, setCoverPickerOpen] = useState(false);
 
   const startEditing = () => {
     setDraft(draftFromBook(book, i18n.language));
@@ -179,6 +182,7 @@ function BookDetailDialogContent({
         <BookDetails
           book={pending === null ? book : { ...book, ...pending }}
           titleId={TITLE_ID}
+          onPickCover={() => setCoverPickerOpen(true)}
           onOwnershipChange={(next) => void changeOwnership(next)}
           onProgressChange={(next) => void changeProgress(next)}
           quickSaveBusy={busy}
@@ -186,6 +190,19 @@ function BookDetailDialogContent({
       ) : (
         <BookForm value={draft} onChange={setDraft} types={types} disabled={busy} onValidityChange={setFormValid} />
       )}
+      <BookCoverPickerDialog
+        open={coverPickerOpen}
+        onClose={() => setCoverPickerOpen(false)}
+        initialQuery={book.title}
+        releaseYear={book.releaseYear}
+        currentCoverUrl={book.coverImageUrl}
+        defaultSource={defaultCoverSource(book)}
+        onPick={async (coverImageUrl) => {
+          const updated = await updateBook(book.id, { coverImageUrl });
+          setCoverPickerOpen(false);
+          onSaved(updated);
+        }}
+      />
       <ConfirmDialog
         open={confirmOpen}
         question={t("books.deleteQuestion", { title: book.title })}
