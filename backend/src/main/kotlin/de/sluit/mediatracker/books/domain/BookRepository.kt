@@ -1,7 +1,9 @@
 package de.sluit.mediatracker.books.domain
 
+import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -74,6 +76,9 @@ interface BookTypeRepository {
     suspend fun findByIds(ids: Set<BookTypeId>): List<BookType>
 }
 
+/** Result of deleting a vocabulary entry (author, series); only an unreferenced entry is deleted. */
+enum class DeleteOutcome { DELETED, NOT_FOUND, IN_USE }
+
 /**
  * Persistence port of the user-grown author vocabulary. Implemented in `books.persistence`; the domain never
  * imports that package, so dependencies point inward only.
@@ -92,6 +97,22 @@ interface BookAuthorRepository {
 
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookAuthor>
+
+    /** Deletes the author unless a book still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: BookAuthorId): DeleteOutcome
+
+    /**
+     * Renames the author. [RenameOutcome.Taken] when another author carries the name (case/accent-insensitively);
+     * a spelling that only differs from the author's own name that way is a plain rename.
+     */
+    suspend fun rename(id: BookAuthorId, name: VocabularyName): RenameOutcome<BookAuthor>
+
+    /**
+     * Folds [sourceId] into [targetId] in one transaction: every book of the source becomes a book of the target
+     * (once), then the source is deleted. [MergeOutcome.SourceNotFound] / [MergeOutcome.TargetNotFound] when that
+     * entry does not exist.
+     */
+    suspend fun merge(sourceId: BookAuthorId, targetId: BookAuthorId): MergeOutcome<BookAuthor>
 }
 
 /**
@@ -129,4 +150,21 @@ interface BookSeriesRepository {
 
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookSeries>
+
+    /** Deletes the series unless a book still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: BookSeriesId): DeleteOutcome
+
+    /**
+     * Renames the series. [RenameOutcome.Taken] when another series carries the name (case/accent-insensitively);
+     * a spelling that only differs from the series' own name that way is a plain rename.
+     */
+    suspend fun rename(id: BookSeriesId, name: VocabularyName): RenameOutcome<BookSeries>
+
+    /**
+     * Folds [sourceId] into [targetId] in one transaction: every book of the source becomes a book of the target
+     * (once), then the source is deleted. A book in both keeps the target's position, or the source's when the
+     * target's is null. [MergeOutcome.SourceNotFound] / [MergeOutcome.TargetNotFound] when that entry does not
+     * exist.
+     */
+    suspend fun merge(sourceId: BookSeriesId, targetId: BookSeriesId): MergeOutcome<BookSeries>
 }

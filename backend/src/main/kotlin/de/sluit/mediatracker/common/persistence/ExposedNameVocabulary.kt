@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.common.persistence
 
+import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -8,13 +9,16 @@ import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 /**
@@ -112,6 +116,40 @@ class ExposedNameVocabulary<E>(
         } catch (e: ExposedSQLException) {
             findByName(name, locked = true)?.let { VocabularyCreation(it, created = false) } ?: throw e
         }
+    }
+
+    /**
+     * Renames the entry [entryId] to [newName] in one transaction. The row is locked `FOR UPDATE` first, so
+     * concurrent renames/merges of it serialise. Another entry (any id but [entryId]) already holding the name
+     * is [RenameOutcome.Taken]; the entry's own row is excluded, so a spelling that is only collation-equal to its
+     * current name (case, accents) is a plain update. As in [create], a concurrent insert or rename of the same
+     * name can still win the unique index between the lookup and the update; the loser's constraint violation is
+     * answered by a locking re-read of the other holder (`LOCK IN SHARE MODE`, which sees the latest committed
+     * row despite the REPEATABLE READ snapshot) and reported as [RenameOutcome.Taken].
+     */
+    suspend fun rename(entryId: String, newName: VocabularyName): RenameOutcome<E> = rename(entryId, newName) {}
+
+    /** [rename] with a test seam, see [create]: [afterLookup] runs right after the lookup found no other holder. */
+    internal suspend fun rename(entryId: String, newName: VocabularyName, afterLookup: () -> Unit): RenameOutcome<E> =
+        dbQuery {
+            val row = table.selectAll().where { id eq entryId }.forUpdate().singleOrNull()
+                ?: return@dbQuery RenameOutcome.NotFound
+            findOtherByName(newName, entryId)?.let { return@dbQuery RenameOutcome.Taken(it) }
+            afterLookup()
+            try {
+                table.update({ id eq entryId }) { it[name] = newName.value }
+                RenameOutcome.Renamed(toEntity(row[id], newName))
+            } catch (e: ExposedSQLException) {
+                if (!e.isDuplicateEntry()) throw e
+                findOtherByName(newName, entryId, locked = true)?.let { RenameOutcome.Taken(it) } ?: throw e
+            }
+        }
+
+    private fun findOtherByName(name: VocabularyName, exceptId: String, locked: Boolean = false): E? {
+        val query = table.selectAll().where { (this.name eq name.value) and (id neq exceptId) }
+        return (if (locked) query.forUpdate(ForUpdateOption.MariaDB.LockInShareMode) else query)
+            .singleOrNull()
+            ?.toEntity()
     }
 
     private fun findByName(name: VocabularyName, locked: Boolean = false): E? {

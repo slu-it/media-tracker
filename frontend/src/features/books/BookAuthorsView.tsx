@@ -1,4 +1,10 @@
-import { listAuthorBooks, listBookAuthorSummaries } from "./api/booksApi";
+import {
+  deleteBookAuthor,
+  mergeBookAuthor,
+  renameBookAuthor,
+  listAuthorBooks,
+  listBookAuthorSummaries,
+} from "./api/booksApi";
 import { BookGroupsView } from "./BookGroupsView";
 import { BookCard } from "./components/BookCard";
 import type { RenderGroupCard } from "./components/BookGroupAccordion";
@@ -12,6 +18,9 @@ export function BookAuthorsView() {
     <BookGroupsView
       loadSummaries={listBookAuthorSummaries}
       loadBooks={listAuthorBooks}
+      deleteGroup={deleteBookAuthor}
+      renameGroup={renameBookAuthor}
+      mergeGroup={mergeBookAuthor}
       renderCard={renderCard}
       labelPrefix="books.authorsView"
     />

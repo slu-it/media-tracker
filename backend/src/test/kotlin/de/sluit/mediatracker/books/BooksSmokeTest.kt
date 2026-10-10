@@ -340,4 +340,87 @@ class BooksSmokeTest {
         assertEquals(HttpStatusCode.BadGateway, audiobook.status, audiobook.bodyAsText())
         assertEquals("audible_error", audiobook.decodeBody<ErrorResponse>().error)
     }
+
+    @Test
+    fun `delete removes an unused author from the summaries`() = testApplication {
+        val client = loggedInClient()
+        val author = client.createdAuthor("Frank Herbert")
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/book-authors/${author.id}").status)
+
+        val names = client.get("/api/book-authors.summaries").decodeBody<List<BookAuthorSummaryResponse>>()
+        assertEquals(emptyList(), names.map { it.name })
+    }
+
+    @Test
+    fun `delete removes an unused series from the summaries`() = testApplication {
+        val client = loggedInClient()
+        val series = client.createdSeries("Mistborn")
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/book-series/${series.id}").status)
+
+        val names = client.get("/api/book-series.summaries").decodeBody<List<BookSeriesSummaryResponse>>()
+        assertEquals(emptyList(), names.map { it.name })
+    }
+
+    @Test
+    fun `rename changes an author's name in the summaries`() = testApplication {
+        val client = loggedInClient()
+        val author = client.createdAuthor("Frank Herbet")
+
+        val response = client.patch("/api/book-authors/${author.id}") { jsonBody("""{"name":"Frank Herbert"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(BookAuthorResponse(author.id, "Frank Herbert"), response.decodeBody<BookAuthorResponse>())
+        val names = client.get("/api/book-authors.summaries").decodeBody<List<BookAuthorSummaryResponse>>()
+        assertEquals(listOf("Frank Herbert"), names.map { it.name })
+    }
+
+    @Test
+    fun `rename changes a series' name in the summaries`() = testApplication {
+        val client = loggedInClient()
+        val series = client.createdSeries("Mistbron")
+
+        val response = client.patch("/api/book-series/${series.id}") { jsonBody("""{"name":"Mistborn"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val names = client.get("/api/book-series.summaries").decodeBody<List<BookSeriesSummaryResponse>>()
+        assertEquals(listOf("Mistborn"), names.map { it.name })
+    }
+
+    @Test
+    fun `merge moves the books of an author into the target and removes the source`() = testApplication {
+        val client = loggedInClient()
+        val source = client.createdAuthor("F. Herbert")
+        val target = client.createdAuthor("Frank Herbert")
+        client.createBook("""{"title":"Dune","releaseYear":1965,"authorIds":["${source.id}"]}""")
+
+        val response = client.post("/api/book-authors/${source.id}/merge") {
+            jsonBody("""{"targetId":"${target.id}"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(target, response.decodeBody<BookAuthorResponse>())
+        val summaries = client.get("/api/book-authors.summaries").decodeBody<List<BookAuthorSummaryResponse>>()
+        assertEquals(listOf("Frank Herbert" to 1), summaries.map { it.name to it.bookCount })
+    }
+
+    @Test
+    fun `merge moves the books of a series into the target and removes the source`() = testApplication {
+        val client = loggedInClient()
+        val source = client.createdSeries("Mistborn Era 1")
+        val target = client.createdSeries("Mistborn")
+        client.createBook(
+            """{"title":"The Final Empire","releaseYear":2006,"series":[{"seriesId":"${source.id}","position":1}]}""",
+        )
+
+        val response = client.post("/api/book-series/${source.id}/merge") {
+            jsonBody("""{"targetId":"${target.id}"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(target, response.decodeBody<BookSeriesResponse>())
+        val summaries = client.get("/api/book-series.summaries").decodeBody<List<BookSeriesSummaryResponse>>()
+        assertEquals(listOf("Mistborn" to 1), summaries.map { it.name to it.bookCount })
+    }
 }

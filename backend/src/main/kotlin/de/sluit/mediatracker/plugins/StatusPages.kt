@@ -1,9 +1,11 @@
 package de.sluit.mediatracker.plugins
 
 import de.sluit.mediatracker.common.api.ErrorResponse
+import de.sluit.mediatracker.common.domain.ConflictException
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.NameTakenException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.WrongPasswordException
 import io.ktor.http.HttpStatusCode
@@ -29,6 +31,8 @@ import io.ktor.server.response.respondText
  * | [BadRequestException] (malformed/ill-typed body) | 400 | `invalid_body`     |
  * | [ContentTransformationException] (no/unsupported body) | 400 | `invalid_body` |
  * | [NotFoundException]                           | 404    | `not_found`        |
+ * | [ConflictException] (object still referenced, cannot be deleted) | 409 | `conflict` |
+ * | [NameTakenException] (rename onto an existing name, body carries `existingId`, `existingName`) | 409 | `name_taken` |
  * | [WrongPasswordException] (self-service password change, wrong current password) | 403 | `wrong_password` |
  * | [ExternalSourceUnavailableException] (integration not configured) | 503 | `"${source}_unavailable"` |
  * | [ExternalSourceException] (integration call failed, logged at warn) | 502 | `"${source}_error"` |
@@ -41,6 +45,17 @@ fun Application.configureStatusPages() {
         }
         exception<NotFoundException> { call, _ ->
             call.respondError(HttpStatusCode.NotFound, "not_found")
+        }
+        exception<ConflictException> { call, _ ->
+            call.respondError(HttpStatusCode.Conflict, "conflict")
+        }
+        exception<NameTakenException> { call, cause ->
+            call.respondError(
+                HttpStatusCode.Conflict,
+                "name_taken",
+                existingId = cause.existingId,
+                existingName = cause.existingName,
+            )
         }
         exception<WrongPasswordException> { call, _ ->
             // Deliberately 403, not 401: the SPA redirects every 401 to /login, which would drop an otherwise
@@ -92,9 +107,11 @@ private suspend fun ApplicationCall.respondError(
     code: String,
     message: String? = null,
     text: String = message ?: code,
+    existingId: String? = null,
+    existingName: String? = null,
 ) {
     if (isApiCall()) {
-        respond(status, ErrorResponse(code, message))
+        respond(status, ErrorResponse(code, message, existingId, existingName))
     } else {
         respondText(text, status = status)
     }

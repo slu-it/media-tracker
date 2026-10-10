@@ -121,7 +121,8 @@ de.sluit.mediatracker
 │                       FulltextQuery (boolean-mode text), FulltextExpressions (MATCH ... AGAINST predicate,
 │                       clamped MatchScore), TitleSearch (fulltext or LIKE prefix match + relevance order),
 │                       FilterOps (inListIfAny), ExposedNameVocabulary (search, findByIds, race-safe idempotent
-│                       create of a unique-name vocabulary)
+│                       create and rename of a unique-name vocabulary), ForeignKeyViolation (MariaDB 1451/1062
+│                       predicates, orOnForeignKeyViolation)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
 │   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys),
@@ -248,6 +249,9 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/book-series/{id}/books` | 200 `BookResponse[]` | the books of one series, unpaged, ordered by their position in it (books without one last), then title; 404 for an unknown series |
 | `GET /api/book-authors.summaries` | 200 `BookAuthorSummaryResponse[]` | every author (also those without books) with `id`, `name`, `bookCount`, ordered by name; unpaged; feeds the authors view (MT-046) |
 | `GET /api/book-authors/{id}/books` | 200 `BookResponse[]` | the books of one author, unpaged, ordered by release year, then release date (books without one last), then title; 404 for an unknown author |
+| `PATCH /api/book-authors/{id}` / `PATCH /api/book-series/{id}` | 200 `BookAuthorResponse` / `BookSeriesResponse` | body `RenameVocabularyRequest {name}` (`VocabularyName` rules); 404 for an unknown id; 409 `name_taken` with `existingId` and `existingName` when another entry has the name under the case- and accent-insensitive collation (decision record 0041) |
+| `POST /api/book-authors/{id}/merge` / `POST /api/book-series/{id}/merge` | 200 the target's response | body `MergeVocabularyRequest {targetId}`: moves every book link to the target (a book linked to both keeps one link; for series the target's position, else the merged one's) and deletes the entry, both rows locked in one transaction; 404 for an unknown entry or target, 400 `validation_error` for a merge into itself |
+| `DELETE /api/book-authors/{id}` / `DELETE /api/book-series/{id}` | 204 | only while no book links the entry: 409 `conflict` otherwise, 404 for an unknown id; check and delete in one transaction, the link tables' `RESTRICT` foreign keys as backstop, a violation also answers 409 |
 | `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
 | `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, a missing non-nullable column (a missing nullable one is `null`), wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 | `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
@@ -257,9 +261,9 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `POST /api/dropbox/connection` | 200 `DropboxStatusResponse` | body `ConnectDropboxRequest {code}`: exchanges the pasted code for a refresh token stored in `oauth_connections`; a blank, overlong or rejected code is a 400 `validation_error` |
 | `DELETE /api/dropbox/connection` | 204 | revokes the token at Dropbox (best effort) and deletes it; idempotent |
 
-Errors are `ErrorResponse {error, message?}` with codes `validation_error` (400, a value class rejected a field:
+Errors are `ErrorResponse {error, message?, existingId?, existingName?}` with codes `validation_error` (400, a value class rejected a field:
 `"title: must not be blank"`), `invalid_body` (400, malformed or ill-typed JSON, missing body), `not_found` (404),
-`unauthorized` (401), `method_not_allowed` (405, GET/DELETE on `/mcp`, answered by `mcp/api/McpEndpoint.kt` itself),
+`conflict` (409, the resource is still in use, e.g. a book author with books), `name_taken` (409, a rename to a name another vocabulary entry has; the body adds `existingId` and `existingName`), `unauthorized` (401), `method_not_allowed` (405, GET/DELETE on `/mcp`, answered by `mcp/api/McpEndpoint.kt` itself),
 `<source>_unavailable` (503, an outbound source such as `cover_source` is not configured, or `dropbox` is not connected) and `<source>_error` (502,
 it failed; the upstream status and error list are logged, never returned), `internal_error` (500). The exception mapping lives in `plugins/StatusPages.kt` and also applies to `/mcp`.
 
@@ -303,7 +307,7 @@ frontend/src
 │                         cover/ (CoverPickerDialog: paged thumbnails with optional match select and variant
 │                         toggle; CoverThumbnail: image or <video> for WebM, aspect ratio per kind),
 │                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
-│                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField,
+│                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField, VocabularyNameField,
 │                         SuggestingTitleField (freeSolo Autocomplete over any suggestion type),
 │                         ColoredOptionsField, FieldLegend))
 ├── features/settings/    UserSettingsDialog (tab bar; "Password" (default), "API Keys" and "Export / Import" tabs) +
@@ -321,7 +325,7 @@ frontend/src
 │                         + api/booksApi, hooks/ (useBooksPage, useBooksMeta, useBookTypes,
 │                         useGroupBooks), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio, bookFilters,
 │                         bookDraft, bookViewParams, bookGroupViewParams, seriesLabel, nameSearch), components/
-│                         (BookCard, WatchlistBookCard, BookGroupAccordion, BookStatusIcons,
+│                         (BookCard, WatchlistBookCard, BookGroupAccordion, RenameGroupDialog, BookStatusIcons,
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
 │                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,

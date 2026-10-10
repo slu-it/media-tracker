@@ -1,4 +1,10 @@
-import { listBookSeriesSummaries, listSeriesBooks } from "./api/booksApi";
+import {
+  deleteBookSeries,
+  mergeBookSeries,
+  renameBookSeries,
+  listBookSeriesSummaries,
+  listSeriesBooks,
+} from "./api/booksApi";
 import { BookGroupsView } from "./BookGroupsView";
 import { BookCard } from "./components/BookCard";
 import type { RenderGroupCard } from "./components/BookGroupAccordion";
@@ -17,6 +23,9 @@ export function BookSeriesView() {
     <BookGroupsView
       loadSummaries={listBookSeriesSummaries}
       loadBooks={listSeriesBooks}
+      deleteGroup={deleteBookSeries}
+      renameGroup={renameBookSeries}
+      mergeGroup={mergeBookSeries}
       renderCard={renderCard}
       labelPrefix="books.seriesView"
     />

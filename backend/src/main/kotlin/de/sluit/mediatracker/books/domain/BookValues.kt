@@ -66,8 +66,11 @@ value class BookAuthorId(val value: Uuid) {
 
         fun new(): BookAuthorId = BookAuthorId(Uuid.random())
 
-        fun parse(raw: String): BookAuthorId =
-            BookAuthorId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(FIELD, "must be a UUID"))
+        fun parse(raw: String): BookAuthorId = parse(raw, FIELD)
+
+        /** [parse] reporting a malformed [raw] as the request field [field] (e.g. a merge's `targetId`). */
+        fun parse(raw: String, field: String): BookAuthorId =
+            BookAuthorId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(field, "must be a UUID"))
     }
 }
 
@@ -96,8 +99,11 @@ value class BookSeriesId(val value: Uuid) {
 
         fun new(): BookSeriesId = BookSeriesId(Uuid.random())
 
-        fun parse(raw: String): BookSeriesId =
-            BookSeriesId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(FIELD, "must be a UUID"))
+        fun parse(raw: String): BookSeriesId = parse(raw, FIELD)
+
+        /** [parse] reporting a malformed [raw] as the request field [field] (e.g. a merge's `targetId`). */
+        fun parse(raw: String, field: String): BookSeriesId =
+            BookSeriesId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(field, "must be a UUID"))
     }
 }
 

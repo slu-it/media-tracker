@@ -20,7 +20,7 @@ reaches it only through `CloudStorage` (ADR 0028).
 `Mutex` (`DropboxService`'s token cache); kotlinx.serialization stays out. Each layer has its own types (DTOs / entities and
 `@JvmInline value class`es / Exposed tables); only domain types cross layers. Value classes validate in `init`
 via `requireValid(field, cond) { reason }` -> `InvalidValueException` -> HTTP 400 `validation_error`.
-`plugins/StatusPages.kt` also maps `NotFoundException` -> 404, Ktor body failures -> 400 `invalid_body`, and
+`plugins/StatusPages.kt` also maps `NotFoundException` -> 404, `ConflictException` -> 409 `conflict`, `NameTakenException` -> 409 `name_taken` (with `existingId`/`existingName`), Ktor body failures -> 400 `invalid_body`, and
 `ExternalSourceUnavailableException` / `ExternalSourceException` -> 503 `<source>_unavailable` / 502
 `<source>_error`. Map every new exception there. `common/domain` holds the framework-free primitives (`Page*`,
 `Patch`, `SearchTerm`, exceptions) and the shared media values (`MediaValues`, `ReleaseDating`, `WireEnum` for

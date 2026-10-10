@@ -44,3 +44,27 @@ value class VocabularySearchLimit(val value: Int) {
 
 /** What a vocabulary repository's `create` found: the [entry], plus whether it was just inserted. */
 data class VocabularyCreation<T>(val entry: T, val created: Boolean)
+
+/** What a vocabulary repository's `rename` found. */
+sealed interface RenameOutcome<out T> {
+    /** The entry now carries the new name. */
+    data class Renamed<T>(val entry: T) : RenameOutcome<T>
+
+    /** No entry with the given id exists. */
+    data object NotFound : RenameOutcome<Nothing>
+
+    /** Another entry already carries the name (collation-equal); [existing] is that entry. */
+    data class Taken<T>(val existing: T) : RenameOutcome<T>
+}
+
+/** What a vocabulary repository's `merge` found. */
+sealed interface MergeOutcome<out T> {
+    /** The source was folded into [target] and no longer exists. */
+    data class Merged<T>(val target: T) : MergeOutcome<T>
+
+    /** The source does not exist. */
+    data object SourceNotFound : MergeOutcome<Nothing>
+
+    /** The source exists, the target does not. */
+    data object TargetNotFound : MergeOutcome<Nothing>
+}

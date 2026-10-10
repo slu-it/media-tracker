@@ -33,10 +33,15 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
-/** Body of every non-2xx API response. `message` is only present when the backend has a detail to add. */
+/**
+ * Body of every non-2xx API response. `message` is only present when the backend has a detail to add;
+ * `existingId`/`existingName` only on a 409 `name_taken` (the entry that already has the name).
+ */
 export interface ErrorResponse {
   error: string;
   message?: string;
+  existingId?: string;
+  existingName?: string;
 }
 
 /** One page of a list. `page` is 1-based; `totalPages` is 0 when there are no items. */
@@ -312,6 +317,16 @@ export interface BookAuthorResponse {
 /** Body of `POST /api/book-authors`; mirrors `CreateBookAuthorRequest` in books/api/BookDtos.kt. */
 export interface CreateBookAuthorRequest {
   name: string;
+}
+
+/** Body of `PATCH /api/book-authors/{id}` and `/api/book-series/{id}`; mirrors `RenameVocabularyRequest` in common/api/Dtos.kt. */
+export interface RenameVocabularyRequest {
+  name: string;
+}
+
+/** Body of `POST /api/book-authors/{id}/merge` and `/api/book-series/{id}/merge`; mirrors `MergeVocabularyRequest` in common/api/Dtos.kt. */
+export interface MergeVocabularyRequest {
+  targetId: string;
 }
 
 /** A book narrator; mirrors `BookNarratorResponse` in books/api/BookDtos.kt. */
