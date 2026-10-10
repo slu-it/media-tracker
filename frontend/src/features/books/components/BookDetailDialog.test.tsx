@@ -4,7 +4,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { BookResponse, BookAuthorResponse, BookSeriesResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
-import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../../test/mockFetch";
 import {
   bookTypes,
   dune,
@@ -18,8 +18,6 @@ import {
 } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { BookDetailDialog } from "./BookDetailDialog";
-
-const noTitleSuggestions = { "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
 const book: BookResponse = { ...dune, description: "Spice, sand and worms." };
 
@@ -87,7 +85,7 @@ describe("BookDetailDialog", () => {
     const user = userEvent.setup();
     const onSaved = vi.fn();
     const calls = mockApi({
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("books"),
       "PATCH /api/books/:id": (call) => jsonResponse({ ...book, ...(call.body as object) }),
     });
     renderDialog({ onSaved });
@@ -267,7 +265,7 @@ describe("BookDetailDialog", () => {
 
   it("disables save while a picked release date is invalid, and re-enables after cancel and re-edit", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({});
+    const calls = mockApi(noTitleSuggestions("books"));
     renderDialog();
     const dialog = screen.getByRole("dialog");
     await user.click(within(dialog).getByRole("button", { name: "Edit" }));
@@ -337,7 +335,7 @@ describe("BookDetailDialog", () => {
 
   it("cancel discards the edits and returns to view mode", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({});
+    const calls = mockApi(noTitleSuggestions("books"));
     renderDialog();
     const dialog = screen.getByRole("dialog");
 
@@ -356,7 +354,7 @@ describe("BookDetailDialog", () => {
   it("closes without saving", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const calls = mockApi({});
+    const calls = mockApi(noTitleSuggestions("books"));
     renderDialog({ onClose });
     await user.click(screen.getByRole("button", { name: "Edit" }));
     await user.type(screen.getByRole("combobox", { name: /title/i }), "!");

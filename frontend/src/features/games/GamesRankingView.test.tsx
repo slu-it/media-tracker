@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameMetaResponse, GamePlatformResponse, GameResponse } from "../../types/api";
-import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
 import { currentLocation } from "../../test/currentLocation";
 import { HistoryControls } from "../../test/HistoryControls";
@@ -259,7 +259,7 @@ describe("GamesRankingView", () => {
       },
       "PATCH /api/games/:id": (call) => jsonResponse({ ...gameCurrent, ...(call.body as object) }),
       "GET /api/games/:id/expansions": () => jsonResponse([]),
-      "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }),
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<GamesRankingView />);
     expect(await screen.findByRole("heading", { name: "Fresh Release" })).toBeInTheDocument();

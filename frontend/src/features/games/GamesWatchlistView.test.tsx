@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { GamePlatformResponse, GameResponse } from "../../types/api";
-import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
 import { celeste, hades, meta, nintendo, pc } from "../../test/fixtures/games";
 import { currentLocation } from "../../test/currentLocation";
 import { flushAsync } from "../../test/flushAsync";
@@ -483,7 +483,7 @@ describe("GamesWatchlistView", () => {
       "GET /api/games.meta": mockMeta,
       "PATCH /api/games/:id": (call) => jsonResponse({ ...hades, ...(call.body as object) }),
       "GET /api/games/:id/expansions": () => jsonResponse([]),
-      "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }),
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<GamesWatchlistView />);
     expect(await screen.findByRole("heading", { name: "Hades" })).toBeInTheDocument();

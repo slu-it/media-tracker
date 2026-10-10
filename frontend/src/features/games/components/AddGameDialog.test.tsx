@@ -3,15 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { GameDeveloperResponse, GamePlatformResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
-import { jsonResponse, mockApi } from "../../../test/mockFetch";
+import { jsonResponse, mockApi, noTitleSuggestions } from "../../../test/mockFetch";
 import { developers, hadesCoverOptions, pc, playstation, teamCherry } from "../../../test/fixtures/games";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddGameDialog } from "./AddGameDialog";
 
 const platforms: GamePlatformResponse[] = [pc, playstation];
-
-/** Typing a 5+ character title (below fires no request) triggers a debounced suggestion request; kept empty here. */
-const noTitleSuggestions = { "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
 describe("AddGameDialog", () => {
   it("posts the filled form and reports the created game", async () => {
@@ -19,7 +16,7 @@ describe("AddGameDialog", () => {
     const onCreated = vi.fn();
     const calls = mockApi({
       "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog", { name: "Add game" });
@@ -77,7 +74,7 @@ describe("AddGameDialog", () => {
     const onCreated = vi.fn();
     const calls = mockApi({
       "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -119,7 +116,7 @@ describe("AddGameDialog", () => {
       "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/game-developers": () => jsonResponse(createdDeveloper, 201),
       "GET /api/game-developers": () => jsonResponse(developers),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -162,7 +159,7 @@ describe("AddGameDialog", () => {
       "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/game-developers": () => jsonResponse({ error: "internal_error" }, 500),
       "GET /api/game-developers": () => jsonResponse([]),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -190,7 +187,7 @@ describe("AddGameDialog", () => {
   });
 
   it("has no delete action and resets when reopened", async () => {
-    mockApi(noTitleSuggestions);
+    mockApi(noTitleSuggestions("games"));
     const { rerender } = renderWithProviders(
       <AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />,
     );
@@ -211,7 +208,7 @@ describe("AddGameDialog", () => {
     const onCreated = vi.fn();
     mockApi({
       "POST /api/games": () => jsonResponse({ error: "validation_error", message: "title: nope" }, 400),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -236,7 +233,7 @@ describe("AddGameDialog", () => {
     const user = userEvent.setup();
     mockApi({
       "POST /api/games": () => new Promise<Response>(() => {}),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -259,7 +256,7 @@ describe("AddGameDialog", () => {
     const user = userEvent.setup();
     const calls = mockApi({
       "GET /api/games/cover-options": () => jsonResponse(hadesCoverOptions),
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("games"),
     });
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
@@ -299,7 +296,7 @@ describe("AddGameDialog", () => {
 
   it("disables save while a picked release date is invalid, and re-enables it once cleared", async () => {
     const user = userEvent.setup();
-    mockApi(noTitleSuggestions);
+    mockApi(noTitleSuggestions("games"));
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />, {
       realStyles: true,
     });
@@ -331,7 +328,7 @@ describe("AddGameDialog", () => {
   });
 
   it("shows the default progress pressed in the toggle bar on add", () => {
-    mockApi(noTitleSuggestions);
+    mockApi(noTitleSuggestions("games"));
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
     const group = within(dialog).getByRole("group", { name: "Progress" });
@@ -344,7 +341,7 @@ describe("AddGameDialog", () => {
   });
 
   it("lays out the fields in the documented order", async () => {
-    mockApi(noTitleSuggestions);
+    mockApi(noTitleSuggestions("games"));
     renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
     const dialog = screen.getByRole("dialog");
 

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { BookResponse } from "../../types/api";
-import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
 import { bookTypes, earthsea, hardcover, meta } from "../../test/fixtures/books";
 import { currentLocation } from "../../test/currentLocation";
 import { flushAsync } from "../../test/flushAsync";
@@ -370,6 +370,7 @@ describe("BooksWatchlistView", () => {
     const user = userEvent.setup();
     let reloaded = false;
     const calls = mockApi({
+      ...noTitleSuggestions("books"),
       ...baseMocks(() => {
         const items = reloaded ? [{ ...earthsea, title: "Earthsea (Revised)" }, dated] : books;
         reloaded = true;

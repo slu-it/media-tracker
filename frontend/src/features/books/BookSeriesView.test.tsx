@@ -12,7 +12,7 @@ import {
   mistbornBooks,
   seriesSummaries,
 } from "../../test/fixtures/books";
-import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
 import { renderWithProviders } from "../../test/renderWithProviders";
 import { BookSeriesView } from "./BookSeriesView";
 
@@ -108,6 +108,7 @@ describe("BookSeriesView", () => {
     let books = mistbornBooks;
     const calls = mockApi({
       ...base(),
+      ...noTitleSuggestions("books"),
       [MISTBORN_BOOKS]: () => jsonResponse(books),
       "PATCH /api/books/:id": (call) =>
         jsonResponse({ ...mistbornBooks[0], title: "Renamed", ...(call.body as object) }),

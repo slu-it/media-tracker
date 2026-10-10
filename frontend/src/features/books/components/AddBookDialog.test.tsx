@@ -2,12 +2,10 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { BookAuthorResponse, BookNarratorResponse, BookSeriesResponse } from "../../../types/api";
-import { jsonResponse, mockApi } from "../../../test/mockFetch";
+import { jsonResponse, mockApi, noTitleSuggestions } from "../../../test/mockFetch";
 import { bookTypes, hardcover, herbert } from "../../../test/fixtures/books";
 import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddBookDialog } from "./AddBookDialog";
-
-const noTitleSuggestions = { "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
 async function fillTitleAndYear(dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) {
   // user.paste avoids per-keystroke user.type, which is ~10x slower and hit the CI timeout.
@@ -28,7 +26,7 @@ describe("AddBookDialog", () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     const calls = mockApi({
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("books"),
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
     });
     renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={onCreated} types={bookTypes} />);
@@ -81,7 +79,7 @@ describe("AddBookDialog", () => {
     const onCreated = vi.fn();
     const created: BookAuthorResponse = { id: "author-new", name: "New Author" };
     const calls = mockApi({
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("books"),
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/book-authors": () => jsonResponse(created, 201),
       "GET /api/book-authors": () => jsonResponse([herbert]),
@@ -114,7 +112,7 @@ describe("AddBookDialog", () => {
     const narrator: BookNarratorResponse = { id: "narrator-new", name: "New Narrator" };
     const series: BookSeriesResponse = { id: "series-new", name: "New Series" };
     const calls = mockApi({
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("books"),
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/book-narrators": () => jsonResponse(narrator, 201),
       "GET /api/book-narrators": () => jsonResponse([]),
@@ -150,7 +148,7 @@ describe("AddBookDialog", () => {
 
   it("blocks saving while a series position is invalid", async () => {
     const user = userEvent.setup();
-    mockApi({ ...noTitleSuggestions, "GET /api/book-series": () => jsonResponse([]) });
+    mockApi({ ...noTitleSuggestions("books"), "GET /api/book-series": () => jsonResponse([]) });
     renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} />);
     const dialog = screen.getByRole("dialog");
     await fillTitleAndYear(dialog, user);
@@ -170,7 +168,7 @@ describe("AddBookDialog", () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     const calls = mockApi({
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("books"),
       "POST /api/books": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
       "POST /api/book-authors": () => jsonResponse({ error: "internal_error" }, 500),
       "GET /api/book-authors": () => jsonResponse([]),
@@ -195,7 +193,7 @@ describe("AddBookDialog", () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
     mockApi({
-      ...noTitleSuggestions,
+      ...noTitleSuggestions("books"),
       "POST /api/books": () => jsonResponse({ error: "validation_error", message: "title: nope" }, 400),
     });
     renderWithProviders(<AddBookDialog open onClose={() => {}} onCreated={onCreated} types={bookTypes} />);
@@ -210,7 +208,7 @@ describe("AddBookDialog", () => {
   });
 
   it("resets when reopened", async () => {
-    mockApi({});
+    mockApi(noTitleSuggestions("books"));
     const { rerender } = renderWithProviders(
       <AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} />,
     );
