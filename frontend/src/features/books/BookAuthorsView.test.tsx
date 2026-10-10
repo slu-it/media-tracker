@@ -10,6 +10,7 @@ import {
   herbert,
   herbertBooks,
   herbertSummary,
+  leGuin,
   meta,
 } from "../../test/fixtures/books";
 import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
@@ -84,13 +85,232 @@ describe("BookAuthorsView", () => {
     expect(screen.getByText("Dune Saga #1")).toBeInTheDocument();
   });
 
-  it("shows a message for an author without books, without a request", async () => {
+  it("offers edit in every section and delete only in the expanded section of an author without books", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ ...base(), [HERBERT_BOOKS]: () => jsonResponse(herbertBooks) });
+    renderWithProviders(<BookAuthorsView />);
+    await user.click(await screen.findByRole("button", { name: /^Émile Zola/ }));
+    expect(screen.getByRole("button", { name: "Rename author Émile Zola" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete author Émile Zola" })).toBeInTheDocument();
+    expect(screen.getByText("No books by this author")).toBeInTheDocument();
+    expect(calls.some((c) => c.url === `/api/book-authors/${emptyAuthorSummary.id}/books`)).toBe(false);
+
+    await user.click(screen.getByRole("button", { name: /^Frank Herbert/ }));
+    expect(await screen.findByRole("button", { name: "Rename author Frank Herbert" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Delete author / })).toHaveLength(1);
+  });
+
+  it("keeps the author and sends no request when the delete is declined", async () => {
     const user = userEvent.setup();
     const calls = mockApi(base());
     renderWithProviders(<BookAuthorsView />);
-    await user.click(await screen.findByRole("button", { name: new RegExp(emptyAuthorSummary.name) }));
-    expect(await screen.findByText("No books by this author")).toBeInTheDocument();
-    expect(calls.some((c) => /book-authors\/.+\/books/.test(c.url))).toBe(false);
+    await user.click(await screen.findByRole("button", { name: /^Émile Zola/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete author Émile Zola" }));
+    expect(await screen.findByText('Delete author "Émile Zola"?')).toBeInTheDocument();
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "No" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Delete author Émile Zola" })).toBeInTheDocument();
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+
+  it("deletes an unused author and reloads the summaries", async () => {
+    const user = userEvent.setup();
+    let summaries = authorSummaries;
+    const calls = mockApi({
+      ...base(),
+      [SUMMARIES]: () => jsonResponse(summaries),
+      "DELETE /api/book-authors/:id": () => noContent(),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    await user.click(await screen.findByRole("button", { name: /^Émile Zola/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete author Émile Zola" }));
+    summaries = summaries.filter((s) => s.id !== emptyAuthorSummary.id);
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Yes" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Delete author Émile Zola" })).not.toBeInTheDocument(),
+    );
+    expect(calls).toContainEqual({
+      method: "DELETE",
+      url: `/api/book-authors/${emptyAuthorSummary.id}`,
+      body: undefined,
+    });
+    expect(calls.filter((c) => c.url === "/api/book-authors.summaries")).toHaveLength(2);
+    expect(screen.queryByRole("heading", { name: /^Émile Zola/ })).not.toBeInTheDocument();
+  });
+
+  it("shows an error and keeps the author when the delete fails", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      ...base(),
+      "DELETE /api/book-authors/:id": () => jsonResponse({ error: "conflict" }, 409),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    await user.click(await screen.findByRole("button", { name: /^Émile Zola/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete author Émile Zola" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Yes" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Deleting failed.");
+    expect(screen.getByRole("button", { name: "Delete author Émile Zola" })).toBeEnabled();
+  });
+
+  it("reloads the summaries when the delete fails", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      ...base(),
+      "DELETE /api/book-authors/:id": () => jsonResponse({ error: "conflict" }, 409),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    await user.click(await screen.findByRole("button", { name: /^Émile Zola/ }));
+    await user.click(await screen.findByRole("button", { name: "Delete author Émile Zola" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Yes" }));
+
+    await waitFor(() => expect(calls.filter((c) => c.url === "/api/book-authors.summaries")).toHaveLength(2));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Deleting failed.");
+  });
+
+  const openRename = async (user: ReturnType<typeof userEvent.setup>) => {
+    await user.click(await screen.findByRole("button", { name: /^Émile Zola/ }));
+    await user.click(await screen.findByRole("button", { name: "Rename author Émile Zola" }));
+    return screen.findByRole("dialog", { name: "Rename author" });
+  };
+
+  it("renames an author and reloads the summaries", async () => {
+    const user = userEvent.setup();
+    let summaries = authorSummaries;
+    const calls = mockApi({
+      ...base(),
+      [SUMMARIES]: () => jsonResponse(summaries),
+      "PATCH /api/book-authors/:id": (call) => jsonResponse({ id: emptyAuthorSummary.id, ...(call.body as object) }),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    const dialog = await openRename(user);
+    const name = within(dialog).getByRole("textbox", { name: "Name" });
+    expect(name).toHaveValue("Émile Zola");
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    summaries = summaries.map((s) => (s.id === emptyAuthorSummary.id ? { ...s, name: "Renamed" } : s));
+    await user.clear(name);
+    await user.paste("  Renamed ");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls).toContainEqual({
+      method: "PATCH",
+      url: `/api/book-authors/${emptyAuthorSummary.id}`,
+      body: { name: "Renamed" },
+    });
+    expect(await screen.findByRole("heading", { name: /^Renamed/ })).toBeInTheDocument();
+    expect(calls.filter((x) => x.url === "/api/book-authors.summaries")).toHaveLength(2);
+  });
+
+  it("rejects an empty name and sends nothing", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi(base());
+    renderWithProviders(<BookAuthorsView />);
+    const dialog = await openRename(user);
+    await user.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+    expect(within(dialog).getByText("Required")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(calls.some((x) => x.method === "PATCH")).toBe(false);
+  });
+
+  const takenBody = { error: "name_taken", existingId: leGuin.id, existingName: leGuin.name };
+
+  it("offers to merge when the name is taken and merges on confirm", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      ...base(),
+      "PATCH /api/book-authors/:id": () => jsonResponse(takenBody, 409),
+      "POST /api/book-authors/:id/merge": () => jsonResponse(leGuin),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    const dialog = await openRename(user);
+    await user.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+    await user.paste("ursula k. le guin");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    const choice = await screen.findByText(/already exists/);
+    expect(choice).toHaveTextContent('An author named "Ursula K. Le Guin" already exists. Merge "Émile Zola" into it?');
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls).toContainEqual({
+      method: "POST",
+      url: `/api/book-authors/${emptyAuthorSummary.id}/merge`,
+      body: { targetId: leGuin.id },
+    });
+    expect(calls.filter((x) => x.url === "/api/book-authors.summaries")).toHaveLength(2);
+  });
+
+  it("shows an error in the dialog when the merge fails", async () => {
+    const user = userEvent.setup();
+    mockApi({
+      ...base(),
+      "PATCH /api/book-authors/:id": () => jsonResponse(takenBody, 409),
+      "POST /api/book-authors/:id/merge": () => jsonResponse({ error: "internal_error" }, 500),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    const dialog = await openRename(user);
+    await user.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+    await user.paste("ursula k. le guin");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Merge" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Saving failed.");
+  });
+
+  it("collapses the merged-away author and requests none of its books afterwards", async () => {
+    const user = userEvent.setup();
+    let summaries = authorSummaries;
+    const calls = mockApi({
+      ...base(),
+      [SUMMARIES]: () => jsonResponse(summaries),
+      [HERBERT_BOOKS]: () => jsonResponse(herbertBooks),
+      "PATCH /api/book-authors/:id": () =>
+        jsonResponse({ error: "name_taken", existingId: leGuin.id, existingName: leGuin.name }, 409),
+      "POST /api/book-authors/:id/merge": () => jsonResponse(leGuin),
+    });
+    renderWithProviders(<BookAuthorsView />);
+    await user.click(await screen.findByRole("button", { name: /^Frank Herbert/ }));
+    await user.click(await screen.findByRole("button", { name: "Rename author Frank Herbert" }));
+    const dialog = await screen.findByRole("dialog", { name: "Rename author" });
+    await user.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+    await user.paste("ursula k. le guin");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    summaries = summaries.filter((x) => x.id !== herbert.id);
+    await user.click(await screen.findByRole("button", { name: "Merge" }));
+
+    await waitFor(() => expect(screen.queryByRole("heading", { name: /^Frank Herbert/ })).not.toBeInTheDocument());
+    expect(calls.filter((c) => c.url === `/api/book-authors/${herbert.id}/books`)).toHaveLength(1);
+  });
+
+  it("returns to the rename dialog with the typed name on Choose another name", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ ...base(), "PATCH /api/book-authors/:id": () => jsonResponse(takenBody, 409) });
+    renderWithProviders(<BookAuthorsView />);
+    const dialog = await openRename(user);
+    await user.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+    await user.paste("ursula k. le guin");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(await screen.findByRole("button", { name: "Choose another name" }));
+
+    await waitFor(() => expect(screen.queryByText(/already exists/)).not.toBeInTheDocument());
+    const again = await screen.findByRole("dialog", { name: "Rename author" });
+    expect(within(again).getByRole("textbox", { name: "Name" })).toHaveValue("ursula k. le guin");
+    expect(calls.some((x) => x.method === "POST")).toBe(false);
+  });
+
+  it("shows an error in the dialog when the rename fails", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...base(), "PATCH /api/book-authors/:id": () => jsonResponse({ error: "internal_error" }, 500) });
+    renderWithProviders(<BookAuthorsView />);
+    const dialog = await openRename(user);
+    await user.clear(within(dialog).getByRole("textbox", { name: "Name" }));
+    await user.paste("Renamed");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Saving failed.");
+    expect(within(dialog).getByRole("textbox", { name: "Name" })).toHaveValue("Renamed");
   });
 
   it("opens the detail dialog from a card", async () => {

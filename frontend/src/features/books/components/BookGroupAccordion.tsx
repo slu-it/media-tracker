@@ -1,12 +1,17 @@
-import type { ReactElement } from "react";
+import { useState, type ReactElement } from "react";
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Typography } from "@mui/material";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useTranslation } from "react-i18next";
+import { errorMessage } from "../../../api/client";
+import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
 import type { BookResponse } from "../../../types/api";
 import { MediaGrid } from "../../../components/media/MediaGrid";
 import { SECTION_GAP } from "../../../components/media/mediaLayout";
 import { BOOK_COVER_ASPECT_RATIO } from "../domain/bookValues";
 import { useGroupBooks } from "../hooks/useGroupBooks";
+import { RenameGroupDialog } from "./RenameGroupDialog";
 
 const MAX_SKELETONS = 8;
 
@@ -17,7 +22,7 @@ export interface BookGroup {
   bookCount: number;
 }
 
-/** The i18n namespace holding the texts of a grouping (`bookCount`, `noBooks`, ...). */
+/** The i18n namespace holding the texts of a grouping (`bookCount`, `deleteLabel`, ...). */
 export type BookGroupLabelPrefix = "books.seriesView" | "books.authorsView";
 
 export type LoadGroupBooks = (id: string, signal: AbortSignal) => Promise<BookResponse[]>;
@@ -34,6 +39,12 @@ interface BookGroupAccordionProps {
   /** Bumped after a save anywhere, so an open section refetches. */
   reloadToken: number;
   onOpen: (book: BookResponse) => void;
+  /** Renames the group; rejects with an `ApiError` 409 `name_taken` when another group has the name. */
+  onRename: (groupId: string, name: string) => Promise<void>;
+  /** Merges the group into `targetId`. */
+  onMerge: (groupId: string, targetId: string) => Promise<void>;
+  /** Deletes the group; only offered while it has no books. */
+  onDelete: (groupId: string) => Promise<void>;
 }
 
 /** One group: name and book count in the summary; the books are loaded when the section is expanded. */
@@ -46,6 +57,9 @@ export function BookGroupAccordion({
   onToggle,
   reloadToken,
   onOpen,
+  onRename,
+  onMerge,
+  onDelete,
 }: BookGroupAccordionProps) {
   const { t } = useTranslation();
   return (
@@ -64,10 +78,15 @@ export function BookGroupAccordion({
         </Box>
       </AccordionSummary>
       <AccordionDetails>
+        <GroupToolbar
+          group={group}
+          labelPrefix={labelPrefix}
+          onRename={onRename}
+          onMerge={onMerge}
+          onDelete={onDelete}
+        />
         {group.bookCount === 0 ? (
-          <Typography color="text.secondary" align="center" sx={{ py: 3 }}>
-            {t(`${labelPrefix}.noBooks`)}
-          </Typography>
+          <Typography color="text.secondary">{t(`${labelPrefix}.noBooks`)}</Typography>
         ) : (
           <GroupBooks
             group={group}
@@ -80,6 +99,87 @@ export function BookGroupAccordion({
         )}
       </AccordionDetails>
     </Accordion>
+  );
+}
+
+/** Edit (always) and delete (only without books) for the group, right-aligned at the top of the expanded section. */
+function GroupToolbar({
+  group,
+  labelPrefix,
+  onRename,
+  onMerge,
+  onDelete,
+}: Pick<BookGroupAccordionProps, "group" | "labelPrefix" | "onRename" | "onMerge" | "onDelete">) {
+  const { t } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const editLabel = t(`${labelPrefix}.editLabel`, { name: group.name });
+  const deleteLabel = t(`${labelPrefix}.deleteLabel`, { name: group.name });
+
+  const decide = async (confirmed: boolean) => {
+    setConfirming(false);
+    if (!confirmed) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onDelete(group.id);
+    } catch (cause: unknown) {
+      setError(errorMessage(cause, t("errors.deleteFailed")));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: -0.5, mb: 1.5 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<EditOutlinedIcon />}
+          aria-label={editLabel}
+          disabled={busy}
+          onClick={() => setRenaming(true)}
+        >
+          {t("common.rename")}
+        </Button>
+        {group.bookCount === 0 && (
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            startIcon={<DeleteOutlinedIcon />}
+            aria-label={deleteLabel}
+            disabled={busy}
+            onClick={() => setConfirming(true)}
+          >
+            {t("common.delete")}
+          </Button>
+        )}
+      </Box>
+      {error && (
+        <Alert severity="error" sx={{ mb: 1.5 }}>
+          {error}
+        </Alert>
+      )}
+      {renaming && (
+        <RenameGroupDialog
+          group={group}
+          labelPrefix={labelPrefix}
+          onRename={(name) => onRename(group.id, name)}
+          onMerge={(targetId) => onMerge(group.id, targetId)}
+          onClose={() => setRenaming(false)}
+        />
+      )}
+      <ConfirmDialog
+        open={confirming}
+        question={t(`${labelPrefix}.deleteQuestion`, { name: group.name })}
+        onDecision={(confirmed) => void decide(confirmed)}
+        destructive
+      />
+    </>
   );
 }
 

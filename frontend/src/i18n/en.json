@@ -8,6 +8,7 @@
     "confirm": "Yes",
     "save": "Save",
     "edit": "Edit",
+    "rename": "Rename",
     "delete": "Delete",
     "comingSoon": "Coming soon",
     "loading": "Loading…",
@@ -194,7 +195,15 @@
       "bookCount_other": "{{count}} books",
       "empty": "No authors yet. Add one while editing a book.",
       "noSearchResults": "No authors match \"{{term}}\"",
-      "noBooks": "No books by this author"
+      "noBooks": "No books by this author",
+      "deleteLabel": "Delete author {{name}}",
+      "deleteQuestion": "Delete author \"{{name}}\"?",
+      "editLabel": "Rename author {{name}}",
+      "renameTitle": "Rename author",
+      "nameLabel": "Name",
+      "nameTaken": "An author named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "merge": "Merge",
+      "chooseOtherName": "Choose another name"
     },
     "seriesView": {
       "searchLabel": "Search series",
@@ -206,6 +215,14 @@
       "empty": "No series yet. Add one while editing a book.",
       "noSearchResults": "No series match \"{{term}}\"",
       "noBooks": "No books in this series",
+      "deleteLabel": "Delete series {{name}}",
+      "deleteQuestion": "Delete series \"{{name}}\"?",
+      "editLabel": "Rename series {{name}}",
+      "renameTitle": "Rename series",
+      "nameLabel": "Name",
+      "nameTaken": "A series named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "merge": "Merge",
+      "chooseOtherName": "Choose another name",
       "positionBadge": "#{{position}}"
     },
     "search": {

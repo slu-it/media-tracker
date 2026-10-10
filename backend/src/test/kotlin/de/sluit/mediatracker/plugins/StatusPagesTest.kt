@@ -1,8 +1,10 @@
 package de.sluit.mediatracker.plugins
 
+import de.sluit.mediatracker.common.domain.ConflictException
 import de.sluit.mediatracker.common.domain.ExternalSourceException
 import de.sluit.mediatracker.common.domain.ExternalSourceUnavailableException
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.NameTakenException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.WrongPasswordException
 import io.ktor.client.request.get
@@ -32,6 +34,9 @@ class StatusPagesTest {
                 get("/api/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/invalid") { throw InvalidValueException("title", "must not be blank") }
                 get("/api/missing") { throw NotFoundException("game", "42") }
+                get("/api/conflict") { throw ConflictException("book author", "42") }
+                get("/api/name-taken") { throw NameTakenException("book author", "42", "Frank Herbert") }
+                get("/name-taken") { throw NameTakenException("book author", "42", "Frank Herbert") }
                 get("/api/wrong-password") { throw WrongPasswordException() }
                 get("/api/bad-body") { throw BadRequestException("x", IllegalArgumentException("first line\nsecond")) }
                 get("/api/cover-unavailable") { throw ExternalSourceUnavailableException("cover_source") }
@@ -96,6 +101,30 @@ class StatusPagesTest {
         val response = get("/api/missing")
         assertEquals(HttpStatusCode.NotFound, response.status)
         assertEquals("""{"error":"not_found"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `conflict exception on an api path is a json 409 without message`() = testApp {
+        val response = get("/api/conflict")
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals("""{"error":"conflict"}""", response.bodyAsText())
+    }
+
+    @Test
+    fun `name taken exception on an api path is a json 409 carrying the existing entry`() = testApp {
+        val response = get("/api/name-taken")
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals(
+            """{"error":"name_taken","existingId":"42","existingName":"Frank Herbert"}""",
+            response.bodyAsText(),
+        )
+    }
+
+    @Test
+    fun `name taken exception outside the api is plain text 409`() = testApp {
+        val response = get("/name-taken")
+        assertEquals(HttpStatusCode.Conflict, response.status)
+        assertEquals("name_taken", response.bodyAsText())
     }
 
     @Test

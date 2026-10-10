@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Alert, Box, Button, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "../../api/client";
 import type { BookResponse } from "../../types/api";
 import { MediaViewHeader } from "../../components/media/MediaViewHeader";
 import { SearchField } from "../../components/media/SearchField";
@@ -26,12 +27,26 @@ interface BookGroupsViewProps {
   loadSummaries: () => Promise<BookGroup[]>;
   loadBooks: LoadGroupBooks;
   renderCard: RenderGroupCard;
+  /** Deletes an unused group (only offered for groups without books). */
+  deleteGroup: (id: string) => Promise<void>;
+  /** Renames a group; rejects with an `ApiError` 409 `name_taken` when another group has the name. */
+  renameGroup: (id: string, name: string) => Promise<unknown>;
+  /** Merges a group into the group `targetId` (the first is removed). */
+  mergeGroup: (id: string, targetId: string) => Promise<unknown>;
   /** i18n namespace of the grouping's texts (searchLabel, searchPlaceholder, count, bookCount, empty, ...). */
   labelPrefix: BookGroupLabelPrefix;
 }
 
 /** Every group (series, author) as an accordion; a section loads its books when expanded. The search filters client-side. */
-export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPrefix }: BookGroupsViewProps) {
+export function BookGroupsView({
+  loadSummaries,
+  loadBooks,
+  renderCard,
+  deleteGroup,
+  renameGroup,
+  mergeGroup,
+  labelPrefix,
+}: BookGroupsViewProps) {
   const { t } = useTranslation();
   const [searchParams, writeParams] = useViewParams();
   const query = searchParams.toString();
@@ -45,13 +60,15 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
 
   const { data: summaries, error, reload: reloadSummaries } = useLoadOnce(loadSummaries, t("errors.loadFailed"));
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(new Set());
+  // Merged-away groups: hidden at once, so their (still collapsing) section does not refetch books of a deleted group.
+  const [mergedIds, setMergedIds] = useState<ReadonlySet<string>>(new Set());
   const [reloadToken, setReloadToken] = useState(0);
   const { meta, reload: reloadMeta } = useBooksMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<BookResponse | null>(null);
 
   const visible = useMemo(
-    () => (summaries === null ? null : filterByName(summaries, urlSearch)),
-    [summaries, urlSearch],
+    () => (summaries === null ? null : filterByName(summaries, urlSearch).filter((g) => !mergedIds.has(g.id))),
+    [summaries, urlSearch, mergedIds],
   );
 
   // A save may change counts, add a group, or move a book between groups (or renumber it in a series): refresh the list and every open section.
@@ -60,10 +77,6 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
     reloadMeta();
     setReloadToken((n) => n + 1);
   };
-  const onDeleted = () => {
-    setSelected(null);
-    refresh();
-  };
   const onToggle = (id: string, expanded: boolean) =>
     setOpenIds((prev) => {
       const next = new Set(prev);
@@ -71,6 +84,39 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
       else next.delete(id);
       return next;
     });
+  const onDeleted = () => {
+    setSelected(null);
+    refresh();
+  };
+  const onDeleteGroup = async (id: string) => {
+    try {
+      await deleteGroup(id);
+    } finally {
+      // Also after a failure: a 409 (got a book meanwhile) or 404 (already gone) means the list is stale.
+      refresh();
+    }
+  };
+  const onRenameGroup = async (id: string, name: string) => {
+    try {
+      await renameGroup(id, name);
+    } catch (cause: unknown) {
+      // A taken name changes nothing; any other failure (404 already gone, 5xx) may leave the list stale.
+      if (!(cause instanceof ApiError && cause.status === 409 && cause.body?.error === "name_taken")) refresh();
+      throw cause;
+    }
+    refresh();
+  };
+  const onMergeGroup = async (id: string, targetId: string) => {
+    try {
+      await mergeGroup(id, targetId);
+      // The source is gone: collapse and hide it before the refresh so its section does not refetch its books.
+      onToggle(id, false);
+      setMergedIds((prev) => new Set(prev).add(id));
+    } finally {
+      // Also after a failure: a 404 (source or target vanished) means the list is stale.
+      refresh();
+    }
+  };
 
   return (
     <Box sx={{ pb: 12 }}>
@@ -124,6 +170,9 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
               onToggle={onToggle}
               reloadToken={reloadToken}
               onOpen={setSelected}
+              onRename={onRenameGroup}
+              onMerge={onMergeGroup}
+              onDelete={onDeleteGroup}
             />
           ))}
         </Box>

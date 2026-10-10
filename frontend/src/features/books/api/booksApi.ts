@@ -17,7 +17,9 @@ import type {
   CreateBookNarratorRequest,
   CreateBookRequest,
   CreateBookSeriesRequest,
+  MergeVocabularyRequest,
   PageResponse,
+  RenameVocabularyRequest,
   UpdateBookRequest,
 } from "../../../types/api";
 import { resolveVocabularyEntries, resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
@@ -70,6 +72,52 @@ export function updateBook(id: string, body: UpdateBookRequest): Promise<BookRes
 /** 204 for existing and unknown ids alike. */
 export function deleteBook(id: string): Promise<void> {
   return apiFetch<void>(`${BASE}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** 204; 409 while books still use the author, 404 for an unknown id. */
+export function deleteBookAuthor(id: string): Promise<void> {
+  return apiFetch<void>(`/api/book-authors/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** 204; 409 while books still use the series, 404 for an unknown id. */
+export function deleteBookSeries(id: string): Promise<void> {
+  return apiFetch<void>(`/api/book-series/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** Renames the author; 409 `name_taken` (with `existingId`/`existingName`) when another author has the name. */
+export function renameBookAuthor(id: string, name: string): Promise<BookAuthorResponse> {
+  const body: RenameVocabularyRequest = { name };
+  return apiFetch<BookAuthorResponse>(`/api/book-authors/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Moves every book of the author to `targetId` and deletes the author; resolves the target. */
+export function mergeBookAuthor(id: string, targetId: string): Promise<BookAuthorResponse> {
+  const body: MergeVocabularyRequest = { targetId };
+  return apiFetch<BookAuthorResponse>(`/api/book-authors/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Renames the series; 409 `name_taken` (with `existingId`/`existingName`) when another series has the name. */
+export function renameBookSeries(id: string, name: string): Promise<BookSeriesResponse> {
+  const body: RenameVocabularyRequest = { name };
+  return apiFetch<BookSeriesResponse>(`/api/book-series/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Moves every book of the series to `targetId` and deletes the series; resolves the target. */
+export function mergeBookSeries(id: string, targetId: string): Promise<BookSeriesResponse> {
+  const body: MergeVocabularyRequest = { targetId };
+  return apiFetch<BookSeriesResponse>(`/api/book-series/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }
 
 /**

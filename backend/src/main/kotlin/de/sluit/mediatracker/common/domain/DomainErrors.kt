@@ -12,6 +12,16 @@ class InvalidValueException(val field: String, val reason: String) : IllegalArgu
 /** A business object addressed by id does not exist. Mapped to HTTP 404 for API calls. */
 class NotFoundException(val resource: String, val id: String) : RuntimeException("$resource $id not found")
 
+/** The operation is refused because the object is still referenced elsewhere (e.g. an author with books). Mapped to HTTP 409. */
+class ConflictException(val resource: String, val id: String) : RuntimeException("$resource $id is still in use")
+
+/**
+ * A rename was refused because another entry of the same vocabulary already carries the name. [existingId] and
+ * [existingName] identify that entry so a client can offer to merge into it. Mapped to HTTP 409 `name_taken`.
+ */
+class NameTakenException(val resource: String, val existingId: String, val existingName: String) :
+    RuntimeException("$resource name is already used by $existingId")
+
 /**
  * A self-service password change was rejected because `currentPassword` did not match the stored hash
  * (`auth.domain.AuthService.changePassword`). Lives here, not in `auth.domain`, so `plugins/StatusPages.kt`

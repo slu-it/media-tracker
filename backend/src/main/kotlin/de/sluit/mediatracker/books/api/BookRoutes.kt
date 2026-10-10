@@ -9,6 +9,8 @@ import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.common.api.MergeVocabularyRequest
+import de.sluit.mediatracker.common.api.RenameVocabularyRequest
 import de.sluit.mediatracker.common.api.intQueryParameter
 import de.sluit.mediatracker.common.api.pageRequest
 import de.sluit.mediatracker.common.api.searchTerm
@@ -99,6 +101,23 @@ fun Route.bookRoutes(
             get("/books") {
                 call.respond(bookService.listByAuthor(call.bookAuthorId()).map { it.toResponse() })
             }
+            // Rename. 404 for an unknown author, 409 `name_taken` (with the holder) when another author has the name.
+            patch {
+                val id = call.bookAuthorId()
+                val name = VocabularyName.parse(call.receive<RenameVocabularyRequest>().name)
+                call.respond(bookAuthorService.rename(id, name).toResponse())
+            }
+            // Folds this author into `targetId` and answers the target. 404 when either is unknown, 400 for itself.
+            post("/merge") {
+                val id = call.bookAuthorId()
+                val targetId = BookAuthorId.parse(call.receive<MergeVocabularyRequest>().targetId, "targetId")
+                call.respond(bookAuthorService.merge(id, targetId).toResponse())
+            }
+            // 404 for an unknown author, 409 while a book still references it.
+            delete {
+                bookAuthorService.delete(call.bookAuthorId())
+                call.respond(HttpStatusCode.NoContent)
+            }
         }
     }
     route("/book-authors.summaries") {
@@ -137,6 +156,23 @@ fun Route.bookRoutes(
             // Unpaged; ordered by position (unnumbered last), title, id. Unknown series is a 404.
             get("/books") {
                 call.respond(bookService.listBySeries(call.bookSeriesId()).map { it.toResponse() })
+            }
+            // Rename. 404 for an unknown series, 409 `name_taken` (with the holder) when another series has the name.
+            patch {
+                val id = call.bookSeriesId()
+                val name = VocabularyName.parse(call.receive<RenameVocabularyRequest>().name)
+                call.respond(bookSeriesService.rename(id, name).toResponse())
+            }
+            // Folds this series into `targetId` and answers the target. 404 when either is unknown, 400 for itself.
+            post("/merge") {
+                val id = call.bookSeriesId()
+                val targetId = BookSeriesId.parse(call.receive<MergeVocabularyRequest>().targetId, "targetId")
+                call.respond(bookSeriesService.merge(id, targetId).toResponse())
+            }
+            // 404 for an unknown series, 409 while a book still references it.
+            delete {
+                bookSeriesService.delete(call.bookSeriesId())
+                call.respond(HttpStatusCode.NoContent)
             }
         }
     }

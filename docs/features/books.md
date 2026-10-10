@@ -27,13 +27,14 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
   optional: a book may have none. `GET /api/book-types` lists them by label.
 - **Authors** are a user-created vocabulary in `book_authors` through `book_to_author`, built on the shared
   `ExposedNameVocabulary`: unique case- and accent-insensitive names of at most 128 characters, idempotent create,
-  prefix plus fulltext lookup. Authors nobody references are kept.
-- **Narrators** (MT-042) work exactly like authors, in `book_narrators` through `book_to_narrator`. They are
+  prefix plus fulltext lookup. Authors can be renamed and merged into another author, and authors nobody references
+  are kept until they are deleted, all from the authors view (ADR 0041).
+- **Narrators** (MT-042) work like authors, in `book_narrators` through `book_to_narrator`, but cannot be renamed, merged or deleted (ADR 0041). They are
   meant for audiobooks but can be set on any book.
 - **Series** (MT-042) are the same kind of vocabulary in `book_series`, linked through `book_to_series`, which
   carries an optional `position DECIMAL(6,2)` (`BookSeriesPosition`: 0 to 9999.99, at most two decimals, so
   novellas can be #2.5 and prequels #0). A book is in a series at most once, and may be in several, each with its
-  own number (ADR 0035).
+  own number (ADR 0035). Series can be renamed, merged and (when unreferenced) deleted from the series view, like authors (ADR 0041).
 - Authors, narrators and series of a book are ordered by name.
 - **Ownership** `watchlist | owned` and **progress** `abandoned | not_started | paused | reading | finished`
   are `BookOwnership` and `BookProgress` in `books/domain/BookStatus.kt` (declaration order is display order;
@@ -61,6 +62,10 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
 | `GET /api/book-series/{id}/books` | The series' books, unpaged: by position, books without one last, then by title; 404 for an unknown series |
 | `GET /api/book-authors.summaries` | Every author, those without books included, as `[{id, name, bookCount}]` by name; unpaged (MT-046) |
 | `GET /api/book-authors/{id}/books` | The author's books, unpaged: by release year, then release date (books without one last), then title; 404 for an unknown author |
+| `PATCH /api/book-authors/{id}` | Rename (`{name}`): 200 with the author; 409 `name_taken` with `existingId`/`existingName` when another author has the name (ADR 0041) |
+| `POST /api/book-authors/{id}/merge` | `{targetId}`: moves every book link to the target, deletes the author, 200 with the target; a merge into itself is a 400 |
+| `DELETE /api/book-authors/{id}` | 204; 404 for an unknown author, 409 `conflict` while a book links it |
+| `PATCH`, `POST .../merge`, `DELETE /api/book-series/{id}` | As for authors; a book in both series keeps the target's position, or the merged series' when the target has none |
 
 Search matches the title only, as for games (ADR 0033): a fulltext prefix term or `title LIKE 'term%'`, prefix
 hits first (`common/persistence/TitleSearch.kt`).
@@ -119,7 +124,10 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   badge (`seriesPosition`, a filled chip in the theme's primary colour) centered above the cover for numbered
   books (the slot is kept empty for unnumbered ones, so covers in a row stay aligned; `MediaCardShell`'s
   `descriptionPlacement="top"`) instead of the series chips; its type chips stay in the card body. A series
-  without books shows a message and loads nothing. Saving, adding or deleting a book in the dialogs reloads the
+  without books shows a message and loads nothing. An expanded section starts with a right-aligned toolbar
+  (ADR 0041): an outlined "Rename" button opening `RenameGroupDialog` (a taken name asks "Merge" or "Choose another
+  name", the latter returning to the dialog with the typed name) and, only without books, a red outlined "Delete" button
+  behind the destructive `ConfirmDialog`. Each reloads the list afterwards. Saving, adding or deleting a book in the dialogs reloads the
   counts and every open section.
 - **Watchlist** (MT-055, `BooksWatchlistView.tsx`, tab "Watchlist" / "Merkliste" at `/books/watchlist`, second
   tab): the games watchlist ([game-sub-pages.md](game-sub-pages.md#watchlist)) for books. Books with ownership
@@ -130,7 +138,7 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   an empty watchlist shows its own message (`books.watchlist.empty`).
 - **Authors view** (MT-046, `BookAuthorsView.tsx`, tab "Authors" / "Autoren" at `/books/authors`, between the
   overview and the series view): the same view over `/api/book-authors.summaries` and
-  `/api/book-authors/{id}/books`. Authors without books are listed too. A section shows the author's books by
+  `/api/book-authors/{id}/books`. Authors without books are listed too; rename, merge and delete work as in the series view. A section shows the author's books by
   release year, as overview `BookCard`s (series chips, no badge). Both views are thin wrappers around `BookGroupsView`,
   which takes the summary and book loaders, the card renderer and the i18n prefix (`books.seriesView`,
   `books.authorsView`); the accordion is `BookGroupAccordion`, the books hook `useGroupBooks`. `BookGroupsView` also loads `/api/books.meta`, only for the add speed dial's order, and ignores a failed load (the presets then keep label order).
