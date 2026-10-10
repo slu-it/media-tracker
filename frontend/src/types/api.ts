@@ -70,6 +70,8 @@ export interface CreateGameDeveloperRequest {
 export interface GameMetaResponse {
   /** Only platforms in use, alphabetically by label. */
   platforms: GamePlatformResponse[];
+  /** Number of games per platform id; only platforms in use are keys. */
+  platformCounts: Record<string, number>;
   /** Only values in use, in enum declaration order. */
   ownership: Ownership[];
   /** Only values in use, in enum declaration order. */
@@ -366,6 +368,8 @@ export interface BookSeriesLinkRequest {
 export interface BookMetaResponse {
   /** Only types in use, alphabetically by label. */
   types: BookTypeResponse[];
+  /** Number of books per type id; only types in use are keys. */
+  typeCounts: Record<string, number>;
   /** Only values in use, in enum declaration order. */
   ownership: BookOwnership[];
   /** Only values in use, in enum declaration order. */

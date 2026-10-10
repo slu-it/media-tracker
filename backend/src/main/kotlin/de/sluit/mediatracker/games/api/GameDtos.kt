@@ -102,6 +102,8 @@ data class GameMetaResponse(
     val ownership: List<String>,
     val progress: List<String>,
     val releaseYears: List<Int>,
+    /** platform id -> number of games using it; only used platforms appear. */
+    val platformCounts: Map<String, Int>,
 )
 
 // DTO <-> domain conversions. Constructing the value objects is the validation; failures surface as 400.
@@ -163,4 +165,5 @@ fun GameMeta.toResponse() = GameMetaResponse(
     ownership = ownership.map { it.wire },
     progress = progress.map { it.wire },
     releaseYears = releaseYears.map { it.value },
+    platformCounts = platformCounts.mapKeys { it.key.toString() },
 )

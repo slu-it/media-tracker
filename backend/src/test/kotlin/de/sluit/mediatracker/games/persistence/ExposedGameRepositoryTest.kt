@@ -866,7 +866,7 @@ class ExposedGameRepositoryTest {
         repo.insert(
             game(
                 "Alpha",
-                platforms = listOf(Platforms.PC),
+                platforms = listOf(Platforms.PC, Platforms.XBOX),
                 releaseYear = 2010,
                 ownership = Ownership.OWNED,
                 progress = Progress.PLAYING,
@@ -884,7 +884,7 @@ class ExposedGameRepositoryTest {
 
         val used = repo.findUsedFilterValues()
 
-        assertEquals(setOf(Platforms.PC.id, Platforms.XBOX.id), used.platformIds)
+        assertEquals(mapOf(Platforms.PC.id to 1, Platforms.XBOX.id to 2), used.platformCounts)
         assertEquals(setOf(Ownership.OWNED, Ownership.WATCHLIST), used.ownership)
         assertEquals(setOf(Progress.PLAYING, Progress.FINISHED), used.progress)
         assertEquals(setOf(ReleaseYear(2010), ReleaseYear(2015)), used.releaseYears)

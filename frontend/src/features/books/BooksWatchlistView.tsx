@@ -137,6 +137,7 @@ export function BooksWatchlistView() {
         </Alert>
       )}
       <BookDialogsHost
+        typeCounts={meta?.typeCounts}
         selected={selected}
         onSelect={setSelected}
         onCreated={onUpdated}

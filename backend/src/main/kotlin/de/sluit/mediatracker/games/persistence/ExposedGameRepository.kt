@@ -27,6 +27,7 @@ import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
+import de.sluit.mediatracker.games.domain.UsedGameFilterValues
 import de.sluit.mediatracker.games.domain.sortedByNameForGame
 import de.sluit.mediatracker.games.domain.sortedForGame
 import org.jetbrains.exposed.v1.core.Expression
@@ -35,6 +36,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.compoundAnd
 import org.jetbrains.exposed.v1.core.compoundOr
+import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
@@ -216,11 +218,17 @@ class ExposedGameRepository : GameRepository {
         MissingField.COVER_IMAGE_URL -> GamesTable.coverImageUrl.isNull()
     }
 
-    /** Four DISTINCT selects in one transaction; see [GameRepository.findUsedFilterValues]. */
-    override suspend fun findUsedFilterValues(): GameFilters = dbQuery {
-        val platformIds = GameToPlatformTable.select(GameToPlatformTable.platformId).withDistinct()
-            .map { GamePlatformId.parse(it[GameToPlatformTable.platformId]) }
-            .toSet()
+    /** One grouped count and three DISTINCT selects in one transaction; see [GameRepository.findUsedFilterValues]. */
+    override suspend fun findUsedFilterValues(): UsedGameFilterValues = dbQuery {
+        val platformCounts = GameToPlatformTable.select(
+            GameToPlatformTable.platformId,
+            GameToPlatformTable.platformId.count(),
+        )
+            .groupBy(GameToPlatformTable.platformId)
+            .associate {
+                GamePlatformId.parse(it[GameToPlatformTable.platformId]) to
+                    it[GameToPlatformTable.platformId.count()].toInt()
+            }
         val ownership = GamesTable.select(GamesTable.ownership).withDistinct()
             .map { Ownership.from(it[GamesTable.ownership]) }
             .toSet()
@@ -230,7 +238,7 @@ class ExposedGameRepository : GameRepository {
         val releaseYears = GamesTable.select(GamesTable.releaseYear).withDistinct()
             .map { ReleaseYear(it[GamesTable.releaseYear]) }
             .toSet()
-        GameFilters(platformIds, ownership, progress, releaseYears)
+        UsedGameFilterValues(platformCounts, ownership, progress, releaseYears)
     }
 
     /**

@@ -92,7 +92,9 @@ describe("GamesWatchlistView", () => {
 
     expect(screen.getByText(String(hades.releaseYear))).toBeInTheDocument();
     expect(screen.getByText(dated.releaseDate!)).toBeInTheDocument();
-    expect(screen.queryByText("Nintendo")).not.toBeInTheDocument();
+    // The only text match is the add speed dial's (inert) action label, not a chip on a card.
+    expect(screen.getAllByText("Nintendo")).toHaveLength(1);
+    expect(screen.queryByRole("menuitem", { name: "Nintendo" })).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Watchlist" })).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Owned" })).not.toBeInTheDocument();
   });

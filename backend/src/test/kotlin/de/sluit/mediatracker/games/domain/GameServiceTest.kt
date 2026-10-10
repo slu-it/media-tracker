@@ -445,8 +445,8 @@ class GameServiceTest {
         runBlocking {
             val labelOrdered = listOf(Platforms.NINTENDO, Platforms.PC, Platforms.PLAYSTATION, Platforms.XBOX)
             coEvery { platforms.findAll() } returns labelOrdered
-            val used = GameFilters(
-                platformIds = setOf(Platforms.XBOX.id, Platforms.NINTENDO.id),
+            val used = UsedGameFilterValues(
+                platformCounts = mapOf(Platforms.XBOX.id to 3, Platforms.NINTENDO.id to 1),
                 ownership = setOf(Ownership.OWNED, Ownership.SUBSCRIPTION, Ownership.WATCHLIST),
                 progress = setOf(Progress.ABANDONED, Progress.NOT_STARTED, Progress.PLAYING),
                 releaseYears = setOf(ReleaseYear(2020), ReleaseYear(1998), ReleaseYear(2010)),
@@ -456,6 +456,7 @@ class GameServiceTest {
             val result = service.meta()
 
             assertEquals(listOf(Platforms.NINTENDO, Platforms.XBOX), result.platforms)
+            assertEquals(mapOf(Platforms.XBOX.id to 3, Platforms.NINTENDO.id to 1), result.platformCounts)
             assertEquals(listOf(Ownership.WATCHLIST, Ownership.SUBSCRIPTION, Ownership.OWNED), result.ownership)
             assertEquals(listOf(Progress.ABANDONED, Progress.NOT_STARTED, Progress.PLAYING), result.progress)
             assertEquals(listOf(ReleaseYear(2020), ReleaseYear(2010), ReleaseYear(1998)), result.releaseYears)

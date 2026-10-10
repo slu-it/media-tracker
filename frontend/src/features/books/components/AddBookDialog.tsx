@@ -17,17 +17,19 @@ interface AddBookDialogProps {
   onCreated: (book: BookResponse) => void;
   /** `null` while the book types are still loading. */
   types: BookTypeResponse[] | null;
+  /** Book types preselected in the empty form (the add button's preset). */
+  initialTypeIds?: string[];
 }
 
 /** Same form as the edit mode, empty, with a save action only. Form state resets every time it opens. */
-export function AddBookDialog({ open, onClose, onCreated, types }: AddBookDialogProps) {
+export function AddBookDialog({ open, onClose, onCreated, types, initialTypeIds }: AddBookDialogProps) {
   if (!open) return null;
-  return <AddBookDialogContent onClose={onClose} onCreated={onCreated} types={types} />;
+  return <AddBookDialogContent onClose={onClose} onCreated={onCreated} types={types} initialTypeIds={initialTypeIds} />;
 }
 
-function AddBookDialogContent({ onClose, onCreated, types }: Omit<AddBookDialogProps, "open">) {
+function AddBookDialogContent({ onClose, onCreated, types, initialTypeIds }: Omit<AddBookDialogProps, "open">) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState(emptyBookDraft);
+  const [draft, setDraft] = useState(() => ({ ...emptyBookDraft(), typeIds: initialTypeIds ?? [] }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Not part of `draft`: a rejected mid-edit in the release date picker never reaches `onChange`, so it cannot be

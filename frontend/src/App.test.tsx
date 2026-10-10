@@ -12,7 +12,7 @@ import { currentLocation } from "./test/currentLocation";
 import { renderWithProviders } from "./test/renderWithProviders";
 
 const emptyPage = { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 };
-const emptyMeta = { platforms: [], ownership: [], progress: [], releaseYears: [] };
+const emptyMeta = { platforms: [], platformCounts: {}, ownership: [], progress: [], releaseYears: [] };
 const [OVERVIEW, WATCHLIST, RANKING] = MEDIA_SUB_PAGES.games;
 const [BOOKS_OVERVIEW, BOOKS_WATCHLIST, BOOKS_AUTHORS, BOOKS_SERIES] = MEDIA_SUB_PAGES.books;
 const BOOKS_PATH = pathFor("books", BOOKS_OVERVIEW);
@@ -22,7 +22,7 @@ const gamesApi = () => ({
   "GET /api/games.meta": () => jsonResponse(emptyMeta),
 });
 const NO_GAMES = /No games yet/;
-const emptyBooksMeta = { types: [], ownership: [], progress: [], releaseYears: [] };
+const emptyBooksMeta = { types: [], typeCounts: {}, ownership: [], progress: [], releaseYears: [] };
 const booksApi = () => ({
   "GET /api/books": () => jsonResponse(emptyPage),
   "GET /api/book-types": () => jsonResponse([]),

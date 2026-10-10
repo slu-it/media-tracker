@@ -71,10 +71,11 @@ class GameService(
     suspend fun meta(): GameMeta {
         val used = games.findUsedFilterValues()
         return GameMeta(
-            platforms = platforms.findAll().filter { it.id in used.platformIds },
+            platforms = platforms.findAll().filter { it.id in used.platformCounts.keys },
             ownership = Ownership.entries.filter { it in used.ownership },
             progress = Progress.entries.filter { it in used.progress },
             releaseYears = used.releaseYears.sortedByDescending { it.value },
+            platformCounts = used.platformCounts,
         )
     }
 

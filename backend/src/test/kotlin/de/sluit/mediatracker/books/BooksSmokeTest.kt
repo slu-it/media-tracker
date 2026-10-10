@@ -312,6 +312,7 @@ class BooksSmokeTest {
         assertEquals(listOf("owned"), meta.ownership)
         assertEquals(listOf("reading"), meta.progress)
         assertEquals(listOf(1965), meta.releaseYears)
+        assertEquals(mapOf(SeededBookTypes.KINDLE to 1), meta.typeCounts)
     }
 
     @Test

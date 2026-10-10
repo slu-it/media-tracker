@@ -1022,6 +1022,7 @@ class GameRoutesTest {
             ownership = listOf(Ownership.WATCHLIST, Ownership.OWNED),
             progress = listOf(Progress.PLAYING, Progress.COMPLETED),
             releaseYears = listOf(ReleaseYear(2018), ReleaseYear(2020)),
+            platformCounts = mapOf(Platforms.NINTENDO.id to 5, Platforms.PC.id to 2),
         )
 
         val response = client.get("/api/games.meta").decodeBody<GameMetaResponse>()
@@ -1033,6 +1034,10 @@ class GameRoutesTest {
         assertEquals(listOf("watchlist", "owned"), response.ownership)
         assertEquals(listOf("playing", "completed"), response.progress)
         assertEquals(listOf(2018, 2020), response.releaseYears)
+        assertEquals(
+            mapOf(Platforms.NINTENDO.id.toString() to 5, Platforms.PC.id.toString() to 2),
+            response.platformCounts,
+        )
     }
 
     // ---- release date and developers ----

@@ -665,6 +665,7 @@ class BookRoutesTest {
             ownership = listOf(BookOwnership.WATCHLIST, BookOwnership.OWNED),
             progress = listOf(BookProgress.NOT_STARTED, BookProgress.READING),
             releaseYears = listOf(ReleaseYear(2001), ReleaseYear(1965)),
+            typeCounts = mapOf(BookTypes.KINDLE.id to 3),
         )
 
         val meta = client.get("/api/books.meta").decodeBody<BookMetaResponse>()
@@ -673,6 +674,7 @@ class BookRoutesTest {
         assertEquals(listOf("watchlist", "owned"), meta.ownership)
         assertEquals(listOf("not_started", "reading"), meta.progress)
         assertEquals(listOf(2001, 1965), meta.releaseYears)
+        assertEquals(mapOf(BookTypes.KINDLE.id.toString() to 3), meta.typeCounts)
     }
 
     // ---- authors ----

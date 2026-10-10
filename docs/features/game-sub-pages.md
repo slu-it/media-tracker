@@ -21,7 +21,7 @@ Code:
 - Each sub-page is a route, `/games/{overview|watchlist|ranking}`, with its search, filters, sort, page or
   year in the query ([url-routes.md](url-routes.md), ADR 0031). The last-used sub-page is still stored under
   `mt.gamesPage`, and `/games` redirects there. An unknown stored value falls back to `overview`.
-- Every sub-page renders `GameDialogsHost`: the FAB, the add dialog and the detail dialog, including editing,
+- Every sub-page renders `GameDialogsHost`: the add speed dial, the add dialog and the detail dialog, including editing,
   deleting and expansions. The page owns the selected game and reloads its list and `/api/games.meta` after a
   create, an update or a delete.
 - Cards are `MediaCardShell` (cover, title, click) with a page-specific body. `GamesGrid` takes a `renderCard`

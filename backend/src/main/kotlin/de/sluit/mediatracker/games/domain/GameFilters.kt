@@ -61,4 +61,17 @@ data class GameMeta(
     val ownership: List<Ownership>,
     val progress: List<Progress>,
     val releaseYears: List<ReleaseYear>,
+    val platformCounts: Map<GamePlatformId, Int>,
+)
+
+/**
+ * The filter values in use across all stored games, as [GameRepository.findUsedFilterValues] returns them:
+ * [platformCounts] maps each used platform id to the number of games using it (so its keys are the used ids), the other
+ * categories are plain sets.
+ */
+data class UsedGameFilterValues(
+    val platformCounts: Map<GamePlatformId, Int>,
+    val ownership: Set<Ownership>,
+    val progress: Set<Progress>,
+    val releaseYears: Set<ReleaseYear>,
 )

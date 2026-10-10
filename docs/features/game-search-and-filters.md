@@ -28,7 +28,7 @@ ADRs: [0015](../decisions/0015-fulltext-game-search.md) (fulltext, Testcontainer
   The platform filter is a semi-join so a game on two selected platforms appears once. `V007` indexes the
   three filterable `games` columns.
 - `GET /api/games.meta` returns the values to offer, and only those that occur in a stored game; `.meta` is the
-  convention for a resource's lookup data. Release years are listed newest first (MT-014).
+  convention for a resource's lookup data. Release years are listed newest first (MT-014). `platformCounts` (platform id to number of games) feeds the order of the [add speed dial](add-speed-dial.md).
 - Frontend, overview:
   - All four filters sit in the results row after the count chip (`components/OverviewFilters.tsx`): the
     progress and ownership toggle bars, then Platform and Release year.

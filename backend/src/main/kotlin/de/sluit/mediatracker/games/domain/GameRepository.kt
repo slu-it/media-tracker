@@ -46,11 +46,11 @@ interface GameRepository {
     ): Page<Game>
 
     /**
-     * The distinct values each filter category currently has across all games, unordered. Only the four
-     * categories the REST filters expose; `missing` is never populated, it has no lookup values to offer
+     * The distinct values each filter category currently has across all games, unordered, plus the number of
+     * games per platform. Only the four categories the REST filters expose; `missing` is never populated, it has no lookup values to offer
      * (decision record 0022).
      */
-    suspend fun findUsedFilterValues(): GameFilters
+    suspend fun findUsedFilterValues(): UsedGameFilterValues
 }
 
 /**

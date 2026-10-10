@@ -11,6 +11,22 @@ import { AddGameDialog } from "./AddGameDialog";
 const platforms: GamePlatformResponse[] = [pc, playstation];
 
 describe("AddGameDialog", () => {
+  it("preselects the given platforms", () => {
+    mockApi({});
+    renderWithProviders(
+      <AddGameDialog
+        open
+        onClose={() => {}}
+        onCreated={() => {}}
+        platforms={platforms}
+        initialPlatformIds={[playstation.id]}
+      />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Add game" });
+    expect(within(dialog).getByText("PlayStation")).toBeInTheDocument();
+    expect(within(dialog).queryByText("PC")).not.toBeInTheDocument();
+  });
+
   it("posts the filled form and reports the created game", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();
