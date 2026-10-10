@@ -12,11 +12,10 @@
 # development mode for `run` and skips building/copying the SPA into the backend resources, so :8080 serves
 # only the login page and the API.
 #
-# The local user "slu" is created via the last built fat JAR when one exists; otherwise run
-# ./build-and-start-locally.sh once (the MariaDB volume keeps the user afterwards).
+# The local user "slu" (password "password", set again on every run) is created or reset via the last built
+# fat JAR when one exists; otherwise run ./build-and-start-locally.sh once (the MariaDB volume keeps the user).
 #
 # Optional environment:
-#   MT_LOCAL_PASSWORD   password for the local user when it has to be created (otherwise you are prompted)
 #   PORT                backend port (default 8080; the Vite proxy target in frontend/vite.config.ts is fixed to 8080)
 set -euo pipefail
 

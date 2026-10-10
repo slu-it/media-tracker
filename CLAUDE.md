@@ -38,10 +38,11 @@ keeps its own domain and explicit components.
 | Dev loop with live reload (backend auto-reload + Vite HMR) | `./start-dev.sh` (Docker MariaDB, `:backend:run -Pmt.dev=true`, `:backend:classes -t -Pmt.dev=true`, `pnpm dev`; open :5173) |
 | Backend dev run (serves last built frontend) | `./gradlew :backend:run` (needs `DB_URL`, `DB_USER`, `DB_PASSWORD`, `SESSION_SECRET`; optional `STEAMGRIDDB_API_KEY` enables the cover picker) |
 | Frontend hot reload | `cd frontend && pnpm dev` (port 5173, proxies `/api`, `/login`, `/logout`, `/health` to `:8080`) |
-| Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MariaDB, builds, ensures user `slu`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
+| Full local end-to-end (production-like JAR) | `./build-and-start-locally.sh` (starts Docker MariaDB, builds, ensures user `slu` with password `password`, runs on :8080); `MT_SKIP_BUILD=1` reuses the last JAR. Shared env/helpers in `local-env.sh` |
 | Release JAR | `./gradlew :backend:buildFatJar` then `backend/build/libs/media-tracker.jar` |
 | Container image (JAR first; single-arch for the host, local testing only) | `./gradlew :backend:buildFatJar && docker build -t media-tracker:local .` |
 | Run that image against the local MariaDB | `source local-env.sh && docker compose up -d --wait mariadb && docker run --rm --network host -e DB_URL -e DB_USER -e DB_PASSWORD -e SESSION_SECRET -e SESSION_SECURE media-tracker:local` |
+| Local test user for your own browser checks (never use `slu`, it is the owner's) | `bash -c 'source local-env.sh && ensure_local_user backend/build/libs/media-tracker.jar claude'`, then log in as `claude` / `password`. Needs a built JAR and the local MariaDB. If a dev server already runs on :8080, test against it. Otherwise start the JAR on a free port, because a leftover server makes checks pass falsely |
 | Create/reset a user (no self-registration) | `java -cp backend/build/libs/media-tracker.jar de.sluit.mediatracker.auth.CreateUser <name> [--reset-password]` |
 
 ## Rules that apply everywhere
