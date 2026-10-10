@@ -94,6 +94,8 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   series. The type chips follow with the card's regular gap (the same as between types and status icons). Series
   and types together are the card's description (`aria-describedby`). A book without series keeps one chip row's
   height empty above its types, so the series row lines up across a grid row.
+- Type chips that wrap onto a second row stay centered on the card (`ColorChips centered`); the detail dialog keeps
+  them left-aligned.
 - The release-year select reaches back to 1450 (`BOOK_RELEASE_YEAR_SELECT_MIN`, passed as `minYear` to the shared
   `ReleaseYearField`; games keep 1980).
 - Book covers use a 2:3 frame (`BOOK_COVER_ASPECT_RATIO` in `domain/bookValues.ts`), passed to the shared

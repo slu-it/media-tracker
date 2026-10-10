@@ -54,7 +54,7 @@ export function BookCard({
             ) : (
               placeholder
             )}
-            {book.types.length > 0 && <ColorChips items={book.types} />}
+            {book.types.length > 0 && <ColorChips items={book.types} centered />}
           </Stack>
         ) : typeof seriesPosition === "number" ? (
           <Chip
@@ -69,7 +69,7 @@ export function BookCard({
         )
       }
     >
-      {inSeriesView && book.types.length > 0 && <ColorChips items={book.types} />}
+      {inSeriesView && book.types.length > 0 && <ColorChips items={book.types} centered />}
       <BookStatusIcons ownership={book.ownership} progress={book.progress} variant="card" />
     </MediaCardShell>
   );
