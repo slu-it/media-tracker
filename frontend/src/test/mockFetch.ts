@@ -21,6 +21,17 @@ export function noContent(): Response {
 }
 
 /**
+ * Route answering the title-suggestions request of a book or game title field with no suggestions. Typing or
+ * pasting a title of the kind's minimum length (`TITLE_SUGGESTION_MIN_LENGTH` for games,
+ * `BOOK_TITLE_SUGGESTION_MIN_LENGTH` for books) debounces that request, which may or may not fire before the form
+ * unmounts, so every test that edits a title needs this route or the unmocked request fails it intermittently.
+ * Spread it into the `mockApi` routes.
+ */
+export function noTitleSuggestions(kind: "books" | "games"): Record<string, RouteHandler> {
+  return { [`GET /api/${kind}/title-suggestions`]: () => jsonResponse({ suggestions: [] }) };
+}
+
+/**
  * Replaces `fetch` with a router keyed by `"METHOD /path"`; `:id` matches one path segment
  * (`"PATCH /api/games/:id"`). Returns the recorded calls for assertions. A request that matches no route
  * throws instead of resolving, so a forgotten mock fails loudly rather than looking like a 404 response;

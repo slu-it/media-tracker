@@ -4,7 +4,7 @@ import { act, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { ExpansionResponse, GameDeveloperResponse, GameResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
-import { jsonResponse, mockApi, noContent } from "../../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../../test/mockFetch";
 import {
   celeste,
   hades,
@@ -30,11 +30,6 @@ const game: GameResponse = {
 const noExpansions = {
   "GET /api/games/:id/expansions": () => jsonResponse([]),
 };
-
-// A 5+ character title edit debounces a title-suggestions request; added only to the tests that actually edit
-// the title that far, so elsewhere `mockApi`'s "unmocked request throws" guard stays meaningful (e.g. it would
-// catch `ExpansionDialog`'s title field wrongly requesting suggestions too).
-const titleSuggestionsEmpty = { "GET /api/games/title-suggestions": () => jsonResponse({ suggestions: [] }) };
 
 /** Mirrors the host: the saved game replaces the `game` prop. */
 function StatefulDialog({ initial, onSaved }: { initial: GameResponse; onSaved?: (updated: GameResponse) => void }) {
@@ -438,7 +433,7 @@ describe("GameDetailDialog", () => {
     const onSaved = vi.fn();
     const calls = mockApi({
       ...noExpansions,
-      ...titleSuggestionsEmpty, // the title below is edited to 5+ characters
+      ...noTitleSuggestions("games"), // the title below is edited to 5+ characters
       "PATCH /api/games/:id": (call) => jsonResponse({ ...game, ...(call.body as object) }),
     });
     renderWithProviders(
@@ -641,7 +636,7 @@ describe("GameDetailDialog", () => {
 
   it("disables save while a picked release date is invalid, and re-enables once formValid resets on re-edit", async () => {
     const user = userEvent.setup();
-    const calls = mockApi({ ...noExpansions, ...titleSuggestionsEmpty });
+    const calls = mockApi({ ...noExpansions, ...noTitleSuggestions("games") });
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
@@ -710,7 +705,7 @@ describe("GameDetailDialog", () => {
   it("cancel discards the edits and returns to view mode", async () => {
     const user = userEvent.setup();
     // The title below is edited to 5+ characters.
-    const calls = mockApi({ ...noExpansions, ...titleSuggestionsEmpty });
+    const calls = mockApi({ ...noExpansions, ...noTitleSuggestions("games") });
     renderWithProviders(
       <GameDetailDialog game={game} onClose={() => {}} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );
@@ -733,7 +728,7 @@ describe("GameDetailDialog", () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
     // The title below is edited (appended to), staying at 5+ characters.
-    const calls = mockApi({ ...noExpansions, ...titleSuggestionsEmpty });
+    const calls = mockApi({ ...noExpansions, ...noTitleSuggestions("games") });
     renderWithProviders(
       <GameDetailDialog game={game} onClose={onClose} onSaved={() => {}} onDeleted={() => {}} platforms={platforms} />,
     );

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { useNavigate } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 import type { BookResponse } from "../../types/api";
-import { jsonResponse, mockApi, noContent } from "../../test/mockFetch";
+import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
 import { bookTypes, dune, earthsea, hardcover, meta, mistbornBooks } from "../../test/fixtures/books";
 import { currentLocation } from "../../test/currentLocation";
 import { flushAsync } from "../../test/flushAsync";
@@ -275,6 +275,7 @@ describe("BooksView", () => {
       },
       "GET /api/book-types": mockTypes,
       "GET /api/books.meta": mockMeta,
+      ...noTitleSuggestions("books"),
       "PATCH /api/books/:id": (call) => jsonResponse({ ...dune, ...(call.body as object) }),
     });
     renderWithProviders(<BooksView />);
@@ -309,7 +310,7 @@ describe("BooksView", () => {
       },
       "GET /api/book-types": mockTypes,
       "GET /api/books.meta": mockMeta,
-      "GET /api/books/title-suggestions": () => jsonResponse({ suggestions: [] }),
+      ...noTitleSuggestions("books"),
       "POST /api/books": (call) => jsonResponse({ id: "book-3", ...(call.body as object) }, 201),
     });
     renderWithProviders(<BooksView />);
