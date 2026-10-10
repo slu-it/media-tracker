@@ -39,6 +39,31 @@ describe("BookSeriesView", () => {
     expect(calls.some((c) => c.url.includes("/books") && c.url.includes("book-series/"))).toBe(false);
   });
 
+  it("sorts by volume and back, writing the URL without a request", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi(base());
+    renderWithProviders(<BookSeriesView />);
+    await screen.findAllByRole("heading", { level: 2 });
+    const before = calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Most books" }));
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Mistborn3 books",
+      "Dune Saga1 book",
+      "Éowyn Chronicles0 books",
+    ]);
+    expect(currentLocation()).toContain("sort=volume");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Dune Saga1 book",
+      "Éowyn Chronicles0 books",
+      "Mistborn3 books",
+    ]);
+    expect(currentLocation()).not.toContain("sort");
+    expect(calls).toHaveLength(before);
+  });
+
   it("filters by search without any request", async () => {
     const user = userEvent.setup();
     const calls = mockApi(base());

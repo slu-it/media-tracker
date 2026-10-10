@@ -25,6 +25,8 @@ export interface GroupLabels {
   renameTitle: string;
   nameLabel: string;
   nameTaken: (existing: string, name: string) => string;
+  /** The "most items first" sort option, e.g. "Most books". */
+  sortByVolume: string;
   merge: string;
   chooseOtherName: string;
 }

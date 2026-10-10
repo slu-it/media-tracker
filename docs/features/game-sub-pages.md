@@ -94,7 +94,8 @@ Code:
 - `GamesDevelopersView.tsx`, tab "Developers" / "Entwickler" at `/games/developers` (ADR 0042): the books authors view
   ([books.md](books.md)) for games. Every developer from `/api/game-developers.summaries` (`[{id, name, gameCount}]`
   by name, those without games included) as one shared `MediaGroupAccordion` with a game-count chip; the search
-  filters the loaded list in the browser and is kept in the URL (`search`). Expanding loads
+  filters the loaded list in the browser and is kept in the URL (`search`); the sort toggle switches between "Name"
+  (default) and "Most games" (game count descending, ties alphabetical), kept as `sort=volume`. Expanding loads
   `/api/game-developers/{id}/games` (release order as `GameSort.RELEASE_ASC`, 404 for an unknown developer) as
   `GameCard`s; a card opens the detail dialog through `GameDialogsHost`, and a save reloads the counts and open
   sections.

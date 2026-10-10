@@ -23,6 +23,7 @@ export function useBookGroupLabels(prefix: BookGroupLabelPrefix): GroupLabels {
       renameTitle: t(`${prefix}.renameTitle`),
       nameLabel: t(`${prefix}.nameLabel`),
       nameTaken: (existing, name) => t(`${prefix}.nameTaken`, { existing, name }),
+      sortByVolume: t(`${prefix}.sortByVolume`),
       merge: t(`${prefix}.merge`),
       chooseOtherName: t(`${prefix}.chooseOtherName`),
     }),

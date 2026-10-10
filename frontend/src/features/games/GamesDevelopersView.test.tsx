@@ -45,6 +45,31 @@ describe("GamesDevelopersView", () => {
     expect(calls.some((c) => c.url.includes("game-developers/"))).toBe(false);
   });
 
+  it("sorts by volume and back, writing the URL without a request", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi(base());
+    renderWithProviders(<GamesDevelopersView />);
+    await screen.findAllByRole("heading", { level: 2 });
+    const before = calls.length;
+
+    await user.click(screen.getByRole("button", { name: "Most games" }));
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Team Cherry2 games",
+      "Supergiant Games1 game",
+      "Émile Studio0 games",
+    ]);
+    expect(currentLocation()).toContain("sort=volume");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual([
+      "Émile Studio0 games",
+      "Supergiant Games1 game",
+      "Team Cherry2 games",
+    ]);
+    expect(currentLocation()).not.toContain("sort");
+    expect(calls).toHaveLength(before);
+  });
+
   it("filters by search without any request", async () => {
     const user = userEvent.setup();
     const calls = mockApi(base());

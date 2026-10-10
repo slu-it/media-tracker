@@ -149,5 +149,7 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   renderer and the i18n prefix (`books.authorsView`, `books.narratorsView`, `books.seriesView`), turns the prefix into
   the translated `labels` (`useBookGroupLabels`) and renders the shared `MediaGroupsView`
   (`components/media/groups/`, ADR 0042) with `BookCard`s, the 2:3 cover ratio and `BookDialogsHost`.
+  A sort toggle in the results row (`GroupSortToggle`) switches between "Name" (default, the backend's order) and
+  "Most books" (book count descending, ties alphabetical), client-side, kept in the URL as `sort=volume`.
   `BookGroupsView` also loads `/api/books.meta`, only for the add speed dial's order, and ignores a failed load (the
   presets then keep label order).

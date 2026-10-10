@@ -33,6 +33,10 @@ The group view (search, one accordion per entry, items on expand, rename/merge/d
   arrives as an already translated `labels` object; each kind builds it from its own keys (`books.authorsView`,
   `books.narratorsView`, `books.seriesView`, `games.developersView`) in a feature hook. The kind passes its card,
   cover ratio, loaders and dialogs host.
+- **Sort by name or volume.** Every group view has a sort toggle in the results row: "Name" (default, the backend's
+  order under the table collation) or by volume ("Most books" / "Most games"): item count descending, entries with
+  the same count alphabetical. The sort is client-side, like the search, as a stable sort over the backend's order,
+  so ties keep the collation order without imitating it in JavaScript; it is kept in the URL as `sort=volume`.
 - **No MCP tools** for these actions, as in record 0041.
 
 ## Alternatives considered
