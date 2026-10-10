@@ -55,4 +55,17 @@ data class BookMeta(
     val ownership: List<BookOwnership>,
     val progress: List<BookProgress>,
     val releaseYears: List<ReleaseYear>,
+    val typeCounts: Map<BookTypeId, Int>,
+)
+
+/**
+ * The filter values in use across all stored books, as [BookRepository.findUsedFilterValues] returns them:
+ * [typeCounts] maps each used type id to the number of books using it (so its keys are the used ids), the other
+ * categories are plain sets.
+ */
+data class UsedBookFilterValues(
+    val typeCounts: Map<BookTypeId, Int>,
+    val ownership: Set<BookOwnership>,
+    val progress: Set<BookProgress>,
+    val releaseYears: Set<ReleaseYear>,
 )

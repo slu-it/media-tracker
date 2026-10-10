@@ -138,6 +138,8 @@ data class BookMetaResponse(
     val ownership: List<String>,
     val progress: List<String>,
     val releaseYears: List<Int>,
+    /** type id -> number of books using it; only used types appear. */
+    val typeCounts: Map<String, Int>,
 )
 
 // DTO <-> domain conversions. Constructing the value objects is the validation; failures surface as 400.
@@ -223,4 +225,5 @@ fun BookMeta.toResponse() = BookMetaResponse(
     ownership = ownership.map { it.wire },
     progress = progress.map { it.wire },
     releaseYears = releaseYears.map { it.value },
+    typeCounts = typeCounts.mapKeys { it.key.toString() },
 )

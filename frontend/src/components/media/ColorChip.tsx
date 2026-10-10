@@ -1,4 +1,5 @@
 import { Chip, useTheme, type ChipProps } from "@mui/material";
+import { chipColors } from "./chipColors";
 
 /** What a colored chip shows; structurally the same as `GamePlatformResponse`. `associatedColor` is hex without `#`. */
 export interface ColorChipItem {
@@ -17,13 +18,5 @@ interface ColorChipProps extends Omit<ChipProps, "label" | "sx"> {
  */
 export function ColorChip({ item, ...chipProps }: ColorChipProps) {
   const theme = useTheme();
-  const backgroundColor = `#${item.associatedColor}`;
-  return (
-    <Chip
-      size="small"
-      label={item.label}
-      sx={{ bgcolor: backgroundColor, color: theme.palette.getContrastText(backgroundColor) }}
-      {...chipProps}
-    />
-  );
+  return <Chip size="small" label={item.label} sx={chipColors(theme, item.associatedColor)} {...chipProps} />;
 }

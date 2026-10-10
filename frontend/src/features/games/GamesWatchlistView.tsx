@@ -139,6 +139,7 @@ export function GamesWatchlistView() {
         </Alert>
       )}
       <GameDialogsHost
+        platformCounts={meta?.platformCounts}
         selected={selected}
         onSelect={setSelected}
         onCreated={onUpdated}

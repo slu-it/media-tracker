@@ -168,6 +168,7 @@ export const emptyCoverOptions: CoverOptionsResponse = {
 
 export const meta: GameMetaResponse = {
   platforms: [nintendo, pc],
+  platformCounts: { [nintendo.id]: 2, [pc.id]: 1 },
   ownership: ["watchlist", "owned"],
   progress: ["playing", "completed"],
   releaseYears: [2018, 2020],

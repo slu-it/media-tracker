@@ -50,7 +50,7 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
 | `POST /api/books` | Create (201); `releaseYear` may be omitted when `releaseDate` is given; `typeIds`/`authorIds`/`narratorIds`/`series` default to `[]`; `series` is `[{seriesId, position?}]`, a repeated `seriesId` is a 400 |
 | `PATCH /api/books/{id}` | `PatchField` for description, cover URL and date (`null` clears); `typeIds`/`authorIds`/`narratorIds`/`series` replace the set |
 | `DELETE /api/books/{id}` | 204 |
-| `GET /api/books.meta` | Filter values in use: types, ownership, progress, release years (newest first) |
+| `GET /api/books.meta` | Filter values in use: types, ownership, progress, release years (newest first); `typeCounts` (type id to number of books) for the [add speed dial](add-speed-dial.md) (ADR 0040) |
 | `GET /api/books/cover-options?query=&releaseYear=&source=&match=&page=` | Cover picker: Open Library (`book`) or Audible (`audiobook`) covers, 50 per page; `502 <source>_error` on provider failure ([cover picker](cover-picker.md#books), ADR 0039) |
 | `GET /api/books/title-suggestions?query=&source=` | Up to 8 title suggestions with authors, narrators and year; empty on provider failure ([title suggestions](title-suggestions.md#books)) |
 | `GET /api/book-types` | The seeded types |
@@ -80,7 +80,7 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 
 - `BooksView.tsx` is the overview: search row, results row with the count chip and `BookOverviewFilters`
   (progress and ownership toggle bars, Type and Release year selects), grid of `BookCard`s, pagination top and
-  bottom, FAB and dialogs through `BookDialogsHost`. URL state lives in `domain/bookViewParams.ts` (`search`,
+  bottom, add speed dial ([add-speed-dial.md](add-speed-dial.md)) and dialogs through `BookDialogsHost`. URL state lives in `domain/bookViewParams.ts` (`search`,
   `type`, `ownership`, `progress`, `year`, `page`); page size `BOOKS_PAGE_SIZE` = 36.
 - The `reading` progress icon is `AutoStories`; the others match games (`NotStarted`, `Pause`, `TaskAlt`,
   `NotInterested`), as do the ownership icons. Cards show the ownership icon for watchlist books and the
@@ -122,7 +122,7 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 - **Watchlist** (MT-055, `BooksWatchlistView.tsx`, tab "Watchlist" / "Merkliste" at `/books/watchlist`, second
   tab): the games watchlist ([game-sub-pages.md](game-sub-pages.md#watchlist)) for books. Books with ownership
   `watchlist`, the shared `ReleaseSortToggle` ("Oldest first" by default) and a Type select instead of the
-  platform select in the results row, search, pagination, FAB and dialogs. Cards are `WatchlistBookCard`: cover
+  platform select in the results row, search, pagination, add speed dial and dialogs. Cards are `WatchlistBookCard`: cover
   (desaturated), title, release date or year, and for a date the release chip described there (ISO 8601
   distance, or "Available"). URL codec in `bookViewParams.ts` (`search`, `type`, `sort=release_desc`, `page`);
   an empty watchlist shows its own message (`books.watchlist.empty`).
@@ -131,4 +131,4 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   `/api/book-authors/{id}/books`. Authors without books are listed too. A section shows the author's books by
   release year, as overview `BookCard`s (series chips, no badge). Both views are thin wrappers around `BookGroupsView`,
   which takes the summary and book loaders, the card renderer and the i18n prefix (`books.seriesView`,
-  `books.authorsView`); the accordion is `BookGroupAccordion`, the books hook `useGroupBooks`.
+  `books.authorsView`); the accordion is `BookGroupAccordion`, the books hook `useGroupBooks`. `BookGroupsView` also loads `/api/books.meta`, only for the add speed dial's order, and ignores a failed load (the presets then keep label order).

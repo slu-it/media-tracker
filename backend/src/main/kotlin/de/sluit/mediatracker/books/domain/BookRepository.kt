@@ -45,10 +45,10 @@ interface BookRepository {
     ): Page<Book>
 
     /**
-     * The distinct values each filter category currently has across all books, unordered. Only the four
-     * categories the REST filters expose; `missing` is never populated, it has no lookup values to offer.
+     * The distinct values each filter category currently has across all books, unordered, plus the number of
+     * books per type. Only the four categories the REST filters expose; `missing` is never populated, it has no lookup values to offer.
      */
-    suspend fun findUsedFilterValues(): BookFilters
+    suspend fun findUsedFilterValues(): UsedBookFilterValues
 
     /**
      * All books linked to [seriesId], unpaged: ordered by the book's position in that series ascending, books

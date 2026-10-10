@@ -19,6 +19,7 @@ import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.BookTypeLabel
+import de.sluit.mediatracker.books.domain.UsedBookFilterValues
 import de.sluit.mediatracker.books.domain.sortedByNameForBook
 import de.sluit.mediatracker.books.domain.sortedForBook
 import de.sluit.mediatracker.common.domain.CoverImageUrl
@@ -40,6 +41,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.compoundAnd
 import org.jetbrains.exposed.v1.core.compoundOr
+import org.jetbrains.exposed.v1.core.count
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
@@ -218,11 +220,11 @@ class ExposedBookRepository : BookRepository {
         BookMissingField.COVER_IMAGE_URL -> BooksTable.coverImageUrl.isNull()
     }
 
-    /** Four DISTINCT selects in one transaction; see [BookRepository.findUsedFilterValues]. */
-    override suspend fun findUsedFilterValues(): BookFilters = dbQuery {
-        val typeIds = BookToTypeTable.select(BookToTypeTable.typeId).withDistinct()
-            .map { BookTypeId.parse(it[BookToTypeTable.typeId]) }
-            .toSet()
+    /** One grouped count and three DISTINCT selects in one transaction; see [BookRepository.findUsedFilterValues]. */
+    override suspend fun findUsedFilterValues(): UsedBookFilterValues = dbQuery {
+        val typeCounts = BookToTypeTable.select(BookToTypeTable.typeId, BookToTypeTable.typeId.count())
+            .groupBy(BookToTypeTable.typeId)
+            .associate { BookTypeId.parse(it[BookToTypeTable.typeId]) to it[BookToTypeTable.typeId.count()].toInt() }
         val ownership = BooksTable.select(BooksTable.ownership).withDistinct()
             .map { BookOwnership.from(it[BooksTable.ownership]) }
             .toSet()
@@ -232,7 +234,7 @@ class ExposedBookRepository : BookRepository {
         val releaseYears = BooksTable.select(BooksTable.releaseYear).withDistinct()
             .map { ReleaseYear(it[BooksTable.releaseYear]) }
             .toSet()
-        BookFilters(typeIds, ownership, progress, releaseYears)
+        UsedBookFilterValues(typeCounts, ownership, progress, releaseYears)
     }
 
     /**

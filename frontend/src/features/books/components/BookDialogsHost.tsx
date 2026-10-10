@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Button, Fab } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
+import { Alert, Button } from "@mui/material";
 import { useTranslation } from "react-i18next";
+import { AddSpeedDial } from "../../../components/media/AddSpeedDial";
 import type { BookResponse } from "../../../types/api";
 import { useBookTypes } from "../hooks/useBookTypes";
 import { AddBookDialog } from "./AddBookDialog";
@@ -14,17 +14,27 @@ interface BookDialogsHostProps {
   onCreated: (book: BookResponse) => void;
   onUpdated: (book: BookResponse) => void;
   onDeleted: (id: string) => void;
+  /** Usage count per book type id (meta), which decides the presets of the add button. */
+  typeCounts?: Record<string, number>;
 }
 
 /**
- * FAB + `AddBookDialog` + `BookDetailDialog`, wired to the shared create/edit/delete flow: open the detail dialog
- * on selection, create a book via the FAB, reload the caller's list/meta afterwards. Owns the selectable book
+ * Add speed dial + `AddBookDialog` + `BookDetailDialog`, wired to the shared create/edit/delete flow: open the detail dialog
+ * on selection, create a book via the speed dial, reload the caller's list/meta afterwards. Owns the selectable book
  * types lookup the two dialogs need, so a page only has to control which book is selected.
  */
-export function BookDialogsHost({ selected, onSelect, onCreated, onUpdated, onDeleted }: BookDialogsHostProps) {
+export function BookDialogsHost({
+  selected,
+  onSelect,
+  onCreated,
+  onUpdated,
+  onDeleted,
+  typeCounts,
+}: BookDialogsHostProps) {
   const { t } = useTranslation();
   const { types, error: typesError, reload: reloadTypes } = useBookTypes(t("errors.loadFailed"));
-  const [addOpen, setAddOpen] = useState(false);
+  // `null` while the add dialog is closed; `id` is the preset chosen on the add button.
+  const [addPreset, setAddPreset] = useState<{ id?: string } | null>(null);
   // Read when a save resolves: the dialog may have been closed or switched to another book meanwhile.
   const selectedRef = useRef(selected);
   useEffect(() => {
@@ -39,15 +49,12 @@ export function BookDialogsHost({ selected, onSelect, onCreated, onUpdated, onDe
         </Alert>
       )}
 
-      <Fab
-        color="primary"
-        aria-label={t("books.addBook")}
-        onClick={() => setAddOpen(true)}
-        disabled={types === null}
-        sx={{ position: "fixed", right: 24, bottom: 24 }}
-      >
-        <AddIcon />
-      </Fab>
+      <AddSpeedDial
+        label={t("books.addBook")}
+        options={types}
+        counts={typeCounts}
+        onAdd={(id) => setAddPreset({ id })}
+      />
 
       <BookDetailDialog
         book={selected}
@@ -60,13 +67,14 @@ export function BookDialogsHost({ selected, onSelect, onCreated, onUpdated, onDe
         types={types}
       />
       <AddBookDialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
+        open={addPreset !== null}
+        onClose={() => setAddPreset(null)}
         onCreated={(book) => {
-          setAddOpen(false);
+          setAddPreset(null);
           onCreated(book);
         }}
         types={types}
+        initialTypeIds={addPreset?.id ? [addPreset.id] : undefined}
       />
     </>
   );

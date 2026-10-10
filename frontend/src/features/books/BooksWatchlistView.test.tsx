@@ -84,7 +84,9 @@ describe("BooksWatchlistView", () => {
 
     expect(screen.getByText(String(earthsea.releaseYear))).toBeInTheDocument();
     expect(screen.getByText(dated.releaseDate!)).toBeInTheDocument();
-    expect(screen.queryByText("Hardcover")).not.toBeInTheDocument();
+    // The only text match is the add speed dial's (inert) action label, not a chip on a card.
+    expect(screen.getAllByText("Hardcover")).toHaveLength(1);
+    expect(screen.queryByRole("menuitem", { name: "Hardcover" })).not.toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "Watchlist" })).not.toBeInTheDocument();
   });
 

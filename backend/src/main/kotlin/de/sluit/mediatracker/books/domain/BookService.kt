@@ -87,10 +87,11 @@ class BookService(
     suspend fun meta(): BookMeta {
         val used = books.findUsedFilterValues()
         return BookMeta(
-            types = types.findAll().filter { it.id in used.typeIds },
+            types = types.findAll().filter { it.id in used.typeCounts.keys },
             ownership = BookOwnership.entries.filter { it in used.ownership },
             progress = BookProgress.entries.filter { it in used.progress },
             releaseYears = used.releaseYears.sortedByDescending { it.value },
+            typeCounts = used.typeCounts,
         )
     }
 

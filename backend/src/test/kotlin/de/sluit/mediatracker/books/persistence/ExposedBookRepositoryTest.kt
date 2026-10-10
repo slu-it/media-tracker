@@ -928,7 +928,7 @@ class ExposedBookRepositoryTest {
         repo.insert(
             book(
                 "Alpha",
-                types = listOf(BookTypes.HARDCOVER),
+                types = listOf(BookTypes.HARDCOVER, BookTypes.KINDLE),
                 releaseYear = 2010,
                 ownership = BookOwnership.OWNED,
                 progress = BookProgress.READING,
@@ -947,7 +947,7 @@ class ExposedBookRepositoryTest {
 
         val used = repo.findUsedFilterValues()
 
-        assertEquals(setOf(BookTypes.HARDCOVER.id, BookTypes.KINDLE.id), used.typeIds)
+        assertEquals(mapOf(BookTypes.HARDCOVER.id to 1, BookTypes.KINDLE.id to 2), used.typeCounts)
         assertEquals(setOf(BookOwnership.OWNED, BookOwnership.WATCHLIST), used.ownership)
         assertEquals(setOf(BookProgress.READING, BookProgress.FINISHED, BookProgress.NOT_STARTED), used.progress)
         assertEquals(setOf(ReleaseYear(2010), ReleaseYear(2015)), used.releaseYears)

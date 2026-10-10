@@ -16,17 +16,26 @@ interface AddGameDialogProps {
   onClose: () => void;
   onCreated: (game: GameResponse) => void;
   platforms: GamePlatformResponse[] | null;
+  /** Platforms preselected in the empty form (the add button's preset). */
+  initialPlatformIds?: string[];
 }
 
 /** Same form as the edit mode, empty, with a save action only. Form state resets every time it opens. */
-export function AddGameDialog({ open, onClose, onCreated, platforms }: AddGameDialogProps) {
+export function AddGameDialog({ open, onClose, onCreated, platforms, initialPlatformIds }: AddGameDialogProps) {
   if (!open) return null;
-  return <AddGameDialogContent onClose={onClose} onCreated={onCreated} platforms={platforms} />;
+  return (
+    <AddGameDialogContent
+      onClose={onClose}
+      onCreated={onCreated}
+      platforms={platforms}
+      initialPlatformIds={initialPlatformIds}
+    />
+  );
 }
 
-function AddGameDialogContent({ onClose, onCreated, platforms }: Omit<AddGameDialogProps, "open">) {
+function AddGameDialogContent({ onClose, onCreated, platforms, initialPlatformIds }: Omit<AddGameDialogProps, "open">) {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState(emptyGameDraft);
+  const [draft, setDraft] = useState(() => ({ ...emptyGameDraft(), platformIds: initialPlatformIds ?? [] }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Not part of `draft`: a rejected mid-edit in the release date picker never reaches `onChange`, so it cannot be

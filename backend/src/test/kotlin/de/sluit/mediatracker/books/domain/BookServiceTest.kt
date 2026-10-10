@@ -581,8 +581,8 @@ class BookServiceTest {
         runBlocking {
             val labelOrdered = listOf(BookTypes.AUDIBLE, BookTypes.HARDCOVER, BookTypes.KINDLE, BookTypes.PAPERBACK)
             coEvery { types.findAll() } returns labelOrdered
-            val used = BookFilters(
-                typeIds = setOf(BookTypes.PAPERBACK.id, BookTypes.HARDCOVER.id),
+            val used = UsedBookFilterValues(
+                typeCounts = mapOf(BookTypes.PAPERBACK.id to 4, BookTypes.HARDCOVER.id to 2),
                 ownership = setOf(BookOwnership.OWNED, BookOwnership.WATCHLIST),
                 progress = setOf(BookProgress.FINISHED, BookProgress.ABANDONED, BookProgress.READING),
                 releaseYears = setOf(ReleaseYear(2020), ReleaseYear(1998), ReleaseYear(2010)),
@@ -592,6 +592,7 @@ class BookServiceTest {
             val result = service.meta()
 
             assertEquals(listOf(BookTypes.HARDCOVER, BookTypes.PAPERBACK), result.types)
+            assertEquals(mapOf(BookTypes.PAPERBACK.id to 4, BookTypes.HARDCOVER.id to 2), result.typeCounts)
             assertEquals(listOf(BookOwnership.WATCHLIST, BookOwnership.OWNED), result.ownership)
             assertEquals(listOf(BookProgress.ABANDONED, BookProgress.READING, BookProgress.FINISHED), result.progress)
             assertEquals(listOf(ReleaseYear(2020), ReleaseYear(2010), ReleaseYear(1998)), result.releaseYears)

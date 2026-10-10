@@ -22,6 +22,16 @@ describe("AddBookDialog", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("preselects the given types", () => {
+    mockApi({});
+    renderWithProviders(
+      <AddBookDialog open onClose={() => {}} onCreated={() => {}} types={bookTypes} initialTypeIds={[hardcover.id]} />,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Add book" });
+    expect(within(dialog).getByText("Hardcover")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Kindle")).not.toBeInTheDocument();
+  });
+
   it("posts the filled form and reports the created book", async () => {
     const user = userEvent.setup();
     const onCreated = vi.fn();

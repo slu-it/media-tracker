@@ -76,6 +76,7 @@ export const earthsea: BookResponse = {
 
 export const meta: BookMetaResponse = {
   types: [hardcover, kindle],
+  typeCounts: { [hardcover.id]: 3, [kindle.id]: 1 },
   ownership: ["watchlist", "owned"],
   progress: ["not_started", "reading"],
   releaseYears: [1968, 1965],

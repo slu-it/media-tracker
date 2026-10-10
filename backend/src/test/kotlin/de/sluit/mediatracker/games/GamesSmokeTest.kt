@@ -382,6 +382,7 @@ class GamesSmokeTest {
         assertEquals(listOf("owned"), meta.ownership)
         assertEquals(listOf("playing"), meta.progress)
         assertEquals(listOf(2020), meta.releaseYears)
+        assertEquals(mapOf(SeededPlatforms.PC to 1), meta.platformCounts)
     }
 
     private companion object {

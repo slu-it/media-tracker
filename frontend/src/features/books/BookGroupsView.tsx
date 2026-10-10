@@ -9,6 +9,7 @@ import { useLoadOnce } from "../../hooks/useLoadOnce";
 import { useSearchDebounceMs } from "../../hooks/useSearchDebounceMs";
 import { useUrlSearchInput } from "../../hooks/useUrlSearchInput";
 import { useViewParams } from "../../hooks/useViewParams";
+import { useBooksMeta } from "./hooks/useBooksMeta";
 import { BookDialogsHost } from "./components/BookDialogsHost";
 import {
   BookGroupAccordion,
@@ -45,6 +46,7 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
   const { data: summaries, error, reload: reloadSummaries } = useLoadOnce(loadSummaries, t("errors.loadFailed"));
   const [openIds, setOpenIds] = useState<ReadonlySet<string>>(new Set());
   const [reloadToken, setReloadToken] = useState(0);
+  const { meta, reload: reloadMeta } = useBooksMeta(t("errors.loadFailed"));
   const [selected, setSelected] = useState<BookResponse | null>(null);
 
   const visible = useMemo(
@@ -55,6 +57,7 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
   // A save may change counts, add a group, or move a book between groups (or renumber it in a series): refresh the list and every open section.
   const refresh = () => {
     reloadSummaries();
+    reloadMeta();
     setReloadToken((n) => n + 1);
   };
   const onDeleted = () => {
@@ -101,6 +104,7 @@ export function BookGroupsView({ loadSummaries, loadBooks, renderCard, labelPref
         onCreated={refresh}
         onUpdated={refresh}
         onDeleted={onDeleted}
+        typeCounts={meta?.typeCounts}
       />
       {visible !== null && visible.length === 0 && (
         <Typography color="text.secondary" align="center" sx={{ py: 6 }}>

@@ -91,7 +91,8 @@ describe("booksApi", () => {
 
   it("calls the meta and type endpoints", async () => {
     const calls = mockApi({
-      "GET /api/books.meta": () => jsonResponse({ types: [], ownership: [], progress: [], releaseYears: [] }),
+      "GET /api/books.meta": () =>
+        jsonResponse({ types: [], typeCounts: {}, ownership: [], progress: [], releaseYears: [] }),
       "GET /api/book-types": () => jsonResponse([hardcover]),
     });
     await getBooksMeta();
