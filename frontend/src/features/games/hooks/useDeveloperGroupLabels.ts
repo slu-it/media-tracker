@@ -20,6 +20,7 @@ export function useDeveloperGroupLabels(): GroupLabels {
       renameTitle: t("games.developersView.renameTitle"),
       nameLabel: t("games.developersView.nameLabel"),
       nameTaken: (existing, name) => t("games.developersView.nameTaken", { existing, name }),
+      sortByVolume: t("games.developersView.sortByVolume"),
       merge: t("games.developersView.merge"),
       chooseOtherName: t("games.developersView.chooseOtherName"),
     }),

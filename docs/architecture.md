@@ -304,7 +304,8 @@ frontend/src
 │                         releaseDate (fixed YYYY-MM-DD format), draft (normalisers, withReleaseDate),
 │                         vocabularyDraft (pending names, resolveVocabularyIds), viewParams (URL field codecs),
 │                         groups (MediaGroup, GroupLabels: types of the shared group view), nameSearch +
-│                         groupViewParams (group views' client-side search and its URL codec),
+│                         groupViewParams (group views' search and sort URL codec), groupSort (client-side
+│                         name/volume sort),
 │                         coverThumbnail (isVideoThumbnail)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
@@ -312,7 +313,7 @@ frontend/src
 │                         ratio per kind, coverFrame), ComingSoon, media/ (kind-neutral media UI, record 0034:
 │                         MediaViewHeader, SearchField, ResultsBar, PaginationBar, MediaGrid, MediaCardShell,
 │                         ReleaseSortToggle (ADR 0038), ReleaseInfo, ReleaseDistanceChip, CoverAndInfoLayout,
-│                         ColorChip(s), AddSpeedDial (ADR 0040), groups/ (MediaGroupsView, MediaGroupAccordion, RenameGroupDialog:
+│                         ColorChip(s), AddSpeedDial (ADR 0040), groups/ (MediaGroupsView, MediaGroupAccordion, RenameGroupDialog, GroupSortToggle:
 │                         the group views with translated labels, record 0042), DetailField, ReleaseDetail, NameChips, status/
 │                         (StatusToggleBar: exclusive or multiple icon toggles, StatusFilterBar, StatusIcon),
 │                         cover/ (CoverPickerDialog: paged thumbnails with optional match select and variant

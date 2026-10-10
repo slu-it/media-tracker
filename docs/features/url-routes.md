@@ -29,14 +29,14 @@ Code:
 |---|---|
 | `/books/overview` | `search`, `type`* (ids), `ownership`*, `progress`*, `year`*, `page` (ADR 0034) |
 | `/books/watchlist` | `search`, `type`* (ids), `sort=release_desc` (`release_asc` is the default), `page` (MT-055) |
-| `/books/authors` | `search` (filters the loaded author list in the browser, MT-046) |
-| `/books/narrators` | `search` (filters the loaded narrator list in the browser, ADR 0042) |
-| `/books/series` | `search` (filters the loaded series list in the browser, MT-043) |
+| `/books/authors` | `search` (filters the loaded author list in the browser, MT-046), `sort=volume` (`name` is the default; ADR 0042) |
+| `/books/narrators` | `search` (filters the loaded narrator list in the browser, ADR 0042), `sort=volume` |
+| `/books/series` | `search` (filters the loaded series list in the browser, MT-043), `sort=volume` |
 | `/movies`, `/series` | none |
 | `/games/overview` | `search`, `platform`* (ids), `ownership`*, `progress`* (API values), `year`* (release-year filter), `page` |
 | `/games/watchlist` | `search`, `platform`*, `sort=release_desc` (`release_asc` is the default), `page` |
 | `/games/ranking` | `year` (the ranked year; absent = the default year of record 0030) |
-| `/games/developers` | `search` (filters the loaded developer list in the browser, ADR 0042) |
+| `/games/developers` | `search` (filters the loaded developer list in the browser, ADR 0042), `sort=volume` |
 | `/` | redirects to the last-used kind (`mt.mediaTab`, default `books`), including its last sub-page |
 | `/books`, `/games` | redirect to the kind's last-used sub-page (`mt.booksPage`, `mt.gamesPage`, default `overview`) |
 | anything else | redirects to `/` |

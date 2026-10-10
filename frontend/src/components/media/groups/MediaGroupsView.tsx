@@ -10,8 +10,10 @@ import { useSearchDebounceMs } from "../../../hooks/useSearchDebounceMs";
 import { useUrlSearchInput } from "../../../hooks/useUrlSearchInput";
 import { useViewParams } from "../../../hooks/useViewParams";
 import { groupViewParams, parseGroupViewParams } from "../../../domain/media/groupViewParams";
+import { sortGroups } from "../../../domain/media/groupSort";
 import { filterByName } from "../../../domain/media/nameSearch";
 import type { GroupLabels, LoadGroupItems, MediaGroup, RenderGroupCard } from "../../../domain/media/groups";
+import { GroupSortToggle } from "./GroupSortToggle";
 import { MediaGroupAccordion } from "./MediaGroupAccordion";
 
 interface DialogsContext<T> {
@@ -58,11 +60,11 @@ export function MediaGroupsView<T extends { id: string }>({
   const { t } = useTranslation();
   const [searchParams, writeParams] = useViewParams();
   const query = searchParams.toString();
-  const { search: urlSearch } = useMemo(() => parseGroupViewParams(new URLSearchParams(query)), [query]);
+  const { search: urlSearch, sort } = useMemo(() => parseGroupViewParams(new URLSearchParams(query)), [query]);
 
   const [searchInput, setSearchInput, flushSearch, clearSearch] = useUrlSearchInput(
     urlSearch,
-    (search) => writeParams(() => groupViewParams({ search }), { replace: true }),
+    (search) => writeParams((prev) => groupViewParams({ ...parseGroupViewParams(prev), search }), { replace: true }),
     useSearchDebounceMs(),
   );
 
@@ -74,8 +76,14 @@ export function MediaGroupsView<T extends { id: string }>({
   const [selected, setSelected] = useState<T | null>(null);
 
   const visible = useMemo(
-    () => (summaries === null ? null : filterByName(summaries, urlSearch).filter((g) => !mergedIds.has(g.id))),
-    [summaries, urlSearch, mergedIds],
+    () =>
+      summaries === null
+        ? null
+        : sortGroups(
+            filterByName(summaries, urlSearch).filter((g) => !mergedIds.has(g.id)),
+            sort,
+          ),
+    [summaries, urlSearch, sort, mergedIds],
   );
 
   // A save may change counts, add a group, or move an item between groups (or renumber it in a series): refresh the list and every open section.
@@ -141,6 +149,19 @@ export function MediaGroupsView<T extends { id: string }>({
         }
         count={visible?.length ?? null}
         formatCount={labels.count}
+        facts={
+          summaries !== null && summaries.length > 0 ? (
+            <GroupSortToggle
+              value={sort}
+              volumeLabel={labels.sortByVolume}
+              onChange={(next) =>
+                writeParams((prev) => groupViewParams({ ...parseGroupViewParams(prev), sort: next }), {
+                  replace: true,
+                })
+              }
+            />
+          ) : undefined
+        }
       />
       {error && (
         <Alert

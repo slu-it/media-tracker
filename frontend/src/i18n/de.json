@@ -140,6 +140,7 @@
     },
     "sort": {
       "legend": "Sortierung",
+      "name": "Name",
       "releaseAsc": "Älteste zuerst",
       "releaseDesc": "Neueste zuerst"
     },
@@ -204,6 +205,7 @@
       "renameTitle": "Autor umbenennen",
       "nameLabel": "Name",
       "nameTaken": "Es gibt bereits einen Autor „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "sortByVolume": "Meiste Bücher",
       "merge": "Zusammenführen",
       "chooseOtherName": "Anderen Namen wählen"
     },
@@ -223,6 +225,7 @@
       "renameTitle": "Sprecher umbenennen",
       "nameLabel": "Name",
       "nameTaken": "Es gibt bereits einen Sprecher „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "sortByVolume": "Meiste Bücher",
       "merge": "Zusammenführen",
       "chooseOtherName": "Anderen Namen wählen"
     },
@@ -242,6 +245,7 @@
       "renameTitle": "Reihe umbenennen",
       "nameLabel": "Name",
       "nameTaken": "Es gibt bereits eine Reihe „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "sortByVolume": "Meiste Bücher",
       "merge": "Zusammenführen",
       "chooseOtherName": "Anderen Namen wählen",
       "positionBadge": "#{{position}}"
@@ -325,6 +329,7 @@
       "renameTitle": "Entwickler umbenennen",
       "nameLabel": "Name",
       "nameTaken": "Es gibt bereits einen Entwickler „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "sortByVolume": "Meiste Spiele",
       "merge": "Zusammenführen",
       "chooseOtherName": "Anderen Namen wählen"
     },

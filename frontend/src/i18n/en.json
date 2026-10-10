@@ -140,6 +140,7 @@
     },
     "sort": {
       "legend": "Sort order",
+      "name": "Name",
       "releaseAsc": "Oldest first",
       "releaseDesc": "Newest first"
     },
@@ -204,6 +205,7 @@
       "renameTitle": "Rename author",
       "nameLabel": "Name",
       "nameTaken": "An author named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "sortByVolume": "Most books",
       "merge": "Merge",
       "chooseOtherName": "Choose another name"
     },
@@ -223,6 +225,7 @@
       "renameTitle": "Rename narrator",
       "nameLabel": "Name",
       "nameTaken": "A narrator named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "sortByVolume": "Most books",
       "merge": "Merge",
       "chooseOtherName": "Choose another name"
     },
@@ -242,6 +245,7 @@
       "renameTitle": "Rename series",
       "nameLabel": "Name",
       "nameTaken": "A series named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "sortByVolume": "Most books",
       "merge": "Merge",
       "chooseOtherName": "Choose another name",
       "positionBadge": "#{{position}}"
@@ -325,6 +329,7 @@
       "renameTitle": "Rename developer",
       "nameLabel": "Name",
       "nameTaken": "A developer named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "sortByVolume": "Most games",
       "merge": "Merge",
       "chooseOtherName": "Choose another name"
     },

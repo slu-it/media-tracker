@@ -11,6 +11,7 @@ import {
   herbertBooks,
   herbertSummary,
   leGuin,
+  leGuinSummary,
   meta,
 } from "../../test/fixtures/books";
 import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../test/mockFetch";
@@ -58,10 +59,62 @@ describe("BookAuthorsView", () => {
     expect(calls).toHaveLength(before);
   });
 
+  it("sorts by volume with ties in alphabetical order, writes the URL and sends no request", async () => {
+    const user = userEvent.setup();
+    const tie = [{ ...emptyAuthorSummary, bookCount: 1 }, herbertSummary, { ...leGuinSummary, bookCount: 1 }];
+    const calls = mockApi({ ...base(), [SUMMARIES]: () => jsonResponse(tie) });
+    renderWithProviders(<BookAuthorsView />);
+    await screen.findByRole("heading", { name: /^Frank Herbert/ });
+    const before = calls.length;
+    const names = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+
+    await user.click(screen.getByRole("button", { name: "Most books" }));
+    expect(names()).toEqual(["Frank Herbert2 books", "Émile Zola1 book", "Ursula K. Le Guin1 book"]);
+    expect(currentLocation()).toContain("sort=volume");
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(names()).toEqual(["Émile Zola1 book", "Frank Herbert2 books", "Ursula K. Le Guin1 book"]);
+    expect(currentLocation()).not.toContain("sort");
+    expect(calls).toHaveLength(before);
+  });
+
+  it("starts sorted by volume from the deep link and keeps sort and search together", async () => {
+    const user = userEvent.setup();
+    mockApi(base());
+    renderWithProviders(<BookAuthorsView />, { route: "/?sort=volume" });
+    await screen.findByRole("heading", { name: /^Frank Herbert/ });
+    const names = () => screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(names()).toEqual(["Frank Herbert2 books", "Ursula K. Le Guin1 book", "Émile Zola0 books"]);
+    expect(screen.getByRole("button", { name: "Most books" })).toHaveAttribute("aria-pressed", "true");
+
+    await user.click(screen.getByRole("searchbox", { name: "Search authors" }));
+    await user.paste("r");
+    await waitFor(() => expect(currentLocation()).toContain("search=r"));
+    expect(currentLocation()).toContain("sort=volume");
+    expect(names()).toEqual(["Frank Herbert2 books", "Ursula K. Le Guin1 book"]);
+
+    await user.click(screen.getByRole("button", { name: "Name" }));
+    expect(currentLocation()).toContain("search=r");
+    expect(currentLocation()).not.toContain("sort");
+  });
+
   it("shows the empty text without authors", async () => {
     mockApi({ ...base(), [SUMMARIES]: () => jsonResponse([]) });
     renderWithProviders(<BookAuthorsView />);
     expect(await screen.findByText("No authors yet. Add one while editing a book.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Most books" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the sort toggle when a search matches nothing", async () => {
+    const user = userEvent.setup();
+    mockApi(base());
+    renderWithProviders(<BookAuthorsView />);
+    await screen.findByRole("heading", { name: /^Frank Herbert/ });
+    await user.click(screen.getByRole("searchbox", { name: "Search authors" }));
+    await user.paste("nothing");
+    expect(await screen.findByText('No authors match "nothing"')).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Most books" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("0 authors");
   });
 
   it("fetches the books only on expand and shows them in backend order without badges", async () => {
