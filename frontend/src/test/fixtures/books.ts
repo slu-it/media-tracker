@@ -5,6 +5,7 @@ import type {
   BookAuthorSummaryResponse,
   BookMetaResponse,
   BookNarratorResponse,
+  BookNarratorSummaryResponse,
   BookResponse,
   BookSeriesResponse,
   BookSeriesSummaryResponse,
@@ -38,6 +39,7 @@ export const leGuin: BookAuthorResponse = { id: "author-2", name: "Ursula K. Le 
 export const authors: BookAuthorResponse[] = [herbert, leGuin];
 
 export const simonVance: BookNarratorResponse = { id: "narrator-1", name: "Simon Vance" };
+export const scottBrick: BookNarratorResponse = { id: "narrator-2", name: "Scott Brick" };
 export const narrators: BookNarratorResponse[] = [simonVance];
 
 export const duneSaga: BookSeriesResponse = { id: "series-1", name: "Dune Saga" };
@@ -92,6 +94,24 @@ export const leGuinSummary: BookAuthorSummaryResponse = { id: leGuin.id, name: l
 export const emptyAuthorSummary: BookAuthorSummaryResponse = { id: "author-3", name: "Émile Zola", bookCount: 0 };
 /** Author summaries by name, as the backend returns them. */
 export const authorSummaries: BookAuthorSummaryResponse[] = [emptyAuthorSummary, herbertSummary, leGuinSummary];
+
+export const simonVanceSummary: BookNarratorSummaryResponse = {
+  id: simonVance.id,
+  name: simonVance.name,
+  bookCount: 2,
+};
+export const scottBrickSummary: BookNarratorSummaryResponse = {
+  id: scottBrick.id,
+  name: scottBrick.name,
+  bookCount: 1,
+};
+export const emptyNarratorSummary: BookNarratorSummaryResponse = { id: "narrator-3", name: "Émile Zola", bookCount: 0 };
+/** Narrator summaries by name, as the backend returns them. */
+export const narratorSummaries: BookNarratorSummaryResponse[] = [
+  emptyNarratorSummary,
+  scottBrickSummary,
+  simonVanceSummary,
+];
 
 /** Herbert's books in the order the backend returns them (release year, then title). */
 export const herbertBooks: BookResponse[] = [
@@ -178,3 +198,6 @@ export const duneSuggestion: BookTitleSuggestionResponse = {
   releaseYear: 1965,
   source: "book",
 };
+
+/** Simon Vance's books in the order the backend returns them (the same books as Herbert's). */
+export const vanceBooks: BookResponse[] = herbertBooks;

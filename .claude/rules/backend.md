@@ -28,7 +28,8 @@ per-kind status enums, `Vocabulary`, `CoverOption`, `RankableMatch`/`selectBestM
 DTOs (incl. `CoverOptionResponse`), paging, `?search` parsing (`Search.kt`),
 `PatchField` (absent / null / value), filter query parsing (`QueryParams`) and the MCP helpers (`McpToolArguments`,
 `McpSchemas`, `VocabularyMcpTools`), `common/persistence` HikariCP, Flyway, `dbQuery`, the fulltext and title
-search helpers and `ExposedNameVocabulary` (ADR 0034). Use these before writing a kind-specific copy.
+search helpers, `ExposedNameVocabulary` (ADR 0034) and `VocabularyLinks` (guarded delete and merge of an entry over
+a plain link table, ADR 0042). Use these before writing a kind-specific copy.
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,

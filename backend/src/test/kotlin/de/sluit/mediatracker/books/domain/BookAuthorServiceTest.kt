@@ -2,6 +2,7 @@ package de.sluit.mediatracker.books.domain
 
 import de.sluit.mediatracker.books.author
 import de.sluit.mediatracker.common.domain.ConflictException
+import de.sluit.mediatracker.common.domain.DeleteOutcome
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.NameTakenException

@@ -1,9 +1,11 @@
 import { Box, Container } from "@mui/material";
 import CollectionsBookmarkOutlined from "@mui/icons-material/CollectionsBookmarkOutlined";
 import GridViewOutlined from "@mui/icons-material/GridViewOutlined";
+import EngineeringOutlined from "@mui/icons-material/EngineeringOutlined";
 import PersonOutlined from "@mui/icons-material/PersonOutlined";
 import LeaderboardOutlined from "@mui/icons-material/LeaderboardOutlined";
 import LibraryAddOutlined from "@mui/icons-material/LibraryAddOutlined";
+import RecordVoiceOverOutlined from "@mui/icons-material/RecordVoiceOverOutlined";
 import { useEffect, type ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, Route, Routes, useNavigate } from "react-router";
@@ -19,9 +21,11 @@ import {
 } from "./components/layout/mediaKinds";
 import { useActiveRoute } from "./hooks/useActiveRoute";
 import { BookAuthorsView } from "./features/books/BookAuthorsView";
+import { BookNarratorsView } from "./features/books/BookNarratorsView";
 import { BookSeriesView } from "./features/books/BookSeriesView";
 import { BooksView } from "./features/books/BooksView";
 import { BooksWatchlistView } from "./features/books/BooksWatchlistView";
+import { GamesDevelopersView } from "./features/games/GamesDevelopersView";
 import { GamesView } from "./features/games/GamesView";
 import { GamesRankingView } from "./features/games/GamesRankingView";
 import { GamesWatchlistView } from "./features/games/GamesWatchlistView";
@@ -44,6 +48,8 @@ const SUB_PAGE_ICONS: Record<SubPage, ReactElement> = {
   watchlist: <LibraryAddOutlined fontSize="small" />,
   ranking: <LeaderboardOutlined fontSize="small" />,
   authors: <PersonOutlined fontSize="small" />,
+  narrators: <RecordVoiceOverOutlined fontSize="small" />,
+  developers: <EngineeringOutlined fontSize="small" />,
   series: <CollectionsBookmarkOutlined fontSize="small" />,
 };
 
@@ -51,6 +57,7 @@ const BOOK_SUB_VIEWS: Record<BookSubPage, ReactElement> = {
   overview: <BooksView />,
   watchlist: <BooksWatchlistView />,
   authors: <BookAuthorsView />,
+  narrators: <BookNarratorsView />,
   series: <BookSeriesView />,
 };
 
@@ -58,6 +65,7 @@ const GAME_SUB_VIEWS: Record<GameSubPage, ReactElement> = {
   overview: <GamesView />,
   watchlist: <GamesWatchlistView />,
   ranking: <GamesRankingView />,
+  developers: <GamesDevelopersView />,
 };
 
 function viewFor({ kind, subPage }: ActiveRoute): ReactElement {

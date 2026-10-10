@@ -13,6 +13,7 @@ import de.sluit.mediatracker.games.domain.DEFAULT_HIDDEN
 import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameDeveloper
 import de.sluit.mediatracker.games.domain.GameDeveloperId
+import de.sluit.mediatracker.games.domain.GameDeveloperSummary
 import de.sluit.mediatracker.games.domain.GameMeta
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatform
@@ -74,6 +75,10 @@ data class GamePlatformResponse(val id: String, val label: String, val associate
 
 @Serializable
 data class GameDeveloperResponse(val id: String, val name: String)
+
+/** GET /api/game-developers.summaries: a developer with the number of games linked to it (0 allowed). */
+@Serializable
+data class GameDeveloperSummaryResponse(val id: String, val name: String, val gameCount: Int)
 
 /** POST /game-developers */
 @Serializable
@@ -144,6 +149,9 @@ fun GamePlatform.toResponse() =
     GamePlatformResponse(id = id.toString(), label = label.value, associatedColor = color.value)
 
 fun GameDeveloper.toResponse() = GameDeveloperResponse(id = id.toString(), name = name.value)
+
+fun GameDeveloperSummary.toResponse() =
+    GameDeveloperSummaryResponse(id = developer.id.toString(), name = developer.name.value, gameCount = gameCount)
 
 fun Game.toResponse() = GameResponse(
     id = id.toString(),

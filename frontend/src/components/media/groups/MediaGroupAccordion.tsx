@@ -1,58 +1,46 @@
-import { useState, type ReactElement } from "react";
+import { useState } from "react";
 import { Accordion, AccordionDetails, AccordionSummary, Alert, Box, Button, Chip, Typography } from "@mui/material";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import { useTranslation } from "react-i18next";
 import { errorMessage } from "../../../api/client";
-import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
-import type { BookResponse } from "../../../types/api";
-import { MediaGrid } from "../../../components/media/MediaGrid";
-import { SECTION_GAP } from "../../../components/media/mediaLayout";
-import { BOOK_COVER_ASPECT_RATIO } from "../domain/bookValues";
-import { useGroupBooks } from "../hooks/useGroupBooks";
+import { useGroupItems } from "../../../hooks/useGroupItems";
+import { ConfirmDialog } from "../../dialog/ConfirmDialog";
+import { MediaGrid } from "../MediaGrid";
+import { SECTION_GAP } from "../mediaLayout";
 import { RenameGroupDialog } from "./RenameGroupDialog";
+import type { GroupLabels, LoadGroupItems, MediaGroup, RenderGroupCard } from "../../../domain/media/groups";
 
 const MAX_SKELETONS = 8;
 
-/** A series or an author with its book count. */
-export interface BookGroup {
-  id: string;
-  name: string;
-  bookCount: number;
-}
-
-/** The i18n namespace holding the texts of a grouping (`bookCount`, `deleteLabel`, ...). */
-export type BookGroupLabelPrefix = "books.seriesView" | "books.authorsView";
-
-export type LoadGroupBooks = (id: string, signal: AbortSignal) => Promise<BookResponse[]>;
-export type RenderGroupCard = (book: BookResponse, onClick: () => void, group: BookGroup) => ReactElement;
-
-interface BookGroupAccordionProps {
-  group: BookGroup;
-  /** Must be a stable, module-level function (see `useGroupBooks`). */
-  loadBooks: LoadGroupBooks;
-  renderCard: RenderGroupCard;
-  labelPrefix: BookGroupLabelPrefix;
+interface MediaGroupAccordionProps<T extends { id: string }> {
+  group: MediaGroup;
+  /** Must be a stable, module-level function (see `useGroupItems`). */
+  loadItems: LoadGroupItems<T>;
+  renderCard: RenderGroupCard<T>;
+  coverAspectRatio: number;
+  labels: GroupLabels;
   expanded: boolean;
   onToggle: (groupId: string, expanded: boolean) => void;
   /** Bumped after a save anywhere, so an open section refetches. */
   reloadToken: number;
-  onOpen: (book: BookResponse) => void;
+  onOpen: (item: T) => void;
   /** Renames the group; rejects with an `ApiError` 409 `name_taken` when another group has the name. */
   onRename: (groupId: string, name: string) => Promise<void>;
   /** Merges the group into `targetId`. */
   onMerge: (groupId: string, targetId: string) => Promise<void>;
-  /** Deletes the group; only offered while it has no books. */
+  /** Deletes the group; only offered while it has no items. */
   onDelete: (groupId: string) => Promise<void>;
 }
 
-/** One group: name and book count in the summary; the books are loaded when the section is expanded. */
-export function BookGroupAccordion({
+/** One group: name and item count in the summary; the items are loaded when the section is expanded. */
+export function MediaGroupAccordion<T extends { id: string }>({
   group,
-  loadBooks,
+  loadItems,
   renderCard,
-  labelPrefix,
+  coverAspectRatio,
+  labels,
   expanded,
   onToggle,
   reloadToken,
@@ -60,8 +48,7 @@ export function BookGroupAccordion({
   onRename,
   onMerge,
   onDelete,
-}: BookGroupAccordionProps) {
-  const { t } = useTranslation();
+}: MediaGroupAccordionProps<T>) {
   return (
     <Accordion
       expanded={expanded}
@@ -74,25 +61,20 @@ export function BookGroupAccordion({
           <Typography component="span" variant="subtitle1">
             {group.name}
           </Typography>
-          <Chip size="small" label={t(`${labelPrefix}.bookCount`, { count: group.bookCount })} />
+          <Chip size="small" label={labels.itemCount(group.itemCount)} />
         </Box>
       </AccordionSummary>
       <AccordionDetails>
-        <GroupToolbar
-          group={group}
-          labelPrefix={labelPrefix}
-          onRename={onRename}
-          onMerge={onMerge}
-          onDelete={onDelete}
-        />
-        {group.bookCount === 0 ? (
-          <Typography color="text.secondary">{t(`${labelPrefix}.noBooks`)}</Typography>
+        <GroupToolbar group={group} labels={labels} onRename={onRename} onMerge={onMerge} onDelete={onDelete} />
+        {group.itemCount === 0 ? (
+          <Typography color="text.secondary">{labels.noItems}</Typography>
         ) : (
-          <GroupBooks
+          <GroupItems
             group={group}
-            loadBooks={loadBooks}
+            loadItems={loadItems}
             renderCard={renderCard}
-            labelPrefix={labelPrefix}
+            coverAspectRatio={coverAspectRatio}
+            noItems={labels.noItems}
             reloadToken={reloadToken}
             onOpen={onOpen}
           />
@@ -102,21 +84,21 @@ export function BookGroupAccordion({
   );
 }
 
-/** Edit (always) and delete (only without books) for the group, right-aligned at the top of the expanded section. */
+/** Edit (always) and delete (only without items) for the group, right-aligned at the top of the expanded section. */
 function GroupToolbar({
   group,
-  labelPrefix,
+  labels,
   onRename,
   onMerge,
   onDelete,
-}: Pick<BookGroupAccordionProps, "group" | "labelPrefix" | "onRename" | "onMerge" | "onDelete">) {
+}: Pick<MediaGroupAccordionProps<{ id: string }>, "group" | "labels" | "onRename" | "onMerge" | "onDelete">) {
   const { t } = useTranslation();
   const [renaming, setRenaming] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const editLabel = t(`${labelPrefix}.editLabel`, { name: group.name });
-  const deleteLabel = t(`${labelPrefix}.deleteLabel`, { name: group.name });
+  const editLabel = labels.editLabel(group.name);
+  const deleteLabel = labels.deleteLabel(group.name);
 
   const decide = async (confirmed: boolean) => {
     setConfirming(false);
@@ -145,7 +127,7 @@ function GroupToolbar({
         >
           {t("common.rename")}
         </Button>
-        {group.bookCount === 0 && (
+        {group.itemCount === 0 && (
           <Button
             variant="outlined"
             color="error"
@@ -167,7 +149,7 @@ function GroupToolbar({
       {renaming && (
         <RenameGroupDialog
           group={group}
-          labelPrefix={labelPrefix}
+          labels={labels}
           onRename={(name) => onRename(group.id, name)}
           onMerge={(targetId) => onMerge(group.id, targetId)}
           onClose={() => setRenaming(false)}
@@ -175,7 +157,7 @@ function GroupToolbar({
       )}
       <ConfirmDialog
         open={confirming}
-        question={t(`${labelPrefix}.deleteQuestion`, { name: group.name })}
+        question={labels.deleteQuestion(group.name)}
         onDecision={(confirmed) => void decide(confirmed)}
         destructive
       />
@@ -183,17 +165,20 @@ function GroupToolbar({
   );
 }
 
-function GroupBooks({
+function GroupItems<T extends { id: string }>({
   group,
-  loadBooks,
+  loadItems,
   renderCard,
-  labelPrefix,
+  coverAspectRatio,
+  noItems,
   reloadToken,
   onOpen,
-}: Pick<BookGroupAccordionProps, "group" | "loadBooks" | "renderCard" | "labelPrefix" | "reloadToken" | "onOpen">) {
+}: Pick<
+  MediaGroupAccordionProps<T>,
+  "group" | "loadItems" | "renderCard" | "coverAspectRatio" | "reloadToken" | "onOpen"
+> & { noItems: string }) {
   const { t } = useTranslation();
-  const { books, error, reload } = useGroupBooks(group.id, loadBooks, reloadToken, t("errors.loadFailed"));
-  const noBooks = t(`${labelPrefix}.noBooks`);
+  const { items, error, reload } = useGroupItems(group.id, loadItems, reloadToken, t("errors.loadFailed"));
   return (
     <>
       {error && (
@@ -202,12 +187,12 @@ function GroupBooks({
         </Alert>
       )}
       <MediaGrid
-        items={books}
-        skeletons={Math.min(group.bookCount, MAX_SKELETONS)}
+        items={items}
+        skeletons={Math.min(group.itemCount, MAX_SKELETONS)}
         onOpen={onOpen}
-        renderCard={(book, onClick) => renderCard(book, onClick, group)}
-        coverAspectRatio={BOOK_COVER_ASPECT_RATIO}
-        messages={{ empty: noBooks, noSearchResults: () => noBooks, noFilterResults: noBooks }}
+        renderCard={(item, onClick) => renderCard(item, onClick, group)}
+        coverAspectRatio={coverAspectRatio}
+        messages={{ empty: noItems, noSearchResults: () => noItems, noFilterResults: noItems }}
       />
     </>
   );

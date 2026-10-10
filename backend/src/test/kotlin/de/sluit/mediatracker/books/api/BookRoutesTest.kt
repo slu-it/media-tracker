@@ -13,6 +13,7 @@ import de.sluit.mediatracker.books.domain.BookId
 import de.sluit.mediatracker.books.domain.BookMeta
 import de.sluit.mediatracker.books.domain.BookNarratorId
 import de.sluit.mediatracker.books.domain.BookNarratorService
+import de.sluit.mediatracker.books.domain.BookNarratorSummary
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
@@ -144,6 +145,17 @@ class BookRoutesTest {
         assertEquals(HttpStatusCode.Unauthorized, client.patch("/api/book-series/${BookSeriesId.new()}").status)
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-authors/${BookAuthorId.new()}/merge").status)
         assertEquals(HttpStatusCode.Unauthorized, client.post("/api/book-series/${BookSeriesId.new()}/merge").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/book-narrators.summaries").status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.get("/api/book-narrators/${BookNarratorId.new()}/books").status,
+        )
+        assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/book-narrators/${BookNarratorId.new()}").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.patch("/api/book-narrators/${BookNarratorId.new()}").status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.post("/api/book-narrators/${BookNarratorId.new()}/merge").status,
+        )
     }
 
     // ---- create ----
@@ -1419,5 +1431,213 @@ class BookRoutesTest {
 
         client.post("/api/book-series") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
         coVerify(exactly = 0) { seriesService.create(any()) }
+    }
+
+    @Test
+    fun `delete narrator returns 204`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narrators)
+        val id = BookNarratorId.new()
+        coEvery { narrators.delete(id) } just Runs
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/book-narrators/$id").status)
+        coVerify { narrators.delete(id) }
+    }
+
+    @Test
+    fun `delete of an unknown narrator is 404`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narrators)
+        val id = BookNarratorId.new()
+        coEvery { narrators.delete(id) } throws NotFoundException("book narrator", id.toString())
+
+        client.delete("/api/book-narrators/$id").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `delete of a narrator still linked to a book is a 409 conflict`() = testApplication {
+        val narrators = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narrators)
+        val id = BookNarratorId.new()
+        coEvery { narrators.delete(id) } throws ConflictException("book narrator", id.toString())
+
+        client.delete("/api/book-narrators/$id").assertError(HttpStatusCode.Conflict, "conflict")
+    }
+
+    @Test
+    fun `delete narrator with a malformed id is a 400`() = testApplication {
+        val client = loggedInClient(narrators = mockk())
+
+        client.delete("/api/book-narrators/not-a-uuid").assertValidationError("narratorIds")
+    }
+
+    // ---- rename and merge narrator ----
+
+    @Test
+    fun `rename narrator returns 200 with the entry and passes the trimmed name`() = testApplication {
+        val service = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = service)
+        val id = BookNarratorId.new()
+        coEvery { service.rename(id, VocabularyName("New Name")) } returns narrator("New Name", id)
+
+        val response = client.patch("/api/book-narrators/$id") { jsonBody("""{"name":"  New Name "}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(BookNarratorResponse(id.toString(), "New Name"), response.decodeBody<BookNarratorResponse>())
+    }
+
+    @Test
+    fun `rename narrator with a blank name is a 400`() = testApplication {
+        val client = loggedInClient(narrators = mockk())
+
+        client.patch("/api/book-narrators/${BookNarratorId.new()}") { jsonBody("""{"name":"  "}""") }
+            .assertValidationError("name")
+    }
+
+    @Test
+    fun `rename narrator with a malformed id is a 400`() = testApplication {
+        val client = loggedInClient(narrators = mockk())
+
+        client.patch("/api/book-narrators/not-a-uuid") { jsonBody("""{"name":"New"}""") }
+            .assertValidationError("narratorIds")
+    }
+
+    @Test
+    fun `rename of an unknown narrator is 404`() = testApplication {
+        val service = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = service)
+        val id = BookNarratorId.new()
+        coEvery { service.rename(id, VocabularyName("New")) } throws NotFoundException("book narrator", id.toString())
+
+        client.patch("/api/book-narrators/$id") { jsonBody("""{"name":"New"}""") }
+            .assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `rename narrator onto a taken name is a 409 name_taken with the existing entry`() = testApplication {
+        val service = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = service)
+        val id = BookNarratorId.new()
+        val holder = BookNarratorId.new()
+        coEvery { service.rename(id, VocabularyName("Taken")) } throws
+            NameTakenException("book narrator", holder.toString(), "taken")
+
+        val error = client.patch("/api/book-narrators/$id") { jsonBody("""{"name":"Taken"}""") }
+            .assertError(HttpStatusCode.Conflict, "name_taken")
+
+        assertEquals(holder.toString(), error.existingId)
+        assertEquals("taken", error.existingName)
+    }
+
+    @Test
+    fun `merge narrator returns 200 with the target`() = testApplication {
+        val service = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = service)
+        val id = BookNarratorId.new()
+        val targetId = BookNarratorId.new()
+        coEvery { service.merge(id, targetId) } returns narrator("Target", targetId)
+
+        val response = client.post("/api/book-narrators/$id/merge") { jsonBody("""{"targetId":"$targetId"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(BookNarratorResponse(targetId.toString(), "Target"), response.decodeBody<BookNarratorResponse>())
+    }
+
+    @Test
+    fun `merge of an unknown narrator is 404`() = testApplication {
+        val service = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = service)
+        val id = BookNarratorId.new()
+        val targetId = BookNarratorId.new()
+        coEvery { service.merge(id, targetId) } throws NotFoundException("book narrator", id.toString())
+
+        client.post("/api/book-narrators/$id/merge") { jsonBody("""{"targetId":"$targetId"}""") }
+            .assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `merge narrator into itself is a 400`() = testApplication {
+        val service = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = service)
+        val id = BookNarratorId.new()
+        coEvery { service.merge(id, id) } throws
+            InvalidValueException("targetId", "must differ from the narrator itself")
+
+        client.post("/api/book-narrators/$id/merge") { jsonBody("""{"targetId":"$id"}""") }
+            .assertValidationError("targetId")
+    }
+
+    @Test
+    fun `merge narrator with a malformed target id is a 400`() = testApplication {
+        val client = loggedInClient(narrators = mockk())
+
+        client.post("/api/book-narrators/${BookNarratorId.new()}/merge") { jsonBody("""{"targetId":"nope"}""") }
+            .assertValidationError("targetId")
+    }
+
+    @Test
+    fun `merge narrator with a malformed id is a 400`() = testApplication {
+        val client = loggedInClient(narrators = mockk())
+
+        client.post("/api/book-narrators/not-a-uuid/merge") { jsonBody("""{"targetId":"${BookNarratorId.new()}"}""") }
+            .assertValidationError("narratorIds")
+    }
+
+    // ---- narrators view ----
+
+    @Test
+    fun `narrator summaries mirror the domain summaries including narrators without books`() = testApplication {
+        val narratorService = mockk<BookNarratorService>()
+        val client = loggedInClient(narrators = narratorService)
+        val herbert = narrator("A Reader")
+        val empty = narrator("Zed")
+        coEvery { narratorService.summaries() } returns
+            listOf(BookNarratorSummary(herbert, 3), BookNarratorSummary(empty, 0))
+
+        val response = client.get("/api/book-narrators.summaries")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(
+            listOf(
+                BookNarratorSummaryResponse(herbert.id.toString(), "A Reader", 3),
+                BookNarratorSummaryResponse(empty.id.toString(), "Zed", 0),
+            ),
+            response.decodeBody<List<BookNarratorSummaryResponse>>(),
+        )
+    }
+
+    @Test
+    fun `narrator books returns the fully mapped books in service order`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val herbert = narrator("A Reader")
+        val first = book("Dune", narrators = listOf(herbert))
+        val second = book("Dune Messiah", narrators = listOf(herbert))
+        coEvery { books.listByNarrator(herbert.id) } returns listOf(first, second)
+
+        val response = client.get("/api/book-narrators/${herbert.id}/books")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val decoded = response.decodeBody<List<BookResponse>>()
+        assertEquals(listOf("Dune", "Dune Messiah"), decoded.map { it.title })
+        assertEquals(listOf("A Reader"), decoded.first().narrators.map { it.name })
+    }
+
+    @Test
+    fun `narrator books of an unknown narrator is 404`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+        val id = BookNarratorId.new()
+        coEvery { books.listByNarrator(id) } throws NotFoundException("book narrator", id.toString())
+
+        client.get("/api/book-narrators/$id/books").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `narrator books with a malformed id is a 400`() = testApplication {
+        val books = mockk<BookService>()
+        val client = loggedInClient(books)
+
+        client.get("/api/book-narrators/not-a-uuid/books").assertValidationError("narratorIds")
     }
 }

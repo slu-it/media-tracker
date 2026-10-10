@@ -65,6 +65,14 @@ class GameService(
         games.search(search, filters, request, sort)
     }
 
+    /** The games of one developer in release order; an unknown [developerId] is not found, one without games an empty list. */
+    suspend fun listByDeveloper(developerId: GameDeveloperId): List<Game> {
+        if (developers.findByIds(setOf(developerId)).isEmpty()) {
+            throw NotFoundException(DEVELOPER_RESOURCE, developerId.toString())
+        }
+        return games.findByDeveloper(developerId)
+    }
+
     suspend fun listPlatforms(): List<GamePlatform> = platforms.findAll()
 
     /** The filter values that actually occur in the stored games, ordered for display. */
@@ -102,5 +110,6 @@ class GameService(
 
     companion object {
         const val RESOURCE = "game"
+        const val DEVELOPER_RESOURCE = "game developer"
     }
 }

@@ -1,24 +1,27 @@
-# Game sub-pages: overview, watchlist, yearly ranking (MT-026)
+# Game sub-pages: overview, watchlist, yearly ranking, developers (MT-026)
 
-ADR: [0030](../decisions/0030-game-sub-pages-sort-and-rated-filter.md).
+ADRs: [0030](../decisions/0030-game-sub-pages-sort-and-rated-filter.md), developers view
+[0042](../decisions/0042-narrators-and-developers-views-and-shared-group-view.md).
 
 Code:
 - Backend: `games/domain/GameSort.kt`, `GameFilters.ratedOnly`, `ExposedGameRepository.orderingFor`,
   `games/api/GameFilterParams.kt`.
 - Frontend: `components/layout/SubPageTabs.tsx`, `MEDIA_SUB_PAGES` in `components/layout/mediaKinds.ts`,
   `src/routes.ts`, `features/games/GamesWatchlistView.tsx`,
-  `features/games/GamesRankingView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
+  `features/games/GamesRankingView.tsx`, `features/games/GamesDevelopersView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
   `components/media/MediaCardShell.tsx`, `components/media/ReleaseSortToggle.tsx` (shared with the books
   watchlist since MT-055, ADR 0038) and `hooks/usePagedActions.tsx`.
 
 ## Navigation
 
 - A second, smaller tab row sits under the media tabs. It is shown only for kinds listed in `MEDIA_SUB_PAGES`,
-  which today are games (`overview`, `watchlist`, `ranking`) and books (`overview` only, ADR 0034). Tab labels are
+  which today are games (`overview`, `watchlist`, `ranking`, `developers`) and books (`overview`, `watchlist`,
+  `authors`, `narrators`, `series`). Tab labels are
   kind-neutral (`subPages.pages.*`), the tablist label is per kind (`subPages.label.<kind>`). Each tab has a decorative start icon
-  (`GridViewOutlined`, `LibraryAddOutlined` like the watchlist status icon, `LeaderboardOutlined`), mapped in
+  (`GridViewOutlined`, `LibraryAddOutlined` like the watchlist status icon, `LeaderboardOutlined`,
+  `EngineeringOutlined`), mapped in
   `App.tsx` and passed to `SubPageTabs` as `getIcon`.
-- Each sub-page is a route, `/games/{overview|watchlist|ranking}`, with its search, filters, sort, page or
+- Each sub-page is a route, `/games/{overview|watchlist|ranking|developers}`, with its search, filters, sort, page or
   year in the query ([url-routes.md](url-routes.md), ADR 0031). The last-used sub-page is still stored under
   `mt.gamesPage`, and `/games` redirects there. An unknown stored value falls back to `overview`.
 - Every sub-page renders `GameDialogsHost`: the add speed dial, the add dialog and the detail dialog, including editing,
@@ -85,3 +88,18 @@ Code:
   table in [architecture.md](../architecture.md).
 - `search_games` takes the same two arguments. The MCP rule that a query or a filter is required still holds,
   so `sort` alone is not enough.
+
+## Developers
+
+- `GamesDevelopersView.tsx`, tab "Developers" / "Entwickler" at `/games/developers` (ADR 0042): the books authors view
+  ([books.md](books.md)) for games. Every developer from `/api/game-developers.summaries` (`[{id, name, gameCount}]`
+  by name, those without games included) as one shared `MediaGroupAccordion` with a game-count chip; the search
+  filters the loaded list in the browser and is kept in the URL (`search`). Expanding loads
+  `/api/game-developers/{id}/games` (release order as `GameSort.RELEASE_ASC`, 404 for an unknown developer) as
+  `GameCard`s; a card opens the detail dialog through `GameDialogsHost`, and a save reloads the counts and open
+  sections.
+- The expanded section's toolbar renames (`PATCH /api/game-developers/{id}`, 409 `name_taken` offers "Merge" into the
+  existing developer via `POST /api/game-developers/{id}/merge {targetId}`, or "Choose another name") and, only for
+  a developer without games, deletes (`DELETE /api/game-developers/{id}`, 409 `conflict` while a game links it).
+  Status codes and locking as for book authors (ADR 0041). Texts under `games.developersView`, turned into the
+  shared view's `labels` by `useDeveloperGroupLabels`.

@@ -1,5 +1,7 @@
 package de.sluit.mediatracker.games.api
 
+import de.sluit.mediatracker.common.api.MergeVocabularyRequest
+import de.sluit.mediatracker.common.api.RenameVocabularyRequest
 import de.sluit.mediatracker.common.api.intQueryParameter
 import de.sluit.mediatracker.common.api.pageRequest
 import de.sluit.mediatracker.common.api.searchTerm
@@ -10,6 +12,7 @@ import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.Game
+import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameService
@@ -92,8 +95,39 @@ fun Route.gameRoutes(
             val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
             call.respond(status, result.entry.toResponse())
         }
+        route("/{id}") {
+            // Unpaged; ordered by release year, date (undated last), title, id. Unknown developer is a 404.
+            get("/games") {
+                call.respond(gameService.listByDeveloper(call.gameDeveloperId()).map { it.toResponse() })
+            }
+            // Rename. 404 for an unknown developer, 409 `name_taken` (with the holder) when another developer has the name.
+            patch {
+                val id = call.gameDeveloperId()
+                val name = VocabularyName.parse(call.receive<RenameVocabularyRequest>().name)
+                call.respond(developerService.rename(id, name).toResponse())
+            }
+            // Folds this developer into `targetId` and answers the target. 404 when either is unknown, 400 for itself.
+            post("/merge") {
+                val id = call.gameDeveloperId()
+                val targetId = GameDeveloperId.parse(call.receive<MergeVocabularyRequest>().targetId, "targetId")
+                call.respond(developerService.merge(id, targetId).toResponse())
+            }
+            // 404 for an unknown developer, 409 while a game still references it.
+            delete {
+                developerService.delete(call.gameDeveloperId())
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+    }
+    route("/game-developers.summaries") {
+        get {
+            call.respond(developerService.summaries().map { it.toResponse() })
+        }
     }
 }
 
 internal fun ApplicationCall.gameId(): GameId =
     GameId.parse(parameters["id"] ?: throw InvalidValueException(GameId.FIELD, "is missing"))
+
+private fun ApplicationCall.gameDeveloperId(): GameDeveloperId =
+    GameDeveloperId.parse(parameters["id"] ?: throw InvalidValueException(GameDeveloperId.FIELD, "is missing"))

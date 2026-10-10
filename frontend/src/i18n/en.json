@@ -116,6 +116,8 @@
       "watchlist": "Watchlist",
       "ranking": "Yearly ranking",
       "authors": "Authors",
+      "narrators": "Narrators",
+      "developers": "Developers",
       "series": "Book series"
     }
   },
@@ -205,6 +207,25 @@
       "merge": "Merge",
       "chooseOtherName": "Choose another name"
     },
+    "narratorsView": {
+      "searchLabel": "Search narrators",
+      "searchPlaceholder": "Search narrators…",
+      "count_one": "{{count}} narrator",
+      "count_other": "{{count}} narrators",
+      "bookCount_one": "{{count}} book",
+      "bookCount_other": "{{count}} books",
+      "empty": "No narrators yet. Add one while editing a book.",
+      "noSearchResults": "No narrators match \"{{term}}\"",
+      "noBooks": "No books narrated by this narrator",
+      "deleteLabel": "Delete narrator {{name}}",
+      "deleteQuestion": "Delete narrator \"{{name}}\"?",
+      "editLabel": "Rename narrator {{name}}",
+      "renameTitle": "Rename narrator",
+      "nameLabel": "Name",
+      "nameTaken": "A narrator named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "merge": "Merge",
+      "chooseOtherName": "Choose another name"
+    },
     "seriesView": {
       "searchLabel": "Search series",
       "searchPlaceholder": "Search series…",
@@ -287,6 +308,25 @@
       "navigatorBottom": "Year selection (bottom)",
       "ratingValue": "{{rating}} stars",
       "empty": "No rated games in {{year}}."
+    },
+    "developersView": {
+      "searchLabel": "Search developers",
+      "searchPlaceholder": "Search developers…",
+      "count_one": "{{count}} developer",
+      "count_other": "{{count}} developers",
+      "gameCount_one": "{{count}} game",
+      "gameCount_other": "{{count}} games",
+      "empty": "No developers yet. Add one while editing a game.",
+      "noSearchResults": "No developers match \"{{term}}\"",
+      "noGames": "No games by this developer",
+      "deleteLabel": "Delete developer {{name}}",
+      "deleteQuestion": "Delete developer \"{{name}}\"?",
+      "editLabel": "Rename developer {{name}}",
+      "renameTitle": "Rename developer",
+      "nameLabel": "Name",
+      "nameTaken": "A developer named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "merge": "Merge",
+      "chooseOtherName": "Choose another name"
     },
     "fields": {
       "platforms": "Platforms",

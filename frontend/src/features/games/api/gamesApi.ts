@@ -5,11 +5,14 @@ import type {
   CreateGameDeveloperRequest,
   CreateGameRequest,
   GameDeveloperResponse,
+  GameDeveloperSummaryResponse,
   GameMetaResponse,
   GamePlatformResponse,
   GameResponse,
   GameSort,
+  MergeVocabularyRequest,
   PageResponse,
+  RenameVocabularyRequest,
   TitleSuggestionsResponse,
   UpdateGameRequest,
 } from "../../../types/api";
@@ -141,6 +144,39 @@ export function searchGameDevelopers(search: string, signal?: AbortSignal): Prom
 export function createGameDeveloper(name: string): Promise<GameDeveloperResponse> {
   const body: CreateGameDeveloperRequest = { name };
   return apiFetch<GameDeveloperResponse>("/api/game-developers", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Every developer with their game count (including 0), by name; unpaged. */
+export function listGameDeveloperSummaries(): Promise<GameDeveloperSummaryResponse[]> {
+  return apiFetch<GameDeveloperSummaryResponse[]>("/api/game-developers.summaries");
+}
+
+/** The games of one developer; 404 for an unknown developer. */
+export function listDeveloperGames(developerId: string, signal?: AbortSignal): Promise<GameResponse[]> {
+  return apiFetch<GameResponse[]>(`/api/game-developers/${encodeURIComponent(developerId)}/games`, { signal });
+}
+
+/** Renames the developer; 409 `name_taken` (with `existingId`/`existingName`) when another developer has the name. */
+export function renameGameDeveloper(id: string, name: string): Promise<GameDeveloperResponse> {
+  const body: RenameVocabularyRequest = { name };
+  return apiFetch<GameDeveloperResponse>(`/api/game-developers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Moves every game of the developer to `targetId` and deletes the developer; resolves the target. */
+export function mergeGameDeveloper(id: string, targetId: string): Promise<GameDeveloperResponse> {
+  const body: MergeVocabularyRequest = { targetId };
+  return apiFetch<GameDeveloperResponse>(`/api/game-developers/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** 204; 409 while games still use the developer, 404 for an unknown id. */
+export function deleteGameDeveloper(id: string): Promise<void> {
+  return apiFetch<void>(`/api/game-developers/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 /** Resolves a `GameForm` draft's developers to ids right before saving (see `resolveVocabularyIds`). */

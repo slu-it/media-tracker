@@ -81,6 +81,14 @@ class BookService(
         return books.findByAuthor(authorId)
     }
 
+    /** The books of one narrator in release order; an unknown [narratorId] is not found, one without books an empty list. */
+    suspend fun listByNarrator(narratorId: BookNarratorId): List<Book> {
+        if (narrators.findByIds(setOf(narratorId)).isEmpty()) {
+            throw NotFoundException(NARRATOR_RESOURCE, narratorId.toString())
+        }
+        return books.findByNarrator(narratorId)
+    }
+
     suspend fun listTypes(): List<BookType> = types.findAll()
 
     /** The filter values that actually occur in the stored books, ordered for display. */
@@ -138,6 +146,7 @@ class BookService(
     companion object {
         const val RESOURCE = "book"
         const val AUTHOR_RESOURCE = "book author"
+        const val NARRATOR_RESOURCE = "book narrator"
         const val SERIES_RESOURCE = "book series"
     }
 }

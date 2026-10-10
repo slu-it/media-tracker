@@ -1,7 +1,10 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
+import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -51,6 +54,12 @@ interface GameRepository {
      * (decision record 0022).
      */
     suspend fun findUsedFilterValues(): UsedGameFilterValues
+
+    /**
+     * All games linked to [developerId], unpaged, in the order of [GameSort.RELEASE_ASC]: release year, then
+     * release date (games without a date last within a year), then title, then id.
+     */
+    suspend fun findByDeveloper(developerId: GameDeveloperId): List<Game>
 }
 
 /**
@@ -77,6 +86,26 @@ interface GameDeveloperRepository {
 
     suspend fun findByIds(ids: Set<GameDeveloperId>): List<GameDeveloper>
 
+    /** Every developer including those without games, with their game count; ordered by name, then id. Unpaged. */
+    suspend fun findSummaries(): List<GameDeveloperSummary>
+
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<GameDeveloper>
+
+    /** Deletes the developer unless a game still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: GameDeveloperId): DeleteOutcome
+
+    /**
+     * Renames the developer. [RenameOutcome.Taken] when another developer carries the name
+     * (case/accent-insensitively); a spelling that only differs from the developer's own name that way is a plain
+     * rename.
+     */
+    suspend fun rename(id: GameDeveloperId, name: VocabularyName): RenameOutcome<GameDeveloper>
+
+    /**
+     * Folds [sourceId] into [targetId] in one transaction: every game of the source becomes a game of the target
+     * (once), then the source is deleted. [MergeOutcome.SourceNotFound] / [MergeOutcome.TargetNotFound] when that
+     * entry does not exist.
+     */
+    suspend fun merge(sourceId: GameDeveloperId, targetId: GameDeveloperId): MergeOutcome<GameDeveloper>
 }

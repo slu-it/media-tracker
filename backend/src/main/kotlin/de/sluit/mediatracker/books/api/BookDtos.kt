@@ -7,6 +7,7 @@ import de.sluit.mediatracker.books.domain.BookAuthorSummary
 import de.sluit.mediatracker.books.domain.BookMeta
 import de.sluit.mediatracker.books.domain.BookNarrator
 import de.sluit.mediatracker.books.domain.BookNarratorId
+import de.sluit.mediatracker.books.domain.BookNarratorSummary
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
@@ -107,6 +108,10 @@ data class BookSeriesSummaryResponse(val id: String, val name: String, val bookC
 @Serializable
 data class BookAuthorSummaryResponse(val id: String, val name: String, val bookCount: Int)
 
+/** GET /api/book-narrators.summaries: a narrator with the number of books linked to them (0 allowed). */
+@Serializable
+data class BookNarratorSummaryResponse(val id: String, val name: String, val bookCount: Int)
+
 /** POST /book-series */
 @Serializable
 data class CreateBookSeriesRequest(val name: String)
@@ -198,6 +203,9 @@ fun BookSeries.toResponse() = BookSeriesResponse(id = id.toString(), name = name
 
 fun BookAuthorSummary.toResponse() =
     BookAuthorSummaryResponse(id = author.id.toString(), name = author.name.value, bookCount = bookCount)
+
+fun BookNarratorSummary.toResponse() =
+    BookNarratorSummaryResponse(id = narrator.id.toString(), name = narrator.name.value, bookCount = bookCount)
 
 fun BookSeriesSummary.toResponse() =
     BookSeriesSummaryResponse(id = series.id.toString(), name = series.name.value, bookCount = bookCount)

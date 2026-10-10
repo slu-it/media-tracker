@@ -271,6 +271,16 @@ class ExposedBookRepository : BookRepository {
         hydrate(rows)
     }
 
+    /** Like [findByAuthor], over the narrator link table. */
+    override suspend fun findByNarrator(narratorId: BookNarratorId): List<Book> = dbQuery {
+        val rows = (BooksTable innerJoin BookToNarratorTable)
+            .select(BooksTable.columns)
+            .where { BookToNarratorTable.narratorId eq narratorId.toString() }
+            .orderBy(*orderingFor(BookSort.RELEASE_ASC))
+            .toList()
+        hydrate(rows)
+    }
+
     private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Book> =
         Page(hydrate(rows), request.page, request.size, total)
 

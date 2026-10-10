@@ -4,7 +4,7 @@ import de.sluit.mediatracker.books.domain.BookAuthor
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorRepository
 import de.sluit.mediatracker.books.domain.BookAuthorSummary
-import de.sluit.mediatracker.books.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.DeleteOutcome
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm
@@ -13,16 +13,12 @@ import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.persistence.ExposedNameVocabulary
 import de.sluit.mediatracker.common.persistence.dbQuery
-import de.sluit.mediatracker.common.persistence.orOnForeignKeyViolation
+import de.sluit.mediatracker.common.persistence.deleteUnusedVocabularyEntry
+import de.sluit.mediatracker.common.persistence.mergeVocabularyEntries
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.count
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.leftJoin
-import org.jetbrains.exposed.v1.jdbc.batchInsert
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.select
-import org.jetbrains.exposed.v1.jdbc.selectAll
 import kotlin.uuid.Uuid
 
 /**
@@ -65,59 +61,33 @@ class ExposedBookAuthorRepository : BookAuthorRepository {
 
     override suspend fun create(name: VocabularyName): VocabularyCreation<BookAuthor> = vocabulary.create(name)
 
-    /**
-     * One transaction: existence check, link check, delete. The junction FK is `ON DELETE RESTRICT`, so a link
-     * added concurrently after the check makes the delete fail instead of orphaning anything.
-     */
+    /** One transaction: existence check, link check, delete (see [deleteUnusedVocabularyEntry]). */
     override suspend fun delete(id: BookAuthorId): DeleteOutcome = dbQuery {
-        val key = id.toString()
-        when {
-            BookAuthorsTable.selectAll().where { BookAuthorsTable.id eq key }.empty() -> DeleteOutcome.NOT_FOUND
-
-            !BookToAuthorTable.selectAll().where { BookToAuthorTable.authorId eq key }.empty() -> DeleteOutcome.IN_USE
-
-            else -> orOnForeignKeyViolation(DeleteOutcome.IN_USE) {
-                BookAuthorsTable.deleteWhere { BookAuthorsTable.id eq key }
-                DeleteOutcome.DELETED
-            }
-        }
+        deleteUnusedVocabularyEntry(
+            vocabTable = BookAuthorsTable,
+            vocabId = BookAuthorsTable.id,
+            junction = BookToAuthorTable,
+            vocabColumn = BookToAuthorTable.authorId,
+            id = id.toString(),
+        )
     }
 
     override suspend fun rename(id: BookAuthorId, name: VocabularyName): RenameOutcome<BookAuthor> =
         vocabulary.rename(id.toString(), name)
 
-    /**
-     * One transaction, both author rows locked `FOR UPDATE` in id order (so two opposite merges cannot deadlock).
-     * Links of the source whose book is not yet linked to the target are re-pointed by insert, then every
-     * source link and the source row are deleted.
-     */
+    /** One transaction, see [mergeVocabularyEntries]. */
     override suspend fun merge(sourceId: BookAuthorId, targetId: BookAuthorId): MergeOutcome<BookAuthor> = dbQuery {
-        val source = sourceId.toString()
-        val target = targetId.toString()
-        val rows = BookAuthorsTable.selectAll()
-            .where { BookAuthorsTable.id inList listOf(source, target) }
-            .orderBy(BookAuthorsTable.id to SortOrder.ASC)
-            .forUpdate()
-            .associateBy { it[BookAuthorsTable.id] }
-        val targetRow = rows[target]
-        if (rows[source] == null) return@dbQuery MergeOutcome.SourceNotFound
-        if (targetRow == null) return@dbQuery MergeOutcome.TargetNotFound
-
-        val alreadyLinked = BookToAuthorTable.select(BookToAuthorTable.bookId)
-            .where { BookToAuthorTable.authorId eq target }
-            .map { it[BookToAuthorTable.bookId] }
-            .toSet()
-        val moved = BookToAuthorTable.select(BookToAuthorTable.bookId)
-            .where { BookToAuthorTable.authorId eq source }
-            .map { it[BookToAuthorTable.bookId] }
-            .filterNot { it in alreadyLinked }
-        BookToAuthorTable.batchInsert(moved) { bookId ->
-            this[BookToAuthorTable.bookId] = bookId
-            this[BookToAuthorTable.authorId] = target
-        }
-        BookToAuthorTable.deleteWhere { BookToAuthorTable.authorId eq source }
-        BookAuthorsTable.deleteWhere { BookAuthorsTable.id eq source }
-        MergeOutcome.Merged(BookAuthor(targetId, VocabularyName(targetRow[BookAuthorsTable.name])))
+        mergeVocabularyEntries(
+            vocabTable = BookAuthorsTable,
+            vocabId = BookAuthorsTable.id,
+            vocabName = BookAuthorsTable.name,
+            junction = BookToAuthorTable,
+            itemColumn = BookToAuthorTable.bookId,
+            vocabColumn = BookToAuthorTable.authorId,
+            sourceId = sourceId.toString(),
+            targetId = targetId.toString(),
+            toEntity = { BookAuthor(targetId, it) },
+        )
     }
 
     /** Test seam, see [ExposedNameVocabulary.create]. */

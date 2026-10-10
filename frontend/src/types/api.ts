@@ -60,6 +60,13 @@ export interface GamePlatformResponse {
   associatedColor: string;
 }
 
+/** A developer with their game count; mirrors `GameDeveloperSummaryResponse` in games/api/GameDtos.kt. */
+export interface GameDeveloperSummaryResponse {
+  id: string;
+  name: string;
+  gameCount: number;
+}
+
 /** A game developer/studio; mirrors `GameDeveloperResponse` in games/api/GameDtos.kt. */
 export interface GameDeveloperResponse {
   id: string;
@@ -348,6 +355,13 @@ export interface BookSeriesResponse {
 
 /** A series with its book count; mirrors `BookSeriesSummaryResponse` in books/api/BookDtos.kt. */
 export interface BookSeriesSummaryResponse {
+  id: string;
+  name: string;
+  bookCount: number;
+}
+
+/** A narrator with their book count; mirrors `BookNarratorSummaryResponse` in books/api/BookDtos.kt. */
+export interface BookNarratorSummaryResponse {
   id: string;
   name: string;
   bookCount: number;

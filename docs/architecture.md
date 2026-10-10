@@ -122,7 +122,8 @@ de.sluit.mediatracker
 │                       clamped MatchScore), TitleSearch (fulltext or LIKE prefix match + relevance order),
 │                       FilterOps (inListIfAny), ExposedNameVocabulary (search, findByIds, race-safe idempotent
 │                       create and rename of a unique-name vocabulary), ForeignKeyViolation (MariaDB 1451/1062
-│                       predicates, orOnForeignKeyViolation)
+│                       predicates, orOnForeignKeyViolation), VocabularyLinks (deleteUnusedVocabularyEntry,
+│                       mergeVocabularyEntries over a plain link table, record 0042)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
 │   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys),
@@ -152,7 +153,8 @@ de.sluit.mediatracker
 ├── books/              second media kind (decision record 0034), same layers as games:
 │   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types,
 │   │                   /api/book-authors, /api/book-authors.summaries, /api/book-authors/{id}/books,
-│   │                   /api/book-narrators, /api/book-series, /api/book-series.summaries,
+│   │                   /api/book-narrators, /api/book-narrators.summaries, /api/book-narrators/{id}/books,
+│   │                   /api/book-series, /api/book-series.summaries,
 │   │                   /api/book-series/{id}/books), BookFilterParams, BookCoverOptionDtos and
 │   │                   BookCoverOptionRoutes (/api/books/cover-options and /api/books/title-suggestions,
 │   │                   book-independent, decision record 0039),
@@ -176,7 +178,8 @@ de.sluit.mediatracker
 │                       (decision record 0039)
 └── games/              first media kind (MT-001, decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
-    │                   /api/game-platforms, /api/game-developers), GameFilterParams (the repeatable filter query parameters),
+    │                   /api/game-platforms, /api/game-developers, /api/game-developers.summaries,
+    │                   /api/game-developers/{id}/games), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
     │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options
     │                   and /api/games/title-suggestions, game-independent), GameMcpTools (MCP tools
@@ -234,6 +237,9 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
 | `GET /api/game-developers?search=nin&limit=10` | 200 `GameDeveloperResponse[]` | `id`, `name`; prefix fulltext match on the name plus `name LIKE 'term%'` for names InnoDB does not index (under three characters, stopwords), with LIKE hits first, `limit` 1..50 (default 10), blank `search` lists by name (decision record 0029) |
 | `POST /api/game-developers` | 201 / 200 `GameDeveloperResponse` | body `{name}` (trimmed, 1..128 chars); 201 when created, 200 with the existing row when the name exists (case-insensitive) |
+| `GET /api/game-developers.summaries` | 200 `GameDeveloperSummaryResponse[]` | every developer (also those without games) with `id`, `name`, `gameCount`, ordered by name; unpaged; feeds the developers view (decision record 0042) |
+| `GET /api/game-developers/{id}/games` | 200 `GameResponse[]` | the games of one developer, unpaged, in the `release_asc` order; 404 for an unknown developer |
+| `PATCH`, `POST .../merge`, `DELETE /api/game-developers/{id}` | as `/api/book-authors/{id}` | rename with 409 `name_taken`, merge into `targetId`, delete only while no game links the developer (decision record 0042) |
 | `GET /api/books?page=1&pageSize=50[&search=dune][&filters]` | 200 `PageResponse<BookResponse>` | as `GET /api/games` (paging, title-only search and its order), with the repeatable filters `typeIds`, `ownership` (`watchlist`/`owned`), `progress` (`abandoned`/`not_started`/`paused`/`reading`/`finished`), `releaseYear`; the type filter is a semi-join; `sort` `title`/`release_asc`/`release_desc` as for games (decision record 0038); no `rated` (decision record 0034) |
 | `POST /api/books` | 201 `BookResponse` + `Location` | body `CreateBookRequest`: `title`, `releaseYear` required unless `releaseDate` is given, `typeIds`, `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`, position 0..9999.99 with at most two decimals, a repeated `seriesId` is a 400) optional (default `[]`, a book may have no type), `description`, `coverImageUrl`, `ownership` (default `watchlist`), `progress` (default `not_started`) optional |
 | `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds`/`narratorIds`/`series` replace the set (may be empty); 404 for unknown ids |
@@ -252,6 +258,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `PATCH /api/book-authors/{id}` / `PATCH /api/book-series/{id}` | 200 `BookAuthorResponse` / `BookSeriesResponse` | body `RenameVocabularyRequest {name}` (`VocabularyName` rules); 404 for an unknown id; 409 `name_taken` with `existingId` and `existingName` when another entry has the name under the case- and accent-insensitive collation (decision record 0041) |
 | `POST /api/book-authors/{id}/merge` / `POST /api/book-series/{id}/merge` | 200 the target's response | body `MergeVocabularyRequest {targetId}`: moves every book link to the target (a book linked to both keeps one link; for series the target's position, else the merged one's) and deletes the entry, both rows locked in one transaction; 404 for an unknown entry or target, 400 `validation_error` for a merge into itself |
 | `DELETE /api/book-authors/{id}` / `DELETE /api/book-series/{id}` | 204 | only while no book links the entry: 409 `conflict` otherwise, 404 for an unknown id; check and delete in one transaction, the link tables' `RESTRICT` foreign keys as backstop, a violation also answers 409 |
+| `GET /api/book-narrators.summaries`, `GET /api/book-narrators/{id}/books`, `PATCH`, `POST .../merge`, `DELETE /api/book-narrators/{id}` | as for authors | `BookNarratorSummaryResponse` `{id, name, bookCount}`; feeds the narrators view (decision record 0042) |
 | `GET /api/backup/export` | 200 JSON object | one property per domain table (DB name), each an array of rows keyed by DB column name; the system tables `users`, `sessions` and `oauth_connections` are excluded (decision records 0027, 0028) |
 | `POST /api/backup/import` | 200 `ImportResultResponse {tables}` | body: an export as raw JSON; per table `{inserted, skipped}`; rows whose primary key exists are skipped, nothing is updated; unknown table or column, a missing non-nullable column (a missing nullable one is `null`), wrong value type or a constraint violation is a 400 `validation_error` and rolls back that source |
 | `GET /api/backup/dropbox` | 200 `CloudBackupResponse {lastBackup}` | `lastBackup` is `{modifiedAt, sizeBytes}` of `/backup/full-export.json` in the Dropbox App folder, read live from Dropbox, or `null`; 503 `dropbox_unavailable` when not configured or not connected, 502 `dropbox_error` when Dropbox fails (decision record 0028) |
@@ -291,10 +298,13 @@ frontend/src
 │                         useUrlSearchInput, usePagedActions (pagination bars + page corrections), useLoadOnce
 │                         (meta and reference lists), useVocabularySuggestions (debounced vocabulary lookup),
 │                         useCoverOptions (paged cover picker state, any kind), useTitleSuggestions (debounced
-│                         suggestions with a request key; decision record 0039)
+│                         suggestions with a request key; decision record 0039), useGroupItems (items of one
+│                         expanded group, record 0042)
 ├── domain/media/         kind-neutral pure TS (record 0034): values (validators returning i18n codes),
 │                         releaseDate (fixed YYYY-MM-DD format), draft (normalisers, withReleaseDate),
 │                         vocabularyDraft (pending names, resolveVocabularyIds), viewParams (URL field codecs),
+│                         groups (MediaGroup, GroupLabels: types of the shared group view), nameSearch +
+│                         groupViewParams (group views' client-side search and its URL codec),
 │                         coverThumbnail (isVideoThumbnail)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
@@ -302,7 +312,8 @@ frontend/src
 │                         ratio per kind, coverFrame), ComingSoon, media/ (kind-neutral media UI, record 0034:
 │                         MediaViewHeader, SearchField, ResultsBar, PaginationBar, MediaGrid, MediaCardShell,
 │                         ReleaseSortToggle (ADR 0038), ReleaseInfo, ReleaseDistanceChip, CoverAndInfoLayout,
-│                         ColorChip(s), AddSpeedDial (ADR 0040), DetailField, ReleaseDetail, NameChips, status/
+│                         ColorChip(s), AddSpeedDial (ADR 0040), groups/ (MediaGroupsView, MediaGroupAccordion, RenameGroupDialog:
+│                         the group views with translated labels, record 0042), DetailField, ReleaseDetail, NameChips, status/
 │                         (StatusToggleBar: exclusive or multiple icon toggles, StatusFilterBar, StatusIcon),
 │                         cover/ (CoverPickerDialog: paged thumbnails with optional match select and variant
 │                         toggle; CoverThumbnail: image or <video> for WebM, aspect ratio per kind),
@@ -320,12 +331,13 @@ frontend/src
 │                         disconnect; fields/AuthorizationCodeField)
 ├── features/<kind>/      one standalone view per media kind; movies and series are "coming soon"
 ├── features/books/       BooksView (overview at /books/overview), BooksWatchlistView (/books/watchlist, MT-055),
-│                         BookAuthorsView (/books/authors, MT-046) and BookSeriesView (/books/series, MT-043),
-│                         the latter two thin wrappers around BookGroupsView (one accordion per group)
+│                         BookAuthorsView (/books/authors, MT-046), BookNarratorsView (/books/narrators) and
+│                         BookSeriesView (/books/series, MT-043), the group views: thin wrappers around
+│                         BookGroupsView (books adapter of the shared MediaGroupsView, record 0042)
 │                         + api/booksApi, hooks/ (useBooksPage, useBooksMeta, useBookTypes,
-│                         useGroupBooks), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio, bookFilters,
-│                         bookDraft, bookViewParams, bookGroupViewParams, seriesLabel, nameSearch), components/
-│                         (BookCard, WatchlistBookCard, BookGroupAccordion, RenameGroupDialog, BookStatusIcons,
+│                         useBookGroupLabels), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio, bookFilters,
+│                         bookDraft, bookViewParams, bookGroups, seriesLabel), components/
+│                         (BookCard, WatchlistBookCard, BookStatusIcons,
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
 │                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,
@@ -334,10 +346,12 @@ frontend/src
 │                         source from the types and narrators)
 └── features/games/       GamesView (overview: MediaViewHeader = search field / filter bar /
                           ResultsBar: count + top pagination),
-                          GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030) + api/ (gamesApi,
+                          GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030), GamesDevelopersView (shared
+                          MediaGroupsView, record 0042) + api/ (gamesApi,
                           ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
                           games.meta, cover-options, title-suggestions;
-                          expansionsApi), hooks/ (useGamesPage, useAllGames, useGamesMeta, useGamePlatforms, useExpansions),
+                          expansionsApi), hooks/ (useGamesPage, useAllGames, useGamesMeta, useGamePlatforms, useExpansions,
+                          useDeveloperGroupLabels),
                           domain/ (gameValues validators,
                           gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
                           URL query codecs of the three views, gameStatus:

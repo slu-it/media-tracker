@@ -461,4 +461,27 @@ class GameServiceTest {
             assertEquals(listOf(Progress.ABANDONED, Progress.NOT_STARTED, Progress.PLAYING), result.progress)
             assertEquals(listOf(ReleaseYear(2020), ReleaseYear(2010), ReleaseYear(1998)), result.releaseYears)
         }
+
+    @Test
+    fun `listByDeveloper of an unknown developer throws NotFoundException without loading games`() {
+        runBlocking {
+            val unknown = GameDeveloperId.new()
+            coEvery { developers.findByIds(setOf(unknown)) } returns emptyList()
+
+            val exception = assertFailsWith<NotFoundException> { service.listByDeveloper(unknown) }
+
+            assertEquals(unknown.toString(), exception.id)
+            coVerify(exactly = 0) { games.findByDeveloper(any()) }
+        }
+    }
+
+    @Test
+    fun `listByDeveloper returns the games of a known developer in repository order`() = runBlocking {
+        val nintendo = developer("Nintendo EPD")
+        val found = listOf(game("One"), game("Two"))
+        coEvery { developers.findByIds(setOf(nintendo.id)) } returns listOf(nintendo)
+        coEvery { games.findByDeveloper(nintendo.id) } returns found
+
+        assertEquals(found, service.listByDeveloper(nintendo.id))
+    }
 }

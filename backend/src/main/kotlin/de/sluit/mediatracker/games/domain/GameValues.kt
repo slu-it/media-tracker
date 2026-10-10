@@ -81,7 +81,10 @@ value class GameDeveloperId(val value: Uuid) {
 
         fun new(): GameDeveloperId = GameDeveloperId(Uuid.random())
 
-        fun parse(raw: String): GameDeveloperId =
-            GameDeveloperId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(FIELD, "must be a UUID"))
+        fun parse(raw: String): GameDeveloperId = parse(raw, FIELD)
+
+        /** [parse] reporting a malformed [raw] as the request field [field] (e.g. a merge's `targetId`). */
+        fun parse(raw: String, field: String): GameDeveloperId =
+            GameDeveloperId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(field, "must be a UUID"))
     }
 }

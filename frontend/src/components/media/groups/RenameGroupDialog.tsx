@@ -4,18 +4,18 @@ import SaveIcon from "@mui/icons-material/Save";
 import UndoIcon from "@mui/icons-material/Undo";
 import { useTranslation } from "react-i18next";
 import { ApiError, errorMessage } from "../../../api/client";
-import { BaseDialog } from "../../../components/dialog/BaseDialog";
-import { ConfirmDialog } from "../../../components/dialog/ConfirmDialog";
-import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
-import { VocabularyNameField } from "../../../components/media/fields/VocabularyNameField";
+import { BaseDialog } from "../../dialog/BaseDialog";
+import { ConfirmDialog } from "../../dialog/ConfirmDialog";
+import { DialogActionButton } from "../../dialog/DialogActionButton";
+import { VocabularyNameField } from "../fields/VocabularyNameField";
 import { validateVocabularyName } from "../../../domain/media/values";
-import type { BookGroup, BookGroupLabelPrefix } from "./BookGroupAccordion";
+import type { GroupLabels, MediaGroup } from "../../../domain/media/groups";
 
 const TITLE_ID = "rename-group-title";
 
 interface RenameGroupDialogProps {
-  group: BookGroup;
-  labelPrefix: BookGroupLabelPrefix;
+  group: MediaGroup;
+  labels: GroupLabels;
   /** Renames the group; rejects with an `ApiError` 409 `name_taken` when another entry has the name. */
   onRename: (name: string) => Promise<void>;
   /** Merges the group into the entry `targetId`. */
@@ -28,8 +28,8 @@ interface TakenBy {
   name: string;
 }
 
-/** Renames an author or series; a taken name offers to merge into the existing entry instead. Mount it only while open. */
-export function RenameGroupDialog({ group, labelPrefix, onRename, onMerge, onClose }: RenameGroupDialogProps) {
+/** Renames a group; a taken name offers to merge into the existing entry instead. Mount it only while open. */
+export function RenameGroupDialog({ group, labels, onRename, onMerge, onClose }: RenameGroupDialogProps) {
   const { t } = useTranslation();
   const [name, setName] = useState(group.name);
   const [busy, setBusy] = useState(false);
@@ -98,7 +98,7 @@ export function RenameGroupDialog({ group, labelPrefix, onRename, onMerge, onClo
         }
       >
         <Typography id={TITLE_ID} variant="h6" component="h2" sx={{ mb: 2 }}>
-          {t(`${labelPrefix}.renameTitle`)}
+          {labels.renameTitle}
         </Typography>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -107,7 +107,7 @@ export function RenameGroupDialog({ group, labelPrefix, onRename, onMerge, onClo
         )}
         <form onSubmit={submit} noValidate>
           <VocabularyNameField
-            label={t(`${labelPrefix}.nameLabel`)}
+            label={labels.nameLabel}
             value={name}
             onChange={setName}
             disabled={busy}
@@ -118,9 +118,9 @@ export function RenameGroupDialog({ group, labelPrefix, onRename, onMerge, onClo
       </BaseDialog>
       <ConfirmDialog
         open={taken !== null}
-        question={t(`${labelPrefix}.nameTaken`, { existing: taken?.name, name: group.name })}
-        confirmLabel={t(`${labelPrefix}.merge`)}
-        cancelLabel={t(`${labelPrefix}.chooseOtherName`)}
+        question={labels.nameTaken(taken?.name ?? "", group.name)}
+        confirmLabel={labels.merge}
+        cancelLabel={labels.chooseOtherName}
         focusCancel
         onDecision={(merge) => void decide(merge)}
       />

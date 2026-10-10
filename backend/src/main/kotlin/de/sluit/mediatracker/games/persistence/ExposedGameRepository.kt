@@ -242,20 +242,35 @@ class ExposedGameRepository : GameRepository {
     }
 
     /**
+     * One SELECT of the developer's games (inner join on the link table) in [GameSort.RELEASE_ASC] order, then
+     * the shared batch loaders, so the query count is constant.
+     */
+    override suspend fun findByDeveloper(developerId: GameDeveloperId): List<Game> = dbQuery {
+        val rows = (GamesTable innerJoin GameToDeveloperTable)
+            .select(GamesTable.columns)
+            .where { GameToDeveloperTable.developerId eq developerId.toString() }
+            .orderBy(*orderingFor(GameSort.RELEASE_ASC))
+            .toList()
+        hydrate(rows)
+    }
+
+    /**
      * Maps a page of rows (with or without the extra `score` column) to a [Page] of [Game], loading platforms
      * and developers with one join query each, regardless of page size.
      */
-    private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Game> {
+    private fun pageOf(rows: List<ResultRow>, request: PageRequest, total: Long): Page<Game> =
+        Page(hydrate(rows), request.page, request.size, total)
+
+    private fun hydrate(rows: List<ResultRow>): List<Game> {
         val gameIds = rows.map { it[GamesTable.id] }.toSet()
         val platformsByGame = platformsFor(gameIds)
         val developersByGame = developersFor(gameIds)
-        val items = rows.map { row ->
+        return rows.map { row ->
             row.toGame(
                 platformsByGame[row[GamesTable.id]].orEmpty().sortedForGame(),
                 developersByGame[row[GamesTable.id]].orEmpty().sortedByNameForGame(),
             )
         }
-        return Page(items, request.page, request.size, total)
     }
 
     /** One query for all requested game ids: no N+1 when loading a page of games. */

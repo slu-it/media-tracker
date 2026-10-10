@@ -5,6 +5,7 @@ import de.sluit.mediatracker.books.api.BookAuthorResponse
 import de.sluit.mediatracker.books.api.BookAuthorSummaryResponse
 import de.sluit.mediatracker.books.api.BookMetaResponse
 import de.sluit.mediatracker.books.api.BookNarratorResponse
+import de.sluit.mediatracker.books.api.BookNarratorSummaryResponse
 import de.sluit.mediatracker.books.api.BookResponse
 import de.sluit.mediatracker.books.api.BookSeriesResponse
 import de.sluit.mediatracker.books.api.BookSeriesSummaryResponse
@@ -422,5 +423,64 @@ class BooksSmokeTest {
         assertEquals(target, response.decodeBody<BookSeriesResponse>())
         val summaries = client.get("/api/book-series.summaries").decodeBody<List<BookSeriesSummaryResponse>>()
         assertEquals(listOf("Mistborn" to 1), summaries.map { it.name to it.bookCount })
+    }
+
+    @Test
+    fun `narrator summaries and narrator books list counts and books in release order`() = testApplication {
+        val client = loggedInClient()
+        val kramer = client.createdNarrator("Michael Kramer")
+        val empty = client.createdNarrator("Another Narrator")
+        listOf("Later" to 2010, "Earlier" to 2005).forEach { (title, year) ->
+            client.createBook("""{"title":"$title","releaseYear":$year,"narratorIds":["${kramer.id}"]}""")
+        }
+
+        val summaries = client.get("/api/book-narrators.summaries").decodeBody<List<BookNarratorSummaryResponse>>()
+        val books = client.get("/api/book-narrators/${kramer.id}/books").decodeBody<List<BookResponse>>()
+        val noBooks = client.get("/api/book-narrators/${empty.id}/books").decodeBody<List<BookResponse>>()
+
+        assertEquals(listOf("Another Narrator" to 0, "Michael Kramer" to 2), summaries.map { it.name to it.bookCount })
+        assertEquals(listOf("Earlier", "Later"), books.map { it.title })
+        assertEquals(emptyList(), noBooks)
+    }
+
+    @Test
+    fun `delete removes an unused narrator from the summaries`() = testApplication {
+        val client = loggedInClient()
+        val narrator = client.createdNarrator("Michael Kramer")
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/book-narrators/${narrator.id}").status)
+
+        val names = client.get("/api/book-narrators.summaries").decodeBody<List<BookNarratorSummaryResponse>>()
+        assertEquals(emptyList(), names.map { it.name })
+    }
+
+    @Test
+    fun `rename changes a narrator's name in the summaries`() = testApplication {
+        val client = loggedInClient()
+        val narrator = client.createdNarrator("Michael Kramr")
+
+        val response = client.patch("/api/book-narrators/${narrator.id}") { jsonBody("""{"name":"Michael Kramer"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(BookNarratorResponse(narrator.id, "Michael Kramer"), response.decodeBody<BookNarratorResponse>())
+        val names = client.get("/api/book-narrators.summaries").decodeBody<List<BookNarratorSummaryResponse>>()
+        assertEquals(listOf("Michael Kramer"), names.map { it.name })
+    }
+
+    @Test
+    fun `merge moves the books of a narrator into the target and removes the source`() = testApplication {
+        val client = loggedInClient()
+        val source = client.createdNarrator("M. Kramer")
+        val target = client.createdNarrator("Michael Kramer")
+        client.createBook("""{"title":"Dune","releaseYear":1965,"narratorIds":["${source.id}"]}""")
+
+        val response = client.post("/api/book-narrators/${source.id}/merge") {
+            jsonBody("""{"targetId":"${target.id}"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(target, response.decodeBody<BookNarratorResponse>())
+        val summaries = client.get("/api/book-narrators.summaries").decodeBody<List<BookNarratorSummaryResponse>>()
+        assertEquals(listOf("Michael Kramer" to 1), summaries.map { it.name to it.bookCount })
     }
 }

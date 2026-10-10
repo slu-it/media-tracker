@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { celeste, hades } from "../../../test/fixtures/games";
+import { celeste, hades, teamCherry } from "../../../test/fixtures/games";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import type { GameResponse, PageResponse } from "../../../types/api";
 import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
 import { ALL_GAMES_PAGE_SIZE } from "../domain/gameValues";
-import { listAllGames, listGames } from "./gamesApi";
+import {
+  deleteGameDeveloper,
+  listAllGames,
+  listDeveloperGames,
+  listGameDeveloperSummaries,
+  listGames,
+  mergeGameDeveloper,
+  renameGameDeveloper,
+} from "./gamesApi";
 
 const page = (items: GameResponse[], pageNum: number, totalPages: number): PageResponse<GameResponse> => ({
   items,
@@ -130,5 +138,36 @@ describe("listAllGames", () => {
     });
     const items = await listAllGames("", EMPTY_FILTERS);
     expect(items).toEqual([celeste, hades]);
+  });
+});
+
+describe("game developers", () => {
+  it("lists the summaries", async () => {
+    const summaries = [{ id: "developer-1", name: "Team Cherry", gameCount: 2 }];
+    const calls = mockApi({ "GET /api/game-developers.summaries": () => jsonResponse(summaries) });
+    expect(await listGameDeveloperSummaries()).toEqual(summaries);
+    expect(calls[0].url).toBe("/api/game-developers.summaries");
+  });
+
+  it("lists the games of a developer", async () => {
+    const calls = mockApi({ "GET /api/game-developers/:id/games": () => jsonResponse([celeste]) });
+    expect(await listDeveloperGames("dev/1")).toEqual([celeste]);
+    expect(calls[0].url).toBe("/api/game-developers/dev%2F1/games");
+  });
+
+  it("renames, merges and deletes a developer", async () => {
+    const calls = mockApi({
+      "PATCH /api/game-developers/:id": () => jsonResponse(teamCherry),
+      "POST /api/game-developers/:id/merge": () => jsonResponse(teamCherry),
+      "DELETE /api/game-developers/:id": () => new Response(null, { status: 204 }),
+    });
+    expect(await renameGameDeveloper("d/1", "Cherry")).toEqual(teamCherry);
+    expect(await mergeGameDeveloper("d/1", "d-2")).toEqual(teamCherry);
+    await deleteGameDeveloper("d/1");
+    expect(calls).toEqual([
+      { method: "PATCH", url: "/api/game-developers/d%2F1", body: { name: "Cherry" } },
+      { method: "POST", url: "/api/game-developers/d%2F1/merge", body: { targetId: "d-2" } },
+      { method: "DELETE", url: "/api/game-developers/d%2F1", body: undefined },
+    ]);
   });
 });
