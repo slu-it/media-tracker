@@ -29,6 +29,16 @@ class GameValuesTest {
         GamePlatform(GamePlatformId(id), PlatformLabel(label), HexColor("757575"))
 
     @Test
+    fun `platform label is bounded rejects surrounding whitespace and parse trims it`() {
+        rejects("label") { PlatformLabel("") }
+        rejects("label") { PlatformLabel("x".repeat(65)) }
+        rejects("label") { PlatformLabel(" Xbox") }
+        rejects("label") { PlatformLabel("Xbox ") }
+        assertEquals("Xbox", PlatformLabel.parse("  Xbox ").value)
+        rejects("label") { PlatformLabel.parse("   ") }
+    }
+
+    @Test
     fun `rating must be a quarter-step between 0_25 and 5_0`() {
         rejects("rating") { Rating(0.0) }
         rejects("rating") { Rating(0.3) }

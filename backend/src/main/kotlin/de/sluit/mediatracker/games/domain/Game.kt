@@ -14,12 +14,15 @@ import de.sluit.mediatracker.common.domain.requireReleaseYearMatches
 import de.sluit.mediatracker.common.domain.requireValid
 import de.sluit.mediatracker.common.domain.resolvePatchedReleaseYear
 
-/** A selectable platform a game can be played on; the four rows are seeded by the games migration. */
+/** A selectable platform a game can be played on; seeded by the games migration, editable by the user. */
 data class GamePlatform(val id: GamePlatformId, val label: PlatformLabel, val color: HexColor)
 
 /** Sorts by label case-insensitively, then id, so the order is deterministic and duplicate-free. */
 fun List<GamePlatform>.sortedForGame(): List<GamePlatform> = distinctBy { it.id }
     .sortedWith(compareBy({ it.label.value.lowercase() }, { it.id.toString() }))
+
+/** A platform with the number of games linked to it (0 for a platform nobody uses yet). */
+data class GamePlatformSummary(val platform: GamePlatform, val gameCount: Int)
 
 /** A developer the user has added to the vocabulary (MT-025, ADR 0029); grown on the fly, unlike [GamePlatform]. */
 data class GameDeveloper(val id: GameDeveloperId, val name: VocabularyName)

@@ -1,5 +1,7 @@
 package de.sluit.mediatracker.books.persistence
 
+import de.sluit.mediatracker.books.domain.BookTypeLabel
+import de.sluit.mediatracker.common.persistence.EditableVocabulary
 import de.sluit.mediatracker.common.persistence.ExposedBackupSource
 
 /**
@@ -18,5 +20,11 @@ object BooksBackupSource : ExposedBackupSource(
         BookToNarratorTable,
         BookSeriesTable,
         BookToSeriesTable,
+    ),
+    // Editable: a restored dump carries the types' current labels and colours.
+    updatableTables = mapOf(
+        BookTypesTable to EditableVocabulary(BookTypesTable.label, BookTypesTable.associatedColor) {
+            BookTypeLabel(it)
+        },
     ),
 )

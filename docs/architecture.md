@@ -151,7 +151,7 @@ de.sluit.mediatracker
 ├── mcp/                technical domain, api layer only, knows no feature:
 │   └── api/            McpEndpoint (stateless Streamable HTTP route + McpJson encoding), McpServer (server factory)
 ├── books/              second media kind (decision record 0034), same layers as games:
-│   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types,
+│   ├── api/            BookDtos (+ mappers), BookRoutes (/api/books, /api/books.meta, /api/book-types, /api/book-types.summaries,
 │   │                   /api/book-authors, /api/book-authors.summaries, /api/book-authors/{id}/books,
 │   │                   /api/book-narrators, /api/book-narrators.summaries, /api/book-narrators/{id}/books,
 │   │                   /api/book-series, /api/book-series.summaries,
@@ -166,19 +166,19 @@ de.sluit.mediatracker
 │   │                   BookSeriesSummary,
 │   │                   BookFilters (incl. BookMissingField)/BookMeta, BookRepository, BookTypeRepository,
 │   │                   BookAuthorRepository, BookNarratorRepository, BookSeriesRepository (interfaces),
-│   │                   BookService, BookAuthorService, BookNarratorService, BookSeriesService,
+│   │                   BookService, BookAuthorService, BookNarratorService, BookSeriesService, BookTypeService,
 │   │                   BookCoverSource (ports BookWorkSource and AudiobookSource, BookCoverSourceKind, BookWorkId,
 │   │                   BookWork, Audiobook, BookCoverOptions/BookCoverLookup/BookTitleSuggestion),
 │   │                   BookCoverOptionsService (find, findFirstCover, suggestTitles, empty on failure)
 │   ├── persistence/    BooksTable, BookTypesTable, BookToTypeTable, BookAuthorsTable, BookToAuthorTable,
 │   │                   BookNarratorsTable, BookToNarratorTable, BookSeriesTable, BookToSeriesTable,
-│   │                   ExposedBookRepository, ExposedBookTypeRepository, ExposedBook{Author,Narrator,Series}Repository
+│   │                   ExposedBookRepository, ExposedBookTypeRepository (delegates to ExposedColoredVocabulary), ExposedBook{Author,Narrator,Series}Repository
 │   │                   (delegate to ExposedNameVocabulary), BooksBackupSource (the nine books tables)
 │   └── integration/    OpenLibraryWorkSource + OpenLibraryDtos, AudibleAudiobookSource + AudibleDtos
 │                       (decision record 0039)
 └── games/              first media kind (MT-001, decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
-    │                   /api/game-platforms, /api/game-developers, /api/game-developers.summaries,
+    │                   /api/game-platforms, /api/game-platforms.summaries, /api/game-developers, /api/game-developers.summaries,
     │                   /api/game-developers/{id}/games), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
     │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options
@@ -189,7 +189,7 @@ de.sluit.mediatracker
     ├── domain/         GameValues (GameId, Rating, GamePlatformId, PlatformLabel, GameDeveloperId), GameStatus (Ownership, Progress,
     │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
     │                   GameRepository, GamePlatformRepository and GameDeveloperRepository (interfaces), GameService,
-    │                   GameDeveloperService,
+    │                   GameDeveloperService, GamePlatformService (create, update, delete of platforms, ADR 0043),
     │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
     │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
     │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate
@@ -200,7 +200,7 @@ de.sluit.mediatracker
     │                   GameDevelopersTable, GameToDeveloperTable (Exposed),
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by title prefix/fulltext and filters, findUsedFilterValues),
-    │                   ExposedGamePlatformRepository, ExposedGameDeveloperRepository (delegates to
+    │                   ExposedGamePlatformRepository (delegates to ExposedColoredVocabulary), ExposedGameDeveloperRepository (delegates to
     │                   ExposedNameVocabulary), GamesBackupSource (the six games tables, parents first)
     └── integration/    outbound adapters (decision record 0024): SteamGridDbCoverSource (Ktor client, Java
                         engine) + SteamGridDbDtos (the provider's wire JSON)
@@ -234,7 +234,11 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/games/cover-options?query=hades[&releaseYear=2020][&match=5245][&type=animated][&page=2]` | 200 `CoverOptionsResponse {query, matches, selectedMatchId, type, covers}` | cover suggestions from SteamGridDB for the cover picker (decision record 0024), independent of any stored game so the add dialog can use it: `matches` are the provider's games for the required search term (`query`, same 1..200 limits as `?search`; missing or blank is a 400), `selectedMatchId` the one the ranking picked (exact title, then the same `releaseYear` when one is given, then first; `null` when nothing matched) and `covers` (`thumbnailUrl`, `imageUrl`, `width`, `height`) only for that one; `match` picks another candidate instead (empty = absent, anything but a positive integer is a 400); `releaseYear` is optional (blank = absent, a non-integer or a year outside 1000..9999 is a 400); `type` is `static` (default) or `animated`, `page` is 1-based (default 1) and `covers` is a `PageResponse` of at most 50 per page in SteamGridDB's score order (`totalItems`/`totalPages` from the provider; `pageSize` is not accepted); an unknown `type`, `page=0` or a non-integer `page` is a 400 naming the field; a page after the first with `match` given skips the upstream search and returns `matches` empty; `503 cover_source_unavailable` when no `STEAMGRIDDB_API_KEY` is configured, `502 cover_source_error` when the provider fails |
 | `GET /api/games/title-suggestions?query=hollow%20kn` | 200 `TitleSuggestionsResponse {suggestions}` | title suggestions for the add/edit form (decision record 0026): up to 8 `CoverMatchResponse` (`id`, `name`, `releaseYear` or `null`, `verified`) from the SteamGridDB search, in its order; `query` has the same 1..200 limits as `?search`, missing or blank is a 400; an unconfigured or failing SteamGridDB yields an empty list, never 502/503 |
 | `GET /api/games.meta` | 200 `GameMetaResponse` | the values the four filters can take, and only those that occur in a stored game: `platforms` (`GamePlatformResponse[]`, by label), `ownership` and `progress` (wire strings in the order `GameStatus.kt` declares them), `releaseYears` (descending, newest first), `platformCounts` (platform id to number of games, for the add speed dial, decision record 0040). `.meta` is the convention for a resource's lookup data (decision record 0021) |
-| `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | seeded reference data (`id`, `label`, `associatedColor` as `RRGGBB`), ordered by label; read-only for now (decision record 0009) |
+| `GET /api/game-platforms` | 200 `GamePlatformResponse[]` | reference data (`id`, `label`, `associatedColor` as `RRGGBB`), seeded (decision record 0009) and editable in the settings dialog, ordered by label |
+| `GET /api/game-platforms.summaries` | 200 `GamePlatformSummaryResponse[]` | every platform with `gameCount`, ordered by label, then id; feeds the Games Configuration settings tab (decision record 0043) |
+| `POST /api/game-platforms` | 201 `GamePlatformResponse` + `Location` | body `{label, associatedColor}`: label trimmed, 1..64 characters; colour exactly six hex digits without `#`, stored uppercase; 409 `name_taken` with `existingId`/`existingName` when another platform has the label under the table collation (decision record 0043) |
+| `PATCH /api/game-platforms/{id}` | 200 `GamePlatformResponse` | body `{label?, associatedColor?}`: only the sent fields change, both missing is a 400; 404; 409 `name_taken` (the platform's own label excluded, so a case fix is an update) |
+| `DELETE /api/game-platforms/{id}` | 204 | 404; 409 `conflict` while a game uses the platform |
 | `GET /api/game-developers?search=nin&limit=10` | 200 `GameDeveloperResponse[]` | `id`, `name`; prefix fulltext match on the name plus `name LIKE 'term%'` for names InnoDB does not index (under three characters, stopwords), with LIKE hits first, `limit` 1..50 (default 10), blank `search` lists by name (decision record 0029) |
 | `POST /api/game-developers` | 201 / 200 `GameDeveloperResponse` | body `{name}` (trimmed, 1..128 chars); 201 when created, 200 with the existing row when the name exists (case-insensitive) |
 | `GET /api/game-developers.summaries` | 200 `GameDeveloperSummaryResponse[]` | every developer (also those without games) with `id`, `name`, `gameCount`, ordered by name; unpaged; feeds the developers view (decision record 0042) |
@@ -247,7 +251,8 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/books.meta` | 200 `BookMetaResponse` | `types`, `ownership`, `progress`, `releaseYears` in use, ordered as for games, plus `typeCounts` (type id to number of books) |
 | `GET /api/books/cover-options?query=dune[&releaseYear=1965][&source=audiobook][&match=OL893415W][&page=2]` | 200 `BookCoverOptionsResponse {query, source, matches, selectedMatchId, covers}` | book cover picker (decision record 0039), book-independent; `source` `book` (default, Open Library: `matches` are works, `selectedMatchId` the ranked pick, `covers` that work's and its editions' covers) or `audiobook` (Audible: `matches` empty, `covers` the product images of a keyword search); `match` (`OL<n>W`) only with `book`, with `audiobook` a 400; `query`, `releaseYear` and `page` as for games, 50 covers per page; `502 open_library_error` / `502 audible_error` when the provider fails, never 503 |
 | `GET /api/books/title-suggestions?query=dune[&source=audiobook]` | 200 `BookTitleSuggestionsResponse {suggestions}` | up to 8 `{name, authors, narrators, releaseYear, source}` from the chosen source, deduplicated by title and first author; a failing provider yields an empty list (decision record 0026) |
-| `GET /api/book-types` | 200 `BookTypeResponse[]` | seeded (Hardcover, Paperback, Kindle, Audible; `id`, `label`, `associatedColor`), ordered by label |
+| `GET /api/book-types` | 200 `BookTypeResponse[]` | seeded (Hardcover, Paperback, Kindle, Audible; `id`, `label`, `associatedColor`) and editable in the settings dialog, ordered by label |
+| `GET /api/book-types.summaries`, `POST /api/book-types`, `PATCH`/`DELETE /api/book-types/{id}` | as for `/api/game-platforms` | with `bookCount` in the summaries (decision record 0043) |
 | `GET /api/book-authors?search=le&limit=10` / `POST /api/book-authors` | 200 `BookAuthorResponse[]` / 201 or 200 `BookAuthorResponse` | as `/api/game-developers` |
 | `GET /api/book-narrators` / `POST /api/book-narrators` | 200 `BookNarratorResponse[]` / 201 or 200 `BookNarratorResponse` | as `/api/game-developers` |
 | `GET /api/book-series` / `POST /api/book-series` | 200 `BookSeriesResponse[]` / 201 or 200 `BookSeriesResponse` | as `/api/game-developers`; a book's links come back as `BookResponse.series` `[{id, name, position}]` (decision record 0035) |
@@ -306,7 +311,8 @@ frontend/src
 │                         groups (MediaGroup, GroupLabels: types of the shared group view), nameSearch +
 │                         groupViewParams (group views' search and sort URL codec), groupSort (client-side
 │                         name/volume sort),
-│                         coverThumbnail (isVideoThumbnail)
+│                         coverThumbnail (isVideoThumbnail), colorPalette (16 chip colour presets, firstUnusedColor;
+│                         record 0043)
 ├── components/           shared UI: layout/ (AppHeader, LanguageMenu, ThemeModeToggle, SettingsButton,
 │                         LogoutButton, MediaTabs, SubPageTabs, mediaKinds + MEDIA_SUB_PAGES), dialog/ (BaseDialog, ConfirmDialog,
 │                         DialogActionButton), CoverImage (optionally a button, for the cover picker; aspect
@@ -321,8 +327,14 @@ frontend/src
 │                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
 │                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField, VocabularyNameField,
 │                         SuggestingTitleField (freeSolo Autocomplete over any suggestion type),
-│                         ColoredOptionsField, FieldLegend))
-├── features/settings/    UserSettingsDialog (tab bar; "Password" (default), "API Keys" and "Export / Import" tabs) +
+│                         ColoredOptionsField, FieldLegend, HexColorField), ColorPickerPopover (palette + hex + chip
+│                         preview), coloredVocabulary/ (ColoredVocabularyEditor, ColoredVocabularyRow,
+│                         AddColoredEntryForm: the label-and-colour list of the configuration tabs, record 0043)),
+│                         DataRevisionProvider (with hooks/dataRevision: a revision that keys the routed view, bumped
+│                         when the settings dialog closes after a data change)
+├── features/settings/    UserSettingsDialog (scrollable tab bar; "Password" (default), "API Keys", "Export / Import",
+│                         "Books Configuration" and "Games Configuration", the last two owned by features/books and
+│                         features/games, record 0043) +
 │                         api/ (settingsApi, backupApi, dropboxApi), hooks/ (useApiKeys, useExportImport, useDropbox,
 │                         useCloudBackup), domain/ (downloadJson: Blob download, dropboxValues: code validator,
 │                         passwordValues: password validators, cloudBackupFormat: Intl date/size), components/
@@ -499,8 +511,9 @@ Rules:
   root). `SchemaDriftTest` fails when scripts and Kotlin tables disagree, and prints the statements
   Exposed would need.
 - UUID primary keys are `CHAR(36)` (hex-dash text), not Exposed's `uuid()`; see decision record 0007.
-- Reference data that the app needs from day one (the game platforms) is seeded by the migration that creates
-  its table, with fixed ids; see decision record 0009. `V002__games.sql` was amended in place once, before the
+- Reference data that the app needs from day one (the game platforms, the book types) is seeded by the migration that
+  creates its table, with fixed ids; see decision record 0009. The owner can edit it afterwards (decision record 0043),
+  so no code may rely on a seeded row still existing outside tests. `V002__games.sql` was amended in place once, before the
   first release, under that record; the rule above holds from now on.
 
 ## Developer loop

@@ -8,6 +8,9 @@ import type {
   GameDeveloperSummaryResponse,
   GameMetaResponse,
   GamePlatformResponse,
+  GamePlatformSummaryResponse,
+  CreateColoredEntryRequest,
+  UpdateColoredEntryRequest,
   GameResponse,
   GameSort,
   MergeVocabularyRequest,
@@ -16,6 +19,7 @@ import type {
   TitleSuggestionsResponse,
   UpdateGameRequest,
 } from "../../../types/api";
+import type { ColoredEntry } from "../../../components/media/coloredVocabulary/coloredVocabulary";
 import { resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
 import type { DeveloperDraft } from "../domain/gameDraft";
 import type { GameFilters } from "../domain/gameFilters";
@@ -86,6 +90,31 @@ function dedupeById(items: GameResponse[]): GameResponse[] {
 
 export function listGamePlatforms(): Promise<GamePlatformResponse[]> {
   return apiFetch<GamePlatformResponse[]>("/api/game-platforms");
+}
+
+/** Platforms with their game counts for the configuration tab, sorted by label. */
+export async function listGamePlatformSummaries(): Promise<ColoredEntry[]> {
+  const summaries = await apiFetch<GamePlatformSummaryResponse[]>("/api/game-platforms.summaries");
+  return summaries.map(({ gameCount, ...platform }) => ({ ...platform, count: gameCount }));
+}
+
+/** 201; 409 `name_taken` when the label exists. */
+export function createGamePlatform(label: string, associatedColor: string): Promise<GamePlatformResponse> {
+  const body: CreateColoredEntryRequest = { label, associatedColor };
+  return apiFetch<GamePlatformResponse>("/api/game-platforms", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** 404 for an unknown id, 409 `name_taken` for a label that exists. */
+export function updateGamePlatform(id: string, body: UpdateColoredEntryRequest): Promise<GamePlatformResponse> {
+  return apiFetch<GamePlatformResponse>(`/api/game-platforms/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** 204; 409 while games still use the platform, 404 for an unknown id. */
+export function deleteGamePlatform(id: string): Promise<void> {
+  return apiFetch<void>(`/api/game-platforms/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function getGamesMeta(): Promise<GameMetaResponse> {

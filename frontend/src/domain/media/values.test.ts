@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  COLORED_LABEL_MAX_LENGTH,
+  normalizeHexColor,
   releaseYearOptions,
+  validateColoredLabel,
+  validateHexColor,
   validateCoverImageUrl,
   validateDescription,
   validateReleaseDate,
@@ -78,5 +82,27 @@ describe("values", () => {
     expect(years[0]).toBe(2026);
     expect(years.at(-1)).toBe(1450);
     expect(years).toHaveLength(577);
+  });
+
+  it("normalises a hex color: trims, strips one leading # and uppercases", () => {
+    expect(normalizeHexColor(" #0070d1 ")).toBe("0070D1");
+    expect(normalizeHexColor("0070d1")).toBe("0070D1");
+    expect(normalizeHexColor("##ab")).toBe("#AB");
+  });
+
+  it("accepts exactly six hex digits, with or without #, in any case", () => {
+    expect(validateHexColor("0070D1")).toBeNull();
+    expect(validateHexColor("#0070d1")).toBeNull();
+    expect(validateHexColor("0070D")).toBe("invalidColor");
+    expect(validateHexColor("0070D1F")).toBe("invalidColor");
+    expect(validateHexColor("00G0D1")).toBe("invalidColor");
+    expect(validateHexColor("")).toBe("invalidColor");
+  });
+
+  it("requires a colored label and caps it at 64 characters once trimmed", () => {
+    expect(validateColoredLabel("  ")).toBe("required");
+    expect(validateColoredLabel(" Kindle ")).toBeNull();
+    expect(validateColoredLabel("x".repeat(COLORED_LABEL_MAX_LENGTH))).toBeNull();
+    expect(validateColoredLabel("x".repeat(COLORED_LABEL_MAX_LENGTH + 1))).toBe("tooLong");
   });
 });

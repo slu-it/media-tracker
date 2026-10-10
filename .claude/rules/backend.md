@@ -28,19 +28,21 @@ per-kind status enums, `Vocabulary`, `CoverOption`, `RankableMatch`/`selectBestM
 DTOs (incl. `CoverOptionResponse`), paging, `?search` parsing (`Search.kt`),
 `PatchField` (absent / null / value), filter query parsing (`QueryParams`) and the MCP helpers (`McpToolArguments`,
 `McpSchemas`, `VocabularyMcpTools`), `common/persistence` HikariCP, Flyway, `dbQuery`, the fulltext and title
-search helpers, `ExposedNameVocabulary` (ADR 0034) and `VocabularyLinks` (guarded delete and merge of an entry over
-a plain link table, ADR 0042). Use these before writing a kind-specific copy.
+search helpers, `ExposedNameVocabulary` (ADR 0034), `VocabularyLinks` (guarded delete and merge of an entry over
+a plain link table, ADR 0042) and `ExposedColoredVocabulary` (create, update, delete and summaries of a label-and-colour
+reference table like book types and platforms, ADR 0043). Use these before writing a kind-specific copy.
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,
-coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
+coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions, bookTypes, gamePlatforms)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
 only when their keys are configured; the keyless Open Library and Audible clients always) -> `launch { BackupScheduler(...).run() }` on the application scope (ADR
 0028) ->
 `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the
 persistence line: plugins (Serialization, Monitoring, StatusPages, then auth's Sessions and Security) -> routes
 (`loginRoutes`, `apiRoutes(services)`, `mcpRoutes(services)`, `webRoutes`). A new media kind adds its service to
 `Services` and to `handlerApp` in the tests, and an `ExposedBackupSource` of its tables (parents first) to
-`backupSources`. Config is typed in `config/AppConfig.kt` from `application.yaml`,
+`backupSources` (`updatableTables` maps an editable reference table to its `EditableVocabulary` (label and colour columns, label rule): the
+import validates those columns like the API and overwrites existing rows in two phases, ADR 0043). Config is typed in `config/AppConfig.kt` from `application.yaml`,
 where every secret is an env-var reference (`"$VAR"` required, `"$VAR:default"` optional). Shutdown hooks in
 `module()` hang off the application's coroutine job, never `monitor.subscribe(ApplicationStopped)`: with
 auto-reload the new instance starts before the old one stops and would close the new instance's resources.

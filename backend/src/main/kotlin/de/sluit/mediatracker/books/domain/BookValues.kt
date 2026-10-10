@@ -40,11 +40,12 @@ value class BookTypeId(val value: Uuid) {
     }
 }
 
-/** Human-readable name of a book type, e.g. "Hardcover". */
+/** Human-readable name of a book type, e.g. "Hardcover". Trimmed before construction by [parse]. */
 @JvmInline
 value class BookTypeLabel(val value: String) {
     init {
         requireValid(FIELD, value.isNotBlank()) { "must not be blank" }
+        requireValid(FIELD, value == value.trim()) { "must not have surrounding whitespace" }
         requireValid(FIELD, value.length <= MAX_LENGTH) { "must be at most $MAX_LENGTH characters" }
     }
 
@@ -53,6 +54,9 @@ value class BookTypeLabel(val value: String) {
     companion object {
         const val FIELD = "label"
         const val MAX_LENGTH = 64
+
+        /** Trims [raw] before validating, so callers never have to trim by hand. */
+        fun parse(raw: String): BookTypeLabel = BookTypeLabel(raw.trim())
     }
 }
 

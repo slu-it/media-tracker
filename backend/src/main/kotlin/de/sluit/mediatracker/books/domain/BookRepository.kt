@@ -1,6 +1,8 @@
 package de.sluit.mediatracker.books.domain
 
+import de.sluit.mediatracker.common.domain.CreateOutcome
 import de.sluit.mediatracker.common.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
@@ -70,14 +72,29 @@ interface BookRepository {
 }
 
 /**
- * Persistence port of the (mostly static, seeded) book types. Implemented in `books.persistence`; the domain
- * never imports that package, so dependencies point inward only.
+ * Persistence port of the book types (seeded by the migration, editable by the user). Implemented in
+ * `books.persistence`; the domain never imports that package, so dependencies point inward only.
  */
 interface BookTypeRepository {
     /** Ordered by label. */
     suspend fun findAll(): List<BookType>
 
     suspend fun findByIds(ids: Set<BookTypeId>): List<BookType>
+
+    /** Every type including those without books, with their book count; ordered by label, then id. Unpaged. */
+    suspend fun findSummaries(): List<BookTypeSummary>
+
+    /** [CreateOutcome.Taken] when another type carries the label (case/accent-insensitively). */
+    suspend fun create(label: BookTypeLabel, color: HexColor): CreateOutcome<BookType>
+
+    /**
+     * Changes the label and/or colour (`null`: keep). [RenameOutcome.Taken] when another type carries the new
+     * label; a spelling that only differs from the type's own label that way is a plain update.
+     */
+    suspend fun update(id: BookTypeId, label: BookTypeLabel?, color: HexColor?): RenameOutcome<BookType>
+
+    /** Deletes the type unless a book still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: BookTypeId): DeleteOutcome
 }
 
 /**

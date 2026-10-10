@@ -55,11 +55,12 @@ value class GamePlatformId(val value: Uuid) {
     }
 }
 
-/** Human-readable name of a platform, e.g. "PlayStation". */
+/** Human-readable name of a platform, e.g. "PlayStation". Trimmed before construction by [parse]. */
 @JvmInline
 value class PlatformLabel(val value: String) {
     init {
         requireValid(FIELD, value.isNotBlank()) { "must not be blank" }
+        requireValid(FIELD, value == value.trim()) { "must not have surrounding whitespace" }
         requireValid(FIELD, value.length <= MAX_LENGTH) { "must be at most $MAX_LENGTH characters" }
     }
 
@@ -68,6 +69,9 @@ value class PlatformLabel(val value: String) {
     companion object {
         const val FIELD = "label"
         const val MAX_LENGTH = 64
+
+        /** Trims [raw] before validating, so callers never have to trim by hand. */
+        fun parse(raw: String): PlatformLabel = PlatformLabel(raw.trim())
     }
 }
 

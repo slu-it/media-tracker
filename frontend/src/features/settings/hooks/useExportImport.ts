@@ -12,7 +12,8 @@ export interface ExportImportState {
   importError: string | null;
   /** Per-table row counts of the most recent successful import; cleared as soon as a new import starts. */
   importResult: ImportResultResponse | null;
-  runImport: (file: File) => Promise<void>;
+  /** Resolves with the result, or `null` when the import failed. */
+  runImport: (file: File) => Promise<ImportResultResponse | null>;
 }
 
 /** Downloads the full export and posts an import file; both actions report their own busy/error state. */
@@ -41,9 +42,12 @@ export function useExportImport(exportErrorText: string, importErrorText: string
       setImportError(null);
       setImportResult(null);
       try {
-        setImportResult(await importBackup(await file.text()));
+        const result = await importBackup(await file.text());
+        setImportResult(result);
+        return result;
       } catch (cause: unknown) {
         setImportError(errorMessage(cause, importErrorText));
+        return null;
       } finally {
         setImporting(false);
       }

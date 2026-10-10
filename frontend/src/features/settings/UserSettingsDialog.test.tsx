@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { flushAsync } from "../../test/flushAsync";
 import { jsonResponse, mockApi } from "../../test/mockFetch";
 import { renderWithProviders } from "../../test/renderWithProviders";
@@ -14,7 +14,13 @@ describe("UserSettingsDialog", () => {
 
     expect(screen.getByRole("heading", { level: 2, name: "Settings" })).toBeInTheDocument();
     const tabs = screen.getAllByRole("tab");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Password", "API Keys", "Export / Import"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      "Password",
+      "API Keys",
+      "Export / Import",
+      "Books Configuration",
+      "Games Configuration",
+    ]);
     expect(screen.getByRole("tab", { name: "Password" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByLabelText(/^Current password/)).toBeInTheDocument();
   });
@@ -100,5 +106,40 @@ describe("UserSettingsDialog", () => {
     expect(screen.getByRole("button", { name: "Export" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Primary key" })).not.toBeInTheDocument();
     await flushAsync(); // settles the newly mounted Dropbox section's own status fetch
+  });
+
+  it("shows the book types in the Books Configuration tab and reports a change", async () => {
+    mockApi({
+      "GET /api/book-types.summaries": () =>
+        jsonResponse([{ id: "b1", label: "Kindle", associatedColor: "0070D1", bookCount: 1 }]),
+      "POST /api/book-types": () => jsonResponse({ id: "b2", label: "Vinyl", associatedColor: "107C10" }, 201),
+    });
+    const onDataChanged = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(<UserSettingsDialog open onClose={() => {}} onDataChanged={onDataChanged} />);
+
+    await user.click(screen.getByRole("tab", { name: "Books Configuration" }));
+    expect(screen.getByRole("tabpanel", { name: "Books Configuration" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Book types" })).toBeInTheDocument();
+    expect(await screen.findByText("1 book")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("textbox", { name: "New book type" }));
+    await user.paste("Vinyl");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(onDataChanged).toHaveBeenCalledOnce());
+  });
+
+  it("shows the platforms in the Games Configuration tab", async () => {
+    mockApi({
+      "GET /api/game-platforms.summaries": () =>
+        jsonResponse([{ id: "p1", label: "PC", associatedColor: "757575", gameCount: 3 }]),
+    });
+    const user = userEvent.setup();
+    renderWithProviders(<UserSettingsDialog open onClose={() => {}} />);
+
+    await user.click(screen.getByRole("tab", { name: "Games Configuration" }));
+    expect(screen.getByRole("tabpanel", { name: "Games Configuration" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Platforms" })).toBeInTheDocument();
+    expect(await screen.findByText("3 games")).toBeInTheDocument();
   });
 });

@@ -12,6 +12,7 @@ import de.sluit.mediatracker.books.domain.BookCoverOptionsService
 import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.domain.BookTypeService
 import de.sluit.mediatracker.common.persistence.sharedTestDatabase
 import de.sluit.mediatracker.common.persistence.testDatabaseConfig
 import de.sluit.mediatracker.config.SessionConfig
@@ -19,6 +20,7 @@ import de.sluit.mediatracker.dropbox.domain.DropboxService
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameDeveloperService
+import de.sluit.mediatracker.games.domain.GamePlatformService
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.cookies.HttpCookies
@@ -124,6 +126,8 @@ fun ApplicationTestBuilder.handlerApp(
     bookNarrators: BookNarratorService = mockk(),
     bookSeries: BookSeriesService = mockk(),
     bookCoverOptions: BookCoverOptionsService = mockk(),
+    bookTypes: BookTypeService = mockk(),
+    gamePlatforms: GamePlatformService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
@@ -142,6 +146,8 @@ fun ApplicationTestBuilder.handlerApp(
                 bookNarrators,
                 bookSeries,
                 bookCoverOptions,
+                bookTypes,
+                gamePlatforms,
             ),
             testSessionConfig,
             SessionStorageMemory(),

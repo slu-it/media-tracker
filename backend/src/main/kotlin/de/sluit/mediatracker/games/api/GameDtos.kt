@@ -5,6 +5,8 @@ import de.sluit.mediatracker.common.api.PatchFieldSerializer
 import de.sluit.mediatracker.common.api.toPatch
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
+import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.Title
@@ -18,8 +20,10 @@ import de.sluit.mediatracker.games.domain.GameMeta
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
+import de.sluit.mediatracker.games.domain.GamePlatformSummary
 import de.sluit.mediatracker.games.domain.NewGame
 import de.sluit.mediatracker.games.domain.Ownership
+import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import kotlinx.serialization.Serializable
@@ -72,6 +76,23 @@ data class UpdateGameRequest(
 
 @Serializable
 data class GamePlatformResponse(val id: String, val label: String, val associatedColor: String)
+
+/** POST /api/game-platforms: [associatedColor] is six hex digits without '#'; stored uppercase. */
+@Serializable
+data class CreateGamePlatformRequest(val label: String, val associatedColor: String)
+
+/** PATCH /api/game-platforms/{id}: at least one field; an absent (or null) field keeps the stored value. */
+@Serializable
+data class UpdateGamePlatformRequest(val label: String? = null, val associatedColor: String? = null)
+
+/** GET /api/game-platforms.summaries: a platform with the number of games using it (0 allowed). */
+@Serializable
+data class GamePlatformSummaryResponse(
+    val id: String,
+    val label: String,
+    val associatedColor: String,
+    val gameCount: Int,
+)
 
 @Serializable
 data class GameDeveloperResponse(val id: String, val name: String)
@@ -147,6 +168,25 @@ fun UpdateGameRequest.toPatch() = GamePatch(
 
 fun GamePlatform.toResponse() =
     GamePlatformResponse(id = id.toString(), label = label.value, associatedColor = color.value)
+
+fun GamePlatformSummary.toResponse() = GamePlatformSummaryResponse(
+    id = platform.id.toString(),
+    label = platform.label.value,
+    associatedColor = platform.color.value,
+    gameCount = gameCount,
+)
+
+/** The label and colour of a new platform; the label is trimmed, the colour uppercased. */
+fun CreateGamePlatformRequest.toLabelAndColor(): Pair<PlatformLabel, HexColor> =
+    PlatformLabel.parse(label) to HexColor.parse(associatedColor)
+
+/** The fields to change (`null`: keep); a request that changes nothing is a [InvalidValueException]. */
+fun UpdateGamePlatformRequest.toLabelAndColor(): Pair<PlatformLabel?, HexColor?> {
+    if (label == null && associatedColor == null) {
+        throw InvalidValueException(PlatformLabel.FIELD, "at least one of label, associatedColor is required")
+    }
+    return label?.let(PlatformLabel::parse) to associatedColor?.let(HexColor::parse)
+}
 
 fun GameDeveloper.toResponse() = GameDeveloperResponse(id = id.toString(), name = name.value)
 

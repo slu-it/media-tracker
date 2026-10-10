@@ -20,7 +20,11 @@ export const VOCABULARY_NAME_MAX_LENGTH = 128;
 /** Minimum trimmed length before a vocabulary chip input requests suggestions; names can be short. */
 export const VOCABULARY_SUGGESTION_MIN_LENGTH = 1;
 
-export type ValidationCode = "required" | "tooLong" | "invalidUrl" | "invalidYear" | "invalidRating" | "invalidDate";
+/** Mirrors the label limit of `PlatformLabel` / `BookTypeLabel` (backend): platform and book type labels. */
+export const COLORED_LABEL_MAX_LENGTH = 64;
+
+export type ValidationCode =
+  "required" | "tooLong" | "invalidUrl" | "invalidYear" | "invalidRating" | "invalidDate" | "invalidColor";
 
 export function currentYear(): number {
   return new Date().getFullYear();
@@ -90,5 +94,26 @@ export function validateCoverImageUrl(value: string): ValidationCode | null {
     return "invalidUrl";
   }
   if ((url.protocol !== "http:" && url.protocol !== "https:") || url.hostname.length === 0) return "invalidUrl";
+  return null;
+}
+
+const HEX_COLOR_PATTERN = /^[0-9A-F]{6}$/;
+
+/** Trims, strips one leading `#` and uppercases, the form the backend stores (`RRGGBB`). */
+export function normalizeHexColor(raw: string): string {
+  const trimmed = raw.trim();
+  return (trimmed.startsWith("#") ? trimmed.slice(1) : trimmed).toUpperCase();
+}
+
+/** Exactly six hex digits once normalised. */
+export function validateHexColor(raw: string): ValidationCode | null {
+  return HEX_COLOR_PATTERN.test(normalizeHexColor(raw)) ? null : "invalidColor";
+}
+
+/** Label of a colored entry (platform, book type): non-empty, at most `COLORED_LABEL_MAX_LENGTH` once trimmed. */
+export function validateColoredLabel(raw: string): ValidationCode | null {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return "required";
+  if (trimmed.length > COLORED_LABEL_MAX_LENGTH) return "tooLong";
   return null;
 }

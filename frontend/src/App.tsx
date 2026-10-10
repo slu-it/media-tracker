@@ -19,6 +19,7 @@ import {
   type MediaKind,
   type SubPage,
 } from "./components/layout/mediaKinds";
+import { useDataRevision } from "./hooks/dataRevision";
 import { useActiveRoute } from "./hooks/useActiveRoute";
 import { BookAuthorsView } from "./features/books/BookAuthorsView";
 import { BookNarratorsView } from "./features/books/BookNarratorsView";
@@ -89,6 +90,7 @@ export function App() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const route = useActiveRoute();
+  const { revision } = useDataRevision();
   const kind = route?.kind;
   const subPage = route?.subPage;
   const subPages = (kind === undefined ? [] : subPagesOf(kind)) as readonly SubPage[];
@@ -111,7 +113,12 @@ export function App() {
           getIcon={(page) => SUB_PAGE_ICONS[page]}
         />
       )}
-      <Container component="main" maxWidth="xl" sx={{ flex: 1, display: "flex", flexDirection: "column", py: 2 }}>
+      <Container
+        key={revision}
+        component="main"
+        maxWidth="xl"
+        sx={{ flex: 1, display: "flex", flexDirection: "column", py: 2 }}
+      >
         <Routes>
           <Route path={ROOT_PATH} element={<Navigate to={storedStartPath()} replace />} />
           {KINDS_WITH_SUB_PAGES.map((k) => (

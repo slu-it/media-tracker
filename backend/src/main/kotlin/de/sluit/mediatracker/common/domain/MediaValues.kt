@@ -72,6 +72,9 @@ value class HexColor(val value: String) {
     companion object {
         const val FIELD = "associatedColor"
         private val PATTERN = Regex("^[0-9A-Fa-f]{6}$")
+
+        /** Uppercases [raw] before validating, so the stored form is canonical whatever the client sent. */
+        fun parse(raw: String): HexColor = HexColor(raw.uppercase())
     }
 }
 

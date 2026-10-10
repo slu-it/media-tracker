@@ -116,7 +116,7 @@ not with the browser session:
    ```
    claude mcp add --transport http media-tracker https://<host>/mcp --header "X-API-Key: <key>"
    ```
-3. Tools: `list_game_platforms` (ids and labels of the seeded platforms), `add_game` (same fields as
+3. Tools: `list_game_platforms` (ids and labels of the platforms, seeded and editable in the settings), `add_game` (same fields as
    `POST /api/games`: `title`, `platformIds` and `releaseYear` required, the year optional when `releaseDate` is given,
    which overrides it; `description`, `rating`, `coverImageUrl`, `developerIds` optional),
    `search_games` (`query`: words to search for in the title, optional next to the `platformIds`,
@@ -128,7 +128,7 @@ not with the browser session:
    `create_game_developer` (look up or create the ids for `developerIds`; creating an existing name returns it), and, when
    `STEAMGRIDDB_API_KEY` is set, `find_game_cover` (`title`, optional `releaseYear`; returns the first static
    SteamGridDB cover URL and the game it matched, ready for `coverImageUrl`).
-   Books: `list_book_types` (the seeded Hardcover, Paperback, Kindle and Audible ids), `add_book` (`title` and
+   Books: `list_book_types` (the type ids, seeded as Hardcover, Paperback, Kindle and Audible and editable in the settings), `add_book` (`title` and
    `releaseYear` required, the year optional when `releaseDate` is given; `typeIds`, `authorIds`, `narratorIds`,
    `series` (`[{seriesId, position?}]`), `description`,
    `coverImageUrl`, `ownership`, `progress` optional), `search_books` (optional `query` next to the `typeIds`,
@@ -319,7 +319,7 @@ gradle/     wrapper and libs.versions.toml (single source of truth for JVM versi
 
 Phase 1 shipped the build, the login gate and the user session. Phase 2 adds the media kinds one by one:
 Games are implemented (grid, add/edit/delete dialogs with description, star rating and multi-platform chips,
-`/api/games` and the read-only `/api/game-platforms`; see `docs/architecture.md` for the API and
+`/api/games` and `/api/game-platforms` (editable in the settings); see `docs/architecture.md` for the API and
 `docs/decisions/0007-*.md` / `0008-*.md` / `0009-*.md` for the backend, frontend and reference-data patterns),
 plus per-user API keys and the MCP server (`0013-*.md`) and the move to MariaDB 11.8 (`0014-*.md`); Books, Movies and
 Series are "coming soon" tabs.

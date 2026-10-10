@@ -1,6 +1,8 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.persistence.EditableVocabulary
 import de.sluit.mediatracker.common.persistence.ExposedBackupSource
+import de.sluit.mediatracker.games.domain.PlatformLabel
 
 /**
  * [de.sluit.mediatracker.common.domain.BackupSource] for every table the games domain owns (MT-023, ADR 0027;
@@ -16,5 +18,10 @@ object GamesBackupSource : ExposedBackupSource(
         GameExpansionsTable,
         GameDevelopersTable,
         GameToDeveloperTable,
+    ),
+    // Editable: a restored dump carries the platforms' current labels and colours.
+    updatableTables = mapOf(
+        GamePlatformsTable to
+            EditableVocabulary(GamePlatformsTable.label, GamePlatformsTable.associatedColor) { PlatformLabel(it) },
     ),
 )

@@ -45,5 +45,5 @@ fun Route.backupRoutes(backupService: BackupService, cloudBackupService: CloudBa
 private fun StoredFile.toDto() = StoredFileDto(modifiedAt.toString(), sizeBytes)
 
 private fun Map<String, TableImportResult>.toResponse() = ImportResultResponse(
-    tables = mapValues { (_, result) -> TableImportResultDto(result.inserted, result.skipped) },
+    tables = mapValues { (_, result) -> TableImportResultDto(result.inserted, result.skipped, result.updated) },
 )

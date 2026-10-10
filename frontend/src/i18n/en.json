@@ -37,7 +37,9 @@
       "label": "Settings sections",
       "password": "Password",
       "apiKeys": "API Keys",
-      "exportImport": "Export / Import"
+      "exportImport": "Export / Import",
+      "booksConfiguration": "Books Configuration",
+      "gamesConfiguration": "Games Configuration"
     },
     "password": {
       "hint": "Change your password. You will stay signed in here; any other devices you are signed in on will be signed out.",
@@ -96,7 +98,8 @@
         "disconnect": "Disconnect",
         "disconnectQuestion": "Disconnect Dropbox? Scheduled backups will stop until you reconnect.",
         "disconnectFailed": "Could not disconnect Dropbox."
-      }
+      },
+      "tableResultUpdated": "{{table}}: {{inserted}} inserted, {{updated}} updated, {{skipped}} skipped"
     }
   },
   "tabs": {
@@ -163,6 +166,35 @@
     },
     "vocabulary": {
       "add": "Add \"{{name}}\""
+    },
+    "colors": {
+      "grey": "Grey",
+      "blue": "Blue",
+      "green": "Green",
+      "red": "Red",
+      "brown": "Brown",
+      "teal": "Teal",
+      "steelBlue": "Steel blue",
+      "orange": "Orange",
+      "purple": "Purple",
+      "deepPurple": "Deep purple",
+      "indigo": "Indigo",
+      "cyan": "Cyan",
+      "oliveGreen": "Olive green",
+      "amber": "Amber",
+      "deepOrange": "Deep orange",
+      "pink": "Pink"
+    },
+    "coloredVocabulary": {
+      "swatch": "{{name}} (#{{hex}})",
+      "palette": "Color palette",
+      "hexColor": "Hex color",
+      "preview": "Preview",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "nameTaken": "Name already in use",
+      "add": "Add",
+      "delete": "Delete"
     }
   },
   "books": {
@@ -281,6 +313,20 @@
       "paused": "Paused",
       "reading": "Reading",
       "finished": "Finished"
+    },
+    "configuration": {
+      "title": "Book types",
+      "empty": "No book types yet.",
+      "count_one": "{{count}} book",
+      "count_other": "{{count}} books",
+      "addLabel": "New book type",
+      "changeColor": "Change color of {{name}}",
+      "newColor": "Choose color of the new book type",
+      "editName": "Rename {{name}}",
+      "deleteLabel": "Delete {{name}}",
+      "deleteQuestion": "Delete the book type \"{{name}}\"?",
+      "deleteInUse": "Still used by books",
+      "loadFailed": "Could not load the book types."
     }
   },
   "games": {
@@ -373,6 +419,20 @@
       "edit": "Edit expansion",
       "deleteQuestion": "Delete this expansion?",
       "dragHandle": "Reorder {{title}}"
+    },
+    "configuration": {
+      "title": "Platforms",
+      "empty": "No platforms yet.",
+      "count_one": "{{count}} game",
+      "count_other": "{{count}} games",
+      "addLabel": "New platform",
+      "changeColor": "Change color of {{name}}",
+      "newColor": "Choose color of the new platform",
+      "editName": "Rename {{name}}",
+      "deleteLabel": "Delete {{name}}",
+      "deleteQuestion": "Delete the platform \"{{name}}\"?",
+      "deleteInUse": "Still used by games",
+      "loadFailed": "Could not load the platforms."
     }
   },
   "validation": {
@@ -384,7 +444,8 @@
     "invalidDate": "Must be a valid date with a four-digit year",
     "invalidPosition": "Must be a number from 0 to 9999.99 with at most 2 decimals",
     "tooShort": "At least {{min}} characters",
-    "mismatch": "Passwords do not match"
+    "mismatch": "Passwords do not match",
+    "invalidColor": "Must be exactly six hex digits (0-9, A-F)"
   },
   "errors": {
     "loadFailed": "Could not load the list.",

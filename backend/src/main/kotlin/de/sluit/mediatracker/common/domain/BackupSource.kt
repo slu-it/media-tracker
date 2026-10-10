@@ -32,10 +32,15 @@ interface BackupSource {
     /**
      * Restores [tables] (keyed by table name; a table name from [tableNames] missing from [tables] is treated
      * as empty). Insert-if-absent by primary key, so importing the same dump twice inserts nothing the second
-     * time. One result per key of [tables] this source recognised.
+     * time; a table the source declares updatable (the editable vocabularies) also overwrites an existing row
+     * whose values differ. One result per key of [tables] this source recognised.
      */
     suspend fun import(tables: Map<String, List<BackupRow>>): Map<String, TableImportResult>
 }
 
-/** How many rows [BackupSource.import] inserted versus left alone because their primary key already existed. */
-data class TableImportResult(val inserted: Int, val skipped: Int)
+/**
+ * How many rows [BackupSource.import] inserted, left untouched because their primary key already existed with
+ * the same values ([skipped]) and, for an updatable table only, overwrote because their values differed from the
+ * stored row ([updated], always 0 for any other table). Every row is counted exactly once.
+ */
+data class TableImportResult(val inserted: Int, val skipped: Int, val updated: Int = 0)

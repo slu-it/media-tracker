@@ -78,7 +78,7 @@ describe("ExportImportTab", () => {
     const fileText = JSON.stringify({ games: [{ id: "1" }] });
     const calls = mockApi({
       ...DROPBOX_NOT_AVAILABLE,
-      "POST /api/backup/import": () => jsonResponse({ tables: { games: { inserted: 1, skipped: 0 } } }),
+      "POST /api/backup/import": () => jsonResponse({ tables: { games: { inserted: 1, skipped: 0, updated: 0 } } }),
     });
     const user = userEvent.setup();
     renderWithProviders(<ExportImportTab />);
@@ -91,6 +91,39 @@ describe("ExportImportTab", () => {
       expect(backupCalls(calls)).toEqual([{ method: "POST", url: "/api/backup/import", body: JSON.parse(fileText) }]),
     );
     expect(await screen.findByText("games: 1 inserted, 0 skipped")).toBeInTheDocument();
+  });
+
+  it("shows the updated count and reports the data change after an import that updated rows", async () => {
+    mockApi({
+      ...DROPBOX_NOT_AVAILABLE,
+      "POST /api/backup/import": () =>
+        jsonResponse({ tables: { book_types: { inserted: 1, skipped: 2, updated: 3 } } }),
+    });
+    const onDataChanged = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(<ExportImportTab onDataChanged={onDataChanged} />);
+    await flushAsync();
+
+    await user.upload(screen.getByLabelText("Import file"), new File(["{}"], "export.json"));
+
+    expect(await screen.findByText("book_types: 1 inserted, 3 updated, 2 skipped")).toBeInTheDocument();
+    expect(onDataChanged).toHaveBeenCalledOnce();
+  });
+
+  it("does not report a data change when an import only skipped rows", async () => {
+    mockApi({
+      ...DROPBOX_NOT_AVAILABLE,
+      "POST /api/backup/import": () => jsonResponse({ tables: { games: { inserted: 0, skipped: 4, updated: 0 } } }),
+    });
+    const onDataChanged = vi.fn();
+    const user = userEvent.setup();
+    renderWithProviders(<ExportImportTab onDataChanged={onDataChanged} />);
+    await flushAsync();
+
+    await user.upload(screen.getByLabelText("Import file"), new File(["{}"], "export.json"));
+
+    expect(await screen.findByText("games: 0 inserted, 4 skipped")).toBeInTheDocument();
+    expect(onDataChanged).not.toHaveBeenCalled();
   });
 
   it("shows an alert with the server's message when the import fails", async () => {

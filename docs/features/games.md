@@ -15,7 +15,9 @@ scroll flags described below.
 - A game has a title, a release year, an optional description, an optional external cover URL and an optional
   quarter-step rating. Value classes validate in `init`; the frontend mirrors each rule as a validator.
 - Platforms are many-to-many from the seeded `game_platforms` table (fixed UUIDs, hex colours, ADR 0009)
-  through `game_to_platform`. Labels come from `GET /api/game-platforms`, not from the i18n bundles.
+  through `game_to_platform`. Labels come from `GET /api/game-platforms`, not from the i18n bundles. They are
+  added, renamed, recoloured and (while unused) deleted in the Games Configuration settings tab
+  ([media-configuration-settings.md](media-configuration-settings.md), ADR 0043).
 - Later tickets added [status fields](game-status-fields.md), [search and filters](game-search-and-filters.md),
   [expansions](game-expansions.md), the [cover picker](cover-picker.md) and the
   [release date and developers](game-release-date-and-developers.md) and the

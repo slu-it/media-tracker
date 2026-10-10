@@ -164,6 +164,14 @@ class BookValuesTest {
     }
 
     @Test
+    fun `book type label rejects surrounding whitespace and parse trims it`() {
+        rejects("label") { BookTypeLabel(" Kindle") }
+        rejects("label") { BookTypeLabel("Kindle ") }
+        assertEquals("Kindle", BookTypeLabel.parse("  Kindle ").value)
+        rejects("label") { BookTypeLabel.parse("   ") }
+    }
+
+    @Test
     fun `a book may have no types and no authors`() {
         val book = Book(id = BookId.new(), title = Title("Dune"), releaseYear = ReleaseYear(1965))
         assertEquals(emptyList(), book.types)

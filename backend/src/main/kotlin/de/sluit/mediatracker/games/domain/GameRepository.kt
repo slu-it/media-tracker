@@ -1,6 +1,8 @@
 package de.sluit.mediatracker.games.domain
 
+import de.sluit.mediatracker.common.domain.CreateOutcome
 import de.sluit.mediatracker.common.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
@@ -63,14 +65,29 @@ interface GameRepository {
 }
 
 /**
- * Persistence port of the (mostly static, seeded) game platforms. Implemented in `games.persistence`; the
- * domain never imports that package, so dependencies point inward only.
+ * Persistence port of the game platforms (seeded by the migration, editable by the user). Implemented in
+ * `games.persistence`; the domain never imports that package, so dependencies point inward only.
  */
 interface GamePlatformRepository {
     /** Ordered by label. */
     suspend fun findAll(): List<GamePlatform>
 
     suspend fun findByIds(ids: Set<GamePlatformId>): List<GamePlatform>
+
+    /** Every platform including those without games, with their game count; ordered by label, then id. Unpaged. */
+    suspend fun findSummaries(): List<GamePlatformSummary>
+
+    /** [CreateOutcome.Taken] when another platform carries the label (case/accent-insensitively). */
+    suspend fun create(label: PlatformLabel, color: HexColor): CreateOutcome<GamePlatform>
+
+    /**
+     * Changes the label and/or colour (`null`: keep). [RenameOutcome.Taken] when another platform carries the new
+     * label; a spelling that only differs from the platform's own label that way is a plain update.
+     */
+    suspend fun update(id: GamePlatformId, label: PlatformLabel?, color: HexColor?): RenameOutcome<GamePlatform>
+
+    /** Deletes the platform unless a game still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: GamePlatformId): DeleteOutcome
 }
 
 /**

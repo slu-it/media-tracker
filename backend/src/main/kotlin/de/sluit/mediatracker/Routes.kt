@@ -43,7 +43,13 @@ fun Route.apiRoutes(services: Services) {
 
             passwordRoutes(services.auth)
 
-            gameRoutes(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
+            gameRoutes(
+                services.games,
+                services.expansions,
+                services.coverOptions,
+                services.gameDevelopers,
+                services.gamePlatforms,
+            )
 
             bookRoutes(
                 services.books,
@@ -51,6 +57,7 @@ fun Route.apiRoutes(services: Services) {
                 services.bookNarrators,
                 services.bookSeries,
                 services.bookCoverOptions,
+                services.bookTypes,
             )
 
             backupRoutes(services.backup, services.cloudBackup)

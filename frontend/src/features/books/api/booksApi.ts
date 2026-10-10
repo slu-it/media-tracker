@@ -14,15 +14,19 @@ import type {
   BookSort,
   BookTitleSuggestionsResponse,
   BookTypeResponse,
+  BookTypeSummaryResponse,
   CreateBookAuthorRequest,
   CreateBookNarratorRequest,
   CreateBookRequest,
   CreateBookSeriesRequest,
+  CreateColoredEntryRequest,
   MergeVocabularyRequest,
   PageResponse,
   RenameVocabularyRequest,
   UpdateBookRequest,
+  UpdateColoredEntryRequest,
 } from "../../../types/api";
+import type { ColoredEntry } from "../../../components/media/coloredVocabulary/coloredVocabulary";
 import { resolveVocabularyEntries, resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
 import type { AuthorDraft, NarratorDraft, SeriesDraft } from "../domain/bookDraft";
 import type { BookFilters } from "../domain/bookFilters";
@@ -60,6 +64,31 @@ export function getBooksMeta(): Promise<BookMetaResponse> {
 
 export function listBookTypes(): Promise<BookTypeResponse[]> {
   return apiFetch<BookTypeResponse[]>("/api/book-types");
+}
+
+/** Book types with their book counts for the configuration tab, sorted by label. */
+export async function listBookTypeSummaries(): Promise<ColoredEntry[]> {
+  const summaries = await apiFetch<BookTypeSummaryResponse[]>("/api/book-types.summaries");
+  return summaries.map(({ bookCount, ...type }) => ({ ...type, count: bookCount }));
+}
+
+/** 201; 409 `name_taken` when the label exists. */
+export function createBookType(label: string, associatedColor: string): Promise<BookTypeResponse> {
+  const body: CreateColoredEntryRequest = { label, associatedColor };
+  return apiFetch<BookTypeResponse>("/api/book-types", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** 404 for an unknown id, 409 `name_taken` for a label that exists. */
+export function updateBookType(id: string, body: UpdateColoredEntryRequest): Promise<BookTypeResponse> {
+  return apiFetch<BookTypeResponse>(`/api/book-types/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** 204; 409 while books still use the type, 404 for an unknown id. */
+export function deleteBookType(id: string): Promise<void> {
+  return apiFetch<void>(`/api/book-types/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function createBook(body: CreateBookRequest): Promise<BookResponse> {

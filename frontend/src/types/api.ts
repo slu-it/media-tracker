@@ -255,6 +255,36 @@ export interface UpdateExpansionRequest {
 export interface TableImportResult {
   inserted: number;
   skipped: number;
+  /** Existing rows whose label or color was overwritten; non-zero only for `game_platforms` and `book_types`. */
+  updated: number;
+}
+
+/** A platform with its game count; mirrors `GamePlatformSummaryResponse` in games/api/GameDtos.kt. */
+export interface GamePlatformSummaryResponse {
+  id: string;
+  label: string;
+  associatedColor: string;
+  gameCount: number;
+}
+
+/** A book type with its book count; mirrors `BookTypeSummaryResponse` in books/api/BookDtos.kt. */
+export interface BookTypeSummaryResponse {
+  id: string;
+  label: string;
+  associatedColor: string;
+  bookCount: number;
+}
+
+/** Body of `POST /api/game-platforms` and `POST /api/book-types`; `associatedColor` is `RRGGBB` without `#`. */
+export interface CreateColoredEntryRequest {
+  label: string;
+  associatedColor: string;
+}
+
+/** Body of `PATCH /api/game-platforms/{id}` and `/api/book-types/{id}`; absent fields stay unchanged. */
+export interface UpdateColoredEntryRequest {
+  label?: string;
+  associatedColor?: string;
 }
 
 /** Response of `POST /api/backup/import`, one entry per table the payload named; mirrors `ImportResultResponse`. */
