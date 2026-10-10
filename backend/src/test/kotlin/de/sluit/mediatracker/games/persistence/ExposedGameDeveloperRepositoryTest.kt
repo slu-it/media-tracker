@@ -1,10 +1,15 @@
 package de.sluit.mediatracker.games.persistence
 
+import de.sluit.mediatracker.common.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.MergeOutcome
+import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.persistence.withFreshDatabase
 import de.sluit.mediatracker.games.domain.GameDeveloperId
+import de.sluit.mediatracker.games.domain.GameDeveloperSummary
+import de.sluit.mediatracker.games.game
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -14,6 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class ExposedGameDeveloperRepositoryTest {
@@ -202,5 +208,185 @@ class ExposedGameDeveloperRepositoryTest {
             GameDevelopersTable.selectAll().where { GameDevelopersTable.name eq name.value }.count()
         }
         assertEquals(1, rowCount)
+    }
+
+    @Test
+    fun `findSummaries counts games per developer including developers without games`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val herbert = repo.create(VocabularyName("Frank Herbert")).entry
+        val empty = repo.create(VocabularyName("Another Developer")).entry
+        val gameRepo = ExposedGameRepository()
+        gameRepo.insert(game("Dune", developers = listOf(herbert)))
+        gameRepo.insert(game("Dune Messiah", developers = listOf(herbert)))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf(GameDeveloperSummary(empty, 0), GameDeveloperSummary(herbert, 2)), result)
+    }
+
+    @Test
+    fun `findSummaries orders by name accent-insensitively`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        repo.create(VocabularyName("Zed"))
+        repo.create(VocabularyName("Ärger"))
+        repo.create(VocabularyName("Beta"))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf("Ärger", "Beta", "Zed"), result.map { it.developer.name.value })
+    }
+
+    @Test
+    fun `findSummaries counts a game with two developers for both`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val a = repo.create(VocabularyName("A Developer")).entry
+        val b = repo.create(VocabularyName("B Developer")).entry
+        ExposedGameRepository().insert(game("Shared", developers = listOf(a, b)))
+
+        val result = repo.findSummaries()
+
+        assertEquals(listOf(1, 1), result.map { it.gameCount })
+    }
+
+    @Test
+    fun `findSummaries is empty without developers`() = withFreshDatabase {
+        assertEquals(emptyList(), ExposedGameDeveloperRepository().findSummaries())
+    }
+
+    @Test
+    fun `delete removes an unreferenced developer`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val developer = repo.create(VocabularyName("Frank Herbert")).entry
+
+        assertEquals(DeleteOutcome.DELETED, repo.delete(developer.id))
+
+        assertEquals(emptyList(), repo.findByIds(setOf(developer.id)))
+    }
+
+    @Test
+    fun `delete of an unknown developer is not found`() = withFreshDatabase {
+        assertEquals(DeleteOutcome.NOT_FOUND, ExposedGameDeveloperRepository().delete(GameDeveloperId.new()))
+    }
+
+    @Test
+    fun `delete keeps a developer that a game references`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val developer = repo.create(VocabularyName("Frank Herbert")).entry
+        ExposedGameRepository().insert(game("Dune", developers = listOf(developer)))
+
+        assertEquals(DeleteOutcome.IN_USE, repo.delete(developer.id))
+
+        assertEquals(listOf(developer), repo.findByIds(setOf(developer.id)))
+    }
+
+    @Test
+    fun `rename changes the name`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val developer = repo.create(VocabularyName("Frank Herbet")).entry
+
+        val outcome = repo.rename(developer.id, VocabularyName("Frank Herbert"))
+
+        assertEquals(RenameOutcome.Renamed(developer.copy(name = VocabularyName("Frank Herbert"))), outcome)
+        assertEquals("Frank Herbert", repo.findByIds(setOf(developer.id)).single().name.value)
+    }
+
+    @Test
+    fun `rename of an unknown developer is not found`() = withFreshDatabase {
+        val outcome = ExposedGameDeveloperRepository().rename(GameDeveloperId.new(), VocabularyName("Frank Herbert"))
+
+        assertEquals(RenameOutcome.NotFound, outcome)
+    }
+
+    @Test
+    fun `rename onto another developer's name is taken and changes nothing`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val herbert = repo.create(VocabularyName("Frank Herbert")).entry
+        val other = repo.create(VocabularyName("Douglas Adams")).entry
+
+        val outcome = repo.rename(other.id, VocabularyName("frank herbert"))
+
+        assertEquals(RenameOutcome.Taken(herbert), outcome)
+        assertEquals("Douglas Adams", repo.findByIds(setOf(other.id)).single().name.value)
+    }
+
+    @Test
+    fun `rename to a differently cased spelling of its own name is a plain rename`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val developer = repo.create(VocabularyName("frank herbert")).entry
+
+        val outcome = repo.rename(developer.id, VocabularyName("Frank Herbert"))
+
+        assertIs<RenameOutcome.Renamed<*>>(outcome)
+        assertEquals("Frank Herbert", repo.findByIds(setOf(developer.id)).single().name.value)
+    }
+
+    @Test
+    fun `rename reports taken when a competing insert of the name commits mid-transaction`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val developer = repo.create(VocabularyName("Frank Herbet")).entry
+        val name = VocabularyName("Frank Herbert")
+        var winnerId: GameDeveloperId? = null
+
+        val outcome = repo.rename(developer.id, name) {
+            val thread = Thread {
+                transaction {
+                    val id = GameDeveloperId.new()
+                    winnerId = id
+                    GameDevelopersTable.insert {
+                        it[GameDevelopersTable.id] = id.toString()
+                        it[GameDevelopersTable.name] = name.value
+                    }
+                }
+            }
+            thread.start()
+            thread.join()
+        }
+
+        assertEquals(RenameOutcome.Taken(developer.copy(id = winnerId!!, name = name)), outcome)
+        assertEquals("Frank Herbet", repo.findByIds(setOf(developer.id)).single().name.value)
+    }
+
+    @Test
+    fun `merge moves the games of the source to the target and deletes the source`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val source = repo.create(VocabularyName("F. Herbert")).entry
+        val target = repo.create(VocabularyName("Frank Herbert")).entry
+        val games = ExposedGameRepository()
+        val dune = game("Dune", developers = listOf(source))
+        games.insert(dune)
+
+        val outcome = repo.merge(source.id, target.id)
+
+        assertEquals(MergeOutcome.Merged(target), outcome)
+        assertEquals(emptyList(), repo.findByIds(setOf(source.id)))
+        assertEquals(listOf(target), games.findById(dune.id)!!.developers)
+        assertEquals(listOf(GameDeveloperSummary(target, 1)), repo.findSummaries())
+    }
+
+    @Test
+    fun `merge links a game of both developers only once`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val source = repo.create(VocabularyName("F. Herbert")).entry
+        val target = repo.create(VocabularyName("Frank Herbert")).entry
+        val games = ExposedGameRepository()
+        val shared = game("Shared", developers = listOf(source, target))
+        val onlySource = game("Only source", developers = listOf(source))
+        val onlyTarget = game("Only target", developers = listOf(target))
+        listOf(shared, onlySource, onlyTarget).forEach { games.insert(it) }
+
+        repo.merge(source.id, target.id)
+
+        assertEquals(listOf(target), games.findById(shared.id)!!.developers)
+        assertEquals(listOf(GameDeveloperSummary(target, 3)), repo.findSummaries())
+    }
+
+    @Test
+    fun `merge with an unknown source or target is not found and changes nothing`() = withFreshDatabase {
+        val repo = ExposedGameDeveloperRepository()
+        val known = repo.create(VocabularyName("Frank Herbert")).entry
+
+        assertEquals(MergeOutcome.SourceNotFound, repo.merge(GameDeveloperId.new(), known.id))
+        assertEquals(MergeOutcome.TargetNotFound, repo.merge(known.id, GameDeveloperId.new()))
+        assertEquals(listOf(known), repo.findByIds(setOf(known.id)))
     }
 }

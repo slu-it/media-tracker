@@ -3,7 +3,7 @@ package de.sluit.mediatracker.books.persistence
 import de.sluit.mediatracker.books.book
 import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorSummary
-import de.sluit.mediatracker.books.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.DeleteOutcome
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm

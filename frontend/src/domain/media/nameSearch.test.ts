@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { duneSagaSummary, emptySeriesSummary, mistbornSummary, seriesSummaries } from "../../../test/fixtures/books";
 import { filterByName } from "./nameSearch";
+
+const duneSagaSummary = { id: "1", name: "Dune Saga", itemCount: 1 };
+const emptySeriesSummary = { id: "3", name: "Éowyn Chronicles", itemCount: 0 };
+const mistbornSummary = { id: "2", name: "Mistborn", itemCount: 3 };
+const seriesSummaries = [duneSagaSummary, emptySeriesSummary, mistbornSummary];
 
 describe("filterByName", () => {
   it("keeps everything for a blank term", () => {

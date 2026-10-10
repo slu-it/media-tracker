@@ -116,6 +116,8 @@
       "watchlist": "Merkliste",
       "ranking": "Jahresranking",
       "authors": "Autoren",
+      "narrators": "Sprecher",
+      "developers": "Entwickler",
       "series": "Buchreihen"
     }
   },
@@ -205,6 +207,25 @@
       "merge": "Zusammenführen",
       "chooseOtherName": "Anderen Namen wählen"
     },
+    "narratorsView": {
+      "searchLabel": "Sprecher suchen",
+      "searchPlaceholder": "Sprecher suchen…",
+      "count_one": "{{count}} Sprecher",
+      "count_other": "{{count}} Sprecher",
+      "bookCount_one": "{{count}} Buch",
+      "bookCount_other": "{{count}} Bücher",
+      "empty": "Noch keine Sprecher. Lege einen an, während du ein Buch bearbeitest.",
+      "noSearchResults": "Keine Sprecher passen zu „{{term}}“",
+      "noBooks": "Keine von diesem Sprecher gelesenen Bücher",
+      "deleteLabel": "Sprecher {{name}} löschen",
+      "deleteQuestion": "Sprecher „{{name}}“ löschen?",
+      "editLabel": "Sprecher {{name}} umbenennen",
+      "renameTitle": "Sprecher umbenennen",
+      "nameLabel": "Name",
+      "nameTaken": "Es gibt bereits einen Sprecher „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "merge": "Zusammenführen",
+      "chooseOtherName": "Anderen Namen wählen"
+    },
     "seriesView": {
       "searchLabel": "Reihen suchen",
       "searchPlaceholder": "Reihen suchen…",
@@ -287,6 +308,25 @@
       "navigatorBottom": "Jahresauswahl (unten)",
       "ratingValue": "{{rating}} Sterne",
       "empty": "Keine bewerteten Spiele aus {{year}}."
+    },
+    "developersView": {
+      "searchLabel": "Entwickler suchen",
+      "searchPlaceholder": "Entwickler suchen…",
+      "count_one": "{{count}} Entwickler",
+      "count_other": "{{count}} Entwickler",
+      "gameCount_one": "{{count}} Spiel",
+      "gameCount_other": "{{count}} Spiele",
+      "empty": "Noch keine Entwickler. Lege einen an, während du ein Spiel bearbeitest.",
+      "noSearchResults": "Keine Entwickler passen zu „{{term}}“",
+      "noGames": "Keine Spiele von diesem Entwickler",
+      "deleteLabel": "Entwickler {{name}} löschen",
+      "deleteQuestion": "Entwickler „{{name}}“ löschen?",
+      "editLabel": "Entwickler {{name}} umbenennen",
+      "renameTitle": "Entwickler umbenennen",
+      "nameLabel": "Name",
+      "nameTaken": "Es gibt bereits einen Entwickler „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "merge": "Zusammenführen",
+      "chooseOtherName": "Anderen Namen wählen"
     },
     "fields": {
       "platforms": "Plattformen",

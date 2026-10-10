@@ -32,6 +32,9 @@ data class GameDeveloper(val id: GameDeveloperId, val name: VocabularyName)
 fun List<GameDeveloper>.sortedByNameForGame(): List<GameDeveloper> = distinctBy { it.id }
     .sortedWith(compareBy({ it.name.value.lowercase() }, { it.id.toString() }))
 
+/** A developer with the number of games linked to it (0 for a developer nobody references yet). */
+data class GameDeveloperSummary(val developer: GameDeveloper, val gameCount: Int)
+
 /** A game as the business layer sees it. All fields are validated value objects. */
 data class Game(
     val id: GameId,

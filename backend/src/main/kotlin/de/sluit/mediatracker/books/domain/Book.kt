@@ -43,6 +43,9 @@ data class BookSeries(override val id: BookSeriesId, override val name: Vocabula
 /** An author with the number of books linked to them (0 for an author nobody references yet). */
 data class BookAuthorSummary(val author: BookAuthor, val bookCount: Int)
 
+/** A narrator with the number of books linked to them (0 for a narrator nobody references yet). */
+data class BookNarratorSummary(val narrator: BookNarrator, val bookCount: Int)
+
 /** A series with the number of books linked to it (0 for a series nobody references yet). */
 data class BookSeriesSummary(val series: BookSeries, val bookCount: Int)
 

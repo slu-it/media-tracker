@@ -4,7 +4,7 @@ import de.sluit.mediatracker.books.domain.BookSeries
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesRepository
 import de.sluit.mediatracker.books.domain.BookSeriesSummary
-import de.sluit.mediatracker.books.domain.DeleteOutcome
+import de.sluit.mediatracker.common.domain.DeleteOutcome
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.RenameOutcome
 import de.sluit.mediatracker.common.domain.SearchTerm
@@ -13,7 +13,7 @@ import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.persistence.ExposedNameVocabulary
 import de.sluit.mediatracker.common.persistence.dbQuery
-import de.sluit.mediatracker.common.persistence.orOnForeignKeyViolation
+import de.sluit.mediatracker.common.persistence.deleteUnusedVocabularyEntry
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
@@ -67,22 +67,15 @@ class ExposedBookSeriesRepository : BookSeriesRepository {
 
     override suspend fun create(name: VocabularyName): VocabularyCreation<BookSeries> = vocabulary.create(name)
 
-    /**
-     * One transaction: existence check, link check, delete. The junction FK is `ON DELETE RESTRICT`, so a link
-     * added concurrently after the check makes the delete fail instead of orphaning anything.
-     */
+    /** One transaction: existence check, link check, delete (see [deleteUnusedVocabularyEntry]). */
     override suspend fun delete(id: BookSeriesId): DeleteOutcome = dbQuery {
-        val key = id.toString()
-        when {
-            BookSeriesTable.selectAll().where { BookSeriesTable.id eq key }.empty() -> DeleteOutcome.NOT_FOUND
-
-            !BookToSeriesTable.selectAll().where { BookToSeriesTable.seriesId eq key }.empty() -> DeleteOutcome.IN_USE
-
-            else -> orOnForeignKeyViolation(DeleteOutcome.IN_USE) {
-                BookSeriesTable.deleteWhere { BookSeriesTable.id eq key }
-                DeleteOutcome.DELETED
-            }
-        }
+        deleteUnusedVocabularyEntry(
+            vocabTable = BookSeriesTable,
+            vocabId = BookSeriesTable.id,
+            junction = BookToSeriesTable,
+            vocabColumn = BookToSeriesTable.seriesId,
+            id = id.toString(),
+        )
     }
 
     override suspend fun rename(id: BookSeriesId, name: VocabularyName): RenameOutcome<BookSeries> =

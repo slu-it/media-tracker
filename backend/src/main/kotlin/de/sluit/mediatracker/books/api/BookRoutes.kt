@@ -5,6 +5,7 @@ import de.sluit.mediatracker.books.domain.BookAuthorId
 import de.sluit.mediatracker.books.domain.BookAuthorService
 import de.sluit.mediatracker.books.domain.BookCoverOptionsService
 import de.sluit.mediatracker.books.domain.BookId
+import de.sluit.mediatracker.books.domain.BookNarratorId
 import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesService
@@ -138,6 +139,34 @@ fun Route.bookRoutes(
             val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
             call.respond(status, result.entry.toResponse())
         }
+        route("/{id}") {
+            // Unpaged; ordered by release year, date (undated last), title, id. Unknown narrator is a 404.
+            get("/books") {
+                call.respond(bookService.listByNarrator(call.bookNarratorId()).map { it.toResponse() })
+            }
+            // Rename. 404 for an unknown narrator, 409 `name_taken` (with the holder) when another narrator has the name.
+            patch {
+                val id = call.bookNarratorId()
+                val name = VocabularyName.parse(call.receive<RenameVocabularyRequest>().name)
+                call.respond(bookNarratorService.rename(id, name).toResponse())
+            }
+            // Folds this narrator into `targetId` and answers the target. 404 when either is unknown, 400 for itself.
+            post("/merge") {
+                val id = call.bookNarratorId()
+                val targetId = BookNarratorId.parse(call.receive<MergeVocabularyRequest>().targetId, "targetId")
+                call.respond(bookNarratorService.merge(id, targetId).toResponse())
+            }
+            // 404 for an unknown narrator, 409 while a book still references it.
+            delete {
+                bookNarratorService.delete(call.bookNarratorId())
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+    }
+    route("/book-narrators.summaries") {
+        get {
+            call.respond(bookNarratorService.summaries().map { it.toResponse() })
+        }
     }
     route("/book-series") {
         get {
@@ -191,3 +220,6 @@ private fun ApplicationCall.bookSeriesId(): BookSeriesId =
 
 private fun ApplicationCall.bookAuthorId(): BookAuthorId =
     BookAuthorId.parse(parameters["id"] ?: throw InvalidValueException(BookAuthorId.FIELD, "is missing"))
+
+private fun ApplicationCall.bookNarratorId(): BookNarratorId =
+    BookNarratorId.parse(parameters["id"] ?: throw InvalidValueException(BookNarratorId.FIELD, "is missing"))

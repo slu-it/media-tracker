@@ -4,9 +4,11 @@ import de.sluit.mediatracker.auth.domain.AuthService
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.MAX_FILTER_VALUES
 import de.sluit.mediatracker.common.api.PageResponse
+import de.sluit.mediatracker.common.domain.ConflictException
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.InvalidValueException
+import de.sluit.mediatracker.common.domain.NameTakenException
 import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageNumber
@@ -26,6 +28,7 @@ import de.sluit.mediatracker.games.SeededPlatforms
 import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameDeveloperService
+import de.sluit.mediatracker.games.domain.GameDeveloperSummary
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameMeta
@@ -1151,6 +1154,18 @@ class GameRoutesTest {
     }
 
     @Test
+    fun `game-developers view and management reject anonymous access`() = testApplication {
+        val client = handlerApp(games = mockk(), gameDevelopers = mockk())
+        val id = GameDeveloperId.new()
+
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/game-developers.summaries").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/game-developers/$id/games").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.patch("/api/game-developers/$id").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/game-developers/$id/merge").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.delete("/api/game-developers/$id").status)
+    }
+
+    @Test
     fun `game-developers search passes the term and default limit to the service`() = testApplication {
         val games = mockk<GameService>()
         val developers = mockk<GameDeveloperService>()
@@ -1224,6 +1239,214 @@ class GameRoutesTest {
         // tripping its blank/whitespace/length validation (see the MockK value-class matcher note); confirming
         // zero interactions on the mock proves the same thing without that risk.
         confirmVerified(developers)
+    }
+
+    @Test
+    fun `delete developer returns 204`() = testApplication {
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), developers)
+        val id = GameDeveloperId.new()
+        coEvery { developers.delete(id) } just Runs
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/game-developers/$id").status)
+        coVerify { developers.delete(id) }
+    }
+
+    @Test
+    fun `delete of an unknown developer is 404`() = testApplication {
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), developers)
+        val id = GameDeveloperId.new()
+        coEvery { developers.delete(id) } throws NotFoundException("game developer", id.toString())
+
+        client.delete("/api/game-developers/$id").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `delete of a developer still linked to a game is a 409 conflict`() = testApplication {
+        val developers = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), developers)
+        val id = GameDeveloperId.new()
+        coEvery { developers.delete(id) } throws ConflictException("game developer", id.toString())
+
+        client.delete("/api/game-developers/$id").assertError(HttpStatusCode.Conflict, "conflict")
+    }
+
+    @Test
+    fun `delete developer with a malformed id is a 400`() = testApplication {
+        val client = loggedInHandlerClient(mockk(), mockk())
+
+        client.delete("/api/game-developers/not-a-uuid").assertValidationError("developerIds")
+    }
+
+    // ---- rename and merge developer ----
+
+    @Test
+    fun `rename developer returns 200 with the entry and passes the trimmed name`() = testApplication {
+        val service = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), service)
+        val id = GameDeveloperId.new()
+        coEvery { service.rename(id, VocabularyName("New Name")) } returns developer("New Name", id)
+
+        val response = client.patch("/api/game-developers/$id") { jsonBody("""{"name":"  New Name "}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(GameDeveloperResponse(id.toString(), "New Name"), response.decodeBody<GameDeveloperResponse>())
+    }
+
+    @Test
+    fun `rename developer with a blank name is a 400`() = testApplication {
+        val client = loggedInHandlerClient(mockk(), mockk())
+
+        client.patch("/api/game-developers/${GameDeveloperId.new()}") { jsonBody("""{"name":"  "}""") }
+            .assertValidationError("name")
+    }
+
+    @Test
+    fun `rename developer with a malformed id is a 400`() = testApplication {
+        val client = loggedInHandlerClient(mockk(), mockk())
+
+        client.patch("/api/game-developers/not-a-uuid") { jsonBody("""{"name":"New"}""") }
+            .assertValidationError("developerIds")
+    }
+
+    @Test
+    fun `rename of an unknown developer is 404`() = testApplication {
+        val service = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), service)
+        val id = GameDeveloperId.new()
+        coEvery { service.rename(id, VocabularyName("New")) } throws NotFoundException("game developer", id.toString())
+
+        client.patch("/api/game-developers/$id") { jsonBody("""{"name":"New"}""") }
+            .assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `rename developer onto a taken name is a 409 name_taken with the existing entry`() = testApplication {
+        val service = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), service)
+        val id = GameDeveloperId.new()
+        val holder = GameDeveloperId.new()
+        coEvery { service.rename(id, VocabularyName("Taken")) } throws
+            NameTakenException("game developer", holder.toString(), "taken")
+
+        val error = client.patch("/api/game-developers/$id") { jsonBody("""{"name":"Taken"}""") }
+            .assertError(HttpStatusCode.Conflict, "name_taken")
+
+        assertEquals(holder.toString(), error.existingId)
+        assertEquals("taken", error.existingName)
+    }
+
+    @Test
+    fun `merge developer returns 200 with the target`() = testApplication {
+        val service = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), service)
+        val id = GameDeveloperId.new()
+        val targetId = GameDeveloperId.new()
+        coEvery { service.merge(id, targetId) } returns developer("Target", targetId)
+
+        val response = client.post("/api/game-developers/$id/merge") { jsonBody("""{"targetId":"$targetId"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(GameDeveloperResponse(targetId.toString(), "Target"), response.decodeBody<GameDeveloperResponse>())
+    }
+
+    @Test
+    fun `merge of an unknown developer is 404`() = testApplication {
+        val service = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), service)
+        val id = GameDeveloperId.new()
+        val targetId = GameDeveloperId.new()
+        coEvery { service.merge(id, targetId) } throws NotFoundException("game developer", id.toString())
+
+        client.post("/api/game-developers/$id/merge") { jsonBody("""{"targetId":"$targetId"}""") }
+            .assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `merge developer into itself is a 400`() = testApplication {
+        val service = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), service)
+        val id = GameDeveloperId.new()
+        coEvery { service.merge(id, id) } throws
+            InvalidValueException("targetId", "must differ from the developer itself")
+
+        client.post("/api/game-developers/$id/merge") { jsonBody("""{"targetId":"$id"}""") }
+            .assertValidationError("targetId")
+    }
+
+    @Test
+    fun `merge developer with a malformed target id is a 400`() = testApplication {
+        val client = loggedInHandlerClient(mockk(), mockk())
+
+        client.post("/api/game-developers/${GameDeveloperId.new()}/merge") { jsonBody("""{"targetId":"nope"}""") }
+            .assertValidationError("targetId")
+    }
+
+    @Test
+    fun `merge developer with a malformed id is a 400`() = testApplication {
+        val client = loggedInHandlerClient(mockk(), mockk())
+
+        client.post("/api/game-developers/not-a-uuid/merge") { jsonBody("""{"targetId":"${GameDeveloperId.new()}"}""") }
+            .assertValidationError("developerIds")
+    }
+
+    // ---- developers view ----
+
+    @Test
+    fun `developer summaries mirror the domain summaries including developers without games`() = testApplication {
+        val developerService = mockk<GameDeveloperService>()
+        val client = loggedInHandlerClient(mockk(), developerService)
+        val nintendo = developer("Nintendo EPD")
+        val empty = developer("Zed")
+        coEvery { developerService.summaries() } returns
+            listOf(GameDeveloperSummary(nintendo, 3), GameDeveloperSummary(empty, 0))
+
+        val response = client.get("/api/game-developers.summaries")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(
+            listOf(
+                GameDeveloperSummaryResponse(nintendo.id.toString(), "Nintendo EPD", 3),
+                GameDeveloperSummaryResponse(empty.id.toString(), "Zed", 0),
+            ),
+            response.decodeBody<List<GameDeveloperSummaryResponse>>(),
+        )
+    }
+
+    @Test
+    fun `developer games returns the fully mapped games in service order`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games, mockk())
+        val nintendo = developer("Nintendo EPD")
+        val first = game("Zelda", developers = listOf(nintendo))
+        val second = game("Metroid", developers = listOf(nintendo))
+        coEvery { games.listByDeveloper(nintendo.id) } returns listOf(first, second)
+
+        val response = client.get("/api/game-developers/${nintendo.id}/games")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val decoded = response.decodeBody<List<GameResponse>>()
+        assertEquals(listOf("Zelda", "Metroid"), decoded.map { it.title })
+        assertEquals(listOf("Nintendo EPD"), decoded.first().developers.map { it.name })
+    }
+
+    @Test
+    fun `developer games of an unknown developer is 404`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games, mockk())
+        val id = GameDeveloperId.new()
+        coEvery { games.listByDeveloper(id) } throws NotFoundException("game developer", id.toString())
+
+        client.get("/api/game-developers/$id/games").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `developer games with a malformed id is a 400`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInHandlerClient(games, mockk())
+
+        client.get("/api/game-developers/not-a-uuid/games").assertValidationError("developerIds")
     }
 
     private companion object {

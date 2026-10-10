@@ -12,8 +12,8 @@ Code: `backend/src/main/kotlin/de/sluit/mediatracker/books/`, `frontend/src/feat
 
 Books is the second media kind. Its first version is the games overview equivalent: add, edit, delete and a
 paged, searchable, filterable list at `/books/overview`, plus MCP tools. `/books/watchlist` (MT-055) lists the
-books still to get, by release. Two more sub-pages list books by group: `/books/authors` (MT-046) by author,
-`/books/series` (MT-043) by series in order. There is no ranking sub-page, no rating, no hidden flag, no
+books still to get, by release. Three more sub-pages list books by group: `/books/authors` (MT-046) by author,
+`/books/narrators` (ADR 0042) by narrator, `/books/series` (MT-043) by series in order. There is no ranking sub-page, no rating, no hidden flag, no
 expansions. Covers and title suggestions come from Open Library and the Audible catalog
 ([cover picker](cover-picker.md#books), [title suggestions](title-suggestions.md#books), ADR 0039).
 
@@ -29,8 +29,8 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
   `ExposedNameVocabulary`: unique case- and accent-insensitive names of at most 128 characters, idempotent create,
   prefix plus fulltext lookup. Authors can be renamed and merged into another author, and authors nobody references
   are kept until they are deleted, all from the authors view (ADR 0041).
-- **Narrators** (MT-042) work like authors, in `book_narrators` through `book_to_narrator`, but cannot be renamed, merged or deleted (ADR 0041). They are
-  meant for audiobooks but can be set on any book.
+- **Narrators** (MT-042) work like authors, in `book_narrators` through `book_to_narrator`, including rename, merge
+  and delete from the narrators view (ADR 0042). They are meant for audiobooks but can be set on any book.
 - **Series** (MT-042) are the same kind of vocabulary in `book_series`, linked through `book_to_series`, which
   carries an optional `position DECIMAL(6,2)` (`BookSeriesPosition`: 0 to 9999.99, at most two decimals, so
   novellas can be #2.5 and prequels #0). A book is in a series at most once, and may be in several, each with its
@@ -66,6 +66,8 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
 | `POST /api/book-authors/{id}/merge` | `{targetId}`: moves every book link to the target, deletes the author, 200 with the target; a merge into itself is a 400 |
 | `DELETE /api/book-authors/{id}` | 204; 404 for an unknown author, 409 `conflict` while a book links it |
 | `PATCH`, `POST .../merge`, `DELETE /api/book-series/{id}` | As for authors; a book in both series keeps the target's position, or the merged series' when the target has none |
+| `GET /api/book-narrators.summaries`, `GET /api/book-narrators/{id}/books` | As for authors (ADR 0042) |
+| `PATCH`, `POST .../merge`, `DELETE /api/book-narrators/{id}` | As for authors |
 
 Search matches the title only, as for games (ADR 0033): a fulltext prefix term or `title LIKE 'term%'`, prefix
 hits first (`common/persistence/TitleSearch.kt`).
@@ -117,10 +119,10 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   narrators. Each field keeps its column when its neighbour is empty; a row with both cells empty is dropped.
 - Everything kind-neutral is shared, see [games.md](games.md#shared-media-building-blocks).
 - **Series view** (MT-043, `BookSeriesView.tsx`, tab "Book series" / "Buchreihen" at `/books/series`): every series
-  from `/api/book-series.summaries` as one `BookGroupAccordion` each, by name, with a book-count chip. The search
-  field filters the loaded list in the browser (case- and accent-insensitive substring, `nameSearch.ts`); it is
-  kept in the URL (`bookGroupViewParams.ts`) but sends no request. A section's books load only when it is
-  expanded (`unmountOnExit`, `useGroupBooks`), in the backend's order, as the overview's `BookCard`s with a "#n"
+  from `/api/book-series.summaries` as one `MediaGroupAccordion` each, by name, with a book-count chip. The search
+  field filters the loaded list in the browser (case- and accent-insensitive substring, `domain/media/nameSearch.ts`); it is
+  kept in the URL (`domain/media/groupViewParams.ts`) but sends no request. A section's books load only when it is
+  expanded (`unmountOnExit`, `useGroupItems`), in the backend's order, as the overview's `BookCard`s with a "#n"
   badge (`seriesPosition`, a filled chip in the theme's primary colour) centered above the cover for numbered
   books (the slot is kept empty for unnumbered ones, so covers in a row stay aligned; `MediaCardShell`'s
   `descriptionPlacement="top"`) instead of the series chips; its type chips stay in the card body. A series
@@ -139,6 +141,13 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 - **Authors view** (MT-046, `BookAuthorsView.tsx`, tab "Authors" / "Autoren" at `/books/authors`, between the
   overview and the series view): the same view over `/api/book-authors.summaries` and
   `/api/book-authors/{id}/books`. Authors without books are listed too; rename, merge and delete work as in the series view. A section shows the author's books by
-  release year, as overview `BookCard`s (series chips, no badge). Both views are thin wrappers around `BookGroupsView`,
-  which takes the summary and book loaders, the card renderer and the i18n prefix (`books.seriesView`,
-  `books.authorsView`); the accordion is `BookGroupAccordion`, the books hook `useGroupBooks`. `BookGroupsView` also loads `/api/books.meta`, only for the add speed dial's order, and ignores a failed load (the presets then keep label order).
+  release year, as overview `BookCard`s (series chips, no badge).
+- **Narrators view** (ADR 0042, `BookNarratorsView.tsx`, tab "Narrators" / "Sprecher" at `/books/narrators`, between
+  the authors and the series view): the authors view over `/api/book-narrators.summaries` and
+  `/api/book-narrators/{id}/books`, texts under `books.narratorsView`.
+- The three group views are thin wrappers around `BookGroupsView`, which takes the summary and book loaders, the card
+  renderer and the i18n prefix (`books.authorsView`, `books.narratorsView`, `books.seriesView`), turns the prefix into
+  the translated `labels` (`useBookGroupLabels`) and renders the shared `MediaGroupsView`
+  (`components/media/groups/`, ADR 0042) with `BookCard`s, the 2:3 cover ratio and `BookDialogsHost`.
+  `BookGroupsView` also loads `/api/books.meta`, only for the add speed dial's order, and ignores a failed load (the
+  presets then keep label order).

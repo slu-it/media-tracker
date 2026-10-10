@@ -1005,4 +1005,78 @@ class ExposedGameRepositoryTest {
 
         assertEquals(listOf(listOf(nintendo), listOf(nintendo)), page.items.map { it.developers })
     }
+
+    @Test
+    fun `findByDeveloper orders by year then date with undated last then title and id`() = withFreshDatabase {
+        val nintendo = ExposedGameDeveloperRepository().create(VocabularyName("Nintendo EPD")).entry
+        val repo = ExposedGameRepository()
+        listOf(
+            game("Late 2001", releaseYear = 2001, developers = listOf(nintendo)),
+            game("Undated B", releaseYear = 2000, developers = listOf(nintendo)),
+            game("Undated A", releaseYear = 2000, developers = listOf(nintendo)),
+            game("Dated June", releaseDate = ReleaseDate(LocalDate.of(2000, 6, 1)), developers = listOf(nintendo)),
+            game("Dated Jan", releaseDate = ReleaseDate(LocalDate.of(2000, 1, 1)), developers = listOf(nintendo)),
+            game("Early 1999", releaseYear = 1999, developers = listOf(nintendo)),
+        ).forEach { repo.insert(it) }
+
+        val found = repo.findByDeveloper(nintendo.id)
+
+        assertEquals(
+            listOf("Early 1999", "Dated Jan", "Dated June", "Undated A", "Undated B", "Late 2001"),
+            found.map { it.title.value },
+        )
+    }
+
+    @Test
+    fun `findByDeveloper returns only the games of that developer and an empty list for one without games`() =
+        withFreshDatabase {
+            val developerRepo = ExposedGameDeveloperRepository()
+            val nintendo = developerRepo.create(VocabularyName("Nintendo EPD")).entry
+            val monolith = developerRepo.create(VocabularyName("Monolith Soft")).entry
+            val empty = developerRepo.create(VocabularyName("Empty")).entry
+            val repo = ExposedGameRepository()
+            val zelda = game("Zelda", developers = listOf(nintendo))
+            repo.insert(zelda)
+            repo.insert(game("Xenoblade", developers = listOf(monolith)))
+            repo.insert(game("Standalone"))
+
+            assertEquals(listOf(zelda.id), repo.findByDeveloper(nintendo.id).map { it.id })
+            assertEquals(emptyList(), repo.findByDeveloper(empty.id))
+        }
+
+    @Test
+    fun `findByDeveloper hydrates the platforms and all developers of the game`() = withFreshDatabase {
+        val developerRepo = ExposedGameDeveloperRepository()
+        val nintendo = developerRepo.create(VocabularyName("Nintendo EPD")).entry
+        val monolith = developerRepo.create(VocabularyName("Monolith Soft")).entry
+        val repo = ExposedGameRepository()
+        val inserted = game(
+            "Xenoblade",
+            platforms = listOf(Platforms.PC, Platforms.NINTENDO),
+            developers = listOf(nintendo, monolith),
+        )
+        repo.insert(inserted)
+
+        val found = repo.findByDeveloper(nintendo.id)
+
+        assertEquals(listOf(inserted), found)
+    }
+
+    @Test
+    fun `findByDeveloper loads a developer's games with a constant number of queries`() = withFreshDatabase { db ->
+        val nintendo = ExposedGameDeveloperRepository().create(VocabularyName("Nintendo EPD")).entry
+        val repo = ExposedGameRepository()
+        suspend fun insertGames(range: IntRange) = range.forEach {
+            repo.insert(game("G$it", platforms = listOf(Platforms.PC, Platforms.XBOX), developers = listOf(nintendo)))
+        }
+        insertGames(1..2)
+
+        val countWithTwoGames = countStatements(db.database) { repo.findByDeveloper(nintendo.id) }
+
+        insertGames(3..5)
+        val countWithFiveGames = countStatements(db.database) { repo.findByDeveloper(nintendo.id) }
+
+        assertEquals(3, countWithTwoGames)
+        assertEquals(countWithTwoGames, countWithFiveGames)
+    }
 }

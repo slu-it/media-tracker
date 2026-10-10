@@ -2,6 +2,7 @@ import { apiFetch } from "../../../api/client";
 import type {
   BookAuthorResponse,
   BookAuthorSummaryResponse,
+  BookNarratorSummaryResponse,
   BookCoverOptionsResponse,
   BookCoverSource,
   BookMetaResponse,
@@ -79,6 +80,11 @@ export function deleteBookAuthor(id: string): Promise<void> {
   return apiFetch<void>(`/api/book-authors/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
+/** 204; 409 while books still use the narrator, 404 for an unknown id. */
+export function deleteBookNarrator(id: string): Promise<void> {
+  return apiFetch<void>(`/api/book-narrators/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 /** 204; 409 while books still use the series, 404 for an unknown id. */
 export function deleteBookSeries(id: string): Promise<void> {
   return apiFetch<void>(`/api/book-series/${encodeURIComponent(id)}`, { method: "DELETE" });
@@ -97,6 +103,24 @@ export function renameBookAuthor(id: string, name: string): Promise<BookAuthorRe
 export function mergeBookAuthor(id: string, targetId: string): Promise<BookAuthorResponse> {
   const body: MergeVocabularyRequest = { targetId };
   return apiFetch<BookAuthorResponse>(`/api/book-authors/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Renames the narrator; 409 `name_taken` (with `existingId`/`existingName`) when another narrator has the name. */
+export function renameBookNarrator(id: string, name: string): Promise<BookNarratorResponse> {
+  const body: RenameVocabularyRequest = { name };
+  return apiFetch<BookNarratorResponse>(`/api/book-narrators/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Moves every book of the narrator to `targetId` and deletes the narrator; resolves the target. */
+export function mergeBookNarrator(id: string, targetId: string): Promise<BookNarratorResponse> {
+  const body: MergeVocabularyRequest = { targetId };
+  return apiFetch<BookNarratorResponse>(`/api/book-narrators/${encodeURIComponent(id)}/merge`, {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -209,6 +233,16 @@ export function listBookAuthorSummaries(): Promise<BookAuthorSummaryResponse[]> 
 /** The books of one author by release year, release date (none last) and title; 404 for an unknown author. */
 export function listAuthorBooks(authorId: string, signal?: AbortSignal): Promise<BookResponse[]> {
   return apiFetch<BookResponse[]>(`/api/book-authors/${encodeURIComponent(authorId)}/books`, { signal });
+}
+
+/** Every narrator with their book count (including 0), by name; unpaged. */
+export function listBookNarratorSummaries(): Promise<BookNarratorSummaryResponse[]> {
+  return apiFetch<BookNarratorSummaryResponse[]>("/api/book-narrators.summaries");
+}
+
+/** The books of one narrator by release year, release date (none last) and title; 404 for an unknown narrator. */
+export function listNarratorBooks(narratorId: string, signal?: AbortSignal): Promise<BookResponse[]> {
+  return apiFetch<BookResponse[]>(`/api/book-narrators/${encodeURIComponent(narratorId)}/books`, { signal });
 }
 
 /**

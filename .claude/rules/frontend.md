@@ -7,10 +7,11 @@ paths:
 
 ADR 0008 for the stack, ADR 0020 for the theme toggle. Feature layout `src/features/<kind>/{api,domain,hooks,components}`
 + `<Kind>View.tsx`; `games` and `books` are the templates. Kind-neutral code is shared (ADR 0034):
-`src/components/media/` (UI, incl. `status/`, `filters/`, `fields/`, `cover/`; ADR 0039 for the cover picker and
-`SuggestingTitleField`), `src/domain/media/` (validators, codecs, draft
+`src/components/media/` (UI, incl. `status/`, `filters/`, `fields/`, `cover/`, `groups/`; ADR 0039 for the cover picker and
+`SuggestingTitleField`, ADR 0042 for the group views), `src/domain/media/` (validators, codecs, draft
 helpers), `src/hooks/`. Shared code never imports from `src/features/**` and builds no i18n key from a kind name:
-kind-neutral strings live under `media.*`, kind-specific texts are passed in as props. Feature details are in
+kind-neutral strings live under `media.*`, kind-specific texts are passed in as props (the group views take a translated
+`labels` object). Feature details are in
 `docs/features/`.
 
 - **MUI 9**: `sx` prop, `slotProps.*`, icons imported by path (`@mui/icons-material/<Name>`; the barrel import
@@ -28,7 +29,7 @@ kind-neutral strings live under `media.*`, kind-specific texts are passed in as 
   chosen for) instead of syncing in an effect.
 - **Routes and view state** (ADR 0031, `docs/features/url-routes.md`): paths come from `src/routes.ts`, which
   derives them from `MEDIA_KINDS`/`MEDIA_SUB_PAGES`; never write a path literal. A view's state (search,
-  filters, sort, page, year) lives in its URL codec in `features/<kind>/domain/` (`gameViewParams.ts`, `bookViewParams.ts`, built on the
+  filters, sort, page, year) lives in its URL codec in `features/<kind>/domain/` (`gameViewParams.ts`, `bookViewParams.ts`; the group views share `src/domain/media/groupViewParams.ts`), built on the
   field codecs of `src/domain/media/viewParams.ts`), not in
   `useState`. A view that updates part of its query writes through `useViewParams`, which merges writes within
   one commit; a raw functional `setSearchParams` loses one of two same-commit writes. The ranking replaces its

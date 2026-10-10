@@ -1,5 +1,6 @@
 package de.sluit.mediatracker.books.domain
 
+import de.sluit.mediatracker.common.domain.DeleteOutcome
 import de.sluit.mediatracker.common.domain.MergeOutcome
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
@@ -63,6 +64,9 @@ interface BookRepository {
      * date last within a year), then title, then id.
      */
     suspend fun findByAuthor(authorId: BookAuthorId): List<Book>
+
+    /** All books linked to [narratorId], unpaged, in the same order as [findByAuthor]. */
+    suspend fun findByNarrator(narratorId: BookNarratorId): List<Book>
 }
 
 /**
@@ -75,9 +79,6 @@ interface BookTypeRepository {
 
     suspend fun findByIds(ids: Set<BookTypeId>): List<BookType>
 }
-
-/** Result of deleting a vocabulary entry (author, series); only an unreferenced entry is deleted. */
-enum class DeleteOutcome { DELETED, NOT_FOUND, IN_USE }
 
 /**
  * Persistence port of the user-grown author vocabulary. Implemented in `books.persistence`; the domain never
@@ -128,8 +129,27 @@ interface BookNarratorRepository {
 
     suspend fun findByIds(ids: Set<BookNarratorId>): List<BookNarrator>
 
+    /** Every narrator including those without books, with their book count; ordered by name, then id. Unpaged. */
+    suspend fun findSummaries(): List<BookNarratorSummary>
+
     /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
     suspend fun create(name: VocabularyName): VocabularyCreation<BookNarrator>
+
+    /** Deletes the narrator unless a book still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: BookNarratorId): DeleteOutcome
+
+    /**
+     * Renames the narrator. [RenameOutcome.Taken] when another narrator carries the name (case/accent-insensitively);
+     * a spelling that only differs from the narrator's own name that way is a plain rename.
+     */
+    suspend fun rename(id: BookNarratorId, name: VocabularyName): RenameOutcome<BookNarrator>
+
+    /**
+     * Folds [sourceId] into [targetId] in one transaction: every book of the source becomes a book of the target
+     * (once), then the source is deleted. [MergeOutcome.SourceNotFound] / [MergeOutcome.TargetNotFound] when that
+     * entry does not exist.
+     */
+    suspend fun merge(sourceId: BookNarratorId, targetId: BookNarratorId): MergeOutcome<BookNarrator>
 }
 
 /**

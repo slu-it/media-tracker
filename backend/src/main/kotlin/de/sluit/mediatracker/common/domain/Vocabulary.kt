@@ -68,3 +68,6 @@ sealed interface MergeOutcome<out T> {
     /** The source exists, the target does not. */
     data object TargetNotFound : MergeOutcome<Nothing>
 }
+
+/** Result of deleting a vocabulary entry (author, narrator, series, developer); only an unreferenced entry is deleted. */
+enum class DeleteOutcome { DELETED, NOT_FOUND, IN_USE }

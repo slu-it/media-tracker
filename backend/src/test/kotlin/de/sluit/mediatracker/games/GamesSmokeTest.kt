@@ -5,9 +5,11 @@ import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.PageResponse
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.api.GameDeveloperResponse
+import de.sluit.mediatracker.games.api.GameDeveloperSummaryResponse
 import de.sluit.mediatracker.games.api.GameMetaResponse
 import de.sluit.mediatracker.games.api.GamePlatformResponse
 import de.sluit.mediatracker.games.api.GameResponse
+import de.sluit.mediatracker.games.persistence.GameDevelopersTable
 import de.sluit.mediatracker.games.persistence.GameToPlatformTable
 import de.sluit.mediatracker.games.persistence.GamesTable
 import de.sluit.mediatracker.jsonBody
@@ -41,6 +43,8 @@ class GamesSmokeTest {
     private suspend fun ApplicationTestBuilder.loggedInClient(seed: () -> Unit = {}): HttpClient {
         val client = appWithUser("alice", "wonderland-1") {
             GamesTable.deleteAll()
+            // After the games: developers are RESTRICTed while a junction row exists, which cascades with the games.
+            GameDevelopersTable.deleteAll()
             seed()
         }
         client.loginAs("alice", "wonderland-1")
@@ -170,6 +174,76 @@ class GamesSmokeTest {
 
         val found = client.get("/api/game-developers?search=mono").decodeBody<List<GameDeveloperResponse>>()
         assertEquals(listOf(monolith), found)
+    }
+
+    private suspend fun HttpClient.createdDeveloper(name: String): GameDeveloperResponse =
+        post("/api/game-developers") { jsonBody("""{"name":"$name"}""") }.decodeBody()
+
+    @Test
+    fun `developer summaries and developer games list counts and games in release order`() = testApplication {
+        val client = loggedInClient()
+        val nintendo = client.createdDeveloper("Nintendo EPD")
+        val empty = client.createdDeveloper("Another Developer")
+        listOf("Later" to 2010, "Earlier" to 2005).forEach { (title, year) ->
+            client.createGame(
+                """{"title":"$title","releaseYear":$year,"platformIds":["${SeededPlatforms.PC}"],
+                    |"developerIds":["${nintendo.id}"]}
+                """.trimMargin(),
+            )
+        }
+
+        val summaries = client.get("/api/game-developers.summaries").decodeBody<List<GameDeveloperSummaryResponse>>()
+        val games = client.get("/api/game-developers/${nintendo.id}/games").decodeBody<List<GameResponse>>()
+        val noGames = client.get("/api/game-developers/${empty.id}/games").decodeBody<List<GameResponse>>()
+
+        assertEquals(listOf("Another Developer" to 0, "Nintendo EPD" to 2), summaries.map { it.name to it.gameCount })
+        assertEquals(listOf("Earlier", "Later"), games.map { it.title })
+        assertEquals(emptyList(), noGames)
+    }
+
+    @Test
+    fun `delete removes an unused developer from the summaries`() = testApplication {
+        val client = loggedInClient()
+        val developer = client.createdDeveloper("Nintendo EPD")
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/game-developers/${developer.id}").status)
+
+        val names = client.get("/api/game-developers.summaries").decodeBody<List<GameDeveloperSummaryResponse>>()
+        assertEquals(emptyList(), names.map { it.name })
+    }
+
+    @Test
+    fun `rename changes a developer's name in the summaries`() = testApplication {
+        val client = loggedInClient()
+        val developer = client.createdDeveloper("Nintendo EDP")
+
+        val response = client.patch("/api/game-developers/${developer.id}") { jsonBody("""{"name":"Nintendo EPD"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(GameDeveloperResponse(developer.id, "Nintendo EPD"), response.decodeBody<GameDeveloperResponse>())
+        val names = client.get("/api/game-developers.summaries").decodeBody<List<GameDeveloperSummaryResponse>>()
+        assertEquals(listOf("Nintendo EPD"), names.map { it.name })
+    }
+
+    @Test
+    fun `merge moves the games of a developer into the target and removes the source`() = testApplication {
+        val client = loggedInClient()
+        val source = client.createdDeveloper("Nintendo")
+        val target = client.createdDeveloper("Nintendo EPD")
+        client.createGame(
+            """{"title":"Zelda","releaseYear":1998,"platformIds":["${SeededPlatforms.NINTENDO}"],
+                |"developerIds":["${source.id}"]}
+            """.trimMargin(),
+        )
+
+        val response = client.post("/api/game-developers/${source.id}/merge") {
+            jsonBody("""{"targetId":"${target.id}"}""")
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(target, response.decodeBody<GameDeveloperResponse>())
+        val summaries = client.get("/api/game-developers.summaries").decodeBody<List<GameDeveloperSummaryResponse>>()
+        assertEquals(listOf("Nintendo EPD" to 1), summaries.map { it.name to it.gameCount })
     }
 
     @Test

@@ -2,6 +2,7 @@ import type {
   CoverOptionsResponse,
   ExpansionResponse,
   GameDeveloperResponse,
+  GameDeveloperSummaryResponse,
   GameMetaResponse,
   GamePlatformResponse,
   GameResponse,
@@ -62,6 +63,45 @@ export const hades: GameResponse = {
   releaseDate: null,
   developers: [],
 };
+
+export const hollowKnight: GameResponse = {
+  ...hades,
+  id: "id-3",
+  title: "Hollow Knight",
+  releaseYear: 2017,
+  hidden: false,
+  developers: [teamCherry],
+};
+
+export const silksong: GameResponse = {
+  ...hades,
+  id: "id-4",
+  title: "Silksong",
+  releaseYear: 2025,
+  hidden: false,
+  developers: [teamCherry],
+};
+
+/** Games per developer, in backend order, consistent with each game's `developers`. */
+export const teamCherryGames: GameResponse[] = [hollowKnight, silksong];
+export const supergiantGamesList: GameResponse[] = [{ ...hades, developers: [supergiantGames] }];
+
+export const teamCherrySummary: GameDeveloperSummaryResponse = { ...teamCherry, gameCount: teamCherryGames.length };
+export const supergiantSummary: GameDeveloperSummaryResponse = {
+  ...supergiantGames,
+  gameCount: supergiantGamesList.length,
+};
+export const emptyDeveloperSummary: GameDeveloperSummaryResponse = {
+  id: "developer-3",
+  name: "Émile Studio",
+  gameCount: 0,
+};
+/** By name, as the backend returns them. */
+export const developerSummaries: GameDeveloperSummaryResponse[] = [
+  emptyDeveloperSummary,
+  supergiantSummary,
+  teamCherrySummary,
+];
 
 export const hadesExpansion1: ExpansionResponse = {
   id: "expansion-1",

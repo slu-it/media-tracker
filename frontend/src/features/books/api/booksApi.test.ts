@@ -13,7 +13,12 @@ import {
   getBookCoverOptions,
   getBookTitleSuggestions,
   getBooksMeta,
+  deleteBookNarrator,
   listAuthorBooks,
+  listBookNarratorSummaries,
+  listNarratorBooks,
+  mergeBookNarrator,
+  renameBookNarrator,
   listBookAuthorSummaries,
   listBookSeriesSummaries,
   listBookTypes,
@@ -49,6 +54,35 @@ describe("booksApi", () => {
     const calls = mockApi({ "GET /api/book-authors/:id/books": () => jsonResponse([dune]) });
     expect(await listAuthorBooks("author/1")).toEqual([dune]);
     expect(calls[0].url).toBe("/api/book-authors/author%2F1/books");
+  });
+
+  it("lists the narrator summaries", async () => {
+    const summaries = [{ id: "narrator-1", name: "Simon Vance", bookCount: 2 }];
+    const calls = mockApi({ "GET /api/book-narrators.summaries": () => jsonResponse(summaries) });
+    expect(await listBookNarratorSummaries()).toEqual(summaries);
+    expect(calls[0].url).toBe("/api/book-narrators.summaries");
+  });
+
+  it("lists the books of a narrator", async () => {
+    const calls = mockApi({ "GET /api/book-narrators/:id/books": () => jsonResponse([dune]) });
+    expect(await listNarratorBooks("narrator/1")).toEqual([dune]);
+    expect(calls[0].url).toBe("/api/book-narrators/narrator%2F1/books");
+  });
+
+  it("renames, merges and deletes a narrator", async () => {
+    const calls = mockApi({
+      "PATCH /api/book-narrators/:id": () => jsonResponse(simonVance),
+      "POST /api/book-narrators/:id/merge": () => jsonResponse(simonVance),
+      "DELETE /api/book-narrators/:id": () => new Response(null, { status: 204 }),
+    });
+    expect(await renameBookNarrator("n/1", "Simon")).toEqual(simonVance);
+    expect(await mergeBookNarrator("n/1", "n-2")).toEqual(simonVance);
+    await deleteBookNarrator("n/1");
+    expect(calls).toEqual([
+      { method: "PATCH", url: "/api/book-narrators/n%2F1", body: { name: "Simon" } },
+      { method: "POST", url: "/api/book-narrators/n%2F1/merge", body: { targetId: "n-2" } },
+      { method: "DELETE", url: "/api/book-narrators/n%2F1", body: undefined },
+    ]);
   });
 
   it("lists the books of a series", async () => {

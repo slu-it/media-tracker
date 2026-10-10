@@ -9,16 +9,18 @@ Code:
   - `hooks/useActiveRoute.ts`, and `App.tsx` (the `<Routes>`).
   - `BrowserRouter` in `main.tsx`.
   - `src/domain/media/viewParams.ts`: the kind-neutral field codecs; `features/games/domain/gameViewParams.ts`
-    and `features/books/domain/{bookViewParams,bookGroupViewParams}.ts`: each view's query codec.
+    `features/books/domain/bookViewParams.ts` and the shared `src/domain/media/groupViewParams.ts` (every group view):
+    each view's query codec.
   - `src/hooks/useUrlSearchInput.ts`: the search field ⇄ `search` sync shared by every view with a search.
   - `src/hooks/useViewParams.ts`: the URL writer. React Router hands a functional
     `setSearchParams` the render-time params, so two writes in one commit would overwrite each other. The hook
     merges each update onto the latest written params.
-  - The three games views, `BooksView`, `BookGroupsView` (behind `BookAuthorsView` and `BookSeriesView`), and
+  - The three games views, `BooksView`, the shared `MediaGroupsView` (behind `BookAuthorsView`, `BookNarratorsView`, `BookSeriesView` and
+    `GamesDevelopersView`), and
     `api/client.ts` (401 → `returnTo`).
 - Backend: `auth/api/ReturnPath.kt` (`safeReturnPath`, `loginUrl`), `auth/api/Security.kt` (the challenge),
   `auth/api/LoginRoutes.kt`, and `login/login.html` (a form without `action`).
-- Tests: `src/routes.test.ts`, `App.test.tsx`, the "URL state" tests of each games view, `gameViewParams.test.ts`, `bookGroupViewParams.test.ts`.
+- Tests: `src/routes.test.ts`, `App.test.tsx`, the "URL state" tests of each games view, `gameViewParams.test.ts`, `groupViewParams.test.ts`.
   Backend: `ReturnPathTest`, `AuthRoutesTest` and `RoutesTest`.
 
 ## Routes
@@ -28,11 +30,13 @@ Code:
 | `/books/overview` | `search`, `type`* (ids), `ownership`*, `progress`*, `year`*, `page` (ADR 0034) |
 | `/books/watchlist` | `search`, `type`* (ids), `sort=release_desc` (`release_asc` is the default), `page` (MT-055) |
 | `/books/authors` | `search` (filters the loaded author list in the browser, MT-046) |
+| `/books/narrators` | `search` (filters the loaded narrator list in the browser, ADR 0042) |
 | `/books/series` | `search` (filters the loaded series list in the browser, MT-043) |
 | `/movies`, `/series` | none |
 | `/games/overview` | `search`, `platform`* (ids), `ownership`*, `progress`* (API values), `year`* (release-year filter), `page` |
 | `/games/watchlist` | `search`, `platform`*, `sort=release_desc` (`release_asc` is the default), `page` |
 | `/games/ranking` | `year` (the ranked year; absent = the default year of record 0030) |
+| `/games/developers` | `search` (filters the loaded developer list in the browser, ADR 0042) |
 | `/` | redirects to the last-used kind (`mt.mediaTab`, default `books`), including its last sub-page |
 | `/books`, `/games` | redirect to the kind's last-used sub-page (`mt.booksPage`, `mt.gamesPage`, default `overview`) |
 | anything else | redirects to `/` |

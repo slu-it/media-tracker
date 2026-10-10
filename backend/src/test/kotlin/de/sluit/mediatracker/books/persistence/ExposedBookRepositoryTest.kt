@@ -1133,4 +1133,96 @@ class ExposedBookRepositoryTest {
         assertEquals(5, countWithTwoBooks)
         assertEquals(countWithTwoBooks, countWithFiveBooks)
     }
+
+    // findByNarrator
+
+    @Test
+    fun `findByNarrator orders by year then date with undated last then title and id`() = withFreshDatabase {
+        val reader = ExposedBookNarratorRepository().create(VocabularyName("A Reader")).entry
+        val repo = ExposedBookRepository()
+        val books = listOf(
+            book("Late 2001", releaseYear = 2001, narrators = listOf(reader)),
+            book("Undated B", releaseYear = 2000, narrators = listOf(reader)),
+            book("Undated A", releaseYear = 2000, narrators = listOf(reader)),
+            book("Dated June", releaseDate = ReleaseDate(LocalDate.of(2000, 6, 1)), narrators = listOf(reader)),
+            book("Dated Jan", releaseDate = ReleaseDate(LocalDate.of(2000, 1, 1)), narrators = listOf(reader)),
+            book("Early 1999", releaseYear = 1999, narrators = listOf(reader)),
+        )
+        books.forEach { repo.insert(it) }
+
+        val found = repo.findByNarrator(reader.id)
+
+        assertEquals(
+            listOf("Early 1999", "Dated Jan", "Dated June", "Undated A", "Undated B", "Late 2001"),
+            found.map { it.title.value },
+        )
+    }
+
+    @Test
+    fun `findByNarrator returns only the books of that narrator and an empty list for one without books`() =
+        withFreshDatabase {
+            val narratorRepo = ExposedBookNarratorRepository()
+            val reader = narratorRepo.create(VocabularyName("A Reader")).entry
+            val other = narratorRepo.create(VocabularyName("Another Reader")).entry
+            val empty = narratorRepo.create(VocabularyName("Empty")).entry
+            val repo = ExposedBookRepository()
+            val dune = book("Dune", narrators = listOf(reader))
+            repo.insert(dune)
+            repo.insert(book("Guide", narrators = listOf(other)))
+            repo.insert(book("Standalone"))
+
+            assertEquals(listOf(dune.id), repo.findByNarrator(reader.id).map { it.id })
+            assertEquals(emptyList(), repo.findByNarrator(empty.id))
+        }
+
+    @Test
+    fun `findByNarrator hydrates types authors all narrators and series of the book`() = withFreshDatabase {
+        val herbert = ExposedBookAuthorRepository().create(VocabularyName("Frank Herbert")).entry
+        val narratorRepo = ExposedBookNarratorRepository()
+        val reader = narratorRepo.create(VocabularyName("A Reader")).entry
+        val coReader = narratorRepo.create(VocabularyName("B Reader")).entry
+        val dune = ExposedBookSeriesRepository().create(VocabularyName("Dune Chronicles")).entry
+        val repo = ExposedBookRepository()
+        val inserted = book(
+            "Dune",
+            types = listOf(BookTypes.PAPERBACK, BookTypes.HARDCOVER),
+            authors = listOf(herbert),
+            narrators = listOf(reader, coReader),
+            series = listOf(seriesEntry(dune, 1.0)),
+        )
+        repo.insert(inserted)
+
+        val found = repo.findByNarrator(reader.id)
+
+        assertEquals(listOf(inserted), found)
+    }
+
+    @Test
+    fun `findByNarrator loads a narrator's books with a constant number of queries`() = withFreshDatabase { db ->
+        val herbert = ExposedBookAuthorRepository().create(VocabularyName("Frank Herbert")).entry
+        val reader = ExposedBookNarratorRepository().create(VocabularyName("A Reader")).entry
+        val dune = ExposedBookSeriesRepository().create(VocabularyName("Dune Chronicles")).entry
+        val repo = ExposedBookRepository()
+        val twoTypes = listOf(BookTypes.HARDCOVER, BookTypes.KINDLE)
+        suspend fun insertBooks(range: IntRange) = range.forEach {
+            repo.insert(
+                book(
+                    "Dune $it",
+                    types = twoTypes,
+                    authors = listOf(herbert),
+                    narrators = listOf(reader),
+                    series = listOf(seriesEntry(dune, it.toDouble())),
+                ),
+            )
+        }
+        insertBooks(1..2)
+
+        val countWithTwoBooks = countStatements(db.database) { repo.findByNarrator(reader.id) }
+
+        insertBooks(3..5)
+        val countWithFiveBooks = countStatements(db.database) { repo.findByNarrator(reader.id) }
+
+        assertEquals(5, countWithTwoBooks)
+        assertEquals(countWithTwoBooks, countWithFiveBooks)
+    }
 }
