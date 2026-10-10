@@ -2,11 +2,10 @@
 # Local end-to-end run (production-like, no live reload; see start-dev.sh for that):
 #   1. make sure the MariaDB from docker-compose.yml is running (starts it if needed, waits until healthy)
 #   2. build the whole project (frontend + backend, tests, fat JAR)
-#   3. make sure the local user "slu" exists (prompts for a password only when the user is missing)
+#   3. make sure the local user "slu" exists with the password "password" (set again on every run)
 #   4. start the application on http://localhost:8080
 #
 # Optional environment:
-#   MT_LOCAL_PASSWORD   password for the local user when it has to be created (otherwise you are prompted)
 #   MT_SKIP_BUILD=1     skip step 2 and start the last built JAR
 #   PORT                port for the application (default 8080)
 set -euo pipefail

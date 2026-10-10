@@ -150,8 +150,8 @@ regenerate the primary. Regenerating a slot invalidates its old key immediately.
 ```
 
 The script starts the MariaDB from `docker-compose.yml` if it is not running (data lives in a named volume
-and survives restarts), builds everything, makes sure the local user `slu` exists (you are prompted for a
-password only the first time, or set `MT_LOCAL_PASSWORD`), and starts the app on http://localhost:8080.
+and survives restarts), builds everything, makes sure the local user `slu` exists with the password `password` (set again on every run, local
+testing only), and starts the app on http://localhost:8080.
 `MT_SKIP_BUILD=1` starts the last built JAR without rebuilding. `docker compose down` stops the database,
 `docker compose down -v` also deletes its data (add `--remove-orphans` once if a container from the MySQL era is
 still around, it holds port 3306).
@@ -194,7 +194,7 @@ database. `pnpm` does not have to be installed; the script falls back to the cop
 Both Gradle invocations pass `-Pmt.dev=true` (defined in `backend/build.gradle.kts`). It makes
 `:backend:processResources` skip building and copying the SPA (Vite serves it), so a frontend edit never triggers
 a Vite production build, and it gives the `run` task the `-Dio.ktor.development=true` JVM flag that turns on Ktor
-auto-reload. Never pass that property to `build` or `buildFatJar`. The local user `slu` is created via the last built fat JAR if there is one;
+auto-reload. Never pass that property to `build` or `buildFatJar`. The local user `slu` (password `password`) is created or reset via the last built fat JAR if there is one;
 otherwise run `./build-and-start-locally.sh` once, the database volume keeps the user afterwards.
 
 The same loop by hand, in three terminals (environment as in `local-env.sh`):

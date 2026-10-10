@@ -3,13 +3,16 @@
 # Exports the local runtime environment (must match docker-compose.yml) and provides:
 #   step <text>                 print a section header
 #   start_mariadb              docker compose up -d --wait mariadb (no-op if already running)
-#   ensure_local_user <jar>     make sure the local user exists, using CreateUser from the given JAR
+#   ensure_local_user <jar> [user]
+#                               create the user (default "slu") or reset its password to LOCAL_PASSWORD,
+#                               using CreateUser from the given JAR
 #
 # Optional environment:
-#   MT_LOCAL_PASSWORD   password for the local user when it has to be created (otherwise you are prompted)
 #   PORT                port for the application (default 8080)
 
 LOCAL_USER="slu"
+# Local testing only: every local user gets this fixed password, set again on each run.
+LOCAL_PASSWORD="password"
 JAR="backend/build/libs/media-tracker.jar"
 
 export DB_URL='jdbc:mariadb://127.0.0.1:3306/mediatracker?sslMode=disable&timezone=UTC&preserveInstants=true'
@@ -27,28 +30,10 @@ start_mariadb() {
   docker compose up -d --wait mariadb
 }
 
-# CreateUser exits 1 with "already exists" when the user is present; that is fine here, anything else is not.
+# With --reset-password CreateUser creates a missing user and resets an existing one, so this always ends with
+# the user present and its password set to LOCAL_PASSWORD.
 ensure_local_user() {
-  local jar="$1"
-  step "User: ensure '$LOCAL_USER' exists"
-  local create_user_stderr create_user_exit
-  create_user_stderr="$(mktemp)"
-  set +e
-  if [[ -n "${MT_LOCAL_PASSWORD:-}" ]]; then
-    printf '%s\n' "$MT_LOCAL_PASSWORD" | java -cp "$jar" de.sluit.mediatracker.auth.CreateUser "$LOCAL_USER" 2> >(tee "$create_user_stderr" >&2)
-  else
-    java -cp "$jar" de.sluit.mediatracker.auth.CreateUser "$LOCAL_USER" 2> >(tee "$create_user_stderr" >&2)
-  fi
-  create_user_exit=$?
-  set -e
-  if [[ $create_user_exit -ne 0 ]]; then
-    if grep -q "already exists" "$create_user_stderr"; then
-      echo "User '$LOCAL_USER' already exists, moving on."
-    else
-      rm -f "$create_user_stderr"
-      echo "error: creating user '$LOCAL_USER' failed (exit $create_user_exit)" >&2
-      return "$create_user_exit"
-    fi
-  fi
-  rm -f "$create_user_stderr"
+  local jar="$1" user="${2:-$LOCAL_USER}"
+  step "User: ensure '$user' exists with the local password"
+  printf '%s\n' "$LOCAL_PASSWORD" | java -cp "$jar" de.sluit.mediatracker.auth.CreateUser "$user" --reset-password
 }
