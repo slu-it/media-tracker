@@ -30,6 +30,8 @@ use `PatchField` (absent / null / value). The full endpoint table is in [archite
 ## Frontend
 
 - `GamesView.tsx` renders the grid cards, the add speed dial with platform presets ([add-speed-dial.md](add-speed-dial.md)), `GameDetailDialog` and the create/edit dialog.
+- Platform chips on a card that wrap onto a second row stay centered (`ColorChips centered`); the detail dialog keeps
+  them left-aligned.
   Domain constraints are validators in `features/games/domain/` that return i18n codes, wrapped in
   self-validating field components under `components/fields/`.
 - The list asks for `pageSize=36` explicitly (`GAMES_PAGE_SIZE` in `games/domain/gameValues.ts`, independent of

@@ -12,7 +12,7 @@ export function GameCard({ game, onOpen }: { game: GameResponse; onOpen: (game: 
       onClick={() => onOpen(game)}
       desaturateCover={game.ownership === "watchlist"}
     >
-      <ColorChips items={game.platforms} />
+      <ColorChips items={game.platforms} centered />
       <GameStatusIcons ownership={game.ownership} progress={game.progress} hidden={game.hidden} variant="card" />
     </MediaCardShell>
   );
