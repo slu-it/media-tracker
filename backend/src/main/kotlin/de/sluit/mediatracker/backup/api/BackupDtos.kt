@@ -4,9 +4,13 @@ import kotlinx.serialization.Serializable
 
 // Mirrored by hand in frontend/src/types/api.ts. Keep both in sync.
 
-/** POST /api/backup/import: how many of a table's rows were inserted versus already present (skipped). */
+/**
+ * POST /api/backup/import: how many of a table's rows were inserted, already present unchanged (skipped) or
+ * already present and overwritten from the backup ([updated], only the editable `game_platforms` and
+ * `book_types` tables, 0 elsewhere). Each row is counted once.
+ */
 @Serializable
-data class TableImportResultDto(val inserted: Int, val skipped: Int)
+data class TableImportResultDto(val inserted: Int, val skipped: Int, val updated: Int)
 
 /** Response of POST /api/backup/import, one entry per table the payload named. */
 @Serializable

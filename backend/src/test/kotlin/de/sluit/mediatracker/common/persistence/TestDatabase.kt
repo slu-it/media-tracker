@@ -1,7 +1,11 @@
 package de.sluit.mediatracker.common.persistence
 
 import de.sluit.mediatracker.allTables
+import de.sluit.mediatracker.books.SeededBookTypes
+import de.sluit.mediatracker.books.persistence.BookTypesTable
 import de.sluit.mediatracker.config.DatabaseConfig
+import de.sluit.mediatracker.games.SeededPlatforms
+import de.sluit.mediatracker.games.persistence.GamePlatformsTable
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.core.Transaction
 import org.jetbrains.exposed.v1.core.statements.GlobalStatementInterceptor
@@ -9,6 +13,7 @@ import org.jetbrains.exposed.v1.core.statements.StatementContext
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.testcontainers.mariadb.MariaDBContainer
@@ -24,10 +29,29 @@ private const val MARIADB_PORT = 3306
 private const val DATABASE_NAME = "media_tracker_test"
 
 /**
- * Seeded once by db/migration/V002__games.sql (game_platforms) and V012__books.sql (book_types); truncating them
- * would need re-seeding by hand, so no test may.
+ * Seeded once by db/migration/V002__games.sql (game_platforms) and V012__books.sql (book_types), and editable
+ * through the API since: [withFreshDatabase] does not truncate them with the rest but restores their canonical
+ * rows through [resetSeededReferenceData].
  */
 private val seedOnlyTableNames = setOf("game_platforms", "book_types")
+
+/** Truncated by [resetSeededReferenceData]: the seeded tables and every item and link row that depends on them. */
+private val resetTableNames = listOf(
+    "game_to_platform",
+    "game_to_developer",
+    "game_expansions",
+    "games",
+    "game_platforms",
+    "book_to_type",
+    "book_to_author",
+    "book_to_narrator",
+    "book_to_series",
+    "books",
+    "book_types",
+)
+
+/** One canonical row of a seeded reference table. */
+data class SeededRow(val id: String, val label: String, val color: String)
 
 /**
  * One MariaDB container for the whole test JVM, started lazily on first use. Testcontainers' Ryuk reaper removes
@@ -79,8 +103,9 @@ val sharedTestDatabase: ConnectedDatabase by lazy {
 
 /**
  * Empties every table in [allTables] on [sharedTestDatabase] except [seedOnlyTableNames] (`SET
- * FOREIGN_KEY_CHECKS = 0`, one `TRUNCATE TABLE` per table, `SET FOREIGN_KEY_CHECKS = 1`), then runs [block]
- * against it. Fast: the schema is migrated once per JVM, only the data resets between tests.
+ * FOREIGN_KEY_CHECKS = 0`, one `TRUNCATE TABLE` per table, `SET FOREIGN_KEY_CHECKS = 1`), restores the seeded
+ * reference tables ([resetSeededReferenceData]), then runs [block] against it. Fast: the schema is migrated once
+ * per JVM, only the data resets between tests.
  */
 fun withFreshDatabase(block: suspend (ConnectedDatabase) -> Unit) {
     val db = sharedTestDatabase
@@ -94,7 +119,38 @@ fun withFreshDatabase(block: suspend (ConnectedDatabase) -> Unit) {
             exec("SET FOREIGN_KEY_CHECKS = 1")
         }
     }
+    resetSeededReferenceData()
     runBlocking { block(db) }
+}
+
+/**
+ * Restores `game_platforms` and `book_types` to the four canonical rows each (ids, labels and colours of V002 and
+ * V012). Book types and game platforms are editable, so a test or a smoke test that changed them calls this
+ * (smoke tests in their setup, before `appWithUser`; [withFreshDatabase] does it itself). Games and books
+ * (with their expansion and link tables) are emptied too: they would otherwise reference platforms and types that
+ * no longer exist, and a game without a platform is not valid. Developers, authors, narrators and series stay.
+ */
+fun resetSeededReferenceData() {
+    transaction(sharedTestDatabase.database) {
+        exec("SET FOREIGN_KEY_CHECKS = 0")
+        try {
+            resetTableNames.forEach {
+                exec("TRUNCATE TABLE $it")
+            }
+        } finally {
+            exec("SET FOREIGN_KEY_CHECKS = 1")
+        }
+        GamePlatformsTable.batchInsert(SeededPlatforms.ROWS) {
+            this[GamePlatformsTable.id] = it.id
+            this[GamePlatformsTable.label] = it.label
+            this[GamePlatformsTable.associatedColor] = it.color
+        }
+        BookTypesTable.batchInsert(SeededBookTypes.ROWS) {
+            this[BookTypesTable.id] = it.id
+            this[BookTypesTable.label] = it.label
+            this[BookTypesTable.associatedColor] = it.color
+        }
+    }
 }
 
 /**

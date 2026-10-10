@@ -24,7 +24,8 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
   (`common/domain/ReleaseDating.kt`).
 - **Types** come from the seeded `book_types` table (fixed UUIDs, hex colours) through `book_to_type`:
   Hardcover `5D4037`, Paperback `00796B`, Kindle `1A73B5`, Audible `F7991C`. Unlike platforms, types are
-  optional: a book may have none. `GET /api/book-types` lists them by label.
+  optional: a book may have none. `GET /api/book-types` lists them by label. They are added, renamed, recoloured
+  and (while unused) deleted in the Books Configuration settings tab ([media-configuration-settings.md](media-configuration-settings.md), ADR 0043).
 - **Authors** are a user-created vocabulary in `book_authors` through `book_to_author`, built on the shared
   `ExposedNameVocabulary`: unique case- and accent-insensitive names of at most 128 characters, idempotent create,
   prefix plus fulltext lookup. Authors can be renamed and merged into another author, and authors nobody references
@@ -54,7 +55,8 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
 | `GET /api/books.meta` | Filter values in use: types, ownership, progress, release years (newest first); `typeCounts` (type id to number of books) for the [add speed dial](add-speed-dial.md) (ADR 0040) |
 | `GET /api/books/cover-options?query=&releaseYear=&source=&match=&page=` | Cover picker: Open Library (`book`) or Audible (`audiobook`) covers, 50 per page; `502 <source>_error` on provider failure ([cover picker](cover-picker.md#books), ADR 0039) |
 | `GET /api/books/title-suggestions?query=&source=` | Up to 8 title suggestions with authors, narrators and year; empty on provider failure ([title suggestions](title-suggestions.md#books)) |
-| `GET /api/book-types` | The seeded types |
+| `GET /api/book-types` | The types, by label |
+| `GET /api/book-types.summaries`, `POST /api/book-types`, `PATCH`/`DELETE /api/book-types/{id}` | Type management with `bookCount` ([media-configuration-settings.md](media-configuration-settings.md)) |
 | `GET`/`POST /api/book-authors` | Lookup (`search`, `limit` 1..50, default 10) and idempotent create (201 new, 200 existing) |
 | `GET`/`POST /api/book-narrators` | As `/api/book-authors` |
 | `GET`/`POST /api/book-series` | As `/api/book-authors`; `BookResponse.series` is `[{id, name, position}]` |

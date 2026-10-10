@@ -14,7 +14,7 @@ import de.sluit.mediatracker.common.domain.requireReleaseYearMatches
 import de.sluit.mediatracker.common.domain.requireValid
 import de.sluit.mediatracker.common.domain.resolvePatchedReleaseYear
 
-/** A selectable type (hardcover, Kindle, ...) a book can come in; the rows are seeded by the books migration. */
+/** A selectable type (hardcover, Kindle, ...) a book can come in; seeded by the books migration, editable by the user. */
 data class BookType(val id: BookTypeId, val label: BookTypeLabel, val color: HexColor)
 
 /** Sorts by label case-insensitively, then id, so the order is deterministic and duplicate-free. */
@@ -39,6 +39,9 @@ data class BookNarrator(override val id: BookNarratorId, override val name: Voca
 
 /** A series the user has added to the vocabulary; works like [BookAuthor], the position is on the link. */
 data class BookSeries(override val id: BookSeriesId, override val name: VocabularyName) : BookNamedEntry
+
+/** A book type with the number of books linked to it (0 for a type nobody uses yet). */
+data class BookTypeSummary(val type: BookType, val bookCount: Int)
 
 /** An author with the number of books linked to them (0 for an author nobody references yet). */
 data class BookAuthorSummary(val author: BookAuthor, val bookCount: Int)

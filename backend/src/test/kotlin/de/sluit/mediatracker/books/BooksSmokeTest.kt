@@ -11,12 +11,14 @@ import de.sluit.mediatracker.books.api.BookSeriesResponse
 import de.sluit.mediatracker.books.api.BookSeriesSummaryResponse
 import de.sluit.mediatracker.books.api.BookTitleSuggestionsResponse
 import de.sluit.mediatracker.books.api.BookTypeResponse
+import de.sluit.mediatracker.books.api.BookTypeSummaryResponse
 import de.sluit.mediatracker.books.persistence.BookAuthorsTable
 import de.sluit.mediatracker.books.persistence.BookNarratorsTable
 import de.sluit.mediatracker.books.persistence.BookSeriesTable
 import de.sluit.mediatracker.books.persistence.BooksTable
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.PageResponse
+import de.sluit.mediatracker.common.persistence.resetSeededReferenceData
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.jsonBody
 import de.sluit.mediatracker.loginAs
@@ -93,6 +95,35 @@ class BooksSmokeTest {
         }.decodeBody<BookResponse>()
         assertEquals(emptyList(), cleared.narrators)
         assertEquals(emptyList(), cleared.series)
+    }
+
+    @Test
+    fun `book types can be created edited listed with counts and deleted`() = testApplication {
+        resetSeededReferenceData()
+        val client = loggedInClient()
+
+        val created = client.post("/api/book-types") { jsonBody("""{"label":" Comic ","associatedColor":"ff00ff"}""") }
+        assertEquals(HttpStatusCode.Created, created.status)
+        val comic = created.decodeBody<BookTypeResponse>()
+        assertEquals("/api/book-types/${comic.id}", created.headers["Location"])
+        assertEquals(BookTypeResponse(comic.id, "Comic", "FF00FF"), comic)
+
+        val patched = client.patch("/api/book-types/${comic.id}") {
+            jsonBody("""{"label":"Comics","associatedColor":"00ff00"}""")
+        }
+            .decodeBody<BookTypeResponse>()
+        assertEquals(BookTypeResponse(comic.id, "Comics", "00FF00"), patched)
+
+        val maus = client.createBook("""{"title":"Maus","releaseYear":1991,"typeIds":["${comic.id}"]}""")
+            .decodeBody<BookResponse>()
+        val summaries = client.get("/api/book-types.summaries").decodeBody<List<BookTypeSummaryResponse>>()
+        assertEquals(
+            listOf("Audible" to 0, "Comics" to 1, "Hardcover" to 0, "Kindle" to 0, "Paperback" to 0),
+            summaries.map { it.label to it.bookCount },
+        )
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/books/${maus.id}").status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/book-types/${comic.id}").status)
     }
 
     @Test
@@ -197,6 +228,7 @@ class BooksSmokeTest {
 
     @Test
     fun `book-types lists the four seeded types sorted by label`() = testApplication {
+        resetSeededReferenceData()
         val client = loggedInClient()
 
         val types = client.get("/api/book-types").decodeBody<List<BookTypeResponse>>()

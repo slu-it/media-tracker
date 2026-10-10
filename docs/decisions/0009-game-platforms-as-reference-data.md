@@ -1,6 +1,7 @@
 # 0009: Game platforms as a seeded reference table, not an enum
 
-Status: accepted, 2026-09
+Status: accepted, 2026-09; the read-only API and the "later story" are superseded by
+[0043](0043-editable-book-types-and-game-platforms.md)
 
 ## Context
 

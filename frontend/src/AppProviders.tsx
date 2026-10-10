@@ -7,6 +7,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { deDE as datePickersDeDE, enUS as datePickersEnUS } from "@mui/x-date-pickers/locales";
 import "dayjs/locale/de";
 import { useTranslation } from "react-i18next";
+import { DataRevisionProvider } from "./components/DataRevisionProvider";
 import { appTheme } from "./theme/theme";
 import { MODE_STORAGE_KEY } from "./theme/mode";
 
@@ -32,7 +33,7 @@ export function AppProviders({ children, themeOverrides }: { children: ReactNode
     <ThemeProvider theme={theme} defaultMode="system" modeStorageKey={MODE_STORAGE_KEY} noSsr>
       <CssBaseline enableColorScheme />
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale={isGerman ? "de" : "en"} localeText={localeText}>
-        {children}
+        <DataRevisionProvider>{children}</DataRevisionProvider>
       </LocalizationProvider>
     </ThemeProvider>
   );

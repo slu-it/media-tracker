@@ -280,6 +280,46 @@ describe("App", () => {
     expect(within(dialog).getByRole("tab", { name: "Password" })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("reloads the routed view when the settings dialog closes after a data change", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({
+      ...booksApi(),
+      "GET /api/book-types.summaries": () => jsonResponse([]),
+      "POST /api/book-types": () => jsonResponse({ id: "t1", label: "Vinyl", associatedColor: "757575" }, 201),
+    });
+    renderWithProviders(<App />);
+    expect(await screen.findByText(NO_BOOKS)).toBeInTheDocument();
+    const metaLoads = () => calls.filter((call) => call.url === "/api/books.meta").length;
+    expect(metaLoads()).toBe(1);
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("tab", { name: "Books Configuration" }));
+    await user.click(await within(dialog).findByRole("textbox", { name: "New book type" }));
+    await user.paste("Vinyl");
+    await user.click(within(dialog).getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(calls.some((call) => call.method === "POST")).toBe(true));
+    await flushAsync();
+    expect(metaLoads()).toBe(1); // the view stays while the dialog is open
+
+    await user.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(metaLoads()).toBe(2));
+    expect(await screen.findByText(NO_BOOKS)).toBeInTheDocument();
+  });
+
+  it("does not reload the routed view when the settings dialog closes without a data change", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi(booksApi());
+    renderWithProviders(<App />);
+    expect(await screen.findByText(NO_BOOKS)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+    await user.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await flushAsync();
+    expect(calls.filter((call) => call.url === "/api/books.meta")).toHaveLength(1);
+  });
+
   it("switches the language to German and persists it", async () => {
     const user = userEvent.setup();
     mockApi(booksApi());

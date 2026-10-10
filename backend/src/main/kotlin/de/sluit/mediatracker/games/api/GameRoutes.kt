@@ -15,6 +15,8 @@ import de.sluit.mediatracker.games.domain.Game
 import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameId
+import de.sluit.mediatracker.games.domain.GamePlatformId
+import de.sluit.mediatracker.games.domain.GamePlatformService
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -41,6 +43,7 @@ fun Route.gameRoutes(
     expansionService: ExpansionService,
     coverOptionsService: CoverOptionsService,
     developerService: GameDeveloperService,
+    platformService: GamePlatformService,
 ) {
     route("/games") {
         post {
@@ -75,6 +78,30 @@ fun Route.gameRoutes(
     route("/game-platforms") {
         get {
             call.respond(gameService.listPlatforms().map { it.toResponse() })
+        }
+        post {
+            val (label, color) = call.receive<CreateGamePlatformRequest>().toLabelAndColor()
+            val platform = platformService.create(label, color)
+            call.response.header(HttpHeaders.Location, "/api/game-platforms/${platform.id}")
+            call.respond(HttpStatusCode.Created, platform.toResponse())
+        }
+        route("/{id}") {
+            // 404 for an unknown platform, 409 `name_taken` (with the holder) when another platform has the label.
+            patch {
+                val id = call.gamePlatformId()
+                val (label, color) = call.receive<UpdateGamePlatformRequest>().toLabelAndColor()
+                call.respond(platformService.update(id, label, color).toResponse())
+            }
+            // 404 for an unknown platform, 409 while a game still references it.
+            delete {
+                platformService.delete(call.gamePlatformId())
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+    }
+    route("/game-platforms.summaries") {
+        get {
+            call.respond(platformService.summaries().map { it.toResponse() })
         }
     }
     route("/games.meta") {
@@ -128,6 +155,9 @@ fun Route.gameRoutes(
 
 internal fun ApplicationCall.gameId(): GameId =
     GameId.parse(parameters["id"] ?: throw InvalidValueException(GameId.FIELD, "is missing"))
+
+private fun ApplicationCall.gamePlatformId(): GamePlatformId =
+    GamePlatformId.parse(parameters["id"] ?: throw InvalidValueException(GamePlatformId.FIELD, "is missing"))
 
 private fun ApplicationCall.gameDeveloperId(): GameDeveloperId =
     GameDeveloperId.parse(parameters["id"] ?: throw InvalidValueException(GameDeveloperId.FIELD, "is missing"))

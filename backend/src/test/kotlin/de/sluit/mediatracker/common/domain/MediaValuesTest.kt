@@ -47,6 +47,13 @@ class MediaValuesTest {
     }
 
     @Test
+    fun `hex color parse uppercases before validating`() {
+        assertEquals("AA00FF", HexColor.parse("aa00ff").value)
+        rejects("associatedColor") { HexColor.parse("#aa00ff") }
+        rejects("associatedColor") { HexColor.parse(" aa00ff") }
+    }
+
+    @Test
     fun `cover image url must be an absolute http(s) url of bounded length`() {
         rejects("coverImageUrl") { CoverImageUrl("") }
         rejects("coverImageUrl") { CoverImageUrl("/covers/zelda.png") }

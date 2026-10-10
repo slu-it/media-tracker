@@ -18,8 +18,11 @@ const VISUALLY_HIDDEN: CSSProperties = {
   border: 0,
 };
 
-/** Export/import of the full JSON backup: a download button and a file-picker import, each with its own status. */
-export function ExportImportTab() {
+/**
+ * Export/import of the full JSON backup: a download button and a file-picker import, each with its own status.
+ * `onDataChanged` is called after an import that inserted or updated rows.
+ */
+export function ExportImportTab({ onDataChanged }: { onDataChanged?: () => void }) {
   const { t } = useTranslation();
   const { exporting, exportError, runExport, importing, importError, importResult, runImport } = useExportImport(
     t("settings.exportImport.exportFailed"),
@@ -30,7 +33,13 @@ export function ExportImportTab() {
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = ""; // allows re-selecting the same file
-    if (file) void runImport(file);
+    if (file) {
+      void runImport(file).then((result) => {
+        if (result && Object.values(result.tables).some((table) => table.inserted > 0 || table.updated > 0)) {
+          onDataChanged?.();
+        }
+      });
+    }
   };
 
   return (
@@ -58,11 +67,12 @@ export function ExportImportTab() {
             <Stack spacing={0.5}>
               {Object.entries(importResult.tables).map(([table, result]) => (
                 <Typography key={table} variant="body2">
-                  {t("settings.exportImport.tableResult", {
-                    table,
-                    inserted: result.inserted,
-                    skipped: result.skipped,
-                  })}
+                  {t(
+                    result.updated > 0
+                      ? "settings.exportImport.tableResultUpdated"
+                      : "settings.exportImport.tableResult",
+                    { table, inserted: result.inserted, updated: result.updated, skipped: result.skipped },
+                  )}
                 </Typography>
               ))}
             </Stack>

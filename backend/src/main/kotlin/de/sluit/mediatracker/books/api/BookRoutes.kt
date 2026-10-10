@@ -10,6 +10,8 @@ import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesId
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.domain.BookTypeId
+import de.sluit.mediatracker.books.domain.BookTypeService
 import de.sluit.mediatracker.common.api.MergeVocabularyRequest
 import de.sluit.mediatracker.common.api.RenameVocabularyRequest
 import de.sluit.mediatracker.common.api.intQueryParameter
@@ -43,6 +45,7 @@ fun Route.bookRoutes(
     bookNarratorService: BookNarratorService,
     bookSeriesService: BookSeriesService,
     bookCoverOptionsService: BookCoverOptionsService,
+    bookTypeService: BookTypeService,
 ) {
     route("/books") {
         // Before `/{id}`: these are fixed paths and must not be read as book ids.
@@ -77,6 +80,30 @@ fun Route.bookRoutes(
     route("/book-types") {
         get {
             call.respond(bookService.listTypes().map { it.toResponse() })
+        }
+        post {
+            val (label, color) = call.receive<CreateBookTypeRequest>().toLabelAndColor()
+            val type = bookTypeService.create(label, color)
+            call.response.header(HttpHeaders.Location, "/api/book-types/${type.id}")
+            call.respond(HttpStatusCode.Created, type.toResponse())
+        }
+        route("/{id}") {
+            // 404 for an unknown type, 409 `name_taken` (with the holder) when another type has the label.
+            patch {
+                val id = call.bookTypeId()
+                val (label, color) = call.receive<UpdateBookTypeRequest>().toLabelAndColor()
+                call.respond(bookTypeService.update(id, label, color).toResponse())
+            }
+            // 404 for an unknown type, 409 while a book still references it.
+            delete {
+                bookTypeService.delete(call.bookTypeId())
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+    }
+    route("/book-types.summaries") {
+        get {
+            call.respond(bookTypeService.summaries().map { it.toResponse() })
         }
     }
     route("/books.meta") {
@@ -214,6 +241,9 @@ fun Route.bookRoutes(
 
 internal fun ApplicationCall.bookId(): BookId =
     BookId.parse(parameters["id"] ?: throw InvalidValueException(BookId.FIELD, "is missing"))
+
+private fun ApplicationCall.bookTypeId(): BookTypeId =
+    BookTypeId.parse(parameters["id"] ?: throw InvalidValueException(BookTypeId.FIELD, "is missing"))
 
 private fun ApplicationCall.bookSeriesId(): BookSeriesId =
     BookSeriesId.parse(parameters["id"] ?: throw InvalidValueException(BookSeriesId.FIELD, "is missing"))

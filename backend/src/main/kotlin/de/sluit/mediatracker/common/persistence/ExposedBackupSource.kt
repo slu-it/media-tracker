@@ -2,6 +2,7 @@ package de.sluit.mediatracker.common.persistence
 
 import de.sluit.mediatracker.common.domain.BackupRow
 import de.sluit.mediatracker.common.domain.BackupSource
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.TableImportResult
 import org.jetbrains.exposed.v1.core.BooleanColumnType
@@ -17,14 +18,24 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.VarCharColumnType
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+
+/**
+ * The shape of an editable label-and-colour vocabulary table (ADR 0043) for [ExposedBackupSource]: its [label] and
+ * [color] columns, and [checkLabel], which throws [InvalidValueException] when a label breaks the domain's rule
+ * (the feature passes its label value class, e.g. `{ PlatformLabel(it) }`).
+ */
+class EditableVocabulary(val label: Column<String>, val color: Column<String>, val checkLabel: (String) -> Unit)
 
 /**
  * Generic [BackupSource] over any list of Exposed [Table]s (MT-023, ADR 0027). A feature only needs
@@ -51,11 +62,23 @@ import java.time.format.DateTimeParseException
  * table, with the driver's own message only logged, never echoed to the client; any other SQL exception is
  * rethrown as-is (500).
  *
+ * A table listed in [updatableTables] (the editable vocabularies `game_platforms`, `book_types`) additionally
+ * updates an existing row whose non-key columns differ from the payload's, counted as `updated`; those updates run
+ * before the inserts, so a row renamed away from a label cannot block an inserted row taking it. A label that
+ * collides with a different row's still violates the unique index and is the same table-named 400. Updates are
+ * two-phase (every changed label first moves to a unique placeholder, then the final values are written), so a
+ * swap or chain of renames within one import does not trip the unique index on the way. Rows of such a table
+ * (to update and to insert alike) are also checked against the domain rules in [validate] through the
+ * table's [EditableVocabulary] (label rule, 6-digit hex colour) and their colour is stored uppercase.
+ *
  * Deliberately column-level only: the domain's own value-class rules (e.g. `Rating`'s quarter-star step) are
  * not re-checked on import, since this restores a previous export of the same schema rather than arbitrary
  * input (ADR 0027).
  */
-open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
+open class ExposedBackupSource(
+    private val tables: List<Table>,
+    private val updatableTables: Map<Table, EditableVocabulary> = emptyMap(),
+) : BackupSource {
     private val logger = LoggerFactory.getLogger(ExposedBackupSource::class.java)
 
     override val tableNames: List<String> = tables.map { it.tableName }
@@ -129,7 +152,29 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
             }
         }
         checkNoDuplicatePrimaryKeys(coerced)
-        return coerced
+        val vocabulary = updatableTables[this] ?: return coerced
+        return coerced.map { checkVocabularyRow(it, vocabulary) }
+    }
+
+    /** Domain rules for a row of an editable vocabulary table; returns the row with its colour uppercased. */
+    private fun Table.checkVocabularyRow(
+        row: Map<Column<*>, Any?>,
+        vocabulary: EditableVocabulary,
+    ): Map<Column<*>, Any?> {
+        val label = row.getValue(vocabulary.label) as String
+        val color = row.getValue(vocabulary.color) as String
+        try {
+            vocabulary.checkLabel(label)
+        } catch (e: InvalidValueException) {
+            throw InvalidValueException("$tableName.${vocabulary.label.name}", e.reason)
+        }
+        val canonical = color.uppercase()
+        try {
+            HexColor(canonical)
+        } catch (e: InvalidValueException) {
+            throw InvalidValueException("$tableName.${vocabulary.color.name}", e.reason)
+        }
+        return row + (vocabulary.color to canonical)
     }
 
     /**
@@ -227,32 +272,85 @@ open class ExposedBackupSource(private val tables: List<Table>) : BackupSource {
     private fun Table.importRows(rows: List<Map<Column<*>, Any?>>): TableImportResult {
         if (rows.isEmpty()) return TableImportResult(inserted = 0, skipped = 0)
         val pkColumns = primaryKey?.columns.orEmpty().toList()
-        val existing: Set<List<Any?>> = if (pkColumns.isEmpty()) {
-            emptySet()
-        } else {
-            select(pkColumns).map { row -> pkColumns.map { row[it] }.normalisedKey() }.toSet()
+        val updatable = this in updatableTables.keys
+        val existing: Map<List<Any?>, Map<Column<*>, Any?>> = when {
+            pkColumns.isEmpty() -> emptyMap()
+
+            updatable -> selectAll().associate { row ->
+                pkColumns.map { row[it] }.normalisedKey() to columns.associateWith { row[it] }
+            }
+
+            else -> select(pkColumns).associate { row ->
+                pkColumns.map { row[it] }.normalisedKey() to emptyMap()
+            }
         }
         val (toSkip, toInsert) = rows.partition { row ->
             pkColumns.isNotEmpty() && pkColumns.map { row[it] }.normalisedKey() in existing
         }
-        if (toInsert.isNotEmpty()) {
-            try {
+        val toUpdate = if (updatable) {
+            toSkip.filter { row ->
+                val stored = existing.getValue(row.keyOf(pkColumns))
+                (columns - pkColumns.toSet()).any { row[it] != stored[it] }
+            }
+        } else {
+            emptyList()
+        }
+        constraintViolationAsInvalid {
+            updatableTables[this]?.let { vocabulary ->
+                // Phase one: park every changed label on a placeholder unique per id ("~" + 36-char id fits
+                // VARCHAR(64)), freeing the labels a swap or chain of renames wants to take.
+                val relabelled = toUpdate.filter { row ->
+                    row[vocabulary.label] != existing.getValue(row.keyOf(pkColumns))[vocabulary.label]
+                }
+                relabelled.forEach { row ->
+                    updateRow(row + (vocabulary.label to "~${row[pkColumns.single()]}"), pkColumns)
+                }
+            }
+            toUpdate.forEach { row -> updateRow(row, pkColumns) }
+            if (toInsert.isNotEmpty()) {
                 batchInsert(toInsert) { row ->
                     row.forEach { (column, value) ->
                         @Suppress("UNCHECKED_CAST")
                         this[column as Column<Any?>] = value
                     }
                 }
-            } catch (e: ExposedSQLException) {
-                if (e.sqlState?.startsWith("23") != true) throw e
-                logger.warn("Backup import into '$tableName' violated a constraint", e)
-                throw InvalidValueException(
-                    tableName,
-                    "violates a constraint (duplicate key or missing referenced row)",
-                )
             }
         }
-        return TableImportResult(inserted = toInsert.size, skipped = toSkip.size)
+        return TableImportResult(
+            inserted = toInsert.size,
+            skipped = toSkip.size - toUpdate.size,
+            updated = toUpdate.size,
+        )
+    }
+
+    private fun Map<Column<*>, Any?>.keyOf(pkColumns: List<Column<*>>): List<Any?> =
+        pkColumns.map { this[it] }.normalisedKey()
+
+    /** Overwrites the non-key columns of the row [row] identifies by [pkColumns]. */
+    private fun Table.updateRow(row: Map<Column<*>, Any?>, pkColumns: List<Column<*>>) {
+        @Suppress("UNCHECKED_CAST")
+        val where = pkColumns
+            .map { (it as Column<Any?>) eq (row[it] as Any) }
+            .reduce { left, right -> left and right }
+        update({ where }) { statement ->
+            (columns - pkColumns.toSet()).forEach { column ->
+                @Suppress("UNCHECKED_CAST")
+                statement[column as Column<Any?>] = row[column]
+            }
+        }
+    }
+
+    private inline fun Table.constraintViolationAsInvalid(block: () -> Unit) {
+        try {
+            block()
+        } catch (e: ExposedSQLException) {
+            if (e.sqlState?.startsWith("23") != true) throw e
+            logger.warn("Backup import into '$tableName' violated a constraint", e)
+            throw InvalidValueException(
+                tableName,
+                "violates a constraint (duplicate key or missing referenced row)",
+            )
+        }
     }
 
     /**

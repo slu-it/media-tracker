@@ -18,12 +18,15 @@ import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesSummary
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
+import de.sluit.mediatracker.books.domain.BookTypeLabel
+import de.sluit.mediatracker.books.domain.BookTypeSummary
 import de.sluit.mediatracker.books.domain.NewBook
 import de.sluit.mediatracker.common.api.PatchField
 import de.sluit.mediatracker.common.api.PatchFieldSerializer
 import de.sluit.mediatracker.common.api.toPatch
 import de.sluit.mediatracker.common.domain.CoverImageUrl
 import de.sluit.mediatracker.common.domain.Description
+import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
@@ -82,6 +85,18 @@ data class BookSeriesLinkRequest(val seriesId: String, val position: Double? = n
 
 @Serializable
 data class BookTypeResponse(val id: String, val label: String, val associatedColor: String)
+
+/** POST /api/book-types: [associatedColor] is six hex digits without '#'; stored uppercase. */
+@Serializable
+data class CreateBookTypeRequest(val label: String, val associatedColor: String)
+
+/** PATCH /api/book-types/{id}: at least one field; an absent (or null) field keeps the stored value. */
+@Serializable
+data class UpdateBookTypeRequest(val label: String? = null, val associatedColor: String? = null)
+
+/** GET /api/book-types.summaries: a type with the number of books using it (0 allowed). */
+@Serializable
+data class BookTypeSummaryResponse(val id: String, val label: String, val associatedColor: String, val bookCount: Int)
 
 @Serializable
 data class BookAuthorResponse(val id: String, val name: String)
@@ -194,6 +209,25 @@ private fun List<BookSeriesLinkRequest>.toPositions(): Map<BookSeriesId, BookSer
 }
 
 fun BookType.toResponse() = BookTypeResponse(id = id.toString(), label = label.value, associatedColor = color.value)
+
+fun BookTypeSummary.toResponse() = BookTypeSummaryResponse(
+    id = type.id.toString(),
+    label = type.label.value,
+    associatedColor = type.color.value,
+    bookCount = bookCount,
+)
+
+/** The label and colour of a new type; the label is trimmed, the colour uppercased. */
+fun CreateBookTypeRequest.toLabelAndColor(): Pair<BookTypeLabel, HexColor> =
+    BookTypeLabel.parse(label) to HexColor.parse(associatedColor)
+
+/** The fields to change (`null`: keep); a request that changes nothing is a [InvalidValueException]. */
+fun UpdateBookTypeRequest.toLabelAndColor(): Pair<BookTypeLabel?, HexColor?> {
+    if (label == null && associatedColor == null) {
+        throw InvalidValueException(BookTypeLabel.FIELD, "at least one of label, associatedColor is required")
+    }
+    return label?.let(BookTypeLabel::parse) to associatedColor?.let(HexColor::parse)
+}
 
 fun BookAuthor.toResponse() = BookAuthorResponse(id = id.toString(), name = name.value)
 

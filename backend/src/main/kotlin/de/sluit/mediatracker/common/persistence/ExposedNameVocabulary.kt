@@ -9,10 +9,8 @@ import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.Table
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -145,12 +143,8 @@ class ExposedNameVocabulary<E>(
             }
         }
 
-    private fun findOtherByName(name: VocabularyName, exceptId: String, locked: Boolean = false): E? {
-        val query = table.selectAll().where { (this.name eq name.value) and (id neq exceptId) }
-        return (if (locked) query.forUpdate(ForUpdateOption.MariaDB.LockInShareMode) else query)
-            .singleOrNull()
-            ?.toEntity()
-    }
+    private fun findOtherByName(name: VocabularyName, exceptId: String, locked: Boolean = false): E? =
+        table.findRowByLabel(this.name, id, name.value, exceptId, locked)?.toEntity()
 
     private fun findByName(name: VocabularyName, locked: Boolean = false): E? {
         val query = table.selectAll().where { this.name eq name.value }

@@ -25,7 +25,7 @@ want to change anything (ADR 0004, 0014).
   the drift test compares defaults in both directions and the domain owns them (ADR 0017). Raw Exposed inserts
   in tests must therefore write every column.
 - Closed value sets are Kotlin enums stored as `VARCHAR(32)` wire values, never SQL `ENUM`; extensible
-  vocabulary is a seeded reference table like `game_platforms` (ADR 0009, 0017).
+  vocabulary is a seeded reference table like `game_platforms` (ADR 0009, 0017), editable in the settings dialog (ADR 0043).
 - Sequences owned by a service (like `game_expansions.sequence`) get no `UNIQUE` constraint when a move rewrites
   several rows in one transaction (ADR 0023).
 - Migrations run at startup; the app never alters the schema itself.

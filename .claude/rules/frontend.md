@@ -7,11 +7,12 @@ paths:
 
 ADR 0008 for the stack, ADR 0020 for the theme toggle. Feature layout `src/features/<kind>/{api,domain,hooks,components}`
 + `<Kind>View.tsx`; `games` and `books` are the templates. Kind-neutral code is shared (ADR 0034):
-`src/components/media/` (UI, incl. `status/`, `filters/`, `fields/`, `cover/`, `groups/`; ADR 0039 for the cover picker and
-`SuggestingTitleField`, ADR 0042 for the group views), `src/domain/media/` (validators, codecs, draft
+`src/components/media/` (UI, incl. `status/`, `filters/`, `fields/`, `cover/`, `groups/`, `coloredVocabulary/`; ADR 0039 for the cover picker and
+`SuggestingTitleField`, ADR 0042 for the group views, ADR 0043 for the colour picker and the configuration editor), `src/domain/media/` (validators, codecs, draft
 helpers), `src/hooks/`. Shared code never imports from `src/features/**` and builds no i18n key from a kind name:
-kind-neutral strings live under `media.*`, kind-specific texts are passed in as props (the group views take a translated
-`labels` object). Feature details are in
+kind-neutral strings live under `media.*`, kind-specific texts are passed in as props (the group views and the configuration editor take a translated
+`labels` object). Features import no other feature, with one exception: `features/settings` composes the settings tabs
+that `features/<kind>` owns (`BooksConfigurationTab`, `GamesConfigurationTab`); a kind never imports from settings. Feature details are in
 `docs/features/`.
 
 - **MUI 9**: `sx` prop, `slotProps.*`, icons imported by path (`@mui/icons-material/<Name>`; the barrel import
@@ -23,7 +24,11 @@ kind-neutral strings live under `media.*`, kind-specific texts are passed in as 
   not selects.
 - **i18n**: every UI string goes through `t()` and must exist in both `src/i18n/en.json` and `de.json` (a test
   compares the key sets). Platform and book type labels come from the database (`/api/game-platforms`, `/api/book-types`), not from
-  bundles.
+  bundles, and the owner can change them in the settings (ADR 0043).
+- **Data revision**: a change made in the settings dialog (types, platforms, an import) reaches the open view by
+  remounting it: `SettingsButton` bumps `useDataRevision()` on close (or at once for a change that
+  resolves after the dialog closed) and `App.tsx` keys the routed `Container` with it.
+  View state therefore has to live in the URL (next rule), never only in component state that should survive.
 - **react-refresh / react-hooks**: hooks, constants and validators live in non-component files;
   `set-state-in-effect` is an error, so derive resets from state (pair the stored value with the inputs it was
   chosen for) instead of syncing in an effect.

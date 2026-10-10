@@ -3,11 +3,13 @@ package de.sluit.mediatracker.games
 import de.sluit.mediatracker.appWithUser
 import de.sluit.mediatracker.common.api.ErrorResponse
 import de.sluit.mediatracker.common.api.PageResponse
+import de.sluit.mediatracker.common.persistence.resetSeededReferenceData
 import de.sluit.mediatracker.decodeBody
 import de.sluit.mediatracker.games.api.GameDeveloperResponse
 import de.sluit.mediatracker.games.api.GameDeveloperSummaryResponse
 import de.sluit.mediatracker.games.api.GameMetaResponse
 import de.sluit.mediatracker.games.api.GamePlatformResponse
+import de.sluit.mediatracker.games.api.GamePlatformSummaryResponse
 import de.sluit.mediatracker.games.api.GameResponse
 import de.sluit.mediatracker.games.persistence.GameDevelopersTable
 import de.sluit.mediatracker.games.persistence.GameToPlatformTable
@@ -178,6 +180,37 @@ class GamesSmokeTest {
 
     private suspend fun HttpClient.createdDeveloper(name: String): GameDeveloperResponse =
         post("/api/game-developers") { jsonBody("""{"name":"$name"}""") }.decodeBody()
+
+    @Test
+    fun `game platforms can be created edited listed with counts and deleted`() = testApplication {
+        resetSeededReferenceData()
+        val client = loggedInClient()
+
+        val created = client.post("/api/game-platforms") {
+            jsonBody("""{"label":" Switch 2 ","associatedColor":"ff00ff"}""")
+        }
+        assertEquals(HttpStatusCode.Created, created.status)
+        val switch = created.decodeBody<GamePlatformResponse>()
+        assertEquals("/api/game-platforms/${switch.id}", created.headers["Location"])
+        assertEquals(GamePlatformResponse(switch.id, "Switch 2", "FF00FF"), switch)
+
+        val patched = client.patch("/api/game-platforms/${switch.id}") {
+            jsonBody("""{"label":"Switch Two","associatedColor":"00ff00"}""")
+        }.decodeBody<GamePlatformResponse>()
+        assertEquals(GamePlatformResponse(switch.id, "Switch Two", "00FF00"), patched)
+
+        val celeste = client.createdGame(
+            """{"title":"Celeste","releaseYear":2018,"platformIds":["${switch.id}"]}""",
+        )
+        val summaries = client.get("/api/game-platforms.summaries").decodeBody<List<GamePlatformSummaryResponse>>()
+        assertEquals(
+            listOf("Nintendo" to 0, "PC" to 0, "PlayStation" to 0, "Switch Two" to 1, "Xbox" to 0),
+            summaries.map { it.label to it.gameCount },
+        )
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/games/${celeste.id}").status)
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/game-platforms/${switch.id}").status)
+    }
 
     @Test
     fun `developer summaries and developer games list counts and games in release order`() = testApplication {
@@ -412,6 +445,7 @@ class GamesSmokeTest {
 
     @Test
     fun `game-platforms lists the four seeded platforms sorted by label`() = testApplication {
+        resetSeededReferenceData()
         val client = loggedInClient()
 
         val platforms = client.get("/api/game-platforms").decodeBody<List<GamePlatformResponse>>()

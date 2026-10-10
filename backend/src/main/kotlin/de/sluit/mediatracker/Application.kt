@@ -18,6 +18,7 @@ import de.sluit.mediatracker.books.domain.BookCoverOptionsService
 import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
+import de.sluit.mediatracker.books.domain.BookTypeService
 import de.sluit.mediatracker.books.integration.AudibleAudiobookSource
 import de.sluit.mediatracker.books.integration.OpenLibraryWorkSource
 import de.sluit.mediatracker.books.persistence.ExposedBookAuthorRepository
@@ -36,6 +37,7 @@ import de.sluit.mediatracker.dropbox.persistence.ExposedDropboxConnectionReposit
 import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameDeveloperService
+import de.sluit.mediatracker.games.domain.GamePlatformService
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.integration.SteamGridDbCoverSource
 import de.sluit.mediatracker.games.integration.steamGridDbHttpClient
@@ -73,6 +75,8 @@ class Services(
     val bookNarrators: BookNarratorService,
     val bookSeries: BookSeriesService,
     val bookCoverOptions: BookCoverOptionsService,
+    val bookTypes: BookTypeService,
+    val gamePlatforms: GamePlatformService,
 )
 
 /**
@@ -117,19 +121,23 @@ fun Application.module() {
     val sessionRepository = ExposedSessionRepository()
     val authService = AuthService(userRepository, passwordHasher, sessionRepository)
     val gameRepository = ExposedGameRepository()
+    val gamePlatformRepository = ExposedGamePlatformRepository()
     val gameDeveloperRepository = ExposedGameDeveloperRepository()
-    val gameService = GameService(gameRepository, ExposedGamePlatformRepository(), gameDeveloperRepository)
+    val gameService = GameService(gameRepository, gamePlatformRepository, gameDeveloperRepository)
     val gameDeveloperService = GameDeveloperService(gameDeveloperRepository)
+    val gamePlatformService = GamePlatformService(gamePlatformRepository)
     val bookAuthorRepository = ExposedBookAuthorRepository()
     val bookNarratorRepository = ExposedBookNarratorRepository()
     val bookSeriesRepository = ExposedBookSeriesRepository()
+    val bookTypeRepository = ExposedBookTypeRepository()
     val bookService = BookService(
         ExposedBookRepository(),
-        ExposedBookTypeRepository(),
+        bookTypeRepository,
         bookAuthorRepository,
         bookNarratorRepository,
         bookSeriesRepository,
     )
+    val bookTypeService = BookTypeService(bookTypeRepository)
     val bookAuthorService = BookAuthorService(bookAuthorRepository)
     val bookNarratorService = BookNarratorService(bookNarratorRepository)
     val bookSeriesService = BookSeriesService(bookSeriesRepository)
@@ -191,6 +199,8 @@ fun Application.module() {
         bookNarratorService,
         bookSeriesService,
         bookCoverOptionsService,
+        bookTypeService,
+        gamePlatformService,
     )
 
     configureHttp(services, config.session, DbSessionStorage(sessionRepository, config.session.maxAge))
