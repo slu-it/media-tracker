@@ -48,3 +48,9 @@ export function releaseDistance(releaseDate: string, today: Dayjs = dayjs()): st
   if (!parts) return "P0D";
   return `${totalMonths < 0 || days < 0 ? "-" : ""}P${parts}`;
 }
+
+/** True when the release calendar date is today or earlier; like `releaseDistance`, only the local date of `today` counts. */
+export function isReleased(releaseDate: string, today: Dayjs = dayjs()): boolean {
+  const [y, m, d] = releaseDate.split("-").map(Number);
+  return epochDay(y, m, d) <= epochDay(today.year(), today.month() + 1, today.date());
+}
