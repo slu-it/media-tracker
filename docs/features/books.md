@@ -33,7 +33,7 @@ expansions. Covers and title suggestions come from Open Library and the Audible 
 - **Narrators** (MT-042) work like authors, in `book_narrators` through `book_to_narrator`, including rename, merge
   and delete from the narrators view (ADR 0042). They are meant for audiobooks but can be set on any book.
 - **Series** (MT-042) are the same kind of vocabulary in `book_series`, linked through `book_to_series`, which
-  carries an optional `position DECIMAL(6,2)` (`BookSeriesPosition`: 0 to 9999.99, at most two decimals, so
+  carries an optional `position DECIMAL(6,2)` (`SeriesPosition` in `common/domain`, shared with game series (ADR 0044): 0 to 9999.99, at most two decimals, so
   novellas can be #2.5 and prequels #0). A book is in a series at most once, and may be in several, each with its
   own number (ADR 0035). Series can be renamed, merged and (when unreferenced) deleted from the series view, like authors (ADR 0041).
 - Authors, narrators and series of a book are ordered by name.
@@ -97,7 +97,7 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
   half opacity (`desaturateCover` on `MediaCardShell`, as for games); the detail dialog keeps it in full colour.
 - The overview card (`BookCard` without `seriesPosition`, used by the overview and the authors view) shows one
   series under the title as an outlined chip ("Wax and Wayne #1", or just the name; long names ellipsized): the
-  book's primary series by the heuristic `primarySeries` (`domain/seriesLabel.ts`). The lowest position wins, an
+  book's primary series by the heuristic `primarySeries` (shared `src/domain/media/seriesLabel.ts` since ADR 0044, also used by game cards). The lowest position wins, an
   entry without a position ranks after every number, and ties go to the name. So a sub-series beats its umbrella
   ("Wax and Wayne #1" over "The Mistborn Saga #4" and the unnumbered "The Cosmere"). The detail dialog lists all
   series. The type chips follow with the card's regular gap (the same as between types and status icons). Series
@@ -112,8 +112,8 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 - `BookDetailDialog` mirrors the game dialog: view mode with quick ownership and progress PATCHes, edit with
   `BookForm`, delete with confirmation. New authors, narrators and series typed in `AuthorsField`,
   `NarratorsField` and `SeriesField` are created on save before the book (`resolveAuthorIds`,
-  `resolveNarratorIds`, `resolveSeries`). The form order is authors, narrators, series.
-- `SeriesField` wraps the shared `VocabularyField` and adds one number input per selected series below the chips
+  `resolveNarratorIds`, `resolveSeries` over the shared `resolveSeriesLinks`). The form order is authors, narrators, series.
+- `SeriesField` (shared in `components/media/fields/` with games since ADR 0044, texts under `media.series.*`) wraps the shared `VocabularyField` and adds one number input per selected series below the chips
   (`validateSeriesPosition`, `.` or `,` as decimal separator). A number survives when its pending chip is upgraded
   to an existing series. The detail view shows the series as unlabelled chips ("Mistborn #1", the number
   formatted for the active language; a `group` named "Series" for screen readers) between the title and the

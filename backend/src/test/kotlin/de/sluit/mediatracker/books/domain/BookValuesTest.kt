@@ -13,7 +13,6 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.Title
-import java.math.BigDecimal
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -89,36 +88,6 @@ class BookValuesTest {
         rejects("series") {
             Book(BookId.new(), Title("Dune"), ReleaseYear(1965), series = listOf(seriesEntry(zed), seriesEntry(able)))
         }
-    }
-
-    @Test
-    fun `a series position accepts the boundaries and normalises trailing zeros`() {
-        assertEquals(BigDecimal.ZERO, BookSeriesPosition.fromDouble(0.0).value)
-        assertEquals(BigDecimal("9999.99"), BookSeriesPosition.fromDouble(9999.99).value)
-        assertEquals(BigDecimal("2.5"), BookSeriesPosition.fromDouble(2.5).value)
-        assertEquals(BookSeriesPosition.fromDouble(2.5), BookSeriesPosition.of(BigDecimal("2.50")))
-        assertEquals("1", BookSeriesPosition.fromDouble(1.0).toString())
-        assertEquals("10", BookSeriesPosition.of(BigDecimal("10.00")).toString())
-        assertEquals("0.25", BookSeriesPosition.fromDouble(0.25).toString())
-    }
-
-    @Test
-    fun `a series position rejects a value that is not normalised`() {
-        rejects("series") { BookSeriesPosition(BigDecimal("2.50")) }
-        rejects("series") { BookSeriesPosition(BigDecimal("1E+1")) }
-        rejects("series") { BookSeriesPosition(BigDecimal("0.00")) }
-        assertEquals(BigDecimal("10"), BookSeriesPosition(BigDecimal("10")).value)
-        assertEquals(BigDecimal.ZERO, BookSeriesPosition(BigDecimal.ZERO).value)
-    }
-
-    @Test
-    fun `a series position rejects negative, too large and too precise numbers`() {
-        rejects("series") { BookSeriesPosition.fromDouble(-1.0) }
-        rejects("series") { BookSeriesPosition.fromDouble(10000.0) }
-        rejects("series") { BookSeriesPosition.fromDouble(9999.991) }
-        rejects("series") { BookSeriesPosition.fromDouble(1.234) }
-        rejects("series") { BookSeriesPosition.fromDouble(Double.NaN) }
-        rejects("series") { BookSeriesPosition.fromDouble(Double.POSITIVE_INFINITY) }
     }
 
     @Test

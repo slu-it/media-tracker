@@ -28,13 +28,13 @@ per-kind status enums, `Vocabulary`, `CoverOption`, `RankableMatch`/`selectBestM
 DTOs (incl. `CoverOptionResponse`), paging, `?search` parsing (`Search.kt`),
 `PatchField` (absent / null / value), filter query parsing (`QueryParams`) and the MCP helpers (`McpToolArguments`,
 `McpSchemas`, `VocabularyMcpTools`), `common/persistence` HikariCP, Flyway, `dbQuery`, the fulltext and title
-search helpers, `ExposedNameVocabulary` (ADR 0034), `VocabularyLinks` (guarded delete and merge of an entry over
-a plain link table, ADR 0042) and `ExposedColoredVocabulary` (create, update, delete and summaries of a label-and-colour
+search helpers, `ExposedNameVocabulary` (ADR 0034), `common/domain/SeriesPosition` (ADR 0044), `VocabularyLinks` (guarded delete and merge of an entry over
+a plain link table, ADR 0042), `SeriesLinks` (merge over a link table with a nullable position, ADR 0044) and `ExposedColoredVocabulary` (create, update, delete and summaries of a label-and-colour
 reference table like book types and platforms, ADR 0043). Use these before writing a kind-specific copy.
 
 **Wiring** (`Application.kt`): `module()` does config -> `DatabaseFactory.connect` ->
 `DatabaseFactory.warnOnSchemaDrift(database, allTables)` -> `Services(auth, games, apiKeys, expansions,
-coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions, bookTypes, gamePlatforms)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
+coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions, bookTypes, gamePlatforms, gameSeries)` from Exposed repositories (and the SteamGridDB and Dropbox HTTP clients
 only when their keys are configured; the keyless Open Library and Audible clients always) -> `launch { BackupScheduler(...).run() }` on the application scope (ADR
 0028) ->
 `configureHttp(services, sessionConfig, DbSessionStorage)`. `configureHttp` is everything above the

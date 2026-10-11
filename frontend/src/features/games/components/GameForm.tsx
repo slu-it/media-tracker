@@ -12,6 +12,8 @@ import { OwnershipToggleBar } from "./OwnershipToggleBar";
 import { ProgressToggleBar } from "./ProgressToggleBar";
 import { CoverImageUrlField } from "../../../components/media/fields/CoverImageUrlField";
 import { DescriptionField } from "../../../components/media/fields/DescriptionField";
+import { SeriesField } from "../../../components/media/fields/SeriesField";
+import { searchGameSeries } from "../api/gamesApi";
 import { DevelopersField } from "./fields/DevelopersField";
 import { GameTitleField } from "./fields/GameTitleField";
 import { HiddenField } from "./fields/HiddenField";
@@ -127,6 +129,13 @@ export function GameForm({ value, onChange, platforms, disabled, showErrors, onV
             value={value.developers}
             onChange={(developers) => onChange({ ...value, developers })}
             disabled={disabled}
+          />
+          <SeriesField
+            value={value.series}
+            onChange={(series) => onChange({ ...value, series })}
+            fetchSuggestions={searchGameSeries}
+            disabled={disabled}
+            showErrors={showErrors}
           />
           <HiddenField value={value.hidden} onChange={(hidden) => onChange({ ...value, hidden })} disabled={disabled} />
           <CoverImageUrlField

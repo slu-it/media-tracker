@@ -5,6 +5,7 @@ import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 
 /**
  * Business use cases for books. Deliberately thin while the feature is plain CRUD; decisions that do not
@@ -133,7 +134,7 @@ class BookService(
         return found.sortedByNameForBook()
     }
 
-    private suspend fun resolveSeries(positions: Map<BookSeriesId, BookSeriesPosition?>): List<BookSeriesEntry> {
+    private suspend fun resolveSeries(positions: Map<BookSeriesId, SeriesPosition?>): List<BookSeriesEntry> {
         if (positions.isEmpty()) return emptyList()
         val found = series.findByIds(positions.keys)
         val missing = positions.keys - found.map { it.id }.toSet()

@@ -14,7 +14,6 @@ import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookSeries
 import de.sluit.mediatracker.books.domain.BookSeriesEntry
 import de.sluit.mediatracker.books.domain.BookSeriesId
-import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesSummary
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
@@ -30,6 +29,7 @@ import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.InvalidValueException
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.releaseYearFromYearOrDate
 import kotlinx.serialization.Serializable
@@ -197,11 +197,11 @@ fun UpdateBookRequest.toPatch() = BookPatch(
 )
 
 /** A series may be linked once per book; a repeated id is a client error, not something to merge silently. */
-private fun List<BookSeriesLinkRequest>.toPositions(): Map<BookSeriesId, BookSeriesPosition?> {
-    val positions = LinkedHashMap<BookSeriesId, BookSeriesPosition?>()
+private fun List<BookSeriesLinkRequest>.toPositions(): Map<BookSeriesId, SeriesPosition?> {
+    val positions = LinkedHashMap<BookSeriesId, SeriesPosition?>()
     forEach { link ->
         val id = BookSeriesId.parse(link.seriesId)
-        val position = link.position?.let(BookSeriesPosition::fromDouble)
+        val position = link.position?.let(SeriesPosition::fromDouble)
         if (positions.containsKey(id)) throw InvalidValueException(BookSeriesId.FIELD, "must not contain duplicates")
         positions[id] = position
     }

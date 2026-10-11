@@ -22,6 +22,7 @@ import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.game
+import de.sluit.mediatracker.games.seriesEntry
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -205,9 +206,9 @@ class ExposedGameRepositoryTest {
         (3..5).forEach { repo.insert(game("G$it", platforms = twoPlatforms)) }
         val countWithFiveGames = countStatements(db.database) { repo.findPage(PageRequest()) }
 
-        // findPage issues exactly four SELECT statements regardless of page size: the total count, the page of
-        // games, and one join query each that loads every game's platforms and developers at once.
-        assertEquals(4, countWithTwoGames)
+        // findPage issues exactly five SELECT statements regardless of page size: the total count, the page of
+        // games, and one join query each that loads every game's platforms, developers and series at once.
+        assertEquals(5, countWithTwoGames)
         assertEquals(countWithTwoGames, countWithFiveGames)
     }
 
@@ -536,7 +537,7 @@ class ExposedGameRepositoryTest {
             repo.search(SearchTerm("hades"), GameFilters.NONE, PageRequest())
         }
 
-        assertEquals(4, countWithTwoGames)
+        assertEquals(5, countWithTwoGames)
         assertEquals(countWithTwoGames, countWithFiveGames)
     }
 
@@ -1076,7 +1077,160 @@ class ExposedGameRepositoryTest {
         insertGames(3..5)
         val countWithFiveGames = countStatements(db.database) { repo.findByDeveloper(nintendo.id) }
 
-        assertEquals(3, countWithTwoGames)
+        assertEquals(4, countWithTwoGames)
+        assertEquals(countWithTwoGames, countWithFiveGames)
+    }
+
+    // series
+
+    @Test
+    fun `insert then findById round-trips series with and without a position sorted by series name`() =
+        withFreshDatabase {
+            val seriesRepo = ExposedGameSeriesRepository()
+            val zelda = seriesRepo.create(VocabularyName("The Legend of Zelda")).entry
+            val mario = seriesRepo.create(VocabularyName("Mario")).entry
+            val repo = ExposedGameRepository()
+            val inserted = game("Ocarina of Time", series = listOf(seriesEntry(zelda), seriesEntry(mario, 2.5)))
+            repo.insert(inserted)
+
+            val found = repo.findById(inserted.id)
+
+            assertEquals(listOf(seriesEntry(mario, 2.5), seriesEntry(zelda)), found?.series)
+            assertEquals(inserted, found)
+        }
+
+    @Test
+    fun `a series position at the column limits and zero round-trips`() = withFreshDatabase {
+        val seriesRepo = ExposedGameSeriesRepository()
+        val a = seriesRepo.create(VocabularyName("A")).entry
+        val b = seriesRepo.create(VocabularyName("B")).entry
+        val c = seriesRepo.create(VocabularyName("C")).entry
+        val repo = ExposedGameRepository()
+        val inserted = game("Edge", series = listOf(seriesEntry(a, 0.0), seriesEntry(b, 9999.99), seriesEntry(c, 10.0)))
+        repo.insert(inserted)
+
+        assertEquals(inserted, repo.findById(inserted.id))
+    }
+
+    @Test
+    fun `update replaces the series links and positions exactly`() = withFreshDatabase {
+        val seriesRepo = ExposedGameSeriesRepository()
+        val mario = seriesRepo.create(VocabularyName("Mario")).entry
+        val zelda = seriesRepo.create(VocabularyName("The Legend of Zelda")).entry
+        val repo = ExposedGameRepository()
+        val original = game("Ocarina of Time", series = listOf(seriesEntry(mario, 1.0)))
+        repo.insert(original)
+
+        assertTrue(repo.update(original.copy(series = listOf(seriesEntry(mario, 2.5), seriesEntry(zelda)))))
+
+        assertEquals(listOf(seriesEntry(mario, 2.5), seriesEntry(zelda)), repo.findById(original.id)?.series)
+        val linkCount = transaction {
+            GameToSeriesTable.selectAll().where { GameToSeriesTable.gameId eq original.id.toString() }.count()
+        }
+        assertEquals(2, linkCount)
+    }
+
+    @Test
+    fun `update clears the series links when the game has none anymore`() = withFreshDatabase {
+        val mario = ExposedGameSeriesRepository().create(VocabularyName("Mario")).entry
+        val repo = ExposedGameRepository()
+        val original = game("Ocarina of Time", series = listOf(seriesEntry(mario, 1.0)))
+        repo.insert(original)
+
+        repo.update(original.copy(series = emptyList()))
+
+        assertEquals(emptyList(), repo.findById(original.id)?.series)
+    }
+
+    @Test
+    fun `deleteById cascades to the series links but keeps the vocabulary`() = withFreshDatabase {
+        val mario = ExposedGameSeriesRepository().create(VocabularyName("Mario")).entry
+        val repo = ExposedGameRepository()
+        val inserted = game("Ocarina of Time", series = listOf(seriesEntry(mario, 1.0)))
+        repo.insert(inserted)
+
+        repo.deleteById(inserted.id)
+
+        transaction {
+            assertEquals(0, GameToSeriesTable.selectAll().count())
+            assertEquals(1, GameSeriesTable.selectAll().count())
+        }
+    }
+
+    @Test
+    fun `findBySeries orders by position with unnumbered games last by title`() = withFreshDatabase {
+        val mario = ExposedGameSeriesRepository().create(VocabularyName("Mario")).entry
+        val repo = ExposedGameRepository()
+        val unnumberedB = game("B Spinoff", series = listOf(seriesEntry(mario)))
+        val numbered25 = game("Z Interlude", series = listOf(seriesEntry(mario, 2.5)))
+        val unnumberedA = game("A Companion", series = listOf(seriesEntry(mario)))
+        val numbered1 = game("Y Second", series = listOf(seriesEntry(mario, 1.0)))
+        val numbered0 = game("X Prequel", series = listOf(seriesEntry(mario, 0.0)))
+        listOf(unnumberedB, numbered25, unnumberedA, numbered1, numbered0).forEach { repo.insert(it) }
+
+        val found = repo.findBySeries(mario.id)
+
+        assertEquals(
+            listOf("X Prequel", "Y Second", "Z Interlude", "A Companion", "B Spinoff"),
+            found.map { it.title.value },
+        )
+    }
+
+    @Test
+    fun `findBySeries returns only the games of that series and an empty list for an empty one`() = withFreshDatabase {
+        val seriesRepo = ExposedGameSeriesRepository()
+        val mario = seriesRepo.create(VocabularyName("Mario")).entry
+        val zelda = seriesRepo.create(VocabularyName("Zelda")).entry
+        val empty = seriesRepo.create(VocabularyName("Empty")).entry
+        val repo = ExposedGameRepository()
+        val inMario = game("Super Mario Bros", series = listOf(seriesEntry(mario, 1.0)))
+        repo.insert(inMario)
+        repo.insert(game("Ocarina of Time", series = listOf(seriesEntry(zelda, 1.0))))
+        repo.insert(game("Standalone"))
+
+        assertEquals(listOf(inMario.id), repo.findBySeries(mario.id).map { it.id })
+        assertEquals(emptyList(), repo.findBySeries(empty.id))
+    }
+
+    @Test
+    fun `findBySeries hydrates platforms developers and all series of the game`() = withFreshDatabase {
+        val nintendo = ExposedGameDeveloperRepository().create(VocabularyName("Nintendo EPD")).entry
+        val seriesRepo = ExposedGameSeriesRepository()
+        val mario = seriesRepo.create(VocabularyName("Mario")).entry
+        val zelda = seriesRepo.create(VocabularyName("The Legend of Zelda")).entry
+        val repo = ExposedGameRepository()
+        val inserted = game(
+            "Crossover",
+            platforms = listOf(Platforms.PC, Platforms.NINTENDO),
+            developers = listOf(nintendo),
+            series = listOf(seriesEntry(mario, 1.0), seriesEntry(zelda, 3.0)),
+        )
+        repo.insert(inserted)
+
+        assertEquals(listOf(inserted), repo.findBySeries(mario.id))
+    }
+
+    @Test
+    fun `findBySeries loads a series with a constant number of queries`() = withFreshDatabase { db ->
+        val mario = ExposedGameSeriesRepository().create(VocabularyName("Mario")).entry
+        val repo = ExposedGameRepository()
+        suspend fun insertGames(range: IntRange) = range.forEach {
+            repo.insert(
+                game(
+                    "G$it",
+                    platforms = listOf(Platforms.PC, Platforms.XBOX),
+                    series = listOf(seriesEntry(mario, it.toDouble())),
+                ),
+            )
+        }
+        insertGames(1..2)
+
+        val countWithTwoGames = countStatements(db.database) { repo.findBySeries(mario.id) }
+
+        insertGames(3..5)
+        val countWithFiveGames = countStatements(db.database) { repo.findBySeries(mario.id) }
+
+        assertEquals(4, countWithTwoGames)
         assertEquals(countWithTwoGames, countWithFiveGames)
     }
 }

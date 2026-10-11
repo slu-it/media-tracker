@@ -121,7 +121,8 @@
       "authors": "Autoren",
       "narrators": "Sprecher",
       "developers": "Entwickler",
-      "series": "Buchreihen"
+      "bookSeries": "Buchreihen",
+      "gameSeries": "Spielreihen"
     }
   },
   "media": {
@@ -166,6 +167,13 @@
     },
     "vocabulary": {
       "add": "„{{name}}“ hinzufügen"
+    },
+    "series": {
+      "label": "Reihen",
+      "hint": "Namen eingeben und Enter drücken, um eine neue Reihe hinzuzufügen",
+      "position": "Nr.",
+      "entry": "{{name}} #{{position}}",
+      "positionBadge": "#{{position}}"
     },
     "colors": {
       "grey": "Grau",
@@ -279,8 +287,7 @@
       "nameTaken": "Es gibt bereits eine Reihe „{{existing}}“. „{{name}}“ damit zusammenführen?",
       "sortByVolume": "Meiste Bücher",
       "merge": "Zusammenführen",
-      "chooseOtherName": "Anderen Namen wählen",
-      "positionBadge": "#{{position}}"
+      "chooseOtherName": "Anderen Namen wählen"
     },
     "search": {
       "label": "Bücher suchen",
@@ -297,11 +304,7 @@
       "authors": "Autoren",
       "authorsHint": "Namen eingeben und Enter drücken, um einen neuen Autor hinzuzufügen",
       "narrators": "Sprecher",
-      "narratorsHint": "Namen eingeben und Enter drücken, um einen neuen Sprecher hinzuzufügen",
-      "series": "Reihen",
-      "seriesHint": "Namen eingeben und Enter drücken, um eine neue Reihe hinzuzufügen",
-      "seriesPosition": "Nr.",
-      "seriesEntry": "{{name}} #{{position}}"
+      "narratorsHint": "Namen eingeben und Enter drücken, um einen neuen Sprecher hinzuzufügen"
     },
     "ownership": {
       "watchlist": "Merkliste",
@@ -375,6 +378,26 @@
       "renameTitle": "Entwickler umbenennen",
       "nameLabel": "Name",
       "nameTaken": "Es gibt bereits einen Entwickler „{{existing}}“. „{{name}}“ damit zusammenführen?",
+      "sortByVolume": "Meiste Spiele",
+      "merge": "Zusammenführen",
+      "chooseOtherName": "Anderen Namen wählen"
+    },
+    "seriesView": {
+      "searchLabel": "Reihen suchen",
+      "searchPlaceholder": "Reihen suchen…",
+      "count_one": "{{count}} Reihe",
+      "count_other": "{{count}} Reihen",
+      "gameCount_one": "{{count}} Spiel",
+      "gameCount_other": "{{count}} Spiele",
+      "empty": "Noch keine Reihen. Lege eine an, während du ein Spiel bearbeitest.",
+      "noSearchResults": "Keine Reihen passen zu „{{term}}“",
+      "noGames": "Keine Spiele in dieser Reihe",
+      "deleteLabel": "Reihe {{name}} löschen",
+      "deleteQuestion": "Reihe „{{name}}“ löschen?",
+      "editLabel": "Reihe {{name}} umbenennen",
+      "renameTitle": "Reihe umbenennen",
+      "nameLabel": "Name",
+      "nameTaken": "Es gibt bereits eine Reihe „{{existing}}“. „{{name}}“ damit zusammenführen?",
       "sortByVolume": "Meiste Spiele",
       "merge": "Zusammenführen",
       "chooseOtherName": "Anderen Namen wählen"

@@ -125,3 +125,39 @@ describe("GameForm release date/year", () => {
     expect(onValidityChange).toHaveBeenLastCalledWith(true);
   });
 });
+
+describe("GameForm series", () => {
+  it("shows the series field below the developers field", () => {
+    mockApi({});
+    renderWithProviders(<Harness initial={emptyGameDraft()} />);
+    const developers = screen.getByRole("combobox", { name: /developers/i });
+    const series = screen.getByRole("combobox", { name: /series/i });
+    expect(developers.compareDocumentPosition(series) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows a position field per selected series and reports its edit", async () => {
+    const user = userEvent.setup();
+    mockApi({});
+    renderWithProviders(
+      <Harness
+        initial={{ ...emptyGameDraft(), series: [{ entry: { id: "s1", name: "Hades Saga" }, position: "1" }] }}
+      />,
+    );
+    const position = screen.getByRole("textbox", { name: "No. Hades Saga" });
+    expect(position).toHaveValue("1");
+    await user.clear(position);
+    await user.click(position);
+    await user.paste("2,5");
+    expect(screen.getByRole("textbox", { name: "No. Hades Saga" })).toHaveValue("2,5");
+  });
+
+  it("suggests series from the game series vocabulary", async () => {
+    const user = userEvent.setup();
+    const calls = mockApi({ "GET /api/game-series": () => jsonResponse([{ id: "s1", name: "Hades Saga" }]) });
+    renderWithProviders(<Harness initial={emptyGameDraft()} />);
+    await user.click(screen.getByRole("combobox", { name: /series/i }));
+    await user.paste("Had");
+    expect(await screen.findByRole("option", { name: "Hades Saga" })).toBeInTheDocument();
+    expect(calls[0].url).toMatch(/^\/api\/game-series\?search=Had&limit=\d+$/);
+  });
+});

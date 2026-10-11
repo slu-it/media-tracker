@@ -69,7 +69,8 @@ on that route, so a session cookie never opens `/mcp` and an API key never opens
   `search_games`; `add_expansion` appends) and `find_game_cover` (`title`, optional `releaseYear`: the first static
   SteamGridDB cover of the best match, only registered when `STEAMGRIDDB_API_KEY` is set), plus
   `search_game_developers` and `create_game_developer` (idempotent) for the `developerIds` of `add_game`/`update_game`
-  (decision record 0029), all in `games/api/GameMcpTools.kt`. Books contributes the equivalents in
+  (decision record 0029) and `search_game_series` and `create_game_series` for its `series` (decision record 0044),
+  all in `games/api/GameMcpTools.kt`. Books contributes the equivalents in
   `books/api/BookMcpTools.kt` (decision record 0034): `list_book_types`, `add_book`, `search_books` (query and the
   filters `typeIds`, `ownership`, `progress`, `releaseYears`, `hasMissing`, `sort`, `pageSize`; no `rated`),
   `update_book` (`description`, `coverImageUrl` and `releaseDate` clearable), `search_book_authors`,
@@ -123,7 +124,8 @@ de.sluit.mediatracker
 │                       FilterOps (inListIfAny), ExposedNameVocabulary (search, findByIds, race-safe idempotent
 │                       create and rename of a unique-name vocabulary), ForeignKeyViolation (MariaDB 1451/1062
 │                       predicates, orOnForeignKeyViolation), VocabularyLinks (deleteUnusedVocabularyEntry,
-│                       mergeVocabularyEntries over a plain link table, record 0042)
+│                       mergeVocabularyEntries over a plain link table, record 0042), SeriesLinks
+│                       (mergeSeriesEntries keeping positions, record 0044)
 ├── plugins/            Serialization, Monitoring, StatusPages
 ├── auth/               CreateUser (bootstrap CLI) plus the same three layers as a media kind:
 │   ├── api/            LoginRoutes (/login, /logout), MeRoutes (/api/me), ApiKeyRoutes (/api/me/api-keys),
@@ -161,7 +163,7 @@ de.sluit.mediatracker
 │   │                   BookMcpTools (list_book_types, add_book, search_books, update_book, search/create for
 │   │                   book authors, narrators and series, find_book_cover)
 │   ├── domain/         BookValues (BookId, BookTypeId, BookTypeLabel, BookAuthorId, BookNarratorId,
-│   │                   BookSeriesId, BookSeriesPosition), BookStatus (BookOwnership, BookProgress),
+│   │                   BookSeriesId; positions are the shared common/domain SeriesPosition), BookStatus (BookOwnership, BookProgress),
 │   │                   Book/NewBook/BookPatch, BookType, BookAuthor, BookNarrator, BookSeries/BookSeriesEntry/
 │   │                   BookSeriesSummary,
 │   │                   BookFilters (incl. BookMissingField)/BookMeta, BookRepository, BookTypeRepository,
@@ -179,17 +181,20 @@ de.sluit.mediatracker
 └── games/              first media kind (MT-001, decision record 0007):
     ├── api/            GameDtos (+ DTO <-> domain mappers), GameRoutes (/api/games, /api/games.meta,
     │                   /api/game-platforms, /api/game-platforms.summaries, /api/game-developers, /api/game-developers.summaries,
-    │                   /api/game-developers/{id}/games), GameFilterParams (the repeatable filter query parameters),
+    │                   /api/game-developers/{id}/games, /api/game-series, /api/game-series.summaries,
+    │                   /api/game-series/{id}/games), GameFilterParams (the repeatable filter query parameters),
     │                   ExpansionDtos and ExpansionRoutes (/api/games/{id}/expansions, mounted inside the
     │                   game's /{id} block), CoverOptionDtos and CoverOptionRoutes (/api/games/cover-options
     │                   and /api/games/title-suggestions, game-independent), GameMcpTools (MCP tools
     │                   list_game_platforms, add_game,
     │                   search_games incl. hasMissing and pageSize, update_game, list_expansions, add_expansion,
-    │                   find_game_cover, search_game_developers, create_game_developer)
-    ├── domain/         GameValues (GameId, Rating, GamePlatformId, PlatformLabel, GameDeveloperId), GameStatus (Ownership, Progress,
-    │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameFilters (incl. MissingField)/GameMeta,
-    │                   GameRepository, GamePlatformRepository and GameDeveloperRepository (interfaces), GameService,
-    │                   GameDeveloperService, GamePlatformService (create, update, delete of platforms, ADR 0043),
+    │                   find_game_cover, search_game_developers, create_game_developer, search_game_series,
+    │                   create_game_series)
+    ├── domain/         GameValues (GameId, Rating, GamePlatformId, PlatformLabel, GameDeveloperId, GameSeriesId), GameStatus (Ownership, Progress,
+    │                   DEFAULT_HIDDEN), Game/NewGame/GamePatch, GamePlatform, GameSeries/GameSeriesEntry/GameSeriesSummary,
+    │                   GameFilters (incl. MissingField)/GameMeta,
+    │                   GameRepository, GamePlatformRepository, GameDeveloperRepository and GameSeriesRepository (interfaces),
+    │                   GameService, GameDeveloperService, GameSeriesService, GamePlatformService (create, update, delete of platforms, ADR 0043),
     │                   Expansion/NewExpansion/ExpansionPatch (ExpansionId, SequenceNumber),
     │                   ExpansionRepository (interface), ExpansionService (owns the dense sequence),
     │                   CoverSource (port: searchGames, findCovers) with CoverSourceGameId/CoverCandidate
@@ -197,11 +202,11 @@ de.sluit.mediatracker
     │                   CoverOptionsService (find for the picker, findFirstCover for MCP,
     │                   suggestTitles for the form, empty on failure)
     ├── persistence/    GamesTable, GamePlatformsTable, GameToPlatformTable, GameExpansionsTable,
-    │                   GameDevelopersTable, GameToDeveloperTable (Exposed),
+    │                   GameDevelopersTable, GameToDeveloperTable, GameSeriesTable, GameToSeriesTable (Exposed),
     │                   ExposedExpansionRepository, ExposedGameRepository
     │                   (findPage by title, search by title prefix/fulltext and filters, findUsedFilterValues),
-    │                   ExposedGamePlatformRepository (delegates to ExposedColoredVocabulary), ExposedGameDeveloperRepository (delegates to
-    │                   ExposedNameVocabulary), GamesBackupSource (the six games tables, parents first)
+    │                   ExposedGamePlatformRepository (delegates to ExposedColoredVocabulary), ExposedGameDeveloperRepository and ExposedGameSeriesRepository (delegate to
+    │                   ExposedNameVocabulary), GamesBackupSource (the eight games tables, parents first)
     └── integration/    outbound adapters (decision record 0024): SteamGridDbCoverSource (Ktor client, Java
                         engine) + SteamGridDbDtos (the provider's wire JSON)
 ```
@@ -244,6 +249,7 @@ All `/api/**` routes need a session cookie; without one they answer `401 {"error
 | `GET /api/game-developers.summaries` | 200 `GameDeveloperSummaryResponse[]` | every developer (also those without games) with `id`, `name`, `gameCount`, ordered by name; unpaged; feeds the developers view (decision record 0042) |
 | `GET /api/game-developers/{id}/games` | 200 `GameResponse[]` | the games of one developer, unpaged, in the `release_asc` order; 404 for an unknown developer |
 | `PATCH`, `POST .../merge`, `DELETE /api/game-developers/{id}` | as `/api/book-authors/{id}` | rename with 409 `name_taken`, merge into `targetId`, delete only while no game links the developer (decision record 0042) |
+| `GET`/`POST /api/game-series`, `GET /api/game-series.summaries`, `GET /api/game-series/{id}/games`, `PATCH`, `POST .../merge`, `DELETE /api/game-series/{id}` | as the `/api/book-series` routes | with `GameSeriesSummaryResponse {id, name, gameCount}` and `GameResponse` lists; a game's links are `GameResponse.series` `[{id, name, position}]`, sent as `series` (`[{seriesId, position?}]`) on `POST /api/games` and `PATCH /api/games/{id}` (decision record 0044) |
 | `GET /api/books?page=1&pageSize=50[&search=dune][&filters]` | 200 `PageResponse<BookResponse>` | as `GET /api/games` (paging, title-only search and its order), with the repeatable filters `typeIds`, `ownership` (`watchlist`/`owned`), `progress` (`abandoned`/`not_started`/`paused`/`reading`/`finished`), `releaseYear`; the type filter is a semi-join; `sort` `title`/`release_asc`/`release_desc` as for games (decision record 0038); no `rated` (decision record 0034) |
 | `POST /api/books` | 201 `BookResponse` + `Location` | body `CreateBookRequest`: `title`, `releaseYear` required unless `releaseDate` is given, `typeIds`, `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`, position 0..9999.99 with at most two decimals, a repeated `seriesId` is a 400) optional (default `[]`, a book may have no type), `description`, `coverImageUrl`, `ownership` (default `watchlist`), `progress` (default `not_started`) optional |
 | `PATCH /api/books/{id}` | 200 `BookResponse` | body `UpdateBookRequest`: as for games; `null` clears `description`, `coverImageUrl` or `releaseDate`; `typeIds`/`authorIds`/`narratorIds`/`series` replace the set (may be empty); 404 for unknown ids |
@@ -307,7 +313,9 @@ frontend/src
 │                         expanded group, record 0042)
 ├── domain/media/         kind-neutral pure TS (record 0034): values (validators returning i18n codes),
 │                         releaseDate (fixed YYYY-MM-DD format), draft (normalisers, withReleaseDate),
-│                         vocabularyDraft (pending names, resolveVocabularyIds), viewParams (URL field codecs),
+│                         vocabularyDraft (pending names, resolveVocabularyIds), seriesDraft (series chips with
+│                         positions, resolveSeriesLinks) + seriesLabel (primarySeries, formatSeriesEntry; record 0044),
+│                         viewParams (URL field codecs),
 │                         groups (MediaGroup, GroupLabels: types of the shared group view), nameSearch +
 │                         groupViewParams (group views' search and sort URL codec), groupSort (client-side
 │                         name/volume sort),
@@ -326,6 +334,7 @@ frontend/src
 │                         toggle; CoverThumbnail: image or <video> for WebM, aspect ratio per kind),
 │                         filters/ (FilterSelect, FilterRow), fields/ (TitleField, DescriptionField,
 │                         ReleaseYearField, ReleaseDateField, CoverImageUrlField, VocabularyField, VocabularyNameField,
+│                         SeriesField + SeriesPositionField (record 0044),
 │                         SuggestingTitleField (freeSolo Autocomplete over any suggestion type),
 │                         ColoredOptionsField, FieldLegend, HexColorField), ColorPickerPopover (palette + hex + chip
 │                         preview), coloredVocabulary/ (ColoredVocabularyEditor, ColoredVocabularyRow,
@@ -349,22 +358,22 @@ frontend/src
 │                         BookGroupsView (books adapter of the shared MediaGroupsView, record 0042)
 │                         + api/booksApi, hooks/ (useBooksPage, useBooksMeta, useBookTypes,
 │                         useBookGroupLabels), domain/ (bookStatus, bookValues incl. the 2:3 cover ratio, bookFilters,
-│                         bookDraft, bookViewParams, bookGroups, seriesLabel), components/
+│                         bookDraft, bookViewParams, bookGroups), components/
 │                         (BookCard, WatchlistBookCard, BookStatusIcons,
 │                         Book{Ownership,Progress}ToggleBar, BookStatusFilterToggles, BookFilterBar,
 │                         BookOverviewFilters, BookForm, BookDetails, BookDetailDialog, AddBookDialog,
-│                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField, fields/SeriesField,
-│                         fields/SeriesPositionField, fields/BookTypesField, fields/BookTitleField (suggestions),
+│                         BookDialogsHost, fields/AuthorsField, fields/NarratorsField (SeriesField is shared, record 0044),
+│                         fields/BookTypesField, fields/BookTitleField (suggestions),
 │                         BookCoverPickerDialog (book/audiobook toggle); domain/bookCoverSource picks the default
 │                         source from the types and narrators)
 └── features/games/       GamesView (overview: MediaViewHeader = search field / filter bar /
                           ResultsBar: count + top pagination),
-                          GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030), GamesDevelopersView (shared
-                          MediaGroupsView, record 0042) + api/ (gamesApi,
+                          GamesWatchlistView, GamesRankingView (sub-pages, ADR 0030), GamesDevelopersView and GamesSeriesView (shared
+                          MediaGroupsView, records 0042 and 0044) + api/ (gamesApi,
                           ?search, the filter parameters, sort and rated, listAllGames (every page of 200),
                           games.meta, cover-options, title-suggestions;
                           expansionsApi), hooks/ (useGamesPage, useAllGames, useGamesMeta, useGamePlatforms, useExpansions,
-                          useDeveloperGroupLabels),
+                          useGameGroupLabels),
                           domain/ (gameValues validators,
                           gameDraft, expansionDraft, gameFilters: the selection and its stable key, gameViewParams: the
                           URL query codecs of the three views, gameStatus:

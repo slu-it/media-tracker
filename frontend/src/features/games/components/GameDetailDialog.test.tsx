@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { ExpansionResponse, GameDeveloperResponse, GameResponse } from "../../../types/api";
+import type { ExpansionResponse, GameDeveloperResponse, GameResponse, GameSeriesResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noContent, noTitleSuggestions } from "../../../test/mockFetch";
 import {
@@ -12,6 +12,7 @@ import {
   hadesExpansion1,
   hadesExpansion2,
   hadesExpansions,
+  hadesSeries,
   nintendo,
   pc,
   platforms,
@@ -510,6 +511,70 @@ describe("GameDetailDialog", () => {
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(1));
     expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ developerIds: [supergiantGames.id] });
+  });
+
+  it("creates a pending series before saving and sends the full series list", async () => {
+    const user = userEvent.setup();
+    const created: GameSeriesResponse = { id: "series-new", name: "Cosmere" };
+    const inSeries: GameResponse = { ...game, series: [{ id: hadesSeries.id, name: hadesSeries.name, position: 1 }] };
+    const calls = mockApi({
+      ...noExpansions,
+      "GET /api/game-series": () => jsonResponse([]),
+      "POST /api/game-series": () => jsonResponse(created, 201),
+      "PATCH /api/games/:id": (call) => jsonResponse({ ...inSeries, ...(call.body as object), series: [] }),
+    });
+    renderWithProviders(
+      <GameDetailDialog
+        game={inSeries}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Hades Saga #1")).toBeInTheDocument();
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+
+    expect(within(dialog).getByRole("textbox", { name: "No. Hades Saga" })).toHaveValue("1");
+    await user.click(within(dialog).getByRole("combobox", { name: /series/i }));
+    await user.paste("Cosmere");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    const patches = () => calls.filter((c) => c.method === "PATCH");
+    await waitFor(() => expect(patches()).toHaveLength(1));
+    const seriesPost = calls.find((c) => c.url === "/api/game-series" && c.method === "POST");
+    expect(seriesPost?.body).toEqual({ name: "Cosmere" });
+    expect(calls.indexOf(seriesPost!)).toBeLessThan(calls.indexOf(patches()[0]));
+    expect(patches()[0].body).toEqual({
+      series: [
+        { seriesId: hadesSeries.id, position: 1 },
+        { seriesId: created.id, position: null },
+      ],
+    });
+  });
+
+  it("sends no series when only the position text format changed", async () => {
+    const user = userEvent.setup();
+    const inSeries: GameResponse = { ...game, series: [{ id: hadesSeries.id, name: hadesSeries.name, position: 2.5 }] };
+    const calls = mockApi({
+      ...noExpansions,
+      "PATCH /api/games/:id": (call) => jsonResponse({ ...inSeries, ...(call.body as object) }),
+    });
+    renderWithProviders(
+      <GameDetailDialog
+        game={inSeries}
+        onClose={() => {}}
+        onSaved={() => {}}
+        onDeleted={() => {}}
+        platforms={platforms}
+      />,
+    );
+    const dialog = screen.getByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Edit" }));
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(0);
   });
 
   it("creates a pending developer before saving and includes its id in developerIds", async () => {

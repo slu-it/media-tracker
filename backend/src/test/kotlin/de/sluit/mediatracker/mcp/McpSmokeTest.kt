@@ -83,6 +83,8 @@ class McpSmokeTest {
                     "add_expansion",
                     "search_game_developers",
                     "create_game_developer",
+                    "search_game_series",
+                    "create_game_series",
                     "list_book_types",
                     "add_book",
                     "search_books",

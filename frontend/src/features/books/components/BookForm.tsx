@@ -10,6 +10,8 @@ import { CoverImageUrlField } from "../../../components/media/fields/CoverImageU
 import { DescriptionField } from "../../../components/media/fields/DescriptionField";
 import { ReleaseDateField } from "../../../components/media/fields/ReleaseDateField";
 import { ReleaseYearField } from "../../../components/media/fields/ReleaseYearField";
+import { SeriesField } from "../../../components/media/fields/SeriesField";
+import { searchBookSeries } from "../api/booksApi";
 import type { BookDraft } from "../domain/bookDraft";
 import { defaultCoverSource } from "../domain/bookCoverSource";
 import { applyBookSuggestion } from "../domain/bookSuggestion";
@@ -21,7 +23,6 @@ import { AuthorsField } from "./fields/AuthorsField";
 import { BookTitleField } from "./fields/BookTitleField";
 import { BookTypesField } from "./fields/BookTypesField";
 import { NarratorsField } from "./fields/NarratorsField";
-import { SeriesField } from "./fields/SeriesField";
 
 interface BookFormProps {
   value: BookDraft;
@@ -133,6 +134,7 @@ export function BookForm({ value, onChange, types, disabled, showErrors, onValid
           <SeriesField
             value={value.series}
             onChange={(series) => onChange({ ...value, series })}
+            fetchSuggestions={searchBookSeries}
             disabled={disabled}
             showErrors={showErrors}
           />

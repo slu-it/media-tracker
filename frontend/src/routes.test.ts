@@ -49,6 +49,7 @@ describe("routes", () => {
     "/games",
     "/games/nope",
     "/games/overview/x",
+    "/games/series/x",
   ])("rejects %s", (path) => {
     expect(parseRoute(path)).toBeUndefined();
   });

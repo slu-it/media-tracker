@@ -1,7 +1,7 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { GameDeveloperResponse, GamePlatformResponse } from "../../../types/api";
+import type { GameDeveloperResponse, GamePlatformResponse, GameSeriesResponse } from "../../../types/api";
 import { flushAsync } from "../../../test/flushAsync";
 import { jsonResponse, mockApi, noTitleSuggestions } from "../../../test/mockFetch";
 import { developers, hadesCoverOptions, pc, playstation, teamCherry } from "../../../test/fixtures/games";
@@ -9,6 +9,15 @@ import { renderWithProviders } from "../../../test/renderWithProviders";
 import { AddGameDialog } from "./AddGameDialog";
 
 const platforms: GamePlatformResponse[] = [pc, playstation];
+
+async function fillRequired(dialog: HTMLElement, user: ReturnType<typeof userEvent.setup>) {
+  await user.click(within(dialog).getByRole("combobox", { name: /title/i }));
+  await user.paste("Hades");
+  await user.click(within(dialog).getByRole("combobox", { name: /release year/i }));
+  await user.click(screen.getByRole("option", { name: "2020" }));
+  await user.click(within(dialog).getByRole("combobox", { name: /platforms/i }));
+  await user.click(screen.getByRole("option", { name: "PC" }));
+}
 
 describe("AddGameDialog", () => {
   it("preselects the given platforms", () => {
@@ -166,6 +175,54 @@ describe("AddGameDialog", () => {
     expect(calls.indexOf(developerPost!)).toBeLessThan(calls.indexOf(gamePost!));
     expect(developerPost!.body).toEqual({ name: "New Studio" });
     expect(gamePost!.body).toMatchObject({ developerIds: [createdDeveloper.id, teamCherry.id] });
+  });
+
+  it("creates a pending series before creating the game, sending its id and the position", async () => {
+    const user = userEvent.setup();
+    const onCreated = vi.fn();
+    const series: GameSeriesResponse = { id: "series-new", name: "New Series" };
+    const calls = mockApi({
+      "POST /api/games": (call) => jsonResponse({ id: "new-id", ...(call.body as object) }, 201),
+      "POST /api/game-series": () => jsonResponse(series, 201),
+      "GET /api/game-series": () => jsonResponse([]),
+      ...noTitleSuggestions("games"),
+    });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={onCreated} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+    await fillRequired(dialog, user);
+
+    await user.click(within(dialog).getByRole("combobox", { name: /series/i }));
+    await user.paste("New Series");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("textbox", { name: "No. New Series" }));
+    await user.paste("1,5");
+
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledOnce());
+
+    const gamePost = calls.find((c) => c.url === "/api/games" && c.method === "POST");
+    const seriesPost = calls.find((c) => c.url === "/api/game-series" && c.method === "POST");
+    expect(seriesPost!.body).toEqual({ name: "New Series" });
+    expect(calls.indexOf(seriesPost!)).toBeLessThan(calls.indexOf(gamePost!));
+    expect(gamePost!.body).toMatchObject({ series: [{ seriesId: series.id, position: 1.5 }] });
+  });
+
+  it("blocks saving while a series position is invalid", async () => {
+    const user = userEvent.setup();
+    mockApi({ ...noTitleSuggestions("games"), "GET /api/game-series": () => jsonResponse([]) });
+    renderWithProviders(<AddGameDialog open onClose={() => {}} onCreated={() => {}} platforms={platforms} />);
+    const dialog = screen.getByRole("dialog");
+    await fillRequired(dialog, user);
+
+    await user.click(within(dialog).getByRole("combobox", { name: /series/i }));
+    await user.paste("Mistborn");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("textbox", { name: "No. Mistborn" }));
+    await user.paste("abc");
+    await user.tab();
+
+    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(within(dialog).getByText(/Must be a number from 0 to 9999.99/)).toBeInTheDocument();
   });
 
   it("shows the error and does not create the game when creating a developer fails", async () => {

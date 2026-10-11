@@ -6,6 +6,7 @@ import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.applyTo
@@ -53,7 +54,7 @@ data class BookNarratorSummary(val narrator: BookNarrator, val bookCount: Int)
 data class BookSeriesSummary(val series: BookSeries, val bookCount: Int)
 
 /** A book's link to one [series], with the book's optional [position] (number) in it. */
-data class BookSeriesEntry(val series: BookSeries, val position: BookSeriesPosition? = null) : BookNamedEntry {
+data class BookSeriesEntry(val series: BookSeries, val position: SeriesPosition? = null) : BookNamedEntry {
     override val id: Any get() = series.id
     override val name: VocabularyName get() = series.name
 }
@@ -114,7 +115,7 @@ data class NewBook(
     val typeIds: Set<BookTypeId> = emptySet(),
     val authorIds: Set<BookAuthorId> = emptySet(),
     val narratorIds: Set<BookNarratorId> = emptySet(),
-    val series: Map<BookSeriesId, BookSeriesPosition?> = emptyMap(),
+    val series: Map<BookSeriesId, SeriesPosition?> = emptyMap(),
     val description: Description? = null,
     val coverImageUrl: CoverImageUrl? = null,
     val ownership: BookOwnership = BookOwnership.DEFAULT,
@@ -136,7 +137,7 @@ data class BookPatch(
     val typeIds: Set<BookTypeId>? = null,
     val authorIds: Set<BookAuthorId>? = null,
     val narratorIds: Set<BookNarratorId>? = null,
-    val series: Map<BookSeriesId, BookSeriesPosition?>? = null,
+    val series: Map<BookSeriesId, SeriesPosition?>? = null,
     val description: Patch<Description> = Patch.Unchanged,
     val coverImageUrl: Patch<CoverImageUrl> = Patch.Unchanged,
     val ownership: BookOwnership? = null,

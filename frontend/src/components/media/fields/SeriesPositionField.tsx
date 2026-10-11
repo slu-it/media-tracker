@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { TextField } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { validateSeriesPosition } from "../../domain/bookValues";
+import { validateSeriesPosition } from "../../../domain/media/values";
 
 interface SeriesPositionFieldProps {
   value: string;
@@ -13,7 +13,7 @@ interface SeriesPositionFieldProps {
   showErrors?: boolean;
 }
 
-/** Optional position of a book within a series (0 to 9999.99, at most two decimals, "." or ","). */
+/** Optional position of an item within a series (0 to 9999.99, at most two decimals, "." or ","). */
 export function SeriesPositionField({ value, onChange, disabled, ariaLabel, showErrors }: SeriesPositionFieldProps) {
   const { t } = useTranslation();
   const [touched, setTouched] = useState(false);
@@ -23,7 +23,7 @@ export function SeriesPositionField({ value, onChange, disabled, ariaLabel, show
     <TextField
       size="small"
       disabled={disabled}
-      label={t("books.fields.seriesPosition")}
+      label={t("media.series.position")}
       value={value}
       onChange={(event) => onChange(event.target.value)}
       onBlur={() => setTouched(true)}

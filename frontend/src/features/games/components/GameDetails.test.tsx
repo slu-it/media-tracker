@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -6,6 +6,7 @@ import {
   hades,
   hadesExpansion1,
   hadesExpansions,
+  hadesSeries,
   supergiantGames,
   teamCherry,
 } from "../../../test/fixtures/games";
@@ -315,5 +316,44 @@ describe("GameDetails", () => {
       fireEvent.click(screen.getByRole("radio", { name: "4 Stars" }), { clientX: 1, clientY: 1 });
       expect(onRatingChange).not.toHaveBeenCalled();
     });
+  });
+
+  it("shows all series as a chip group above the description, with positions", () => {
+    renderWithProviders(
+      <GameDetails
+        game={{
+          ...celeste,
+          description: "Climb.",
+          series: [
+            { id: hadesSeries.id, name: "Hades Saga", position: 2.5 },
+            { id: "s2", name: "Cosmere", position: null },
+          ],
+        }}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    const series = screen.getByRole("group", { name: "Series" });
+    expect(within(series).getByText("Hades Saga #2.5")).toBeInTheDocument();
+    expect(within(series).getByText("Cosmere")).toBeInTheDocument();
+    const title = screen.getByRole("heading", { name: "Celeste" });
+    const description = screen.getByText("Climb.");
+    expect(title.compareDocumentPosition(series) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(series.compareDocumentPosition(description) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows no series group for a game without series", () => {
+    renderWithProviders(
+      <GameDetails
+        game={celeste}
+        titleId="title"
+        expansions={[]}
+        onSelectExpansion={() => {}}
+        onMoveExpansion={() => {}}
+      />,
+    );
+    expect(screen.queryByRole("group", { name: "Series" })).not.toBeInTheDocument();
   });
 });

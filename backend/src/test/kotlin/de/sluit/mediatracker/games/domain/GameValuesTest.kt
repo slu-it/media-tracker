@@ -10,8 +10,11 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.Title
+import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.game
+import de.sluit.mediatracker.games.series
+import de.sluit.mediatracker.games.seriesEntry
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -236,5 +239,54 @@ class GameValuesTest {
         val id = GameDeveloperId(Uuid.random())
         assertEquals(id, GameDeveloperId.parse(id.toString()))
         rejects("developerIds") { GameDeveloperId.parse("nope") }
+    }
+
+    @Test
+    fun `game series id parses only the 36-character hex-dash form`() {
+        val id = GameSeriesId.new()
+        assertEquals(id, GameSeriesId.parse(id.toString()))
+        rejects("series") { GameSeriesId.parse("nope") }
+        rejects("targetId") { GameSeriesId.parse("nope", "targetId") }
+    }
+
+    @Test
+    fun `a game rejects duplicate or unsorted series`() {
+        val zed = series("Zed")
+        val able = series("Able")
+        val platforms = listOf(Platforms.PC)
+        rejects("series") {
+            Game(
+                GameId.new(),
+                Title("Zelda"),
+                ReleaseYear(1986),
+                platforms,
+                series = listOf(seriesEntry(zed), seriesEntry(zed, 2.0)),
+            )
+        }
+        rejects("series") {
+            Game(
+                GameId.new(),
+                Title("Zelda"),
+                ReleaseYear(1986),
+                platforms,
+                series = listOf(seriesEntry(zed), seriesEntry(able)),
+            )
+        }
+    }
+
+    @Test
+    fun `patch replaces series only when series is present`() {
+        val zelda = series("Zelda")
+        val game = game("Ocarina", series = listOf(seriesEntry(zelda, 1.0)))
+
+        assertEquals(game.series, GamePatch().applyTo(game, game.platforms, game.developers).series)
+
+        val mario = series("Mario")
+        val replaced = GamePatch(series = mapOf(mario.id to null))
+            .applyTo(game, game.platforms, game.developers, listOf(seriesEntry(mario)))
+        assertEquals(listOf(seriesEntry(mario)), replaced.series)
+
+        val cleared = GamePatch(series = emptyMap()).applyTo(game, game.platforms, game.developers, emptyList())
+        assertEquals(emptyList(), cleared.series)
     }
 }

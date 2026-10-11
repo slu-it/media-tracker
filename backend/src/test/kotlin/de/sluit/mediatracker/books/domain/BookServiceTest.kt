@@ -17,6 +17,7 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -305,7 +306,7 @@ class BookServiceTest {
     fun `create resolves series with their positions and stores them sorted by name`() = runBlocking {
         val cosmere = series("The Cosmere")
         val mistborn = series("Mistborn")
-        val positions = mapOf(cosmere.id to null, mistborn.id to BookSeriesPosition.fromDouble(2.5))
+        val positions = mapOf(cosmere.id to null, mistborn.id to SeriesPosition.fromDouble(2.5))
         coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(cosmere, mistborn)
         val inserted = slot<Book>()
         coEvery { books.insert(capture(inserted)) } just Runs
@@ -319,7 +320,7 @@ class BookServiceTest {
     fun `create rejects an unknown series id naming the series field`() = runBlocking {
         val known = series("Known")
         val unknown = BookSeriesId(Uuid.random())
-        val positions = mapOf<BookSeriesId, BookSeriesPosition?>(known.id to null, unknown to null)
+        val positions = mapOf<BookSeriesId, SeriesPosition?>(known.id to null, unknown to null)
         coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(known)
 
         val exception = assertFailsWith<InvalidValueException> {
@@ -361,7 +362,7 @@ class BookServiceTest {
         val id = BookId.new()
         val mistborn = series("Mistborn")
         coEvery { books.findById(id) } returns book("Some Title", id = id, series = listOf(seriesEntry(series("Old"))))
-        val positions = mapOf<BookSeriesId, BookSeriesPosition?>(mistborn.id to BookSeriesPosition.fromDouble(1.0))
+        val positions = mapOf<BookSeriesId, SeriesPosition?>(mistborn.id to SeriesPosition.fromDouble(1.0))
         coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(mistborn)
         val saved = slot<Book>()
         coEvery { books.update(capture(saved)) } returns true

@@ -11,10 +11,13 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.games.Platforms
 import de.sluit.mediatracker.games.developer
 import de.sluit.mediatracker.games.game
+import de.sluit.mediatracker.games.series
+import de.sluit.mediatracker.games.seriesEntry
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -39,7 +42,8 @@ class GameServiceTest {
     private val games = mockk<GameRepository>()
     private val platforms = mockk<GamePlatformRepository>()
     private val developers = mockk<GameDeveloperRepository>()
-    private val service = GameService(games, platforms, developers)
+    private val seriesRepository = mockk<GameSeriesRepository>()
+    private val service = GameService(games, platforms, developers, seriesRepository)
 
     @Test
     fun `create assigns a new id and stores the game with its resolved platforms sorted by label`() = runBlocking {
@@ -483,5 +487,123 @@ class GameServiceTest {
         coEvery { games.findByDeveloper(nintendo.id) } returns found
 
         assertEquals(found, service.listByDeveloper(nintendo.id))
+    }
+
+    @Test
+    fun `create resolves series with their positions and stores them sorted by name`() = runBlocking {
+        val zelda = series("The Legend of Zelda")
+        val mario = series("Mario")
+        val positions = mapOf(zelda.id to null, mario.id to SeriesPosition.fromDouble(2.5))
+        coEvery { platforms.findByIds(setOf(Platforms.PC.id)) } returns listOf(Platforms.PC)
+        coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(zelda, mario)
+        val inserted = slot<Game>()
+        coEvery { games.insert(capture(inserted)) } just Runs
+
+        service.create(NewGame(Title("Mixed"), ReleaseYear(2000), setOf(Platforms.PC.id), series = positions))
+
+        assertEquals(listOf(seriesEntry(mario, 2.5), seriesEntry(zelda)), inserted.captured.series)
+    }
+
+    @Test
+    fun `create without series does not touch the series repository`() = runBlocking {
+        coEvery { platforms.findByIds(setOf(Platforms.PC.id)) } returns listOf(Platforms.PC)
+        coEvery { games.insert(any()) } just Runs
+
+        service.create(NewGame(Title("Plain"), ReleaseYear(2000), setOf(Platforms.PC.id)))
+
+        coVerify(exactly = 0) { seriesRepository.findByIds(any()) }
+    }
+
+    @Test
+    fun `create rejects an unknown series id naming the series field`() = runBlocking {
+        val known = series("Known")
+        val unknown = GameSeriesId(Uuid.random())
+        val positions = mapOf<GameSeriesId, SeriesPosition?>(known.id to null, unknown to null)
+        coEvery { platforms.findByIds(setOf(Platforms.PC.id)) } returns listOf(Platforms.PC)
+        coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(known)
+
+        val exception = assertFailsWith<InvalidValueException> {
+            service.create(NewGame(Title("Unknown"), ReleaseYear(2020), setOf(Platforms.PC.id), series = positions))
+        }
+
+        assertEquals(GameSeriesId.FIELD, exception.field)
+        coVerify(exactly = 0) { games.insert(any()) }
+    }
+
+    @Test
+    fun `update leaves the series alone when the patch has none`() = runBlocking {
+        val id = GameId.new()
+        val current = game("Some Title", id = id, series = listOf(seriesEntry(series("Old"), 1.0)))
+        coEvery { games.findById(id) } returns current
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(hidden = true))
+
+        assertEquals(current.series, saved.captured.series)
+        coVerify(exactly = 0) { seriesRepository.findByIds(any()) }
+    }
+
+    @Test
+    fun `update replaces the series and positions when the patch carries series`() = runBlocking {
+        val id = GameId.new()
+        val mario = series("Mario")
+        coEvery { games.findById(id) } returns game("Some Title", id = id, series = listOf(seriesEntry(series("Old"))))
+        val positions = mapOf<GameSeriesId, SeriesPosition?>(mario.id to SeriesPosition.fromDouble(1.0))
+        coEvery { seriesRepository.findByIds(positions.keys) } returns listOf(mario)
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(series = positions))
+
+        assertEquals(listOf(seriesEntry(mario, 1.0)), saved.captured.series)
+    }
+
+    @Test
+    fun `update with an empty series map clears the series`() = runBlocking {
+        val id = GameId.new()
+        coEvery { games.findById(id) } returns game("Some Title", id = id, series = listOf(seriesEntry(series("Old"))))
+        val saved = slot<Game>()
+        coEvery { games.update(capture(saved)) } returns true
+
+        service.update(id, GamePatch(series = emptyMap()))
+
+        assertEquals(emptyList(), saved.captured.series)
+        coVerify(exactly = 0) { seriesRepository.findByIds(any()) }
+    }
+
+    @Test
+    fun `update rejects an unknown series id before saving`() = runBlocking {
+        val id = GameId.new()
+        val unknown = GameSeriesId(Uuid.random())
+        coEvery { games.findById(id) } returns game("Some Title", id = id)
+        coEvery { seriesRepository.findByIds(setOf(unknown)) } returns emptyList()
+
+        assertFailsWith<InvalidValueException> { service.update(id, GamePatch(series = mapOf(unknown to null))) }
+
+        coVerify(exactly = 0) { games.update(any()) }
+    }
+
+    @Test
+    fun `listBySeries of an unknown series throws NotFoundException without loading games`() {
+        runBlocking {
+            val unknown = GameSeriesId.new()
+            coEvery { seriesRepository.findByIds(setOf(unknown)) } returns emptyList()
+
+            val exception = assertFailsWith<NotFoundException> { service.listBySeries(unknown) }
+
+            assertEquals(unknown.toString(), exception.id)
+            coVerify(exactly = 0) { games.findBySeries(any()) }
+        }
+    }
+
+    @Test
+    fun `listBySeries returns the games of a known series in repository order`() = runBlocking {
+        val mario = series("Mario")
+        val found = listOf(game("One"), game("Two"))
+        coEvery { seriesRepository.findByIds(setOf(mario.id)) } returns listOf(mario)
+        coEvery { games.findBySeries(mario.id) } returns found
+
+        assertEquals(found, service.listBySeries(mario.id))
     }
 }

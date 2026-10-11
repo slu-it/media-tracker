@@ -8,7 +8,8 @@ import de.sluit.mediatracker.games.domain.PlatformLabel
  * [de.sluit.mediatracker.common.domain.BackupSource] for every table the games domain owns (MT-023, ADR 0027;
  * developers and release date added in MT-025, ADR 0029). Parents before the tables that reference them:
  * platforms and games before the game-to-platform junction, the expansions that reference a game, and
- * developers before the game-to-developer junction that references both games and developers.
+ * developers before the game-to-developer junction that references both games and developers, and series
+ * before the game-to-series junction likewise.
  */
 object GamesBackupSource : ExposedBackupSource(
     listOf(
@@ -18,6 +19,8 @@ object GamesBackupSource : ExposedBackupSource(
         GameExpansionsTable,
         GameDevelopersTable,
         GameToDeveloperTable,
+        GameSeriesTable,
+        GameToSeriesTable,
     ),
     // Editable: a restored dump carries the platforms' current labels and colours.
     updatableTables = mapOf(

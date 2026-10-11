@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { celeste, hades, teamCherry } from "../../../test/fixtures/games";
+import { celeste, hades, hadesSeries, teamCherry } from "../../../test/fixtures/games";
 import { jsonResponse, mockApi } from "../../../test/mockFetch";
 import type { GameResponse, PageResponse } from "../../../types/api";
 import { EMPTY_FILTERS, type GameFilters } from "../domain/gameFilters";
-import { ALL_GAMES_PAGE_SIZE } from "../domain/gameValues";
+import { ALL_GAMES_PAGE_SIZE, SERIES_SEARCH_LIMIT } from "../domain/gameValues";
 import {
+  createGameSeries,
   deleteGameDeveloper,
+  deleteGameSeries,
   listAllGames,
   listDeveloperGames,
   listGameDeveloperSummaries,
+  listGameSeriesSummaries,
   listGames,
+  listSeriesGames,
   mergeGameDeveloper,
+  mergeGameSeries,
   renameGameDeveloper,
+  renameGameSeries,
+  resolveSeries,
+  searchGameSeries,
 } from "./gamesApi";
 
 const page = (items: GameResponse[], pageNum: number, totalPages: number): PageResponse<GameResponse> => ({
@@ -168,6 +176,63 @@ describe("game developers", () => {
       { method: "PATCH", url: "/api/game-developers/d%2F1", body: { name: "Cherry" } },
       { method: "POST", url: "/api/game-developers/d%2F1/merge", body: { targetId: "d-2" } },
       { method: "DELETE", url: "/api/game-developers/d%2F1", body: undefined },
+    ]);
+  });
+});
+
+describe("game series", () => {
+  it("searches and creates series", async () => {
+    const calls = mockApi({
+      "GET /api/game-series": () => jsonResponse([hadesSeries]),
+      "POST /api/game-series": () => jsonResponse({ id: "series-9", name: "New" }, 201),
+    });
+    expect(await searchGameSeries(" hades ")).toEqual([hadesSeries]);
+    expect(calls[0].url).toBe(`/api/game-series?search=hades&limit=${SERIES_SEARCH_LIMIT}`);
+    expect(await createGameSeries("New")).toEqual({ id: "series-9", name: "New" });
+    expect(calls[1].body).toEqual({ name: "New" });
+  });
+
+  it("resolves series drafts to links, creating pending names", async () => {
+    const calls = mockApi({
+      "POST /api/game-series": () => jsonResponse({ id: "series-9", name: "New" }, 201),
+    });
+    const links = await resolveSeries([
+      { entry: { name: "New" }, position: "2,5" },
+      { entry: hadesSeries, position: "" },
+    ]);
+    expect(links).toEqual([
+      { seriesId: "series-9", position: 2.5 },
+      { seriesId: hadesSeries.id, position: null },
+    ]);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("lists the summaries", async () => {
+    const summaries = [{ id: "series-1", name: "Hades Saga", gameCount: 2 }];
+    const calls = mockApi({ "GET /api/game-series.summaries": () => jsonResponse(summaries) });
+    expect(await listGameSeriesSummaries()).toEqual(summaries);
+    expect(calls[0].url).toBe("/api/game-series.summaries");
+  });
+
+  it("lists the games of a series", async () => {
+    const calls = mockApi({ "GET /api/game-series/:id/games": () => jsonResponse([celeste]) });
+    expect(await listSeriesGames("s/1")).toEqual([celeste]);
+    expect(calls[0].url).toBe("/api/game-series/s%2F1/games");
+  });
+
+  it("renames, merges and deletes a series", async () => {
+    const calls = mockApi({
+      "PATCH /api/game-series/:id": () => jsonResponse(hadesSeries),
+      "POST /api/game-series/:id/merge": () => jsonResponse(hadesSeries),
+      "DELETE /api/game-series/:id": () => new Response(null, { status: 204 }),
+    });
+    expect(await renameGameSeries("s/1", "Saga")).toEqual(hadesSeries);
+    expect(await mergeGameSeries("s/1", "s-2")).toEqual(hadesSeries);
+    await deleteGameSeries("s/1");
+    expect(calls).toEqual([
+      { method: "PATCH", url: "/api/game-series/s%2F1", body: { name: "Saga" } },
+      { method: "POST", url: "/api/game-series/s%2F1/merge", body: { targetId: "s-2" } },
+      { method: "DELETE", url: "/api/game-series/s%2F1", body: undefined },
     ]);
   });
 });

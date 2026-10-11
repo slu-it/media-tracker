@@ -1,18 +1,38 @@
-import type { CreateGameRequest, GameDeveloperResponse, GameResponse, UpdateGameRequest } from "../../../types/api";
+import type {
+  CreateGameRequest,
+  GameDeveloperResponse,
+  GameResponse,
+  GameSeriesLinkRequest,
+  UpdateGameRequest,
+} from "../../../types/api";
 import { normalizeCoverImageUrl, normalizeDescription, sameIds } from "../../../domain/media/draft";
 import {
   validateCoverImageUrl,
   validateDescription,
   validateReleaseDate,
   validateReleaseYear,
+  validateSeriesPosition,
   validateTitle,
 } from "../../../domain/media/values";
+import {
+  existingSeriesLinks,
+  linksOfEntries,
+  sameSeriesLinks,
+  seriesDraftsFromEntries,
+  type SeriesDraft,
+} from "../../../domain/media/seriesDraft";
 import { isExistingEntry, type VocabularyDraft } from "../../../domain/media/vocabularyDraft";
 import { DEFAULT_HIDDEN, DEFAULT_OWNERSHIP, DEFAULT_PROGRESS, type Ownership, type Progress } from "./gameStatus";
 import { validatePlatformIds, validateRating } from "./gameValues";
 
 /** A selected developer chip: an existing developer or a pending free-solo name (see `VocabularyDraft`). */
 export type DeveloperDraft = VocabularyDraft<GameDeveloperResponse>;
+
+/** The draft's relations after resolving pending names to ids (see `resolveDeveloperIds`, `resolveSeries`). */
+export interface ResolvedGameLinks {
+  developerIds: string[];
+  series: GameSeriesLinkRequest[];
+}
 
 /** What the form edits: raw field values, possibly incomplete or invalid. */
 export interface GameDraft {
@@ -33,6 +53,8 @@ export interface GameDraft {
    * of this field directly.
    */
   developers: DeveloperDraft[];
+  /** Resolved via `resolveSeries`, which also parses the positions. */
+  series: SeriesDraft[];
 }
 
 export function emptyGameDraft(): GameDraft {
@@ -48,10 +70,11 @@ export function emptyGameDraft(): GameDraft {
     progress: DEFAULT_PROGRESS,
     hidden: DEFAULT_HIDDEN,
     developers: [],
+    series: [],
   };
 }
 
-export function draftFromGame(game: GameResponse): GameDraft {
+export function draftFromGame(game: GameResponse, language: string): GameDraft {
   return {
     title: game.title,
     releaseYear: game.releaseYear,
@@ -64,6 +87,7 @@ export function draftFromGame(game: GameResponse): GameDraft {
     progress: game.progress,
     hidden: game.hidden,
     developers: game.developers,
+    series: seriesDraftsFromEntries(game.series, language),
   };
 }
 
@@ -75,7 +99,8 @@ export function isDraftValid(draft: GameDraft): boolean {
     validatePlatformIds(draft.platformIds) === null &&
     validateDescription(draft.description) === null &&
     validateRating(draft.rating) === null &&
-    validateCoverImageUrl(draft.coverImageUrl) === null
+    validateCoverImageUrl(draft.coverImageUrl) === null &&
+    draft.series.every((series) => validateSeriesPosition(series.position) === null)
   );
 }
 
@@ -85,23 +110,31 @@ function existingDeveloperIds(draft: GameDraft): string[] {
 }
 
 /**
- * A pending developer (typed but not yet created on the backend) always counts as a change: it cannot be
- * compared to the game's ids until `resolveDeveloperIds` runs, which only happens right before saving.
+ * A pending developer or series (typed but not yet created on the backend) always counts as a change: it cannot
+ * be compared to the game's ids until the resolvers run, which only happens right before saving.
  */
-function hasPendingDeveloper(draft: GameDraft): boolean {
-  return draft.developers.some((developer) => !isExistingEntry(developer));
+function hasPendingEntry(draft: GameDraft): boolean {
+  return (
+    draft.developers.some((developer) => !isExistingEntry(developer)) ||
+    draft.series.some((series) => !isExistingEntry(series.entry))
+  );
 }
 
 export function isDraftDirty(game: GameResponse, draft: GameDraft): boolean {
-  if (hasPendingDeveloper(draft)) return true;
-  return Object.keys(toUpdateRequest(game, draft, existingDeveloperIds(draft))).length > 0;
+  if (hasPendingEntry(draft)) return true;
+  const links: ResolvedGameLinks = {
+    developerIds: existingDeveloperIds(draft),
+    series: existingSeriesLinks(draft.series),
+  };
+  return Object.keys(toUpdateRequest(game, draft, links)).length > 0;
 }
 
 /**
- * Throws when the draft is invalid; callers keep the save button disabled until `isDraftValid`. `developerIds` is
- * the draft's developers already resolved to ids (see `resolveDeveloperIds`); omitted from the request when empty.
+ * Throws when the draft is invalid; callers keep the save button disabled until `isDraftValid`. `links` is the
+ * draft's developers and series already resolved (see `resolveDeveloperIds`, `resolveSeries`); each is omitted
+ * from the request when empty.
  */
-export function toCreateRequest(draft: GameDraft, developerIds: string[]): CreateGameRequest {
+export function toCreateRequest(draft: GameDraft, links: ResolvedGameLinks): CreateGameRequest {
   if (!isDraftValid(draft) || draft.releaseYear === null) {
     throw new Error("draft is not valid");
   }
@@ -116,16 +149,17 @@ export function toCreateRequest(draft: GameDraft, developerIds: string[]): Creat
     progress: draft.progress,
     hidden: draft.hidden,
     releaseDate: draft.releaseDate,
-    ...(developerIds.length > 0 ? { developerIds } : {}),
+    ...(links.developerIds.length > 0 ? { developerIds: links.developerIds } : {}),
+    ...(links.series.length > 0 ? { series: links.series } : {}),
   };
 }
 
 /**
- * Only the fields that differ from `game`; `null` clears `description`/`rating`/`coverImageUrl`. `developerIds`
- * is the draft's developers already resolved to ids (see `resolveDeveloperIds`); sent only when the set differs
- * from the game's, order-insensitive.
+ * Only the fields that differ from `game`; `null` clears `description`/`rating`/`coverImageUrl`. `links` is the
+ * draft's developers and series already resolved; the developer ids are sent only when the set differs from the
+ * game's, order-insensitive, and the series only when the set of (series, position) pairs differs.
  */
-export function toUpdateRequest(game: GameResponse, draft: GameDraft, developerIds: string[]): UpdateGameRequest {
+export function toUpdateRequest(game: GameResponse, draft: GameDraft, links: ResolvedGameLinks): UpdateGameRequest {
   const request: UpdateGameRequest = {};
   const title = draft.title.trim();
   if (title !== game.title) request.title = title;
@@ -142,6 +176,7 @@ export function toUpdateRequest(game: GameResponse, draft: GameDraft, developerI
   if (draft.hidden !== game.hidden) request.hidden = draft.hidden;
   if (draft.releaseDate !== game.releaseDate) request.releaseDate = draft.releaseDate;
   const existingGameDeveloperIds = game.developers.map((developer) => developer.id);
-  if (!sameIds(developerIds, existingGameDeveloperIds)) request.developerIds = developerIds;
+  if (!sameIds(links.developerIds, existingGameDeveloperIds)) request.developerIds = links.developerIds;
+  if (!sameSeriesLinks(links.series, linksOfEntries(game.series))) request.series = links.series;
   return request;
 }

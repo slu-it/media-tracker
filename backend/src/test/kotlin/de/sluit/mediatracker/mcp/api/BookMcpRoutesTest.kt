@@ -17,7 +17,6 @@ import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookSeriesId
-import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.books.domain.BookSort
@@ -36,6 +35,7 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -545,7 +545,7 @@ class BookMcpRoutesTest {
         result.assertSuccess()
         assertEquals(setOf(narratorId), captured.captured.narratorIds)
         assertEquals(
-            mapOf(mistborn to BookSeriesPosition.fromDouble(1.0), cosmere to null),
+            mapOf(mistborn to SeriesPosition.fromDouble(1.0), cosmere to null),
             captured.captured.series,
         )
     }
@@ -638,7 +638,7 @@ class BookMcpRoutesTest {
             """{"id":"$id","series":[{"seriesId":"$seriesId","position":2.5}]}""",
         ).assertSuccess()
 
-        assertEquals(mapOf(seriesId to BookSeriesPosition.fromDouble(2.5)), captured.captured.series)
+        assertEquals(mapOf(seriesId to SeriesPosition.fromDouble(2.5)), captured.captured.series)
         assertNull(captured.captured.narratorIds)
     }
 

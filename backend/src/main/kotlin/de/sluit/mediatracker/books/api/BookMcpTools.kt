@@ -12,7 +12,6 @@ import de.sluit.mediatracker.books.domain.BookNarratorService
 import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookSeriesId
-import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookService
 import de.sluit.mediatracker.books.domain.BookSort
@@ -48,6 +47,7 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
@@ -336,7 +336,7 @@ private val UPDATE_BOOK_SCHEMA = ToolSchema(
     required = listOf("id"),
 )
 
-// An array of {seriesId, position?}; mirrors BookSeriesLinkRequest and the rules of BookSeriesPosition.
+// An array of {seriesId, position?}; mirrors BookSeriesLinkRequest and the rules of SeriesPosition.
 private fun JsonObjectBuilder.putSeriesLinksProperty(description: String) {
     putJsonObject(BookSeriesId.FIELD) {
         put("type", "array")
@@ -351,7 +351,7 @@ private fun JsonObjectBuilder.putSeriesLinksProperty(description: String) {
                 putJsonObject("position") {
                     put("type", "number")
                     put("minimum", 0)
-                    put("maximum", BookSeriesPosition.MAX_VALUE.toDouble())
+                    put("maximum", SeriesPosition.MAX_VALUE.toDouble())
                     put(
                         "description",
                         "The book's number in the series, e.g. 1 or 2.5, with at most two decimal places. Optional.",

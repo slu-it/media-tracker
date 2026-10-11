@@ -121,7 +121,8 @@
       "authors": "Authors",
       "narrators": "Narrators",
       "developers": "Developers",
-      "series": "Book series"
+      "bookSeries": "Book series",
+      "gameSeries": "Game series"
     }
   },
   "media": {
@@ -166,6 +167,13 @@
     },
     "vocabulary": {
       "add": "Add \"{{name}}\""
+    },
+    "series": {
+      "label": "Series",
+      "hint": "Type a name and press Enter to add a new series",
+      "position": "No.",
+      "entry": "{{name}} #{{position}}",
+      "positionBadge": "#{{position}}"
     },
     "colors": {
       "grey": "Grey",
@@ -279,8 +287,7 @@
       "nameTaken": "A series named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
       "sortByVolume": "Most books",
       "merge": "Merge",
-      "chooseOtherName": "Choose another name",
-      "positionBadge": "#{{position}}"
+      "chooseOtherName": "Choose another name"
     },
     "search": {
       "label": "Search books",
@@ -297,11 +304,7 @@
       "authors": "Authors",
       "authorsHint": "Type a name and press Enter to add a new author",
       "narrators": "Narrators",
-      "narratorsHint": "Type a name and press Enter to add a new narrator",
-      "series": "Series",
-      "seriesHint": "Type a name and press Enter to add a new series",
-      "seriesPosition": "No.",
-      "seriesEntry": "{{name}} #{{position}}"
+      "narratorsHint": "Type a name and press Enter to add a new narrator"
     },
     "ownership": {
       "watchlist": "Watchlist",
@@ -375,6 +378,26 @@
       "renameTitle": "Rename developer",
       "nameLabel": "Name",
       "nameTaken": "A developer named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
+      "sortByVolume": "Most games",
+      "merge": "Merge",
+      "chooseOtherName": "Choose another name"
+    },
+    "seriesView": {
+      "searchLabel": "Search series",
+      "searchPlaceholder": "Search series…",
+      "count_one": "{{count}} series",
+      "count_other": "{{count}} series",
+      "gameCount_one": "{{count}} game",
+      "gameCount_other": "{{count}} games",
+      "empty": "No series yet. Add one while editing a game.",
+      "noSearchResults": "No series match \"{{term}}\"",
+      "noGames": "No games in this series",
+      "deleteLabel": "Delete series {{name}}",
+      "deleteQuestion": "Delete series \"{{name}}\"?",
+      "editLabel": "Rename series {{name}}",
+      "renameTitle": "Rename series",
+      "nameLabel": "Name",
+      "nameTaken": "A series named \"{{existing}}\" already exists. Merge \"{{name}}\" into it?",
       "sortByVolume": "Most games",
       "merge": "Merge",
       "chooseOtherName": "Choose another name"

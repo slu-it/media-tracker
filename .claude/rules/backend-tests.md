@@ -19,7 +19,7 @@ Testcontainers `mariadb:11.8` per test JVM); nothing is skipped without it.
   through `resetSeededReferenceData()` (the rows are in `SeededPlatforms.ROWS` / `SeededBookTypes.ROWS`; a smoke test that
   edits those tables calls it in its setup, ADR 0043), and Exposed's default database is pinned to that shared pool.
 - **Handler tests** (`<feature>/api/<Feature>RoutesTest`, `auth/api/AuthRoutesTest`, root `RoutesTest`):
-  `testApplication` + `handlerApp(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions, bookTypes, gamePlatforms)` from `test/.../TestApp.kt`,
+  `testApplication` + `handlerApp(auth, games, apiKeys, expansions, coverOptions, backup, dropbox, cloudBackup, gameDevelopers, books, bookAuthors, bookNarrators, bookSeries, bookCoverOptions, bookTypes, gamePlatforms, gameSeries)` from `test/.../TestApp.kt`,
   which boots `configureHttp` with MockK services (every parameter defaulted) and `SessionStorageMemory`, no
   database; `loginAsMocked(auth)` logs in through the real `/login`. They own status codes, headers,
   (de)serialization, `PatchField` mapping (`coVerify` the domain value the service receives) and every negative

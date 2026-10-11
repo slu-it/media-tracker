@@ -14,7 +14,6 @@ import de.sluit.mediatracker.books.domain.BookRepository
 import de.sluit.mediatracker.books.domain.BookSeries
 import de.sluit.mediatracker.books.domain.BookSeriesEntry
 import de.sluit.mediatracker.books.domain.BookSeriesId
-import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSort
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
@@ -30,6 +29,7 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.persistence.TitleSearch
@@ -375,7 +375,7 @@ class ExposedBookRepository : BookRepository {
         BookToSeriesTable.batchInsert(book.series) { entry ->
             this[BookToSeriesTable.bookId] = book.id.toString()
             this[BookToSeriesTable.seriesId] = entry.series.id.toString()
-            this[BookToSeriesTable.position] = entry.position?.value?.setScale(BookSeriesPosition.MAX_SCALE)
+            this[BookToSeriesTable.position] = entry.position?.value?.setScale(SeriesPosition.MAX_SCALE)
         }
     }
 
@@ -411,7 +411,7 @@ class ExposedBookRepository : BookRepository {
             id = BookSeriesId(Uuid.parseHexDash(this[BookSeriesTable.id])),
             name = VocabularyName(this[BookSeriesTable.name]),
         ),
-        position = this[BookToSeriesTable.position]?.let(BookSeriesPosition::of),
+        position = this[BookToSeriesTable.position]?.let(SeriesPosition::of),
     )
 
     // Re-running the value-object validation on read is intentional: a corrupt row surfaces as a 400

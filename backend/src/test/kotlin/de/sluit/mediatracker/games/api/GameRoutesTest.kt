@@ -18,6 +18,7 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -34,6 +35,9 @@ import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GameMeta
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
+import de.sluit.mediatracker.games.domain.GameSeriesId
+import de.sluit.mediatracker.games.domain.GameSeriesService
+import de.sluit.mediatracker.games.domain.GameSeriesSummary
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.NewGame
@@ -41,6 +45,8 @@ import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.game
+import de.sluit.mediatracker.games.series
+import de.sluit.mediatracker.games.seriesEntry
 import de.sluit.mediatracker.handlerApp
 import de.sluit.mediatracker.jsonBody
 import de.sluit.mediatracker.loginAsMocked
@@ -61,11 +67,13 @@ import io.mockk.confirmVerified
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.uuid.Uuid
 
 /**
  * Handler tests for `/api/games` and `/api/game-platforms`: real plugins and routes through [handlerApp],
@@ -87,6 +95,16 @@ class GameRoutesTest {
     ): HttpClient {
         val auth = mockk<AuthService>()
         val client = handlerApp(auth, games, gameDevelopers = developers)
+        client.loginAsMocked(auth)
+        return client
+    }
+
+    private suspend fun ApplicationTestBuilder.loggedInSeriesClient(
+        games: GameService = mockk(),
+        series: GameSeriesService = mockk(),
+    ): HttpClient {
+        val auth = mockk<AuthService>()
+        val client = handlerApp(auth, games, gameSeries = series)
         client.loginAsMocked(auth)
         return client
     }
@@ -1447,6 +1465,423 @@ class GameRoutesTest {
         val client = loggedInHandlerClient(games, mockk())
 
         client.get("/api/game-developers/not-a-uuid/games").assertValidationError("developerIds")
+    }
+
+    @Test
+    fun `delete series returns 204`() = testApplication {
+        val series = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = series)
+        val id = GameSeriesId.new()
+        coEvery { series.delete(id) } just Runs
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/game-series/$id").status)
+        coVerify { series.delete(id) }
+    }
+
+    @Test
+    fun `delete of an unknown series is 404`() = testApplication {
+        val series = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = series)
+        val id = GameSeriesId.new()
+        coEvery { series.delete(id) } throws NotFoundException("game series", id.toString())
+
+        client.delete("/api/game-series/$id").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `delete of a series still linked to a game is a 409 conflict`() = testApplication {
+        val series = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = series)
+        val id = GameSeriesId.new()
+        coEvery { series.delete(id) } throws ConflictException("game series", id.toString())
+
+        client.delete("/api/game-series/$id").assertError(HttpStatusCode.Conflict, "conflict")
+    }
+
+    @Test
+    fun `delete series with a malformed id is a 400`() = testApplication {
+        val client = loggedInSeriesClient(series = mockk())
+
+        client.delete("/api/game-series/not-a-uuid").assertValidationError("series")
+    }
+
+    @Test
+    fun `rename series returns 200 with the entry and passes the trimmed name`() = testApplication {
+        val service = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = service)
+        val id = GameSeriesId.new()
+        coEvery { service.rename(id, VocabularyName("New Name")) } returns series("New Name", id)
+
+        val response = client.patch("/api/game-series/$id") { jsonBody("""{"name":"  New Name "}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(GameSeriesResponse(id.toString(), "New Name"), response.decodeBody<GameSeriesResponse>())
+    }
+
+    @Test
+    fun `rename series with a blank name is a 400`() = testApplication {
+        val client = loggedInSeriesClient(series = mockk())
+
+        client.patch("/api/game-series/${GameSeriesId.new()}") { jsonBody("""{"name":"  "}""") }
+            .assertValidationError("name")
+    }
+
+    @Test
+    fun `rename series with a malformed id is a 400`() = testApplication {
+        val client = loggedInSeriesClient(series = mockk())
+
+        client.patch("/api/game-series/not-a-uuid") { jsonBody("""{"name":"New"}""") }.assertValidationError("series")
+    }
+
+    @Test
+    fun `rename of an unknown series is 404`() = testApplication {
+        val service = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = service)
+        val id = GameSeriesId.new()
+        coEvery { service.rename(id, VocabularyName("New")) } throws NotFoundException("game series", id.toString())
+
+        client.patch("/api/game-series/$id") { jsonBody("""{"name":"New"}""") }
+            .assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `rename series onto a taken name is a 409 name_taken with the existing entry`() = testApplication {
+        val service = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = service)
+        val id = GameSeriesId.new()
+        val holder = GameSeriesId.new()
+        coEvery { service.rename(id, VocabularyName("Taken")) } throws
+            NameTakenException("game series", holder.toString(), "taken")
+
+        val error = client.patch("/api/game-series/$id") { jsonBody("""{"name":"Taken"}""") }
+            .assertError(HttpStatusCode.Conflict, "name_taken")
+
+        assertEquals(holder.toString(), error.existingId)
+        assertEquals("taken", error.existingName)
+    }
+
+    @Test
+    fun `merge series returns 200 with the target`() = testApplication {
+        val service = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = service)
+        val id = GameSeriesId.new()
+        val targetId = GameSeriesId.new()
+        coEvery { service.merge(id, targetId) } returns series("Target", targetId)
+
+        val response = client.post("/api/game-series/$id/merge") { jsonBody("""{"targetId":"$targetId"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(GameSeriesResponse(targetId.toString(), "Target"), response.decodeBody<GameSeriesResponse>())
+    }
+
+    @Test
+    fun `merge of an unknown series is 404`() = testApplication {
+        val service = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = service)
+        val id = GameSeriesId.new()
+        val targetId = GameSeriesId.new()
+        coEvery { service.merge(id, targetId) } throws NotFoundException("game series", id.toString())
+
+        client.post("/api/game-series/$id/merge") { jsonBody("""{"targetId":"$targetId"}""") }
+            .assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `merge series into itself is a 400`() = testApplication {
+        val service = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = service)
+        val id = GameSeriesId.new()
+        coEvery { service.merge(id, id) } throws InvalidValueException("targetId", "must differ from the series itself")
+
+        client.post("/api/game-series/$id/merge") { jsonBody("""{"targetId":"$id"}""") }
+            .assertValidationError("targetId")
+    }
+
+    @Test
+    fun `merge series with a malformed target id is a 400`() = testApplication {
+        val client = loggedInSeriesClient(series = mockk())
+
+        client.post("/api/game-series/${GameSeriesId.new()}/merge") { jsonBody("""{"targetId":"nope"}""") }
+            .assertValidationError("targetId")
+    }
+
+    @Test
+    fun `merge series with a malformed id is a 400`() = testApplication {
+        val client = loggedInSeriesClient(series = mockk())
+
+        client.post("/api/game-series/not-a-uuid/merge") { jsonBody("""{"targetId":"${GameSeriesId.new()}"}""") }
+            .assertValidationError("series")
+    }
+
+    // ---- series view ----
+
+    @Test
+    fun `series summaries mirror the domain summaries including empty series`() = testApplication {
+        val seriesService = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = seriesService)
+        val mistborn = series("Mistborn")
+        val empty = series("Zed")
+        coEvery { seriesService.summaries() } returns
+            listOf(GameSeriesSummary(mistborn, 3), GameSeriesSummary(empty, 0))
+
+        val response = client.get("/api/game-series.summaries")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(
+            listOf(
+                GameSeriesSummaryResponse(mistborn.id.toString(), "Mistborn", 3),
+                GameSeriesSummaryResponse(empty.id.toString(), "Zed", 0),
+            ),
+            response.decodeBody<List<GameSeriesSummaryResponse>>(),
+        )
+    }
+
+    @Test
+    fun `series games returns the fully mapped games in service order`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val mistborn = series("Mistborn")
+        val first = game("Ocarina of Time", series = listOf(seriesEntry(mistborn, 1.0)))
+        val second = game("Unnumbered", series = listOf(seriesEntry(mistborn)))
+        coEvery { games.listBySeries(mistborn.id) } returns listOf(first, second)
+
+        val response = client.get("/api/game-series/${mistborn.id}/games")
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val decoded = response.decodeBody<List<GameResponse>>()
+        assertEquals(listOf("Ocarina of Time", "Unnumbered"), decoded.map { it.title })
+        assertEquals(listOf(1.0, null), decoded.map { it.series.single().position })
+    }
+
+    @Test
+    fun `series games of an unknown series is 404`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val id = GameSeriesId.new()
+        coEvery { games.listBySeries(id) } throws NotFoundException("game series", id.toString())
+
+        client.get("/api/game-series/$id/games").assertError(HttpStatusCode.NotFound, "not_found")
+    }
+
+    @Test
+    fun `series games with a malformed id is a 400`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+
+        client.get("/api/game-series/not-a-uuid/games").assertValidationError("series")
+    }
+
+    // ---- series ----
+
+    @Test
+    fun `series search passes the term and the default limit`() = testApplication {
+        val seriesService = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = seriesService)
+        coEvery { seriesService.search(SearchTerm("mist"), VocabularySearchLimit.DEFAULT) } returns
+            listOf(series("Mistborn"))
+
+        val response = client.get("/api/game-series?search=mist").decodeBody<List<GameSeriesResponse>>()
+
+        assertEquals(listOf("Mistborn"), response.map { it.name })
+    }
+
+    @Test
+    fun `series search passes an explicit limit and no term when absent`() = testApplication {
+        val seriesService = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = seriesService)
+        coEvery { seriesService.search(null, VocabularySearchLimit(5)) } returns emptyList()
+
+        client.get("/api/game-series?limit=5")
+
+        coVerify { seriesService.search(null, VocabularySearchLimit(5)) }
+    }
+
+    @Test
+    fun `series search rejects a limit above the maximum`() = testApplication {
+        val client = loggedInSeriesClient(series = mockk())
+
+        client.get("/api/game-series?limit=${VocabularySearchLimit.MAX + 1}").assertValidationError("limit")
+    }
+
+    @Test
+    fun `creating a new series is 201 and an existing one is 200`() = testApplication {
+        val seriesService = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = seriesService)
+        val mistborn = series("Mistborn")
+        coEvery { seriesService.create(VocabularyName("Mistborn")) } returns VocabularyCreation(mistborn, true)
+        coEvery { seriesService.create(VocabularyName("mistborn")) } returns VocabularyCreation(mistborn, false)
+
+        val created = client.post("/api/game-series") { jsonBody("""{"name":"Mistborn"}""") }
+        val existing = client.post("/api/game-series") { jsonBody("""{"name":"mistborn"}""") }
+
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertEquals(mistborn.id.toString(), created.decodeBody<GameSeriesResponse>().id)
+        assertEquals(HttpStatusCode.OK, existing.status, existing.bodyAsText())
+    }
+
+    @Test
+    fun `creating a series with a blank name is a 400`() = testApplication {
+        val seriesService = mockk<GameSeriesService>()
+        val client = loggedInSeriesClient(series = seriesService)
+
+        client.post("/api/game-series") { jsonBody("""{"name":"  "}""") }.assertValidationError("name")
+        coVerify(exactly = 0) { seriesService.create(any()) }
+    }
+
+    // ---- series on games ----
+
+    @Test
+    fun `create response mirrors series with their positions`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        coEvery { games.create(any()) } returns game(
+            "Ocarina of Time",
+            series = listOf(seriesEntry(series("Zelda"), 2.5), seriesEntry(series("The Cosmere"))),
+        )
+
+        val body = client.createGame(VALID_GAME_BODY).bodyAsText()
+        val response = Json.decodeFromString<GameResponse>(body)
+
+        assertEquals(listOf("The Cosmere", "Zelda"), response.series.map { it.name })
+        assertEquals(listOf(null, 2.5), response.series.map { it.position })
+        assertContains(body, "\"position\":null")
+    }
+
+    @Test
+    fun `create hands series positions to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Zelda")
+        val withPosition = Uuid.random().toString()
+        val withoutPosition = Uuid.random().toString()
+
+        client.createGame(
+            """{"title":"Zelda","releaseYear":1986,"platformIds":["${SeededPlatforms.PC}"],
+                |"series":[{"seriesId":"$withPosition","position":2.5},{"seriesId":"$withoutPosition"}]}
+            """.trimMargin(),
+        )
+
+        assertEquals(
+            mapOf(
+                GameSeriesId.parse(withPosition) to SeriesPosition.fromDouble(2.5),
+                GameSeriesId.parse(withoutPosition) to null,
+            ),
+            captured.captured.series,
+        )
+    }
+
+    @Test
+    fun `create without series hands an empty map to the service`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Celeste")
+
+        client.createGame(VALID_GAME_BODY)
+
+        assertEquals(emptyMap(), captured.captured.series)
+    }
+
+    @Test
+    fun `create rejects a malformed series id`() = testApplication {
+        val client = loggedInSeriesClient()
+
+        client.createGame(
+            """{"title":"x","releaseYear":1986,"platformIds":["${SeededPlatforms.PC}"],"series":[{"seriesId":"nope"}]}""",
+        ).assertValidationError("series")
+    }
+
+    @Test
+    fun `create rejects a duplicate series id`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val id = Uuid.random().toString()
+
+        client.createGame(
+            """{"title":"x","releaseYear":1986,"platformIds":["${SeededPlatforms.PC}"],
+                |"series":[{"seriesId":"$id","position":1},{"seriesId":"$id"}]}
+            """.trimMargin(),
+        ).assertValidationError("series")
+        coVerify(exactly = 0) { games.create(any()) }
+    }
+
+    @Test
+    fun `create rejects invalid series positions`() = testApplication {
+        val client = loggedInSeriesClient()
+        val id = Uuid.random().toString()
+
+        listOf("-1", "10000", "1.234").forEach { position ->
+            client.createGame(
+                """{"title":"x","releaseYear":1986,"platformIds":["${SeededPlatforms.PC}"],
+                    |"series":[{"seriesId":"$id","position":$position}]}
+                """.trimMargin(),
+            ).assertValidationError("series")
+        }
+    }
+
+    @Test
+    fun `patch maps an empty series list to a cleared map`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id)
+
+        client.patch("/api/games/$id") { jsonBody("""{"series":[]}""") }
+
+        assertEquals(emptyMap(), captured.captured.series)
+    }
+
+    @Test
+    fun `patch without series leaves them unchanged`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id)
+
+        client.patch("/api/games/$id") { jsonBody("{}") }
+
+        assertNull(captured.captured.series)
+    }
+
+    @Test
+    fun `patch maps series with and without positions`() = testApplication {
+        val games = mockk<GameService>()
+        val client = loggedInSeriesClient(games = games)
+        val captured = slot<GamePatch>()
+        val id = GameId.new()
+        coEvery { games.update(any(), capture(captured)) } returns game("Celeste", id = id)
+        val seriesId = Uuid.random().toString()
+        val other = Uuid.random().toString()
+
+        client.patch("/api/games/$id") {
+            jsonBody("""{"series":[{"seriesId":"$seriesId","position":0},{"seriesId":"$other"}]}""")
+        }
+
+        assertEquals(
+            mapOf(GameSeriesId.parse(seriesId) to SeriesPosition.fromDouble(0.0), GameSeriesId.parse(other) to null),
+            captured.captured.series,
+        )
+    }
+
+    @Test
+    fun `patch rejects a duplicate series id`() = testApplication {
+        val client = loggedInSeriesClient()
+        val seriesId = Uuid.random().toString()
+
+        client.patch("/api/games/${GameId.new()}") {
+            jsonBody("""{"series":[{"seriesId":"$seriesId"},{"seriesId":"$seriesId"}]}""")
+        }.assertValidationError("series")
+    }
+
+    @Test
+    fun `game-series endpoints reject anonymous access`() = testApplication {
+        val client = handlerApp(mockk(), mockk())
+
+        listOf("/api/game-series", "/api/game-series.summaries", "/api/game-series/${GameSeriesId.new()}/games")
+            .forEach { assertEquals(HttpStatusCode.Unauthorized, client.get(it).status, it) }
     }
 
     private companion object {

@@ -49,6 +49,7 @@ fun Route.apiRoutes(services: Services) {
                 services.coverOptions,
                 services.gameDevelopers,
                 services.gamePlatforms,
+                services.gameSeries,
             )
 
             bookRoutes(
@@ -82,7 +83,13 @@ fun Route.mcpRoutes(services: Services) {
     authenticate(API_KEY_AUTH) {
         mcpEndpoint {
             newMcpServer().apply {
-                addGameTools(services.games, services.expansions, services.coverOptions, services.gameDevelopers)
+                addGameTools(
+                    services.games,
+                    services.expansions,
+                    services.coverOptions,
+                    services.gameDevelopers,
+                    services.gameSeries,
+                )
                 addBookTools(
                     services.books,
                     services.bookAuthors,

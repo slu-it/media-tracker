@@ -13,7 +13,7 @@ import { renderWithProviders } from "./test/renderWithProviders";
 
 const emptyPage = { items: [], page: 1, pageSize: 50, totalItems: 0, totalPages: 0 };
 const emptyMeta = { platforms: [], platformCounts: {}, ownership: [], progress: [], releaseYears: [] };
-const [OVERVIEW, WATCHLIST, RANKING, DEVELOPERS] = MEDIA_SUB_PAGES.games;
+const [OVERVIEW, WATCHLIST, RANKING, DEVELOPERS, GAMES_SERIES] = MEDIA_SUB_PAGES.games;
 const [BOOKS_OVERVIEW, BOOKS_WATCHLIST, BOOKS_AUTHORS, BOOKS_NARRATORS, BOOKS_SERIES] = MEDIA_SUB_PAGES.books;
 const BOOKS_PATH = pathFor("books", BOOKS_OVERVIEW);
 const gamesApi = () => ({
@@ -111,6 +111,18 @@ describe("App", () => {
       within(screen.getByRole("tab", { name: "Developers" })).getByTestId("EngineeringOutlinedIcon"),
     ).toBeInTheDocument();
     expect(currentLocation()).toBe(pathFor("games", DEVELOPERS));
+  });
+
+  it("renders the games series route with its own tab label and the icon", async () => {
+    mockApi({ ...gamesApi(), "GET /api/game-series.summaries": () => jsonResponse([]) });
+    renderWithProviders(<App />, { route: pathFor("games", GAMES_SERIES) });
+    expect(await screen.findByText(/No series yet. Add one while editing a game/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Game series" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: "Book series" })).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("tab", { name: "Game series" })).getByTestId("CollectionsBookmarkOutlinedIcon"),
+    ).toBeInTheDocument();
+    expect(currentLocation()).toBe(pathFor("games", GAMES_SERIES));
   });
 
   it("renders the books series route with its tab selected and the icon", async () => {

@@ -125,7 +125,9 @@ not with the browser session:
    `update_game` (same fields as `PATCH /api/games/{id}`: `id` required, everything else optional; only the fields
    passed change, and the id comes from `search_games`), `list_expansions` and `add_expansion` (a game's DLC, by
    the `gameId` from `search_games`; a new expansion is appended to the end of the game's order), `search_game_developers` and
-   `create_game_developer` (look up or create the ids for `developerIds`; creating an existing name returns it), and, when
+   `create_game_developer` (look up or create the ids for `developerIds`; creating an existing name returns it),
+   `search_game_series` and `create_game_series` (the same for `series`, `[{seriesId, position?}]` on `add_game` and
+   `update_game`), and, when
    `STEAMGRIDDB_API_KEY` is set, `find_game_cover` (`title`, optional `releaseYear`; returns the first static
    SteamGridDB cover URL and the game it matched, ready for `coverImageUrl`).
    Books: `list_book_types` (the type ids, seeded as Hardcover, Paperback, Kindle and Audible and editable in the settings), `add_book` (`title` and
