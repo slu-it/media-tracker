@@ -78,6 +78,38 @@ export interface CreateGameDeveloperRequest {
   name: string;
 }
 
+/** A game series; mirrors `GameSeriesResponse` in games/api/GameDtos.kt. */
+export interface GameSeriesResponse {
+  id: string;
+  name: string;
+}
+
+/** A series with its game count; mirrors `GameSeriesSummaryResponse` in games/api/GameDtos.kt. */
+export interface GameSeriesSummaryResponse {
+  id: string;
+  name: string;
+  gameCount: number;
+}
+
+/** Body of `POST /api/game-series`; mirrors `CreateGameSeriesRequest` in games/api/GameDtos.kt. */
+export interface CreateGameSeriesRequest {
+  name: string;
+}
+
+/** One series a game belongs to; mirrors `GameSeriesEntryResponse` in games/api/GameDtos.kt. */
+export interface GameSeriesEntryResponse {
+  id: string;
+  name: string;
+  /** Number within the series (0 to 9999.99, at most 2 decimals); `null` when the game has no number there. */
+  position: number | null;
+}
+
+/** One series link of a game in a request; mirrors `GameSeriesLinkRequest` in games/api/GameDtos.kt. */
+export interface GameSeriesLinkRequest {
+  seriesId: string;
+  position?: number | null;
+}
+
 /** The filter values that actually occur in the stored games; mirrors `GameMetaResponse` in games/api/GameDtos.kt. */
 export interface GameMetaResponse {
   /** Only platforms in use, alphabetically by label. */
@@ -109,6 +141,8 @@ export interface GameResponse {
   /** ISO-8601 `YYYY-MM-DD`; `null` when only the release year is known. */
   releaseDate: string | null;
   developers: GameDeveloperResponse[];
+  /** Sorted by series name. */
+  series: GameSeriesEntryResponse[];
 }
 
 export interface CreateGameRequest {
@@ -129,6 +163,8 @@ export interface CreateGameRequest {
   releaseDate?: string | null;
   /** Omit for the default (no developers). */
   developerIds?: string[];
+  /** Omit for the default (no series). */
+  series?: GameSeriesLinkRequest[];
 }
 
 /** PATCH body: omit a key to leave the field unchanged; `null` clears `description`/`rating`/`coverImageUrl`/`releaseDate`. */
@@ -149,6 +185,8 @@ export interface UpdateGameRequest {
   releaseDate?: string | null;
   /** Omit to leave unchanged; replaces the full set (may be empty). */
   developerIds?: string[];
+  /** Omit to leave unchanged; replaces all links (may be empty). */
+  series?: GameSeriesLinkRequest[];
 }
 
 /** One SteamGridDB game matching a search term; mirrors `CoverMatchResponse` in games/api/CoverOptionDtos.kt. */

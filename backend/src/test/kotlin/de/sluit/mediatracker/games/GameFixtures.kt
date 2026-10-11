@@ -5,6 +5,7 @@ import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.games.domain.Game
@@ -13,6 +14,9 @@ import de.sluit.mediatracker.games.domain.GameDeveloperId
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
+import de.sluit.mediatracker.games.domain.GameSeries
+import de.sluit.mediatracker.games.domain.GameSeriesEntry
+import de.sluit.mediatracker.games.domain.GameSeriesId
 import de.sluit.mediatracker.games.domain.Ownership
 import de.sluit.mediatracker.games.domain.PlatformLabel
 import de.sluit.mediatracker.games.domain.Progress
@@ -49,6 +53,13 @@ object Platforms {
 fun developer(name: String, id: GameDeveloperId = GameDeveloperId.new()): GameDeveloper =
     GameDeveloper(id, VocabularyName(name))
 
+/** Builds a valid [GameSeries] for tests, with a random id unless one is given. */
+fun series(name: String, id: GameSeriesId = GameSeriesId.new()): GameSeries = GameSeries(id, VocabularyName(name))
+
+/** Builds a [GameSeriesEntry]; [position] is parsed through [SeriesPosition.fromDouble]. */
+fun seriesEntry(series: GameSeries, position: Double? = null): GameSeriesEntry =
+    GameSeriesEntry(series, position?.let(SeriesPosition::fromDouble))
+
 /**
  * Builds a valid [Game] for tests, defaulting to a single platform (PC). When [releaseDate] is given, it
  * decides the year (like production: [releaseYear] is ignored then), so callers only need one of the two.
@@ -66,6 +77,7 @@ fun game(
     hidden: Boolean = false,
     releaseDate: ReleaseDate? = null,
     developers: List<GameDeveloper> = emptyList(),
+    series: List<GameSeriesEntry> = emptyList(),
 ): Game = Game(
     id = id,
     title = Title(title),
@@ -79,4 +91,5 @@ fun game(
     hidden = hidden,
     releaseDate = releaseDate,
     developers = developers.sortedByNameForGame(),
+    series = series.sortedByNameForGame(),
 )

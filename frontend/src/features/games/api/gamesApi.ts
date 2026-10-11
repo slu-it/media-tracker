@@ -4,11 +4,15 @@ import type {
   CoverType,
   CreateGameDeveloperRequest,
   CreateGameRequest,
+  CreateGameSeriesRequest,
   GameDeveloperResponse,
   GameDeveloperSummaryResponse,
   GameMetaResponse,
   GamePlatformResponse,
   GamePlatformSummaryResponse,
+  GameSeriesLinkRequest,
+  GameSeriesResponse,
+  GameSeriesSummaryResponse,
   CreateColoredEntryRequest,
   UpdateColoredEntryRequest,
   GameResponse,
@@ -20,10 +24,11 @@ import type {
   UpdateGameRequest,
 } from "../../../types/api";
 import type { ColoredEntry } from "../../../components/media/coloredVocabulary/coloredVocabulary";
+import { resolveSeriesLinks, type SeriesDraft } from "../../../domain/media/seriesDraft";
 import { resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
 import type { DeveloperDraft } from "../domain/gameDraft";
 import type { GameFilters } from "../domain/gameFilters";
-import { ALL_GAMES_PAGE_SIZE, DEVELOPER_SEARCH_LIMIT } from "../domain/gameValues";
+import { ALL_GAMES_PAGE_SIZE, DEVELOPER_SEARCH_LIMIT, SERIES_SEARCH_LIMIT } from "../domain/gameValues";
 
 const BASE = "/api/games";
 
@@ -211,4 +216,54 @@ export function deleteGameDeveloper(id: string): Promise<void> {
 /** Resolves a `GameForm` draft's developers to ids right before saving (see `resolveVocabularyIds`). */
 export function resolveDeveloperIds(drafts: DeveloperDraft[]): Promise<string[]> {
   return resolveVocabularyIds(drafts, createGameDeveloper);
+}
+
+/** Like `searchGameDevelopers`, for the series chip input, capped at `SERIES_SEARCH_LIMIT`. */
+export function searchGameSeries(search: string, signal?: AbortSignal): Promise<GameSeriesResponse[]> {
+  const params = new URLSearchParams({ search: search.trim(), limit: String(SERIES_SEARCH_LIMIT) });
+  return apiFetch<GameSeriesResponse[]>(`/api/game-series?${params}`, { signal });
+}
+
+/** Adds `name` to the series vocabulary; the backend returns the existing series (200) if it already exists. */
+export function createGameSeries(name: string): Promise<GameSeriesResponse> {
+  const body: CreateGameSeriesRequest = { name };
+  return apiFetch<GameSeriesResponse>("/api/game-series", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Resolves a `GameForm` draft's series to links right before saving (see `resolveSeriesLinks`). */
+export function resolveSeries(drafts: SeriesDraft[]): Promise<GameSeriesLinkRequest[]> {
+  return resolveSeriesLinks(drafts, createGameSeries);
+}
+
+/** Every series with its game count (including 0), alphabetical; unpaged. */
+export function listGameSeriesSummaries(): Promise<GameSeriesSummaryResponse[]> {
+  return apiFetch<GameSeriesSummaryResponse[]>("/api/game-series.summaries");
+}
+
+/** The games of one series in position order (unnumbered last, then by title); 404 for an unknown series. */
+export function listSeriesGames(seriesId: string, signal?: AbortSignal): Promise<GameResponse[]> {
+  return apiFetch<GameResponse[]>(`/api/game-series/${encodeURIComponent(seriesId)}/games`, { signal });
+}
+
+/** Renames the series; 409 `name_taken` (with `existingId`/`existingName`) when another series has the name. */
+export function renameGameSeries(id: string, name: string): Promise<GameSeriesResponse> {
+  const body: RenameVocabularyRequest = { name };
+  return apiFetch<GameSeriesResponse>(`/api/game-series/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Moves every game of the series to `targetId` and deletes the series; resolves the target. */
+export function mergeGameSeries(id: string, targetId: string): Promise<GameSeriesResponse> {
+  const body: MergeVocabularyRequest = { targetId };
+  return apiFetch<GameSeriesResponse>(`/api/game-series/${encodeURIComponent(id)}/merge`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** 204; 409 while games still use the series, 404 for an unknown id. */
+export function deleteGameSeries(id: string): Promise<void> {
+  return apiFetch<void>(`/api/game-series/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

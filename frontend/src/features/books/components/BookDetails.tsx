@@ -9,7 +9,7 @@ import { NameChips } from "../../../components/media/NameChips";
 import { ReleaseDetail } from "../../../components/media/ReleaseDetail";
 import type { BookOwnership, BookProgress } from "../domain/bookStatus";
 import { BOOK_COVER_ASPECT_RATIO } from "../domain/bookValues";
-import { formatSeriesEntry } from "../domain/seriesLabel";
+import { formatSeriesEntry } from "../../../domain/media/seriesLabel";
 import { BookOwnershipToggleBar } from "./BookOwnershipToggleBar";
 import { BookProgressToggleBar } from "./BookProgressToggleBar";
 import { BookStatusIcons } from "./BookStatusIcons";
@@ -87,7 +87,7 @@ export function BookDetails({
     >
       <Stack spacing={2}>
         {book.series.length > 0 && (
-          <Box role="group" aria-label={t("books.fields.series")}>
+          <Box role="group" aria-label={t("media.series.label")}>
             <NameChips
               items={book.series.map((entry) => ({
                 id: entry.id,

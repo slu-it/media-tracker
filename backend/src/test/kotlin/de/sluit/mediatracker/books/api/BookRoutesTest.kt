@@ -18,7 +18,6 @@ import de.sluit.mediatracker.books.domain.BookOwnership
 import de.sluit.mediatracker.books.domain.BookPatch
 import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookSeriesId
-import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookSeriesService
 import de.sluit.mediatracker.books.domain.BookSeriesSummary
 import de.sluit.mediatracker.books.domain.BookService
@@ -45,6 +44,7 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -1218,7 +1218,7 @@ class BookRoutesTest {
         assertEquals(setOf(BookNarratorId.parse(narratorId)), captured.captured.narratorIds)
         assertEquals(
             mapOf(
-                BookSeriesId.parse(withPosition) to BookSeriesPosition.fromDouble(2.5),
+                BookSeriesId.parse(withPosition) to SeriesPosition.fromDouble(2.5),
                 BookSeriesId.parse(withoutPosition) to null,
             ),
             captured.captured.series,
@@ -1315,7 +1315,7 @@ class BookRoutesTest {
         client.patchBook(id, """{"series":[{"seriesId":"$seriesId","position":0}]}""")
 
         assertEquals(
-            mapOf(BookSeriesId.parse(seriesId) to BookSeriesPosition.fromDouble(0.0)),
+            mapOf(BookSeriesId.parse(seriesId) to SeriesPosition.fromDouble(0.0)),
             captured.captured.series,
         )
     }

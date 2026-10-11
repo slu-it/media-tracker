@@ -6,6 +6,7 @@ import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.applyTo
@@ -24,19 +25,41 @@ fun List<GamePlatform>.sortedForGame(): List<GamePlatform> = distinctBy { it.id 
 /** A platform with the number of games linked to it (0 for a platform nobody uses yet). */
 data class GamePlatformSummary(val platform: GamePlatform, val gameCount: Int)
 
+/**
+ * What the user-grown vocabularies of a game (developers, series) share: an id (its type differs per
+ * vocabulary, hence [Any]; only equality and [toString] are used) and a [name]. One generic sort helper over it
+ * avoids a JVM signature clash between per-type `List<...>` extension functions.
+ */
+interface GameNamedEntry {
+    val id: Any
+    val name: VocabularyName
+}
+
 /** A developer the user has added to the vocabulary (MT-025, ADR 0029); grown on the fly, unlike [GamePlatform]. */
-data class GameDeveloper(val id: GameDeveloperId, val name: VocabularyName)
+data class GameDeveloper(override val id: GameDeveloperId, override val name: VocabularyName) : GameNamedEntry
+
+/** A series the user has added to the vocabulary; works like [GameDeveloper], the position is on the link. */
+data class GameSeries(override val id: GameSeriesId, override val name: VocabularyName) : GameNamedEntry
+
+/** A game's link to one [series], with the game's optional [position] (number) in it. */
+data class GameSeriesEntry(val series: GameSeries, val position: SeriesPosition? = null) : GameNamedEntry {
+    override val id: Any get() = series.id
+    override val name: VocabularyName get() = series.name
+}
 
 /**
  * Sorts by name case-insensitively, then id, so the order is deterministic and duplicate-free. Named
  * differently from [GamePlatform]'s `sortedForGame` (identical after generic erasure) to avoid a JVM signature
  * clash between the two extension functions.
  */
-fun List<GameDeveloper>.sortedByNameForGame(): List<GameDeveloper> = distinctBy { it.id }
+fun <T : GameNamedEntry> List<T>.sortedByNameForGame(): List<T> = distinctBy { it.id }
     .sortedWith(compareBy({ it.name.value.lowercase() }, { it.id.toString() }))
 
 /** A developer with the number of games linked to it (0 for a developer nobody references yet). */
 data class GameDeveloperSummary(val developer: GameDeveloper, val gameCount: Int)
+
+/** A series with the number of games linked to it (0 for a series nobody references yet). */
+data class GameSeriesSummary(val series: GameSeries, val gameCount: Int)
 
 /** A game as the business layer sees it. All fields are validated value objects. */
 data class Game(
@@ -52,6 +75,7 @@ data class Game(
     val hidden: Boolean = DEFAULT_HIDDEN,
     val releaseDate: ReleaseDate? = null,
     val developers: List<GameDeveloper> = emptyList(),
+    val series: List<GameSeriesEntry> = emptyList(),
 ) {
     init {
         requireValid(GamePlatformId.FIELD, platforms.isNotEmpty()) { "must not be empty" }
@@ -67,6 +91,10 @@ data class Game(
         requireValid(GameDeveloperId.FIELD, developers == developers.sortedByNameForGame()) {
             "must be sorted by name"
         }
+        requireValid(GameSeriesId.FIELD, series.map { it.id }.distinct().size == series.size) {
+            "must not contain duplicates"
+        }
+        requireValid(GameSeriesId.FIELD, series == series.sortedByNameForGame()) { "must be sorted by name" }
         requireReleaseYearMatches(releaseYear, releaseDate)
     }
 }
@@ -88,6 +116,7 @@ data class NewGame(
     val hidden: Boolean = DEFAULT_HIDDEN,
     val releaseDate: ReleaseDate? = null,
     val developerIds: Set<GameDeveloperId> = emptySet(),
+    val series: Map<GameSeriesId, SeriesPosition?> = emptyMap(),
 ) {
     init {
         requireValid(GamePlatformId.FIELD, platformIds.isNotEmpty()) { "must not be empty" }
@@ -101,7 +130,7 @@ data class NewGame(
  * fields use [Patch] so that "unchanged" and "clear" stay distinguishable. `platformIds` is `null` for
  * "unchanged" too, but can never be cleared to empty (a game always needs at least one platform). `developerIds`
  * is `null` for "unchanged" too, but unlike `platformIds` it can be cleared to an empty set (a game may have no
- * known developers). `releaseDate` wins over `releaseYear` whenever both would otherwise apply, see [applyTo].
+ * known developers). `series` is `null` for "unchanged" too and can be cleared to an empty map. `releaseDate` wins over `releaseYear` whenever both would otherwise apply, see [applyTo].
  */
 data class GamePatch(
     val title: Title? = null,
@@ -115,6 +144,7 @@ data class GamePatch(
     val hidden: Boolean? = null,
     val releaseDate: Patch<ReleaseDate> = Patch.Unchanged,
     val developerIds: Set<GameDeveloperId>? = null,
+    val series: Map<GameSeriesId, SeriesPosition?>? = null,
 ) {
     init {
         if (platformIds != null) {
@@ -123,13 +153,18 @@ data class GamePatch(
     }
 
     /**
-     * [platforms] and [developers] must already be the resolved, sorted replacements when [platformIds] /
-     * [developerIds] are non-null. The resolved release date decides the year: a date present after this patch
+     * [platforms], [developers] and [seriesEntries] must already be the resolved, sorted replacements when
+     * [platformIds] / [developerIds] / [series] are non-null. The resolved release date decides the year: a date present after this patch
      * (whether just set or already there and left unchanged) always wins, overriding a contradicting
      * [releaseYear]; only when no date is present (never set, or just cleared) does a given [releaseYear] apply,
      * else the game's current year is kept.
      */
-    fun applyTo(game: Game, platforms: List<GamePlatform>, developers: List<GameDeveloper>): Game {
+    fun applyTo(
+        game: Game,
+        platforms: List<GamePlatform>,
+        developers: List<GameDeveloper>,
+        seriesEntries: List<GameSeriesEntry> = game.series,
+    ): Game {
         val resolvedReleaseDate = releaseDate.applyTo(game.releaseDate)
         val resolvedReleaseYear = resolvePatchedReleaseYear(releaseYear, resolvedReleaseDate, game.releaseYear)
         return game.copy(
@@ -144,6 +179,7 @@ data class GamePatch(
             hidden = hidden ?: game.hidden,
             releaseDate = resolvedReleaseDate,
             developers = if (developerIds != null) developers else game.developers,
+            series = if (series != null) seriesEntries else game.series,
         )
     }
 }

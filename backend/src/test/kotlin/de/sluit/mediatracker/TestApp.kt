@@ -21,6 +21,7 @@ import de.sluit.mediatracker.games.domain.CoverOptionsService
 import de.sluit.mediatracker.games.domain.ExpansionService
 import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GamePlatformService
+import de.sluit.mediatracker.games.domain.GameSeriesService
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.cookies.HttpCookies
@@ -128,6 +129,7 @@ fun ApplicationTestBuilder.handlerApp(
     bookCoverOptions: BookCoverOptionsService = mockk(),
     bookTypes: BookTypeService = mockk(),
     gamePlatforms: GamePlatformService = mockk(),
+    gameSeries: GameSeriesService = mockk(),
 ): HttpClient {
     application {
         configureHttp(
@@ -148,6 +150,7 @@ fun ApplicationTestBuilder.handlerApp(
                 bookCoverOptions,
                 bookTypes,
                 gamePlatforms,
+                gameSeries,
             ),
             testSessionConfig,
             SessionStorageMemory(),

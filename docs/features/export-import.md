@@ -22,7 +22,7 @@ ADR: [0027](../decisions/0027-json-backup-per-domain-sources.md). Code: `common/
   column, a missing non-nullable column, a wrongly typed value or a constraint violation is a `400 validation_error`, and
   that source's transaction is rolled back. All sources are validated before any
   of them writes. A missing nullable column imports as `null`, so older exports survive a new optional
-  column (MT-025, `games.release_date`). `DATE` columns travel as ISO `YYYY-MM-DD` strings. `DECIMAL` columns travel as JSON numbers (MT-042, `book_to_series.position`); a value beyond
+  column (MT-025, `games.release_date`). `DATE` columns travel as ISO `YYYY-MM-DD` strings. `DECIMAL` columns travel as JSON numbers (MT-042, `book_to_series.position`; `game_to_series.position` since ADR 0044); a value beyond
   the column's precision or scale is a 400.
 - Importing into a non-empty database is supported, but it is row by row. Expansions of a game that already
   exists are appended next to its current ones, which can leave duplicate or gapped `sequence` values.

@@ -119,3 +119,31 @@ object GameToDeveloperTable : Table("game_to_developer") {
 
     override val primaryKey = PrimaryKey(gameId, developerId)
 }
+
+/** Exposed view of the `game_series` table: a vocabulary the user grows on the fly, exactly like [GameDevelopersTable]. */
+object GameSeriesTable : Table("game_series") {
+    val id = char("id", 36)
+    val name = varchar("name", 128).uniqueIndex("uq_game_series_name")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        index("ft_game_series_name", false, name, indexType = "FULLTEXT")
+    }
+}
+
+/**
+ * Junction table for the games <-> game_series many-to-many relation. The optional [position] is the game's
+ * number within that series (`DECIMAL(6,2)`, null = no number).
+ */
+object GameToSeriesTable : Table("game_to_series") {
+    val gameId = char("game_id", 36)
+        .references(GamesTable.id, onDelete = ReferenceOption.CASCADE, fkName = "fk_game_to_series_game")
+        .index("idx_game_to_series_game")
+    val seriesId = char("series_id", 36)
+        .references(GameSeriesTable.id, fkName = "fk_game_to_series_series")
+        .index("idx_game_to_series_series")
+    val position = decimal("position", 6, 2).nullable()
+
+    override val primaryKey = PrimaryKey(gameId, seriesId)
+}

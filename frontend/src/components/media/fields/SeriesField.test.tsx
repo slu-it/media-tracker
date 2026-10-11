@@ -2,17 +2,23 @@ import { useState } from "react";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { duneSaga } from "../../../../test/fixtures/books";
-import { jsonResponse, mockApi } from "../../../../test/mockFetch";
-import { renderWithProviders } from "../../../../test/renderWithProviders";
-import type { SeriesDraft } from "../../domain/bookDraft";
+import { duneSaga } from "../../../test/fixtures/books";
+import { jsonResponse, mockApi } from "../../../test/mockFetch";
+import { renderWithProviders } from "../../../test/renderWithProviders";
+import type { SeriesDraft } from "../../../domain/media/seriesDraft";
+import type { NamedEntry } from "../../../domain/media/vocabularyDraft";
+import { apiFetch } from "../../../api/client";
 import { SeriesField } from "./SeriesField";
+
+const searchSeries = (term: string, signal: AbortSignal) =>
+  apiFetch<NamedEntry[]>(`/api/book-series?search=${encodeURIComponent(term)}`, { signal });
 
 function Harness({ initial = [], onDraft }: { initial?: SeriesDraft[]; onDraft?: (value: SeriesDraft[]) => void }) {
   const [value, setValue] = useState<SeriesDraft[]>(initial);
   return (
     <SeriesField
       value={value}
+      fetchSuggestions={searchSeries}
       onChange={(next) => {
         setValue(next);
         onDraft?.(next);

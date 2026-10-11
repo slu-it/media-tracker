@@ -1,16 +1,17 @@
 import { Box, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { VocabularyField } from "../../../../components/media/fields/VocabularyField";
-import { isExistingEntry, type VocabularyDraft } from "../../../../domain/media/vocabularyDraft";
-import { searchBookSeries } from "../../api/booksApi";
-import type { SeriesDraft } from "../../domain/bookDraft";
+import type { SeriesDraft } from "../../../domain/media/seriesDraft";
+import { isExistingEntry, type NamedEntry, type VocabularyDraft } from "../../../domain/media/vocabularyDraft";
 import { SeriesPositionField } from "./SeriesPositionField";
+import { VocabularyField } from "./VocabularyField";
 
 interface SeriesFieldProps {
   value: SeriesDraft[];
   onChange: (value: SeriesDraft[]) => void;
   disabled?: boolean;
   showErrors?: boolean;
+  /** Stable (module-level) suggestion lookup of the kind's series vocabulary, e.g. `searchBookSeries`. */
+  fetchSuggestions: (term: string, signal: AbortSignal) => Promise<NamedEntry[]>;
 }
 
 function normalizedName(entry: VocabularyDraft): string {
@@ -31,10 +32,10 @@ function withPositions(entries: VocabularyDraft[], previous: SeriesDraft[]): Ser
 }
 
 /**
- * The book's series: `VocabularyField` over `/api/book-series` for the chips, plus one row per selected series
+ * The item's series: `VocabularyField` over the kind's series vocabulary for the chips, plus one row per selected series
  * with its optional position in that series.
  */
-export function SeriesField({ value, onChange, disabled, showErrors }: SeriesFieldProps) {
+export function SeriesField({ value, onChange, disabled, showErrors, fetchSuggestions }: SeriesFieldProps) {
   const { t } = useTranslation();
   return (
     <Stack spacing={1}>
@@ -42,9 +43,9 @@ export function SeriesField({ value, onChange, disabled, showErrors }: SeriesFie
         value={value.map((series) => series.entry)}
         onChange={(entries) => onChange(withPositions(entries, value))}
         disabled={disabled}
-        fetchSuggestions={searchBookSeries}
-        label={t("books.fields.series")}
-        hint={t("books.fields.seriesHint")}
+        fetchSuggestions={fetchSuggestions}
+        label={t("media.series.label")}
+        hint={t("media.series.hint")}
       />
       {value.map((series, index) => (
         <Box
@@ -59,7 +60,7 @@ export function SeriesField({ value, onChange, disabled, showErrors }: SeriesFie
             onChange={(position) => onChange(value.map((old, i) => (i === index ? { ...old, position } : old)))}
             disabled={disabled}
             showErrors={showErrors}
-            ariaLabel={`${t("books.fields.seriesPosition")} ${series.entry.name}`}
+            ariaLabel={`${t("media.series.position")} ${series.entry.name}`}
           />
         </Box>
       ))}

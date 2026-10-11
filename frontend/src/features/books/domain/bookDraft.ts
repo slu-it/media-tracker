@@ -3,7 +3,6 @@ import type {
   BookNarratorResponse,
   BookResponse,
   BookSeriesLinkRequest,
-  BookSeriesResponse,
   CreateBookRequest,
   UpdateBookRequest,
 } from "../../../types/api";
@@ -13,10 +12,17 @@ import {
   validateDescription,
   validateReleaseDate,
   validateReleaseYear,
+  validateSeriesPosition,
   validateTitle,
 } from "../../../domain/media/values";
+import {
+  existingSeriesLinks,
+  linksOfEntries,
+  sameSeriesLinks,
+  seriesDraftsFromEntries,
+  type SeriesDraft,
+} from "../../../domain/media/seriesDraft";
 import { isExistingEntry, type VocabularyDraft } from "../../../domain/media/vocabularyDraft";
-import { formatSeriesPositionInput, parseSeriesPosition, validateSeriesPosition } from "./bookValues";
 import { DEFAULT_BOOK_OWNERSHIP, DEFAULT_BOOK_PROGRESS, type BookOwnership, type BookProgress } from "./bookStatus";
 
 /** A selected author chip: an existing author or a pending free-solo name (see `VocabularyDraft`). */
@@ -24,15 +30,6 @@ export type AuthorDraft = VocabularyDraft<BookAuthorResponse>;
 
 /** A selected narrator chip: an existing narrator or a pending free-solo name (see `VocabularyDraft`). */
 export type NarratorDraft = VocabularyDraft<BookNarratorResponse>;
-
-/**
- * A selected series chip plus its position as typed (`"2.5"`, `"2,5"` or empty for no number). The position stays
- * text so an in-progress or invalid edit survives; see `validateSeriesPosition`.
- */
-export interface SeriesDraft {
-  entry: VocabularyDraft<BookSeriesResponse>;
-  position: string;
-}
 
 /** The draft's relations after resolving pending names to ids (see `resolveAuthorIds` and friends). */
 export interface ResolvedBookLinks {
@@ -92,10 +89,7 @@ export function draftFromBook(book: BookResponse, language: string): BookDraft {
     typeIds: book.types.map((type) => type.id),
     authors: book.authors,
     narrators: book.narrators,
-    series: book.series.map((entry) => ({
-      entry: { id: entry.id, name: entry.name },
-      position: formatSeriesPositionInput(entry.position, language),
-    })),
+    series: seriesDraftsFromEntries(book.series, language),
   };
 }
 
@@ -114,25 +108,6 @@ function existingIds(entries: VocabularyDraft[]): string[] {
   return entries.filter(isExistingEntry).map((entry) => entry.id);
 }
 
-/** The links of the already existing series; the pending ones have no id yet. */
-function existingSeriesLinks(draft: BookDraft): BookSeriesLinkRequest[] {
-  const links: BookSeriesLinkRequest[] = [];
-  for (const { entry, position } of draft.series) {
-    if (isExistingEntry(entry)) links.push({ seriesId: entry.id, position: parseSeriesPosition(position) });
-  }
-  return links;
-}
-
-function seriesLinkKeys(links: BookSeriesLinkRequest[]): string[] {
-  return links.map((link) => `${link.seriesId}|${link.position ?? ""}`);
-}
-
-function sameSeriesLinks(a: BookSeriesLinkRequest[], b: BookSeriesLinkRequest[]): boolean {
-  const left = new Set(seriesLinkKeys(a));
-  const right = new Set(seriesLinkKeys(b));
-  return left.size === right.size && [...left].every((key) => right.has(key));
-}
-
 /** A pending name always counts as a change: it cannot be compared to the book's ids until it is created. */
 function hasPendingEntry(draft: BookDraft): boolean {
   return (
@@ -147,7 +122,7 @@ export function isDraftDirty(book: BookResponse, draft: BookDraft): boolean {
   const links: ResolvedBookLinks = {
     authorIds: existingIds(draft.authors),
     narratorIds: existingIds(draft.narrators),
-    series: existingSeriesLinks(draft),
+    series: existingSeriesLinks(draft.series),
   };
   return Object.keys(toUpdateRequest(book, draft, links)).length > 0;
 }
@@ -215,12 +190,6 @@ export function toUpdateRequest(book: BookResponse, draft: BookDraft, links: Res
     )
   )
     request.narratorIds = links.narratorIds;
-  if (
-    !sameSeriesLinks(
-      links.series,
-      book.series.map((entry) => ({ seriesId: entry.id, position: entry.position })),
-    )
-  )
-    request.series = links.series;
+  if (!sameSeriesLinks(links.series, linksOfEntries(book.series))) request.series = links.series;
   return request;
 }

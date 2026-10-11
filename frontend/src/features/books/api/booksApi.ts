@@ -27,15 +27,11 @@ import type {
   UpdateColoredEntryRequest,
 } from "../../../types/api";
 import type { ColoredEntry } from "../../../components/media/coloredVocabulary/coloredVocabulary";
-import { resolveVocabularyEntries, resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
-import type { AuthorDraft, NarratorDraft, SeriesDraft } from "../domain/bookDraft";
+import { resolveVocabularyIds } from "../../../domain/media/vocabularyDraft";
+import { resolveSeriesLinks, type SeriesDraft } from "../../../domain/media/seriesDraft";
+import type { AuthorDraft, NarratorDraft } from "../domain/bookDraft";
 import type { BookFilters } from "../domain/bookFilters";
-import {
-  AUTHOR_SEARCH_LIMIT,
-  NARRATOR_SEARCH_LIMIT,
-  SERIES_SEARCH_LIMIT,
-  parseSeriesPosition,
-} from "../domain/bookValues";
+import { AUTHOR_SEARCH_LIMIT, NARRATOR_SEARCH_LIMIT, SERIES_SEARCH_LIMIT } from "../domain/bookValues";
 
 const BASE = "/api/books";
 
@@ -223,25 +219,9 @@ export function createBookSeries(name: string): Promise<BookSeriesResponse> {
   return apiFetch<BookSeriesResponse>("/api/book-series", { method: "POST", body: JSON.stringify(body) });
 }
 
-/**
- * Resolves a book form draft's series to links right before saving: pending names are created, each position
- * text is parsed (empty means no number), and a series selected twice (a pending name that resolved to an
- * existing one) keeps its first link that has a position, else its first.
- */
-export async function resolveSeries(drafts: SeriesDraft[]): Promise<BookSeriesLinkRequest[]> {
-  const entries = await resolveVocabularyEntries(
-    drafts.map((draft) => draft.entry),
-    createBookSeries,
-  );
-  const links = new Map<string, BookSeriesLinkRequest>();
-  entries.forEach((entry, index) => {
-    const position = parseSeriesPosition(drafts[index].position);
-    // The first link wins, unless it has no position and a later duplicate has one.
-    if (links.get(entry.id)?.position == null) {
-      links.set(entry.id, { seriesId: entry.id, position });
-    }
-  });
-  return [...links.values()];
+/** Resolves a book form draft's series to links right before saving (see `resolveSeriesLinks`). */
+export function resolveSeries(drafts: SeriesDraft[]): Promise<BookSeriesLinkRequest[]> {
+  return resolveSeriesLinks(drafts, createBookSeries);
 }
 
 /** Every series with its book count (including 0), alphabetical; unpaged. */

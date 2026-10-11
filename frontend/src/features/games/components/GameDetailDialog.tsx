@@ -13,7 +13,7 @@ import { DialogActionButton } from "../../../components/dialog/DialogActionButto
 import type { Ownership, Progress } from "../domain/gameStatus";
 import type { ExpansionResponse, GamePlatformResponse, GameResponse, UpdateGameRequest } from "../../../types/api";
 import { updateExpansion } from "../api/expansionsApi";
-import { deleteGame, resolveDeveloperIds, updateGame } from "../api/gamesApi";
+import { deleteGame, resolveDeveloperIds, resolveSeries, updateGame } from "../api/gamesApi";
 import { draftFromGame, isDraftDirty, isDraftValid, toUpdateRequest } from "../domain/gameDraft";
 import { validateRating } from "../domain/gameValues";
 import { useExpansions } from "../hooks/useExpansions";
@@ -58,9 +58,9 @@ function GameDetailDialogContent({
   onDeleted,
   platforms,
 }: Omit<GameDetailDialogProps, "game"> & { game: GameResponse }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [mode, setMode] = useState<"view" | "edit">("view");
-  const [draft, setDraft] = useState(() => draftFromGame(game));
+  const [draft, setDraft] = useState(() => draftFromGame(game, i18n.language));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Overlay on the displayed game while a quick progress/rating/ownership PATCH is in flight.
@@ -111,14 +111,14 @@ function GameDetailDialogContent({
   };
 
   const startEditing = () => {
-    setDraft(draftFromGame(game));
+    setDraft(draftFromGame(game, i18n.language));
     setError(null);
     setFormValid(true);
     setMode("edit");
   };
 
   const cancelEditing = () => {
-    setDraft(draftFromGame(game));
+    setDraft(draftFromGame(game, i18n.language));
     setError(null);
     setFormValid(true);
     setMode("view");
@@ -129,8 +129,9 @@ function GameDetailDialogContent({
     setError(null);
     try {
       const developerIds = await resolveDeveloperIds(draft.developers);
-      const updated = await updateGame(game.id, toUpdateRequest(game, draft, developerIds));
-      setDraft(draftFromGame(updated));
+      const series = await resolveSeries(draft.series);
+      const updated = await updateGame(game.id, toUpdateRequest(game, draft, { developerIds, series }));
+      setDraft(draftFromGame(updated, i18n.language));
       setMode("view");
       onSaved(updated);
     } catch (cause: unknown) {
@@ -148,7 +149,7 @@ function GameDetailDialogContent({
     setPending(patch);
     try {
       const updated = await updateGame(game.id, patch);
-      setDraft(draftFromGame(updated));
+      setDraft(draftFromGame(updated, i18n.language));
       onSaved(updated);
     } catch (cause: unknown) {
       setError(errorMessage(cause, t("errors.saveFailed")));

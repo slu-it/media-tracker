@@ -27,6 +27,8 @@ Connecting an agent as a client is described in the README section "MCP server".
   - `list_expansions`, `add_expansion` (MT-016, [expansions](game-expansions.md)).
   - `search_game_developers`, `create_game_developer` (MT-025, [release date and developers](game-release-date-and-developers.md));
     `add_game`/`update_game` take `releaseDate` and `developerIds`.
+  - `search_game_series`, `create_game_series` (ADR 0044, [game series](game-series.md)); `add_game`/`update_game`
+    take `series` (`[{seriesId, position?}]`).
   - `find_game_cover` (`title` required, `releaseYear` optional): the first static SteamGridDB cover of the
     best-ranked match plus that match, for `coverImageUrl` in `update_game`/`add_game`
     ([cover picker](cover-picker.md)). Registered only when `STEAMGRIDDB_API_KEY` is set.

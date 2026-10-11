@@ -92,3 +92,21 @@ value class GameDeveloperId(val value: Uuid) {
             GameDeveloperId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(field, "must be a UUID"))
     }
 }
+
+/** Id of a [GameSeries]; parsed the same way as [GameId] but named after the request field it comes from. */
+@JvmInline
+value class GameSeriesId(val value: Uuid) {
+    override fun toString(): String = value.toString()
+
+    companion object {
+        const val FIELD = "series"
+
+        fun new(): GameSeriesId = GameSeriesId(Uuid.random())
+
+        fun parse(raw: String): GameSeriesId = parse(raw, FIELD)
+
+        /** [parse] reporting a malformed [raw] as the request field [field] (e.g. a merge's `targetId`). */
+        fun parse(raw: String, field: String): GameSeriesId =
+            GameSeriesId(Uuid.parseHexDashOrNull(raw) ?: throw InvalidValueException(field, "must be a UUID"))
+    }
+}

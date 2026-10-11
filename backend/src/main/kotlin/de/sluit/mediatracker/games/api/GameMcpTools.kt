@@ -32,6 +32,7 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.PageSize
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.domain.VocabularySearchLimit
@@ -42,6 +43,8 @@ import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatformId
+import de.sluit.mediatracker.games.domain.GameSeriesId
+import de.sluit.mediatracker.games.domain.GameSeriesService
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
@@ -56,7 +59,9 @@ import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.descriptors.elementNames
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -65,6 +70,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import org.slf4j.LoggerFactory
+import java.math.BigDecimal
 
 // No enclosing class to hang a member logger off, unlike e.g. auth/domain/ApiKeyService.
 private val log = LoggerFactory.getLogger("de.sluit.mediatracker.games.api.GameMcpTools")
@@ -80,6 +86,7 @@ fun Server.addGameTools(
     expansionService: ExpansionService,
     coverOptionsService: CoverOptionsService,
     developerService: GameDeveloperService,
+    seriesService: GameSeriesService,
 ) {
     addListGamePlatformsTool(gameService)
     addAddGameTool(gameService)
@@ -89,6 +96,8 @@ fun Server.addGameTools(
     addAddExpansionTool(expansionService)
     addSearchGameDevelopersTool(developerService)
     addCreateGameDeveloperTool(developerService)
+    addSearchGameSeriesTool(seriesService)
+    addCreateGameSeriesTool(seriesService)
     if (coverOptionsService.isAvailable) {
         addFindGameCoverTool(coverOptionsService)
     }
@@ -104,7 +113,10 @@ private const val ADD_GAME_DESCRIPTION =
         "platformIds are game_platforms.id values; call list_game_platforms first to get them. " +
         "description, rating and coverImageUrl are optional. developerIds are optional game_developers.id " +
         "values; call search_game_developers first to look them up, and create_game_developer for any " +
-        "developer that search does not find. ownership, progress and hidden are also optional: " +
+        "developer that search does not find. series is an optional array of {seriesId, position}: seriesId " +
+        "is a game_series.id from search_game_series (create missing ones with create_game_series), position " +
+        "is the game's optional number in that series (0 to 9999.99, at most two decimals, e.g. 1 or 2.5), " +
+        "each series at most once. ownership, progress and hidden are also optional: " +
         "ownership defaults to watchlist, progress defaults to not_started (completed means fully finished, " +
         "100%), and hidden defaults to false."
 
@@ -156,7 +168,10 @@ private const val UPDATE_GAME_DESCRIPTION =
         "cleared. platformIds, when given, replaces the whole platform list (ids from list_game_platforms), it " +
         "does not add to it. developerIds, when given, replaces the whole developer list (ids from " +
         "search_game_developers; create missing ones with create_game_developer first) - an empty array clears " +
-        "it, it does not need null. progress's completed value means fully finished, 100%. Passing nothing but " +
+        "it, it does not need null. series, when given, replaces the whole series list: an array of " +
+        "{seriesId, position} (ids from search_game_series; create missing ones with create_game_series first; " +
+        "position is optional, 0 to 9999.99 with at most two decimals, each series at most once); an empty " +
+        "array clears it. progress's completed value means fully finished, 100%. Passing nothing but " +
         "id, or a field name that is not in the schema, is an error."
 
 /** What `search_games` returns when the caller names no `pageSize`; its ceiling is [SEARCH_GAMES_MAX_SIZE]. */
@@ -211,6 +226,10 @@ private val ADD_GAME_SCHEMA = ToolSchema(
             "developerIds",
             "Ids of the developers who made this game, from search_game_developers (create missing ones " +
                 "with create_game_developer). Optional.",
+        )
+        putSeriesLinksProperty(
+            "The series this game belongs to, each with the game's optional number in it. seriesId comes " +
+                "from search_game_series (create missing ones with create_game_series). Optional.",
         )
     },
     required = listOf("title", "platformIds"),
@@ -318,6 +337,11 @@ private val UPDATE_GAME_SCHEMA = ToolSchema(
             "Ids of the developers who made this game, from search_game_developers (create missing ones " +
                 "with create_game_developer). Replaces the full list; an empty array clears it.",
         )
+        putSeriesLinksProperty(
+            "The series this game belongs to, each with the game's optional number in it. seriesId comes " +
+                "from search_game_series (create missing ones with create_game_series). Replaces the full " +
+                "list; an empty array clears it.",
+        )
     },
     required = listOf("id"),
 )
@@ -375,11 +399,51 @@ private const val SEARCH_GAME_DEVELOPERS_DESCRIPTION =
         "the developer you need is not found, create it first with " +
         "create_game_developer."
 
+private const val SEARCH_GAME_SERIES_DESCRIPTION =
+    "Searches the series vocabulary (the series add_game and update_game's series refer to) by name prefix, " +
+        "best match first - at most pageSize matches, 10 by default. Leave query empty (or blank) to list every " +
+        "known series alphabetically instead of searching. Returns each match's name and the id seriesId " +
+        "expects; when the series you need is not found, create it first with create_game_series."
+
+private const val CREATE_GAME_SERIES_DESCRIPTION =
+    "Adds a series to the vocabulary and returns its id for use as seriesId. Idempotent: when a series with " +
+        "the same name already exists (case-insensitively), that existing series is returned instead of a " +
+        "duplicate - created is false then. Call search_game_series first to check whether the series is " +
+        "already tracked before creating a new one."
+
 private const val CREATE_GAME_DEVELOPER_DESCRIPTION =
     "Adds a developer to the vocabulary and returns its id for use in developerIds. Idempotent: when a " +
         "developer with the same name already exists (case-insensitively), that existing developer is " +
         "returned instead of a duplicate - created is false then. Call search_game_developers first to check " +
         "whether the developer is already tracked before creating a new one."
+
+// An array of {seriesId, position?}; mirrors GameSeriesLinkRequest and the rules of SeriesPosition.
+private fun JsonObjectBuilder.putSeriesLinksProperty(description: String) {
+    putJsonObject(GameSeriesId.FIELD) {
+        put("type", "array")
+        put("description", description)
+        putJsonObject("items") {
+            put("type", "object")
+            putJsonObject("properties") {
+                putJsonObject("seriesId") {
+                    put("type", "string")
+                    put("format", "uuid")
+                }
+                putJsonObject("position") {
+                    put("type", "number")
+                    put("minimum", 0)
+                    put("maximum", SeriesPosition.MAX_VALUE.toDouble())
+                    put(
+                        "description",
+                        "The game's number in the series, e.g. 1 or 2.5, with at most two decimal places. Optional.",
+                    )
+                }
+            }
+            putJsonArray("required") { add("seriesId") }
+            put("additionalProperties", false)
+        }
+    }
+}
 
 // Mirrors the constraint VocabularySearchLimit enforces; search_game_developers has no request DTO of its own.
 private val SEARCH_GAME_DEVELOPERS_SCHEMA = ToolSchema(
@@ -397,7 +461,34 @@ private val SEARCH_GAME_DEVELOPERS_SCHEMA = ToolSchema(
     required = emptyList(),
 )
 
-// Mirrors the constraints VocabularyName enforces in games/domain/GameValues.kt.
+// Mirrors the constraint VocabularySearchLimit enforces; search_game_series has no request DTO of its own.
+private val SEARCH_GAME_SERIES_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putQueryProperty(
+            "Name prefix to search for. Leave empty to list every series alphabetically.",
+        )
+        putPageSizeProperty(
+            "How many series to return at most. Defaults to 10, ${VocabularySearchLimit.MAX} at most.",
+            max = VocabularySearchLimit.MAX,
+            default = VocabularySearchLimit.DEFAULT.value,
+        )
+    },
+)
+
+// Mirrors the constraints VocabularyName enforces in common/domain/Vocabulary.kt.
+private val CREATE_GAME_SERIES_SCHEMA = ToolSchema(
+    properties = buildJsonObject {
+        putJsonObject("name") {
+            put("type", "string")
+            put("description", "The name of the series.")
+            put("minLength", 1)
+            put("maxLength", VocabularyName.MAX_LENGTH)
+        }
+    },
+    required = listOf("name"),
+)
+
+// Mirrors the constraints VocabularyName enforces in common/domain/Vocabulary.kt.
 private val CREATE_GAME_DEVELOPER_SCHEMA = ToolSchema(
     properties = buildJsonObject {
         putJsonObject("name") {
@@ -440,6 +531,13 @@ private val FIND_GAME_COVER_FIELDS: Set<String> = FIND_GAME_COVER_SCHEMA.propert
 private val CREATE_GAME_DEVELOPER_FIELDS: Set<String> =
     CreateGameDeveloperRequest.serializer().descriptor.elementNames.toSet()
 
+@OptIn(ExperimentalSerializationApi::class)
+private val CREATE_GAME_SERIES_FIELDS: Set<String> =
+    CreateGameSeriesRequest.serializer().descriptor.elementNames.toSet()
+
+@OptIn(ExperimentalSerializationApi::class)
+private val SERIES_LINK_FIELDS: Set<String> = GameSeriesLinkRequest.serializer().descriptor.elementNames.toSet()
+
 // The PatchField-backed fields are the only ones that accept null to clear themselves; every other field on
 // UpdateGameRequest is a plain nullable type where null would silently mean "unchanged" instead of "clear", so
 // it is derived as everything else rather than hand-listed - a new plain nullable field is unclearable by
@@ -453,7 +551,17 @@ private val UPDATE_GAME_UNCLEARABLE = UPDATE_GAME_FIELDS - UPDATE_GAME_CLEARABLE
 private fun GameResponse.yearAndDevelopers(): String {
     val date = releaseDate?.let { ", $it" } ?: ""
     val developerNames = if (developers.isEmpty()) "" else " by ${developers.joinToString(", ") { it.name }}"
-    return "$releaseYear$date$developerNames"
+    val seriesNames = if (series.isEmpty()) "" else "; series: ${series.joinToString(", ") { it.label() }}"
+    return "$releaseYear$date$developerNames$seriesNames"
+}
+
+// A series reads "Zelda #1", or just the name when the game has no number.
+private fun GameSeriesEntryResponse.label(): String =
+    position?.let { "$name #${BigDecimal(it.toString()).stripTrailingZeros().toPlainString()}" } ?: name
+
+/** The element objects of `series` are not covered by the top-level field check; McpJson would drop typos there. */
+private fun JsonObject.requireKnownSeriesLinkFields() {
+    (this[GameSeriesId.FIELD] as? JsonArray)?.forEach { (it as? JsonObject)?.requireKnownFields(SERIES_LINK_FIELDS) }
 }
 
 // Names the ordering search_games' text summary claims, matching what GameSort's own description says it does.
@@ -494,10 +602,9 @@ private fun Server.addAddGameTool(gameService: GameService) {
         inputSchema = ADD_GAME_SCHEMA,
     ) { request ->
         try {
-            val createRequest = McpJson.decodeFromJsonElement(
-                CreateGameRequest.serializer(),
-                request.arguments ?: JsonObject(emptyMap()),
-            )
+            val arguments = request.arguments ?: JsonObject(emptyMap())
+            arguments.requireKnownSeriesLinkFields()
+            val createRequest = McpJson.decodeFromJsonElement(CreateGameRequest.serializer(), arguments)
             val response = gameService.create(createRequest.toNewGame()).toResponse()
             CallToolResult(
                 content = listOf(
@@ -592,6 +699,7 @@ private fun Server.addUpdateGameTool(gameService: GameService) {
             val fields = JsonObject(arguments - "id")
             // McpJson ignores unknown keys, which would turn a typo into a silent no-op; reject it here instead.
             fields.requireKnownFields(UPDATE_GAME_FIELDS)
+            fields.requireKnownSeriesLinkFields()
             requireValid("arguments", fields.isNotEmpty()) { "must change at least one field" }
             fields.requireNotCleared(UPDATE_GAME_UNCLEARABLE)
             val patch = McpJson.decodeFromJsonElement(UpdateGameRequest.serializer(), fields).toPatch()
@@ -771,5 +879,30 @@ private fun Server.addFindGameCoverTool(coverOptionsService: CoverOptionsService
                 isError = true,
             )
         }
+    }
+}
+
+private fun Server.addSearchGameSeriesTool(seriesService: GameSeriesService) {
+    addSearchVocabularyTool(
+        name = "search_game_series",
+        description = SEARCH_GAME_SERIES_DESCRIPTION,
+        inputSchema = SEARCH_GAME_SERIES_SCHEMA,
+        entryNounPlural = "series",
+    ) { term, limit ->
+        seriesService.search(term, limit).map { it.toResponse().let { r -> VocabularyEntryView(r.id, r.name) } }
+    }
+}
+
+private fun Server.addCreateGameSeriesTool(seriesService: GameSeriesService) {
+    addCreateVocabularyTool(
+        name = "create_game_series",
+        description = CREATE_GAME_SERIES_DESCRIPTION,
+        inputSchema = CREATE_GAME_SERIES_SCHEMA,
+        knownFields = CREATE_GAME_SERIES_FIELDS,
+        entryNoun = "series",
+    ) { arguments ->
+        val createRequest = McpJson.decodeFromJsonElement(CreateGameSeriesRequest.serializer(), arguments)
+        val result = seriesService.create(VocabularyName.parse(createRequest.name))
+        VocabularyCreation(result.entry.toResponse().let { VocabularyEntryView(it.id, it.name) }, result.created)
     }
 }

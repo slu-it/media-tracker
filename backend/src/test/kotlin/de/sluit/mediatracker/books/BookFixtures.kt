@@ -11,7 +11,6 @@ import de.sluit.mediatracker.books.domain.BookProgress
 import de.sluit.mediatracker.books.domain.BookSeries
 import de.sluit.mediatracker.books.domain.BookSeriesEntry
 import de.sluit.mediatracker.books.domain.BookSeriesId
-import de.sluit.mediatracker.books.domain.BookSeriesPosition
 import de.sluit.mediatracker.books.domain.BookType
 import de.sluit.mediatracker.books.domain.BookTypeId
 import de.sluit.mediatracker.books.domain.BookTypeLabel
@@ -22,6 +21,7 @@ import de.sluit.mediatracker.common.domain.Description
 import de.sluit.mediatracker.common.domain.HexColor
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyName
 import kotlin.uuid.Uuid
@@ -60,9 +60,9 @@ fun narrator(name: String, id: BookNarratorId = BookNarratorId.new()): BookNarra
 /** Builds a valid [BookSeries] for tests, with a random id unless one is given. */
 fun series(name: String, id: BookSeriesId = BookSeriesId.new()): BookSeries = BookSeries(id, VocabularyName(name))
 
-/** Builds a [BookSeriesEntry]; [position] is parsed through [BookSeriesPosition.fromDouble]. */
+/** Builds a [BookSeriesEntry]; [position] is parsed through [SeriesPosition.fromDouble]. */
 fun seriesEntry(series: BookSeries, position: Double? = null): BookSeriesEntry =
-    BookSeriesEntry(series, position?.let(BookSeriesPosition::fromDouble))
+    BookSeriesEntry(series, position?.let(SeriesPosition::fromDouble))
 
 /**
  * Builds a valid [Book] for tests, defaulting to no types, authors, narrators or series. When [releaseDate] is given, it

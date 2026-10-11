@@ -12,7 +12,7 @@ import {
 } from "./api/gamesApi";
 import { GameCard } from "./components/GameCard";
 import { GameDialogsHost } from "./components/GameDialogsHost";
-import { useDeveloperGroupLabels } from "./hooks/useDeveloperGroupLabels";
+import { useGameGroupLabels } from "./hooks/useGameGroupLabels";
 import { useGamesMeta } from "./hooks/useGamesMeta";
 
 const renderCard: RenderGroupCard<GameResponse> = (game, onClick) => <GameCard game={game} onOpen={onClick} />;
@@ -24,7 +24,7 @@ const loadSummaries = (): Promise<MediaGroup[]> =>
 /** Every developer as an accordion; a section loads the developer's games when expanded. */
 export function GamesDevelopersView() {
   const { t } = useTranslation();
-  const labels = useDeveloperGroupLabels();
+  const labels = useGameGroupLabels("games.developersView");
   const { meta, reload: reloadMeta } = useGamesMeta(t("errors.loadFailed"));
   return (
     <MediaGroupsView

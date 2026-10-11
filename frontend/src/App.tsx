@@ -27,6 +27,7 @@ import { BookSeriesView } from "./features/books/BookSeriesView";
 import { BooksView } from "./features/books/BooksView";
 import { BooksWatchlistView } from "./features/books/BooksWatchlistView";
 import { GamesDevelopersView } from "./features/games/GamesDevelopersView";
+import { GamesSeriesView } from "./features/games/GamesSeriesView";
 import { GamesView } from "./features/games/GamesView";
 import { GamesRankingView } from "./features/games/GamesRankingView";
 import { GamesWatchlistView } from "./features/games/GamesWatchlistView";
@@ -67,6 +68,7 @@ const GAME_SUB_VIEWS: Record<GameSubPage, ReactElement> = {
   watchlist: <GamesWatchlistView />,
   ranking: <GamesRankingView />,
   developers: <GamesDevelopersView />,
+  series: <GamesSeriesView />,
 };
 
 function viewFor({ kind, subPage }: ActiveRoute): ReactElement {
@@ -80,6 +82,14 @@ function viewFor({ kind, subPage }: ActiveRoute): ReactElement {
     case "series":
       return <SeriesView />;
   }
+}
+
+/** The `subPages.pages.*` key of the `series` tab, which each kind words for itself ("Book series", "Game series"). */
+const SERIES_LABEL_KEYS = { books: "bookSeries", games: "gameSeries" } as const;
+
+/** The `subPages.pages.*` key of a tab: the page name, except `series`, which is per kind. */
+function subPageLabelKey(kind: keyof typeof SERIES_LABEL_KEYS, page: SubPage) {
+  return page === "series" ? SERIES_LABEL_KEYS[kind] : page;
 }
 
 /** Kinds that have sub-pages, whose bare `/{kind}` path redirects to the last-used sub-page. */
@@ -108,7 +118,7 @@ export function App() {
           value={subPage as SubPage}
           options={subPages}
           onChange={(next) => void navigate(pathFor(kind, next))}
-          getLabel={(page) => t(`subPages.pages.${page}`)}
+          getLabel={(page) => t(`subPages.pages.${subPageLabelKey(kind as keyof typeof SERIES_LABEL_KEYS, page)}`)}
           ariaLabel={t(`subPages.label.${kind as keyof typeof MEDIA_SUB_PAGES}`)}
           getIcon={(page) => SUB_PAGE_ICONS[page]}
         />

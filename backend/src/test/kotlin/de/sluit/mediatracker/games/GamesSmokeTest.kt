@@ -11,7 +11,10 @@ import de.sluit.mediatracker.games.api.GameMetaResponse
 import de.sluit.mediatracker.games.api.GamePlatformResponse
 import de.sluit.mediatracker.games.api.GamePlatformSummaryResponse
 import de.sluit.mediatracker.games.api.GameResponse
+import de.sluit.mediatracker.games.api.GameSeriesResponse
+import de.sluit.mediatracker.games.api.GameSeriesSummaryResponse
 import de.sluit.mediatracker.games.persistence.GameDevelopersTable
+import de.sluit.mediatracker.games.persistence.GameSeriesTable
 import de.sluit.mediatracker.games.persistence.GameToPlatformTable
 import de.sluit.mediatracker.games.persistence.GamesTable
 import de.sluit.mediatracker.jsonBody
@@ -47,6 +50,7 @@ class GamesSmokeTest {
             GamesTable.deleteAll()
             // After the games: developers are RESTRICTed while a junction row exists, which cascades with the games.
             GameDevelopersTable.deleteAll()
+            GameSeriesTable.deleteAll()
             seed()
         }
         client.loginAs("alice", "wonderland-1")
@@ -278,6 +282,119 @@ class GamesSmokeTest {
         val summaries = client.get("/api/game-developers.summaries").decodeBody<List<GameDeveloperSummaryResponse>>()
         assertEquals(listOf("Nintendo EPD" to 1), summaries.map { it.name to it.gameCount })
     }
+
+    private suspend fun HttpClient.createdSeries(name: String): GameSeriesResponse =
+        post("/api/game-series") { jsonBody("""{"name":"$name"}""") }.decodeBody()
+
+    private suspend fun HttpClient.createGameInSeries(title: String, links: String): GameResponse = createGame(
+        """{"title":"$title","releaseYear":2000,"platformIds":["${SeededPlatforms.PC}"],"series":$links}""",
+    ).decodeBody()
+
+    @Test
+    fun `create with series stores them and a patch replaces and clears the series`() = testApplication {
+        val client = loggedInClient()
+        val zelda = client.createdSeries("Zelda")
+        val mario = client.createdSeries("Mario")
+
+        val created = client.createGameInSeries(
+            "Crossover",
+            """[{"seriesId":"${zelda.id}","position":2.5},{"seriesId":"${mario.id}"}]""",
+        )
+        assertEquals(listOf("Mario" to null, "Zelda" to 2.5), created.series.map { it.name to it.position })
+        val listed = client.get("/api/games").decodeBody<PageResponse<GameResponse>>()
+        assertEquals(created, listed.items.single())
+
+        val replaced = client.patch("/api/games/${created.id}") {
+            jsonBody("""{"series":[{"seriesId":"${mario.id}","position":1}]}""")
+        }.decodeBody<GameResponse>()
+        assertEquals(listOf("Mario" to 1.0), replaced.series.map { it.name to it.position })
+
+        val unchanged = client.patch("/api/games/${created.id}") { jsonBody("""{"hidden":true}""") }
+            .decodeBody<GameResponse>()
+        assertEquals(replaced.series, unchanged.series)
+
+        val cleared = client.patch("/api/games/${created.id}") { jsonBody("""{"series":[]}""") }
+            .decodeBody<GameResponse>()
+        assertEquals(emptyList(), cleared.series)
+    }
+
+    @Test
+    fun `series summaries and series games list counts and games in series order`() = testApplication {
+        val client = loggedInClient()
+        val zelda = client.createdSeries("Zelda")
+        val empty = client.createdSeries("Another Series")
+        client.createGameInSeries("Unnumbered", """[{"seriesId":"${zelda.id}"}]""")
+        client.createGameInSeries("Second", """[{"seriesId":"${zelda.id}","position":2}]""")
+        client.createGameInSeries("First", """[{"seriesId":"${zelda.id}","position":1}]""")
+
+        val summaries = client.get("/api/game-series.summaries").decodeBody<List<GameSeriesSummaryResponse>>()
+        val games = client.get("/api/game-series/${zelda.id}/games").decodeBody<List<GameResponse>>()
+        val noGames = client.get("/api/game-series/${empty.id}/games").decodeBody<List<GameResponse>>()
+
+        assertEquals(listOf("Another Series" to 0, "Zelda" to 3), summaries.map { it.name to it.gameCount })
+        assertEquals(listOf("First", "Second", "Unnumbered"), games.map { it.title })
+        assertEquals(emptyList(), noGames)
+    }
+
+    @Test
+    fun `game-series search finds a series by prefix and create is idempotent`() = testApplication {
+        val client = loggedInClient()
+        val created = client.post("/api/game-series") { jsonBody("""{"name":"Mario Kart"}""") }
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val kart = created.decodeBody<GameSeriesResponse>()
+
+        val again = client.post("/api/game-series") { jsonBody("""{"name":"mario kart"}""") }
+        assertEquals(HttpStatusCode.OK, again.status, again.bodyAsText())
+        assertEquals(kart.id, again.decodeBody<GameSeriesResponse>().id)
+
+        val found = client.get("/api/game-series?search=mar").decodeBody<List<GameSeriesResponse>>()
+        assertEquals(listOf(kart), found)
+    }
+
+    @Test
+    fun `delete removes an unused series from the summaries`() = testApplication {
+        val client = loggedInClient()
+        val unused = client.createdSeries("Unused")
+
+        assertEquals(HttpStatusCode.NoContent, client.delete("/api/game-series/${unused.id}").status)
+
+        val names = client.get("/api/game-series.summaries").decodeBody<List<GameSeriesSummaryResponse>>()
+        assertEquals(emptyList(), names.map { it.name })
+    }
+
+    @Test
+    fun `rename changes a series' name in the summaries`() = testApplication {
+        val client = loggedInClient()
+        val series = client.createdSeries("Zelad")
+
+        val response = client.patch("/api/game-series/${series.id}") { jsonBody("""{"name":"Zelda"}""") }
+
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        assertEquals(GameSeriesResponse(series.id, "Zelda"), response.decodeBody<GameSeriesResponse>())
+        val names = client.get("/api/game-series.summaries").decodeBody<List<GameSeriesSummaryResponse>>()
+        assertEquals(listOf("Zelda"), names.map { it.name })
+    }
+
+    @Test
+    fun `merge moves the games of a series into the target keeping positions and removes the source`() =
+        testApplication {
+            val client = loggedInClient()
+            val source = client.createdSeries("Zelda Old")
+            val target = client.createdSeries("Zelda")
+            val game = client.createGameInSeries("Ocarina", """[{"seriesId":"${source.id}","position":3}]""")
+
+            val response = client.post("/api/game-series/${source.id}/merge") {
+                jsonBody("""{"targetId":"${target.id}"}""")
+            }
+
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            assertEquals(target, response.decodeBody<GameSeriesResponse>())
+            val summaries = client.get("/api/game-series.summaries").decodeBody<List<GameSeriesSummaryResponse>>()
+            assertEquals(listOf("Zelda" to 1), summaries.map { it.name to it.gameCount })
+            val moved = client.get("/api/game-series/${target.id}/games").decodeBody<List<GameResponse>>().single()
+            assertEquals(game.id, moved.id)
+            assertEquals(listOf(3.0), moved.series.map { it.position })
+        }
 
     @Test
     fun `list with a search term returns the matches best first`() = testApplication {

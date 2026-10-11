@@ -17,6 +17,8 @@ import de.sluit.mediatracker.games.domain.GameDeveloperService
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GamePlatformService
+import de.sluit.mediatracker.games.domain.GameSeriesId
+import de.sluit.mediatracker.games.domain.GameSeriesService
 import de.sluit.mediatracker.games.domain.GameService
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -35,7 +37,7 @@ import io.ktor.server.routing.route
  * /api/games. Mounted inside the authenticated `/api` route by [de.sluit.mediatracker.apiRoutes].
  * Handlers only translate HTTP <-> domain and delegate to [GameService]; they never touch persistence.
  * A game's expansions ([expansionRoutes]) are mounted inside its `/{id}` block; cover image search
- * ([coverOptionRoutes]) and the developer vocabulary (`/game-developers`) are game-independent and mounted
+ * ([coverOptionRoutes]) and the developer and series vocabularies (`/game-developers`, `/game-series`) are game-independent and mounted
  * directly under `/games`/at the top level.
  */
 fun Route.gameRoutes(
@@ -44,6 +46,7 @@ fun Route.gameRoutes(
     coverOptionsService: CoverOptionsService,
     developerService: GameDeveloperService,
     platformService: GamePlatformService,
+    seriesService: GameSeriesService,
 ) {
     route("/games") {
         post {
@@ -151,6 +154,48 @@ fun Route.gameRoutes(
             call.respond(developerService.summaries().map { it.toResponse() })
         }
     }
+    route("/game-series") {
+        get {
+            val term = call.searchTerm()
+            val limit = call.intQueryParameter(VocabularySearchLimit.FIELD)?.let(::VocabularySearchLimit)
+                ?: VocabularySearchLimit.DEFAULT
+            call.respond(seriesService.search(term, limit).map { it.toResponse() })
+        }
+        post {
+            val request = call.receive<CreateGameSeriesRequest>()
+            val result = seriesService.create(VocabularyName.parse(request.name))
+            val status = if (result.created) HttpStatusCode.Created else HttpStatusCode.OK
+            call.respond(status, result.entry.toResponse())
+        }
+        route("/{id}") {
+            // Unpaged; ordered by position (unnumbered last), title, id. Unknown series is a 404.
+            get("/games") {
+                call.respond(gameService.listBySeries(call.gameSeriesId()).map { it.toResponse() })
+            }
+            // Rename. 404 for an unknown series, 409 `name_taken` (with the holder) when another series has the name.
+            patch {
+                val id = call.gameSeriesId()
+                val name = VocabularyName.parse(call.receive<RenameVocabularyRequest>().name)
+                call.respond(seriesService.rename(id, name).toResponse())
+            }
+            // Folds this series into `targetId` and answers the target. 404 when either is unknown, 400 for itself.
+            post("/merge") {
+                val id = call.gameSeriesId()
+                val targetId = GameSeriesId.parse(call.receive<MergeVocabularyRequest>().targetId, "targetId")
+                call.respond(seriesService.merge(id, targetId).toResponse())
+            }
+            // 404 for an unknown series, 409 while a game still references it.
+            delete {
+                seriesService.delete(call.gameSeriesId())
+                call.respond(HttpStatusCode.NoContent)
+            }
+        }
+    }
+    route("/game-series.summaries") {
+        get {
+            call.respond(seriesService.summaries().map { it.toResponse() })
+        }
+    }
 }
 
 internal fun ApplicationCall.gameId(): GameId =
@@ -161,3 +206,6 @@ private fun ApplicationCall.gamePlatformId(): GamePlatformId =
 
 private fun ApplicationCall.gameDeveloperId(): GameDeveloperId =
     GameDeveloperId.parse(parameters["id"] ?: throw InvalidValueException(GameDeveloperId.FIELD, "is missing"))
+
+private fun ApplicationCall.gameSeriesId(): GameSeriesId =
+    GameSeriesId.parse(parameters["id"] ?: throw InvalidValueException(GameSeriesId.FIELD, "is missing"))

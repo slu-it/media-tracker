@@ -62,6 +62,12 @@ interface GameRepository {
      * release date (games without a date last within a year), then title, then id.
      */
     suspend fun findByDeveloper(developerId: GameDeveloperId): List<Game>
+
+    /**
+     * All games linked to [seriesId], unpaged: ordered by the game's position in that series ascending, games
+     * without a position last, then title, then id.
+     */
+    suspend fun findBySeries(seriesId: GameSeriesId): List<Game>
 }
 
 /**
@@ -125,4 +131,41 @@ interface GameDeveloperRepository {
      * entry does not exist.
      */
     suspend fun merge(sourceId: GameDeveloperId, targetId: GameDeveloperId): MergeOutcome<GameDeveloper>
+}
+
+/**
+ * Persistence port of the user-grown series vocabulary. Implemented in `games.persistence`; the domain never
+ * imports that package, so dependencies point inward only.
+ */
+interface GameSeriesRepository {
+    /**
+     * Fulltext prefix search on the name, ordered by score, then name, then id; a blank/`null` [term] lists
+     * series alphabetically instead. Capped at [limit].
+     */
+    suspend fun search(term: SearchTerm?, limit: VocabularySearchLimit): List<GameSeries>
+
+    suspend fun findByIds(ids: Set<GameSeriesId>): List<GameSeries>
+
+    /** Every series including those without games, with its game count; ordered by name, then id. Unpaged. */
+    suspend fun findSummaries(): List<GameSeriesSummary>
+
+    /** Idempotent: a case-insensitive existing match is returned instead of inserting a duplicate. */
+    suspend fun create(name: VocabularyName): VocabularyCreation<GameSeries>
+
+    /** Deletes the series unless a game still references it ([DeleteOutcome.IN_USE]). */
+    suspend fun delete(id: GameSeriesId): DeleteOutcome
+
+    /**
+     * Renames the series. [RenameOutcome.Taken] when another series carries the name (case/accent-insensitively);
+     * a spelling that only differs from the series' own name that way is a plain rename.
+     */
+    suspend fun rename(id: GameSeriesId, name: VocabularyName): RenameOutcome<GameSeries>
+
+    /**
+     * Folds [sourceId] into [targetId] in one transaction: every game of the source becomes a game of the target
+     * (once, keeping its position; a game in both keeps the target's position, or the source's when the target's
+     * is null), then the source is deleted. [MergeOutcome.SourceNotFound] / [MergeOutcome.TargetNotFound] when
+     * that entry does not exist.
+     */
+    suspend fun merge(sourceId: GameSeriesId, targetId: GameSeriesId): MergeOutcome<GameSeries>
 }

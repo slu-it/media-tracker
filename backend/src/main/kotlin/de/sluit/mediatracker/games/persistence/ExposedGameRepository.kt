@@ -8,6 +8,7 @@ import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyName
 import de.sluit.mediatracker.common.persistence.TitleSearch
@@ -21,6 +22,9 @@ import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePlatform
 import de.sluit.mediatracker.games.domain.GamePlatformId
 import de.sluit.mediatracker.games.domain.GameRepository
+import de.sluit.mediatracker.games.domain.GameSeries
+import de.sluit.mediatracker.games.domain.GameSeriesEntry
+import de.sluit.mediatracker.games.domain.GameSeriesId
 import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
 import de.sluit.mediatracker.games.domain.Ownership
@@ -59,6 +63,7 @@ class ExposedGameRepository : GameRepository {
             GamesTable.insert { it.writeGame(game) }
             insertPlatformLinks(game)
             insertDeveloperLinks(game)
+            insertSeriesLinks(game)
         }
     }
 
@@ -67,6 +72,7 @@ class ExposedGameRepository : GameRepository {
             row.toGame(
                 platformsFor(setOf(id.toString()))[id.toString()].orEmpty().sortedForGame(),
                 developersFor(setOf(id.toString()))[id.toString()].orEmpty().sortedByNameForGame(),
+                seriesFor(setOf(id.toString()))[id.toString()].orEmpty().sortedByNameForGame(),
             )
         }
     }
@@ -82,6 +88,8 @@ class ExposedGameRepository : GameRepository {
             insertPlatformLinks(game)
             GameToDeveloperTable.deleteWhere { GameToDeveloperTable.gameId eq game.id.toString() }
             insertDeveloperLinks(game)
+            GameToSeriesTable.deleteWhere { GameToSeriesTable.gameId eq game.id.toString() }
+            insertSeriesLinks(game)
         }
         updated
     }
@@ -255,6 +263,25 @@ class ExposedGameRepository : GameRepository {
     }
 
     /**
+     * One SELECT of the series' games (inner join on the link table), ordered by `position IS NULL` first
+     * (MariaDB has no `NULLS LAST`; a plain ASC sort puts NULLs first), then position, title and id; then the
+     * shared batch loaders, so the query count is constant.
+     */
+    override suspend fun findBySeries(seriesId: GameSeriesId): List<Game> = dbQuery {
+        val rows = (GamesTable innerJoin GameToSeriesTable)
+            .select(GamesTable.columns)
+            .where { GameToSeriesTable.seriesId eq seriesId.toString() }
+            .orderBy(
+                GameToSeriesTable.position.isNull() to SortOrder.ASC,
+                GameToSeriesTable.position to SortOrder.ASC,
+                GamesTable.title to SortOrder.ASC,
+                GamesTable.id to SortOrder.ASC,
+            )
+            .toList()
+        hydrate(rows)
+    }
+
+    /**
      * Maps a page of rows (with or without the extra `score` column) to a [Page] of [Game], loading platforms
      * and developers with one join query each, regardless of page size.
      */
@@ -265,10 +292,12 @@ class ExposedGameRepository : GameRepository {
         val gameIds = rows.map { it[GamesTable.id] }.toSet()
         val platformsByGame = platformsFor(gameIds)
         val developersByGame = developersFor(gameIds)
+        val seriesByGame = seriesFor(gameIds)
         return rows.map { row ->
             row.toGame(
                 platformsByGame[row[GamesTable.id]].orEmpty().sortedForGame(),
                 developersByGame[row[GamesTable.id]].orEmpty().sortedByNameForGame(),
+                seriesByGame[row[GamesTable.id]].orEmpty().sortedByNameForGame(),
             )
         }
     }
@@ -296,6 +325,20 @@ class ExposedGameRepository : GameRepository {
             .groupBy({ it[GameToDeveloperTable.gameId] }, { it.toGameDeveloper() })
     }
 
+    /** One query for all requested game ids: no N+1 when loading a page of games. */
+    private fun seriesFor(gameIds: Set<String>): Map<String, List<GameSeriesEntry>> {
+        if (gameIds.isEmpty()) return emptyMap()
+        return (GameToSeriesTable innerJoin GameSeriesTable)
+            .select(
+                GameToSeriesTable.gameId,
+                GameSeriesTable.id,
+                GameSeriesTable.name,
+                GameToSeriesTable.position,
+            )
+            .where { GameToSeriesTable.gameId inList gameIds }
+            .groupBy({ it[GameToSeriesTable.gameId] }, { it.toGameSeriesEntry() })
+    }
+
     private fun insertPlatformLinks(game: Game) {
         GameToPlatformTable.batchInsert(game.platforms) { platform ->
             this[GameToPlatformTable.gameId] = game.id.toString()
@@ -307,6 +350,14 @@ class ExposedGameRepository : GameRepository {
         GameToDeveloperTable.batchInsert(game.developers) { developer ->
             this[GameToDeveloperTable.gameId] = game.id.toString()
             this[GameToDeveloperTable.developerId] = developer.id.toString()
+        }
+    }
+
+    private fun insertSeriesLinks(game: Game) {
+        GameToSeriesTable.batchInsert(game.series) { entry ->
+            this[GameToSeriesTable.gameId] = game.id.toString()
+            this[GameToSeriesTable.seriesId] = entry.series.id.toString()
+            this[GameToSeriesTable.position] = entry.position?.value?.setScale(SeriesPosition.MAX_SCALE)
         }
     }
 
@@ -334,10 +385,22 @@ class ExposedGameRepository : GameRepository {
         name = VocabularyName(this[GameDevelopersTable.name]),
     )
 
+    private fun ResultRow.toGameSeriesEntry() = GameSeriesEntry(
+        series = GameSeries(
+            id = GameSeriesId(Uuid.parseHexDash(this[GameSeriesTable.id])),
+            name = VocabularyName(this[GameSeriesTable.name]),
+        ),
+        position = this[GameToSeriesTable.position]?.let(SeriesPosition::of),
+    )
+
     // Re-running the value-object validation on read is intentional: a corrupt row (e.g. one with no
     // junction rows, which fails Game's "at least one platform" check) surfaces as a 400 validation_error
     // instead of leaking invalid data into the domain.
-    private fun ResultRow.toGame(platforms: List<GamePlatform>, developers: List<GameDeveloper>) = Game(
+    private fun ResultRow.toGame(
+        platforms: List<GamePlatform>,
+        developers: List<GameDeveloper>,
+        series: List<GameSeriesEntry>,
+    ) = Game(
         id = GameId(Uuid.parseHexDash(this[GamesTable.id])),
         title = Title(this[GamesTable.title]),
         releaseYear = ReleaseYear(this[GamesTable.releaseYear]),
@@ -349,6 +412,7 @@ class ExposedGameRepository : GameRepository {
         progress = Progress.from(this[GamesTable.progress]),
         releaseDate = this[GamesTable.releaseDate]?.let(::ReleaseDate),
         developers = developers,
+        series = series,
         hidden = this[GamesTable.hidden],
     )
 }

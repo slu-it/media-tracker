@@ -1,5 +1,3 @@
-import { formatSeriesPosition } from "./seriesLabel";
-
 /*
  * Frontend mirror of the books-specific constants; the kind-neutral validators live in
  * `domain/media/values.ts`.
@@ -25,30 +23,3 @@ export const SERIES_SEARCH_LIMIT = 10;
 
 /** Oldest year offered by the book year selector (classics predate games by centuries). */
 export const BOOK_RELEASE_YEAR_SELECT_MIN = 1450;
-
-export type SeriesPositionCode = "invalidPosition";
-
-/**
- * Up to four integer digits and at most two decimals after "." or ","; with a non-negative sign this is 0 to 9999.99.
- * Deliberately stricter than the backend, which normalises e.g. "2.500" or "00001"; the form rejects them.
- */
-const SERIES_POSITION_PATTERN = /^\d{1,4}(?:[.,]\d{1,2})?$/;
-
-/** The position of a book within a series is optional: empty is valid; see backend `BookSeriesPosition`. */
-export function validateSeriesPosition(raw: string): SeriesPositionCode | null {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0) return null;
-  return SERIES_POSITION_PATTERN.test(trimmed) ? null : "invalidPosition";
-}
-
-/** The number for a valid position input, `null` for an empty or invalid one. */
-export function parseSeriesPosition(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0 || validateSeriesPosition(trimmed) !== null) return null;
-  return Number(trimmed.replace(",", "."));
-}
-
-/** The input text for a stored position, with the active language's decimal separator (2.5 is "2,5" in German). */
-export function formatSeriesPositionInput(position: number | null, language: string): string {
-  return position === null ? "" : formatSeriesPosition(position, language);
-}

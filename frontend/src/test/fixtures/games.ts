@@ -6,6 +6,8 @@ import type {
   GameMetaResponse,
   GamePlatformResponse,
   GameResponse,
+  GameSeriesResponse,
+  GameSeriesSummaryResponse,
 } from "../../types/api";
 
 export const pc: GamePlatformResponse = {
@@ -34,6 +36,10 @@ export const teamCherry: GameDeveloperResponse = { id: "developer-1", name: "Tea
 export const supergiantGames: GameDeveloperResponse = { id: "developer-2", name: "Supergiant Games" };
 export const developers: GameDeveloperResponse[] = [teamCherry, supergiantGames];
 
+export const hadesSeries: GameSeriesResponse = { id: "series-1", name: "Hades Saga" };
+export const celesteSeries: GameSeriesResponse = { id: "series-2", name: "Celeste Chronicles" };
+export const seriesList: GameSeriesResponse[] = [hadesSeries, celesteSeries];
+
 export const celeste: GameResponse = {
   id: "id-1",
   title: "Celeste",
@@ -47,6 +53,7 @@ export const celeste: GameResponse = {
   hidden: false,
   releaseDate: null,
   developers: [],
+  series: [],
 };
 
 export const hades: GameResponse = {
@@ -62,6 +69,7 @@ export const hades: GameResponse = {
   hidden: true,
   releaseDate: null,
   developers: [],
+  series: [],
 };
 
 export const hollowKnight: GameResponse = {
@@ -102,6 +110,28 @@ export const developerSummaries: GameDeveloperSummaryResponse[] = [
   supergiantSummary,
   teamCherrySummary,
 ];
+
+/** Games of one series in the order the backend returns them: numbered by position, then unnumbered. */
+const seriesGame = (id: string, title: string, position: number | null): GameResponse => ({
+  ...hades,
+  id,
+  title,
+  hidden: false,
+  series: [{ id: hadesSeries.id, name: hadesSeries.name, position }],
+});
+export const hadesSeriesGames: GameResponse[] = [
+  seriesGame("id-s1", "Hades", 1),
+  seriesGame("id-s2", "Hades II", 2.5),
+  seriesGame("id-s3", "Hades Spin-off", null),
+];
+
+export const hadesSeriesSummary: GameSeriesSummaryResponse = {
+  ...hadesSeries,
+  gameCount: hadesSeriesGames.length,
+};
+export const emptySeriesSummary: GameSeriesSummaryResponse = { id: "series-3", name: "Émile Chronicles", gameCount: 0 };
+/** By name, as the backend returns them. */
+export const seriesSummaries: GameSeriesSummaryResponse[] = [emptySeriesSummary, hadesSeriesSummary];
 
 export const hadesExpansion1: ExpansionResponse = {
   id: "expansion-1",

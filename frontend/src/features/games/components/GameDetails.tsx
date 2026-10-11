@@ -2,6 +2,7 @@ import { Box, Stack, Typography } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import type { Ownership, Progress } from "../domain/gameStatus";
 import type { ExpansionResponse, GameResponse } from "../../../types/api";
+import { formatSeriesEntry } from "../../../domain/media/seriesLabel";
 import { CoverImage } from "../../../components/CoverImage";
 import { COVER_UNDER_GAP, CoverAndInfoLayout } from "../../../components/media/CoverAndInfoLayout";
 import { ExpansionList } from "./ExpansionList";
@@ -50,7 +51,7 @@ export function GameDetails({
   onRatingChange,
   quickSaveBusy,
 }: GameDetailsProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <CoverAndInfoLayout
       scrollInfo
@@ -93,6 +94,16 @@ export function GameDetails({
       }
     >
       <Stack spacing={2}>
+        {game.series.length > 0 && (
+          <Box role="group" aria-label={t("media.series.label")}>
+            <NameChips
+              items={game.series.map((entry) => ({
+                id: entry.id,
+                name: formatSeriesEntry(entry, t, i18n.language),
+              }))}
+            />
+          </Box>
+        )}
         {game.description && (
           <Typography variant="body1" color="text.primary" sx={{ whiteSpace: "pre-wrap" }}>
             {game.description}

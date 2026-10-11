@@ -37,8 +37,11 @@ import de.sluit.mediatracker.games.persistence.ExposedExpansionRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameDeveloperRepository
 import de.sluit.mediatracker.games.persistence.ExposedGamePlatformRepository
 import de.sluit.mediatracker.games.persistence.ExposedGameRepository
+import de.sluit.mediatracker.games.persistence.ExposedGameSeriesRepository
+import de.sluit.mediatracker.games.persistence.GameSeriesTable
 import de.sluit.mediatracker.games.persistence.GamesBackupSource
 import de.sluit.mediatracker.games.persistence.GamesTable
+import de.sluit.mediatracker.games.seriesEntry
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteAll
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -398,6 +401,48 @@ class ExposedBackupSourceTest {
         }
         BooksBackupSource.validate(mapOf("book_to_series" to listOf(row + ("position" to 9999.99))))
         BooksBackupSource.validate(mapOf("book_to_series" to listOf(row)))
+    }
+
+    @Test
+    fun `export then import reproduces game series with and without a decimal position`() = withFreshDatabase {
+        val games = ExposedGameRepository()
+        val seriesRepo = ExposedGameSeriesRepository()
+        val zelda = seriesRepo.create(VocabularyName("The Legend of Zelda")).entry
+        val mario = seriesRepo.create(VocabularyName("Mario")).entry
+        games.insert(game("Crossover", series = listOf(seriesEntry(zelda, 2.5), seriesEntry(mario))))
+
+        val exported = GamesBackupSource.export()
+
+        // the DECIMAL position is dumped as a JSON number, null stays null
+        val positions = exported.getValue("game_to_series").associate { it["series_id"] to it["position"] }
+        assertEquals(2.5, positions[zelda.id.toString()])
+        assertNull(positions[mario.id.toString()])
+        dbQuery {
+            GamesTable.deleteAll()
+            GameSeriesTable.deleteAll()
+        }
+
+        val result = GamesBackupSource.import(exported)
+
+        assertEquals(2, result.getValue("game_series").inserted)
+        assertEquals(2, result.getValue("game_to_series").inserted)
+        assertEquals(exported, GamesBackupSource.export())
+    }
+
+    @Test
+    fun `import rejects a game series position that does not fit the column`() {
+        val row = mapOf<String, Any?>(
+            "game_id" to Uuid.random().toString(),
+            "series_id" to Uuid.random().toString(),
+        )
+
+        listOf(10000.0, 1.234, "x").forEach { position ->
+            assertFailsWith<InvalidValueException> {
+                GamesBackupSource.validate(mapOf("game_to_series" to listOf(row + ("position" to position))))
+            }
+        }
+        GamesBackupSource.validate(mapOf("game_to_series" to listOf(row + ("position" to 9999.99))))
+        GamesBackupSource.validate(mapOf("game_to_series" to listOf(row)))
     }
 
     // editable vocabularies: an existing row is overwritten, `updated` reports it

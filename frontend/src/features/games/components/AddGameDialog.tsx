@@ -6,7 +6,7 @@ import { errorMessage } from "../../../api/client";
 import { BaseDialog } from "../../../components/dialog/BaseDialog";
 import { DialogActionButton } from "../../../components/dialog/DialogActionButton";
 import type { GamePlatformResponse, GameResponse } from "../../../types/api";
-import { createGame, resolveDeveloperIds } from "../api/gamesApi";
+import { createGame, resolveDeveloperIds, resolveSeries } from "../api/gamesApi";
 import { emptyGameDraft, isDraftValid, toCreateRequest } from "../domain/gameDraft";
 import { MEDIA_DIALOG_HEIGHT } from "../../../components/media/dialogLayout";
 import { GameForm } from "./GameForm";
@@ -47,7 +47,8 @@ function AddGameDialogContent({ onClose, onCreated, platforms, initialPlatformId
     setError(null);
     try {
       const developerIds = await resolveDeveloperIds(draft.developers);
-      onCreated(await createGame(toCreateRequest(draft, developerIds)));
+      const series = await resolveSeries(draft.series);
+      onCreated(await createGame(toCreateRequest(draft, { developerIds, series })));
     } catch (cause: unknown) {
       setError(errorMessage(cause, t("errors.saveFailed")));
       setBusy(false);

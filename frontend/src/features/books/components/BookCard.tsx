@@ -1,6 +1,6 @@
 import { Box, Chip, Stack } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { formatSeriesEntry, formatSeriesPosition, primarySeries } from "../domain/seriesLabel";
+import { formatSeriesEntry, formatSeriesPosition, primarySeries } from "../../../domain/media/seriesLabel";
 import type { BookResponse } from "../../../types/api";
 import { CARD_CONTENT_GAP, MediaCardShell } from "../../../components/media/MediaCardShell";
 import { ColorChips } from "../../../components/media/ColorChips";
@@ -60,7 +60,7 @@ export function BookCard({
           <Chip
             size="small"
             color="primary"
-            label={t("books.seriesView.positionBadge", {
+            label={t("media.series.positionBadge", {
               position: formatSeriesPosition(seriesPosition, i18n.language),
             })}
           />

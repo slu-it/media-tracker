@@ -21,6 +21,7 @@ import de.sluit.mediatracker.common.domain.Patch
 import de.sluit.mediatracker.common.domain.ReleaseDate
 import de.sluit.mediatracker.common.domain.ReleaseYear
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 import de.sluit.mediatracker.common.domain.Title
 import de.sluit.mediatracker.common.domain.VocabularyCreation
 import de.sluit.mediatracker.common.domain.VocabularyName
@@ -43,6 +44,8 @@ import de.sluit.mediatracker.games.domain.GameFilters
 import de.sluit.mediatracker.games.domain.GameId
 import de.sluit.mediatracker.games.domain.GamePatch
 import de.sluit.mediatracker.games.domain.GamePlatformId
+import de.sluit.mediatracker.games.domain.GameSeriesId
+import de.sluit.mediatracker.games.domain.GameSeriesService
 import de.sluit.mediatracker.games.domain.GameService
 import de.sluit.mediatracker.games.domain.GameSort
 import de.sluit.mediatracker.games.domain.MissingField
@@ -53,9 +56,12 @@ import de.sluit.mediatracker.games.domain.Progress
 import de.sluit.mediatracker.games.domain.Rating
 import de.sluit.mediatracker.games.domain.SequenceNumber
 import de.sluit.mediatracker.games.game
+import de.sluit.mediatracker.games.series
+import de.sluit.mediatracker.games.seriesEntry
 import de.sluit.mediatracker.handlerApp
 import de.sluit.mediatracker.jsonBody
 import de.sluit.mediatracker.loginAsMocked
+import io.ktor.client.HttpClient
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -66,6 +72,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -79,8 +86,10 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -514,6 +523,8 @@ class McpRoutesTest {
                     "add_expansion",
                     "search_game_developers",
                     "create_game_developer",
+                    "search_game_series",
+                    "create_game_series",
                     "list_book_types",
                     "add_book",
                     "search_books",
@@ -2040,6 +2051,9 @@ class McpRoutesTest {
             "hidden" to JsonPrimitive(true),
             "releaseDate" to JsonPrimitive("2021-05-04"),
             "developerIds" to buildJsonArray { add(GameDeveloperId.new().toString()) },
+            "series" to buildJsonArray {
+                add(buildJsonObject { put("seriesId", GameSeriesId.new().toString()) })
+            },
         )
         assertEquals(validValues.keys, fields)
 
@@ -2076,6 +2090,7 @@ class McpRoutesTest {
                 "hidden" -> assertEquals(true, capturedPatch.captured.hidden)
                 "releaseDate" -> assertTrue(capturedPatch.captured.releaseDate is Patch.Change)
                 "developerIds" -> assertTrue(!capturedPatch.captured.developerIds.isNullOrEmpty())
+                "series" -> assertTrue(!capturedPatch.captured.series.isNullOrEmpty())
                 else -> error("no expected value wired up for schema field \"$field\"")
             }
         }
@@ -3131,4 +3146,191 @@ class McpRoutesTest {
         assertTrue(result["isError"]!!.jsonPrimitive.content.toBoolean(), body)
         assertFalse(body.contains("secret detail"), body)
     }
+
+    // ---- series on games / search_game_series / create_game_series ----
+
+    private val seriesKey = "0f1d3b52-6c1e-4a7a-9a0e-2f7e5c1d1234"
+
+    private fun ApplicationTestBuilder.seriesClient(
+        games: GameService = mockk(),
+        series: GameSeriesService = mockk(),
+    ): HttpClient {
+        val apiKeys = mockk<ApiKeyService>()
+        coEvery { apiKeys.authenticate(seriesKey) } returns User(1, "alice", "hash")
+        return handlerApp(games = games, apiKeys = apiKeys, gameSeries = series)
+    }
+
+    /** Calls [tool] with the raw JSON [arguments] and returns the JSON-RPC `result` object. */
+    private suspend fun HttpClient.callSeriesTool(tool: String, arguments: String): JsonObject {
+        val response = postJsonRpc(
+            seriesKey,
+            """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"$tool","arguments":$arguments}}""",
+        )
+        val body = response.bodyAsText()
+        assertEquals(HttpStatusCode.OK, response.status, body)
+        return Json.parseToJsonElement(body).jsonObject["result"]!!.jsonObject
+    }
+
+    private fun JsonObject.assertSuccess() = assertNull(this["isError"], toString())
+
+    private fun JsonObject.assertToolError() =
+        assertTrue(this["isError"]?.jsonPrimitive?.content.toBoolean(), toString())
+
+    @Test
+    fun `tools call add_game maps series with positions`() = testApplication {
+        val games = mockk<GameService>()
+        val client = seriesClient(games)
+        val zelda = GameSeriesId.new()
+        val mario = GameSeriesId.new()
+        val captured = slot<NewGame>()
+        coEvery { games.create(capture(captured)) } returns game("Ocarina of Time")
+
+        val result = client.callSeriesTool(
+            "add_game",
+            """{"title":"Ocarina of Time","releaseYear":1998,"platformIds":["${SeededPlatforms.PC}"],
+                |"series":[{"seriesId":"$zelda","position":1},{"seriesId":"$mario"}]}
+            """.trimMargin(),
+        )
+
+        result.assertSuccess()
+        assertEquals(mapOf(zelda to SeriesPosition.fromDouble(1.0), mario to null), captured.captured.series)
+    }
+
+    @Test
+    fun `tools call add_game text and structured output carry the series`() = testApplication {
+        val games = mockk<GameService>()
+        val client = seriesClient(games)
+        coEvery { games.create(any()) } returns game(
+            "Ocarina of Time",
+            releaseYear = 1998,
+            series = listOf(seriesEntry(series("Zelda"), 1.0), seriesEntry(series("The Cosmere"))),
+        )
+
+        val result = client.callSeriesTool(
+            "add_game",
+            """{"title":"Ocarina of Time","releaseYear":1998,"platformIds":["${SeededPlatforms.PC}"]}""",
+        )
+
+        result.assertSuccess()
+        val text = result["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("series: The Cosmere, Zelda #1"), text)
+        assertEquals(
+            listOf("The Cosmere", "Zelda"),
+            result["structuredContent"]!!.jsonObject["series"]!!.jsonArray
+                .map { it.jsonObject["name"]!!.jsonPrimitive.content },
+        )
+    }
+
+    @Test
+    fun `tools call add_game rejects a duplicate series id an invalid position and an unknown key in an entry`() =
+        testApplication {
+            val games = mockk<GameService>()
+            val client = seriesClient(games)
+            val id = GameSeriesId.new()
+            val platformIds = """["${SeededPlatforms.PC}"]"""
+
+            listOf(
+                """[{"seriesId":"$id"},{"seriesId":"$id","position":2}]""",
+                """[{"seriesId":"$id","position":1.234}]""",
+                """[{"seriesId":"$id","number":1}]""",
+            ).forEach { series ->
+                client.callSeriesTool(
+                    "add_game",
+                    """{"title":"x","releaseYear":1998,"platformIds":$platformIds,"series":$series}""",
+                ).assertToolError()
+            }
+            coVerify(exactly = 0) { games.create(any()) }
+        }
+
+    @Test
+    fun `tools call update_game maps series positions and an empty array clears them`() = testApplication {
+        val games = mockk<GameService>()
+        val client = seriesClient(games)
+        val id = GameId.new()
+        val seriesId = GameSeriesId.new()
+        val captured = mutableListOf<GamePatch>()
+        coEvery { games.update(id, capture(captured)) } returns game("Hades", id = id)
+
+        client.callSeriesTool("update_game", """{"id":"$id","series":[{"seriesId":"$seriesId","position":2.5}]}""")
+            .assertSuccess()
+        client.callSeriesTool("update_game", """{"id":"$id","series":[]}""").assertSuccess()
+        client.callSeriesTool("update_game", """{"id":"$id","hidden":true}""").assertSuccess()
+
+        assertEquals(mapOf(seriesId to SeriesPosition.fromDouble(2.5)), captured[0].series)
+        assertEquals(emptyMap(), captured[1].series)
+        assertNull(captured[2].series)
+    }
+
+    @Test
+    fun `tools call update_game rejects null for series and an unknown key in an entry`() = testApplication {
+        val games = mockk<GameService>()
+        val client = seriesClient(games)
+        val id = GameId.new()
+
+        client.callSeriesTool("update_game", """{"id":"$id","series":null}""").assertToolError()
+        client.callSeriesTool("update_game", """{"id":"$id","series":[{"seriesId":"${GameSeriesId.new()}","x":1}]}""")
+            .assertToolError()
+        coVerify(exactly = 0) { games.update(any(), any()) }
+    }
+
+    @Test
+    fun `tools call search_game_series returns the series as text and structured content`() = testApplication {
+        val seriesService = mockk<GameSeriesService>()
+        val client = seriesClient(series = seriesService)
+        val zelda = series("The Legend of Zelda")
+        coEvery { seriesService.search(SearchTerm("zel"), VocabularySearchLimit(10)) } returns listOf(zelda)
+
+        val result = client.callSeriesTool("search_game_series", """{"query":"zel"}""")
+
+        result.assertSuccess()
+        assertEquals(
+            "The Legend of Zelda: ${zelda.id}",
+            result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content,
+        )
+        val entries = result["structuredContent"]!!.jsonObject["series"]!!.jsonArray
+        assertEquals(zelda.id.toString(), entries.single().jsonObject["id"]!!.jsonPrimitive.content)
+        assertEquals("The Legend of Zelda", entries.single().jsonObject["name"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `tools call search_game_series without arguments lists with the default limit and rejects unknown fields`() =
+        testApplication {
+            val seriesService = mockk<GameSeriesService>()
+            val client = seriesClient(series = seriesService)
+            coEvery { seriesService.search(null, VocabularySearchLimit.DEFAULT) } returns emptyList()
+
+            client.callSeriesTool("search_game_series", "{}").assertSuccess()
+            client.callSeriesTool("search_game_series", """{"nope":1}""").assertToolError()
+
+            coVerify(exactly = 1) { seriesService.search(null, VocabularySearchLimit.DEFAULT) }
+        }
+
+    @Test
+    fun `tools call create_game_series reports created true for a new series and false for an existing one`() =
+        testApplication {
+            val seriesService = mockk<GameSeriesService>()
+            val client = seriesClient(series = seriesService)
+            val zelda = series("Zelda")
+            coEvery { seriesService.create(VocabularyName("Zelda")) } returns VocabularyCreation(zelda, true)
+            coEvery { seriesService.create(VocabularyName("zelda")) } returns VocabularyCreation(zelda, false)
+
+            val created = client.callSeriesTool("create_game_series", """{"name":"Zelda"}""")
+            val existing = client.callSeriesTool("create_game_series", """{"name":"zelda"}""")
+
+            created.assertSuccess()
+            assertEquals(zelda.id.toString(), created["structuredContent"]!!.jsonObject["id"]!!.jsonPrimitive.content)
+            assertEquals(true, created["structuredContent"]!!.jsonObject["created"]!!.jsonPrimitive.boolean)
+            assertEquals(false, existing["structuredContent"]!!.jsonObject["created"]!!.jsonPrimitive.boolean)
+        }
+
+    @Test
+    fun `tools call create_game_series with a blank name is a tool error without calling the service`() =
+        testApplication {
+            val seriesService = mockk<GameSeriesService>()
+            val client = seriesClient(series = seriesService)
+
+            client.callSeriesTool("create_game_series", """{"name":"  "}""").assertToolError()
+
+            coVerify(exactly = 0) { seriesService.create(any()) }
+        }
 }

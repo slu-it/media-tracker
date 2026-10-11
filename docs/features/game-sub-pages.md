@@ -1,27 +1,29 @@
-# Game sub-pages: overview, watchlist, yearly ranking, developers (MT-026)
+# Game sub-pages: overview, watchlist, yearly ranking, developers, series (MT-026)
 
 ADRs: [0030](../decisions/0030-game-sub-pages-sort-and-rated-filter.md), developers view
-[0042](../decisions/0042-narrators-and-developers-views-and-shared-group-view.md).
+[0042](../decisions/0042-narrators-and-developers-views-and-shared-group-view.md), series view
+[0044](../decisions/0044-game-series-and-shared-series-building-blocks.md).
 
 Code:
 - Backend: `games/domain/GameSort.kt`, `GameFilters.ratedOnly`, `ExposedGameRepository.orderingFor`,
   `games/api/GameFilterParams.kt`.
 - Frontend: `components/layout/SubPageTabs.tsx`, `MEDIA_SUB_PAGES` in `components/layout/mediaKinds.ts`,
   `src/routes.ts`, `features/games/GamesWatchlistView.tsx`,
-  `features/games/GamesRankingView.tsx`, `features/games/GamesDevelopersView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
+  `features/games/GamesRankingView.tsx`, `features/games/GamesDevelopersView.tsx`, `features/games/GamesSeriesView.tsx`, and the shared `features/games/components/GameDialogsHost.tsx`,
   `components/media/MediaCardShell.tsx`, `components/media/ReleaseSortToggle.tsx` (shared with the books
   watchlist since MT-055, ADR 0038) and `hooks/usePagedActions.tsx`.
 
 ## Navigation
 
 - A second, smaller tab row sits under the media tabs. It is shown only for kinds listed in `MEDIA_SUB_PAGES`,
-  which today are games (`overview`, `watchlist`, `ranking`, `developers`) and books (`overview`, `watchlist`,
+  which today are games (`overview`, `watchlist`, `ranking`, `developers`, `series`) and books (`overview`, `watchlist`,
   `authors`, `narrators`, `series`). Tab labels are
-  kind-neutral (`subPages.pages.*`), the tablist label is per kind (`subPages.label.<kind>`). Each tab has a decorative start icon
+  kind-neutral (`subPages.pages.*`; only the `series` tab is worded per kind: `subPageLabelKey` in `App.tsx`
+  maps it to `subPages.pages.bookSeries` or `subPages.pages.gameSeries`), the tablist label is per kind (`subPages.label.<kind>`). Each tab has a decorative start icon
   (`GridViewOutlined`, `LibraryAddOutlined` like the watchlist status icon, `LeaderboardOutlined`,
-  `EngineeringOutlined`), mapped in
+  `EngineeringOutlined`, `CollectionsBookmarkOutlined`), mapped in
   `App.tsx` and passed to `SubPageTabs` as `getIcon`.
-- Each sub-page is a route, `/games/{overview|watchlist|ranking|developers}`, with its search, filters, sort, page or
+- Each sub-page is a route, `/games/{overview|watchlist|ranking|developers|series}`, with its search, filters, sort, page or
   year in the query ([url-routes.md](url-routes.md), ADR 0031). The last-used sub-page is still stored under
   `mt.gamesPage`, and `/games` redirects there. An unknown stored value falls back to `overview`.
 - Every sub-page renders `GameDialogsHost`: the add speed dial, the add dialog and the detail dialog, including editing,
@@ -103,4 +105,10 @@ Code:
   existing developer via `POST /api/game-developers/{id}/merge {targetId}`, or "Choose another name") and, only for
   a developer without games, deletes (`DELETE /api/game-developers/{id}`, 409 `conflict` while a game links it).
   Status codes and locking as for book authors (ADR 0041). Texts under `games.developersView`, turned into the
-  shared view's `labels` by `useDeveloperGroupLabels`.
+  shared view's `labels` by `useGameGroupLabels`. Cards show the game's primary series chip above the platforms.
+
+## Series
+
+- `GamesSeriesView.tsx`, tab "Game series" / "Spielreihen" at `/games/series` (ADR 0044): the developers view over
+  `/api/game-series.summaries` and `/api/game-series/{id}/games` (series order), with a "#n" badge above each cover
+  and texts under `games.seriesView`. Details on [game-series.md](game-series.md).

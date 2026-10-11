@@ -14,17 +14,11 @@ import de.sluit.mediatracker.common.domain.VocabularySearchLimit
 import de.sluit.mediatracker.common.persistence.ExposedNameVocabulary
 import de.sluit.mediatracker.common.persistence.dbQuery
 import de.sluit.mediatracker.common.persistence.deleteUnusedVocabularyEntry
+import de.sluit.mediatracker.common.persistence.mergeSeriesEntries
 import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.count
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.leftJoin
-import org.jetbrains.exposed.v1.jdbc.batchInsert
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.select
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 /**
@@ -82,46 +76,22 @@ class ExposedBookSeriesRepository : BookSeriesRepository {
         vocabulary.rename(id.toString(), name)
 
     /**
-     * One transaction, both series rows locked `FOR UPDATE` in id order (so two opposite merges cannot deadlock).
-     * Links of the source whose book is not yet linked to the target are re-pointed by insert, keeping their
-     * position; a book in both keeps the target's position, or the source's when the target's is null. Then every
-     * source link and the source row are deleted.
+     * One transaction, see [mergeSeriesEntries]: a book in both series keeps the target's position, or the
+     * source's when the target's is null.
      */
     override suspend fun merge(sourceId: BookSeriesId, targetId: BookSeriesId): MergeOutcome<BookSeries> = dbQuery {
-        val source = sourceId.toString()
-        val target = targetId.toString()
-        val rows = BookSeriesTable.selectAll()
-            .where { BookSeriesTable.id inList listOf(source, target) }
-            .orderBy(BookSeriesTable.id to SortOrder.ASC)
-            .forUpdate()
-            .associateBy { it[BookSeriesTable.id] }
-        val targetRow = rows[target]
-        if (rows[source] == null) return@dbQuery MergeOutcome.SourceNotFound
-        if (targetRow == null) return@dbQuery MergeOutcome.TargetNotFound
-
-        val targetPositions = BookToSeriesTable.selectAll()
-            .where { BookToSeriesTable.seriesId eq target }
-            .associate { it[BookToSeriesTable.bookId] to it[BookToSeriesTable.position] }
-        val sourceLinks = BookToSeriesTable.selectAll()
-            .where { BookToSeriesTable.seriesId eq source }
-            .map { it[BookToSeriesTable.bookId] to it[BookToSeriesTable.position] }
-        val (shared, moved) = sourceLinks.partition { (bookId, _) -> bookId in targetPositions }
-
-        BookToSeriesTable.batchInsert(moved) { (bookId, position) ->
-            this[BookToSeriesTable.bookId] = bookId
-            this[BookToSeriesTable.seriesId] = target
-            this[BookToSeriesTable.position] = position
-        }
-        shared.forEach { (bookId, position) ->
-            if (position != null && targetPositions.getValue(bookId) == null) {
-                BookToSeriesTable.update({
-                    (BookToSeriesTable.bookId eq bookId) and (BookToSeriesTable.seriesId eq target)
-                }) { it[BookToSeriesTable.position] = position }
-            }
-        }
-        BookToSeriesTable.deleteWhere { BookToSeriesTable.seriesId eq source }
-        BookSeriesTable.deleteWhere { BookSeriesTable.id eq source }
-        MergeOutcome.Merged(BookSeries(targetId, VocabularyName(targetRow[BookSeriesTable.name])))
+        mergeSeriesEntries(
+            vocabTable = BookSeriesTable,
+            vocabId = BookSeriesTable.id,
+            vocabName = BookSeriesTable.name,
+            junction = BookToSeriesTable,
+            itemColumn = BookToSeriesTable.bookId,
+            seriesColumn = BookToSeriesTable.seriesId,
+            positionColumn = BookToSeriesTable.position,
+            sourceId = sourceId.toString(),
+            targetId = targetId.toString(),
+            toEntity = { BookSeries(targetId, it) },
+        )
     }
 
     /** Test seam, see [ExposedNameVocabulary.create]. */

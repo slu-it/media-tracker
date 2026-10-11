@@ -15,7 +15,7 @@ describe("seriesLabel", () => {
 
   it("labels an entry with its position, or just the name without one", () => {
     expect(formatSeriesEntry({ id: "s", name: "Mistborn", position: 1000 }, t, "de")).toBe(
-      "books.fields.seriesEntry:Mistborn:1000",
+      "media.series.entry:Mistborn:1000",
     );
     expect(formatSeriesEntry({ id: "s", name: "Mistborn", position: null }, t, "de")).toBe("Mistborn");
   });

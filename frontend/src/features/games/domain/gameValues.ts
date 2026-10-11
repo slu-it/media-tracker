@@ -19,6 +19,9 @@ export const RATING_STEP = 0.25;
 /** Mirrors `VocabularySearchLimit.DEFAULT` (backend); the developer chip input asks for at most this many matches. */
 export const DEVELOPER_SEARCH_LIMIT = 10;
 
+/** Mirrors the backend's series search limit; the series chip input asks for at most this many matches. */
+export const SERIES_SEARCH_LIMIT = 10;
+
 export function validatePlatformIds(ids: string[]): ValidationCode | null {
   return ids.length === 0 ? "required" : null;
 }

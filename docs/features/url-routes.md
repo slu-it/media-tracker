@@ -15,8 +15,8 @@ Code:
   - `src/hooks/useViewParams.ts`: the URL writer. React Router hands a functional
     `setSearchParams` the render-time params, so two writes in one commit would overwrite each other. The hook
     merges each update onto the latest written params.
-  - The three games views, `BooksView`, the shared `MediaGroupsView` (behind `BookAuthorsView`, `BookNarratorsView`, `BookSeriesView` and
-    `GamesDevelopersView`), and
+  - The three games views, `BooksView`, the shared `MediaGroupsView` (behind `BookAuthorsView`, `BookNarratorsView`, `BookSeriesView`,
+    `GamesDevelopersView` and `GamesSeriesView`), and
     `api/client.ts` (401 → `returnTo`).
 - Backend: `auth/api/ReturnPath.kt` (`safeReturnPath`, `loginUrl`), `auth/api/Security.kt` (the challenge),
   `auth/api/LoginRoutes.kt`, and `login/login.html` (a form without `action`).
@@ -37,6 +37,7 @@ Code:
 | `/games/watchlist` | `search`, `platform`*, `sort=release_desc` (`release_asc` is the default), `page` |
 | `/games/ranking` | `year` (the ranked year; absent = the default year of record 0030) |
 | `/games/developers` | `search` (filters the loaded developer list in the browser, ADR 0042), `sort=volume` |
+| `/games/series` | `search` (filters the loaded series list in the browser, ADR 0044), `sort=volume` |
 | `/` | redirects to the last-used kind (`mt.mediaTab`, default `books`), including its last sub-page |
 | `/books`, `/games` | redirect to the kind's last-used sub-page (`mt.booksPage`, `mt.gamesPage`, default `overview`) |
 | anything else | redirects to `/` |

@@ -5,6 +5,7 @@ import de.sluit.mediatracker.common.domain.NotFoundException
 import de.sluit.mediatracker.common.domain.Page
 import de.sluit.mediatracker.common.domain.PageRequest
 import de.sluit.mediatracker.common.domain.SearchTerm
+import de.sluit.mediatracker.common.domain.SeriesPosition
 
 /**
  * Business use cases for games. Deliberately thin while the feature is plain CRUD; decisions that do not
@@ -15,6 +16,7 @@ class GameService(
     private val games: GameRepository,
     private val platforms: GamePlatformRepository,
     private val developers: GameDeveloperRepository,
+    private val series: GameSeriesRepository,
 ) {
     suspend fun create(newGame: NewGame): Game {
         val game = Game(
@@ -30,6 +32,7 @@ class GameService(
             hidden = newGame.hidden,
             releaseDate = newGame.releaseDate,
             developers = resolveDevelopers(newGame.developerIds),
+            series = resolveSeries(newGame.series),
         )
         games.insert(game)
         return game
@@ -40,7 +43,8 @@ class GameService(
         val current = games.findById(id) ?: throw NotFoundException(RESOURCE, id.toString())
         val resolvedPlatforms = patch.platformIds?.let { resolvePlatforms(it) } ?: current.platforms
         val resolvedDevelopers = patch.developerIds?.let { resolveDevelopers(it) } ?: current.developers
-        val updated = patch.applyTo(current, resolvedPlatforms, resolvedDevelopers)
+        val resolvedSeries = patch.series?.let { resolveSeries(it) } ?: current.series
+        val updated = patch.applyTo(current, resolvedPlatforms, resolvedDevelopers, resolvedSeries)
         if (!games.update(updated)) throw NotFoundException(RESOURCE, id.toString())
         return updated
     }
@@ -71,6 +75,12 @@ class GameService(
             throw NotFoundException(DEVELOPER_RESOURCE, developerId.toString())
         }
         return games.findByDeveloper(developerId)
+    }
+
+    /** The games of one series in series order; an unknown [seriesId] is not found, an empty series is an empty list. */
+    suspend fun listBySeries(seriesId: GameSeriesId): List<Game> {
+        if (series.findByIds(setOf(seriesId)).isEmpty()) throw NotFoundException(SERIES_RESOURCE, seriesId.toString())
+        return games.findBySeries(seriesId)
     }
 
     suspend fun listPlatforms(): List<GamePlatform> = platforms.findAll()
@@ -108,8 +118,19 @@ class GameService(
         return found.sortedByNameForGame()
     }
 
+    private suspend fun resolveSeries(positions: Map<GameSeriesId, SeriesPosition?>): List<GameSeriesEntry> {
+        if (positions.isEmpty()) return emptyList()
+        val found = series.findByIds(positions.keys)
+        val missing = positions.keys - found.map { it.id }.toSet()
+        if (missing.isNotEmpty()) {
+            throw InvalidValueException(GameSeriesId.FIELD, "unknown series id ${missing.first()}")
+        }
+        return found.map { GameSeriesEntry(it, positions[it.id]) }.sortedByNameForGame()
+    }
+
     companion object {
         const val RESOURCE = "game"
         const val DEVELOPER_RESOURCE = "game developer"
+        const val SERIES_RESOURCE = "game series"
     }
 }
