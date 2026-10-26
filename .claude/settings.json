@@ -1,5 +1,14 @@
 {
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
   "env": {
     "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash .claude/scripts/statusline.sh"
   }
 }
