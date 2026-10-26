@@ -2,7 +2,7 @@
 # frontend/build.gradle.kts (Node, pnpm) and frontend/package.json (npm packages).
 [versions]
 kotlin = "2.4.20"
-ktor = "3.5.2"
+ktor = "3.6.0"
 exposed = "1.5.0"
 hikari = "7.1.0"
 mariadb = "3.5.10"
