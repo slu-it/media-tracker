@@ -13,6 +13,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.encodeURLParameter
+import io.ktor.http.encodedPath
 import io.ktor.http.parameters
 import io.ktor.server.testing.testApplication
 import io.mockk.coEvery
@@ -295,7 +296,7 @@ class AuthRoutesTest {
     fun `anonymous request with a raw non-ascii path is redirected to plain login`() = testApplication {
         val client = handlerApp()
 
-        val response = client.get("/games/\u00fc")
+        val response = client.get { url { encodedPath = "/games/\u00fc" } }
 
         assertEquals(HttpStatusCode.Found, response.status)
         assertEquals("/login", response.headers["Location"])
