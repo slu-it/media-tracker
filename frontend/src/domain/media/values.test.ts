@@ -73,18 +73,18 @@ describe("values", () => {
     expect(validateReleaseDate("not a date")).toBe("invalidDate");
   });
 
-  it("generates the year options from the given year down to 1980", () => {
+  it("generates the year options from two years after the given year down to 1980", () => {
     const years = releaseYearOptions(undefined, 2026);
-    expect(years[0]).toBe(2026);
+    expect(years[0]).toBe(2028);
     expect(years.at(-1)).toBe(1980);
-    expect(years).toHaveLength(47);
+    expect(years).toHaveLength(49);
   });
 
   it("honours a custom floor", () => {
     const years = releaseYearOptions(1450, 2026);
-    expect(years[0]).toBe(2026);
+    expect(years[0]).toBe(2028);
     expect(years.at(-1)).toBe(1450);
-    expect(years).toHaveLength(577);
+    expect(years).toHaveLength(579);
   });
 
   it("normalises a hex color: trims, strips one leading # and uppercases", () => {

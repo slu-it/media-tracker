@@ -12,7 +12,7 @@ interface ReleaseYearFieldProps {
   minYear?: number;
 }
 
-/** Year dropdown from the current year back to `minYear` (generated, not listed). */
+/** Year dropdown from two years ahead back to `minYear` (generated, not listed). */
 export function ReleaseYearField({
   value,
   onChange,
@@ -26,7 +26,11 @@ export function ReleaseYearField({
   const showError = code !== null && (touched || showErrors);
   const options = releaseYearOptions(minYear);
   // A stored year outside the selectable range (created through the API) must still be displayable.
-  if (value !== null && !options.includes(value)) options.push(value);
+  if (value !== null && !options.includes(value)) {
+    // Options are newest first: insert before the first year older than the stored one.
+    const at = options.findIndex((year) => year < value);
+    options.splice(at === -1 ? options.length : at, 0, value);
+  }
 
   return (
     <TextField

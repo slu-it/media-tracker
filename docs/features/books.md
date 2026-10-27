@@ -106,7 +106,8 @@ the book with `authorIds`, `narratorIds` and `series` (`[{seriesId, position?}]`
 - Type chips that wrap onto a second row stay centered on the card (`ColorChips centered`); the detail dialog keeps
   them left-aligned.
 - The release-year select reaches back to 1450 (`BOOK_RELEASE_YEAR_SELECT_MIN`, passed as `minYear` to the shared
-  `ReleaseYearField`; games keep 1980).
+  `ReleaseYearField`; games keep 1980). Like games, it reaches two years past the current
+  year (`RELEASE_YEAR_SELECT_YEARS_AHEAD`).
 - Book covers use a 2:3 frame (`BOOK_COVER_ASPECT_RATIO` in `domain/bookValues.ts`), passed to the shared
   `CoverImage`, `MediaCardShell` and `MediaGrid`.
 - `BookDetailDialog` mirrors the game dialog: view mode with quick ownership and progress PATCHes, edit with

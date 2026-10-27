@@ -12,6 +12,8 @@ export const RELEASE_YEAR_MIN_DIGITS = 1000;
 export const RELEASE_YEAR_MAX_DIGITS = 9999;
 /** First year offered by the year selector; the backend only insists on four digits. */
 export const RELEASE_YEAR_SELECT_MIN = 1980;
+/** Future years offered by the year selector, so watchlists can hold upcoming releases. */
+export const RELEASE_YEAR_SELECT_YEARS_AHEAD = 2;
 /** Mirrors `SearchTerm.MAX_LENGTH` (backend). */
 export const SEARCH_MAX_LENGTH = 200;
 
@@ -32,10 +34,10 @@ export function currentYear(): number {
   return new Date().getFullYear();
 }
 
-/** Years from `now` down to `min` (default 1980), newest first. */
+/** Years from `now` + `RELEASE_YEAR_SELECT_YEARS_AHEAD` down to `min` (default 1980), newest first. */
 export function releaseYearOptions(min: number = RELEASE_YEAR_SELECT_MIN, now: number = currentYear()): number[] {
   const years: number[] = [];
-  for (let year = now; year >= min; year--) years.push(year);
+  for (let year = now + RELEASE_YEAR_SELECT_YEARS_AHEAD; year >= min; year--) years.push(year);
   return years;
 }
 
